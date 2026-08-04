@@ -15,6 +15,7 @@ const iaRoutes = require('./api/routes/ia.routes');
 const redesRoutes = require('./api/routes/redes.routes');
 const mencionRoutes = require('./api/routes/mencion.routes');
 const comentarioRoutes = require('./api/routes/comentario.routes');
+const publicoRoutes = require('./api/routes/publico.routes');
 
 const { iniciarMonitoreo, iniciarReportesMensuales, iniciarResumenesAlertas, iniciarRenovacionesCulqi, iniciarEscalacionUrgencias } = require('./workers/monitoreo.worker');
 const { iniciarResumenSemanal } = require('./workers/resumenSemanal.worker');
@@ -110,6 +111,7 @@ app.use('/api/ia',          iaRoutes);
 app.use('/api/redes',       redesRoutes);
 app.use('/api/menciones',   mencionRoutes);
 app.use('/api/comentarios', comentarioRoutes);
+app.use('/api/publico',     publicoRoutes);
 app.use('/api/auth/google-business', gbpRoutes);
 app.use('/api/negocios-gbp', gbpRoutes);
 

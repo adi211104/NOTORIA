@@ -10,6 +10,7 @@ const PixelBlast = dynamic(() => import('../components/PixelBlast'), { ssr: fals
 
 import LogoNotoria from '../components/LogoNotoria';
 import BotonWhatsApp from '../components/BotonWhatsApp';
+import AnalisisGratis from '../components/AnalisisGratis';
 
 // Símbolo de la moneda de cobro. Los precios se cobran en soles; ver MONEDA en
 // brand-shield/src/lib/precios.js, que es lo que manda en el cargo real.
@@ -753,6 +754,7 @@ export default function LandingPage() {
                 {t.hero.micro}
               </p>
             )}
+            {!loggedIn && <div className="a4"><AnalisisGratis idioma={idioma} /></div>}
           </div>
         </section>
 
