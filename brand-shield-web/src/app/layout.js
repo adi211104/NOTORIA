@@ -21,13 +21,13 @@ export const metadata = {
     siteName: 'Notoria',
     title: 'Notoria — Tu reputación puede hundirse en una sola noche.',
     description: 'Detecta reseñas falsas, ataques de bots y caídas de rating en tiempo real. Para restaurantes y hoteles del Perú.',
-    images: [{ url: '/og-image.svg', width: 1200, height: 630, alt: 'Notoria' }],
+    images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'Notoria' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Notoria — Monitor de reputación online',
     description: 'Detecta reseñas falsas y ataques de bots antes de que destruyan tu negocio.',
-    images: ['/og-image.svg'],
+    images: ['/og-image.png'],
   },
   icons: {
     icon: [
@@ -38,6 +38,51 @@ export const metadata = {
     shortcut: '/favicon.ico',
     apple: '/apple-touch-icon.png',
   },
+};
+
+// Datos estructurados para Google (rich results). Las preguntas duplican el FAQ
+// de app/page.js a propósito: TEXTOS vive en un client component y no se puede
+// importar desde este layout de servidor sin arrastrar todo el landing.
+// ⚠️ Si editas una FAQ en page.js, actualízala también acá — Google penaliza
+// que el JSON-LD no coincida con el contenido visible.
+const JSON_LD = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'SoftwareApplication',
+      name: 'Notoria',
+      url: 'https://usenotoria.app',
+      applicationCategory: 'BusinessApplication',
+      operatingSystem: 'Web',
+      description: 'Monitor de reputación online para restaurantes y hoteles del Perú: detecta reseñas falsas, ataques de bots y caídas de rating antes de que cuesten clientes.',
+      inLanguage: 'es',
+      offers: [
+        { '@type': 'Offer', name: 'Plan Gratuito', price: '0', priceCurrency: 'PEN' },
+        { '@type': 'Offer', name: 'Plan Negocio', price: '59', priceCurrency: 'PEN' },
+        { '@type': 'Offer', name: 'Plan Franquicia', price: '179', priceCurrency: 'PEN' },
+      ],
+      publisher: { '@type': 'Organization', name: 'NOTORIA E.I.R.L.', url: 'https://usenotoria.app' },
+    },
+    {
+      '@type': 'FAQPage',
+      mainEntity: [
+        { q: '¿Necesito tarjeta de crédito para empezar?', a: 'No. El plan Gratuito es gratis para siempre e incluye 1 negocio monitoreado, score de reputación, QR para pedir reseñas y alertas por email. Solo pides una tarjeta si decides subir a un plan de pago.' },
+        { q: '¿Cómo detecta Notoria las reseñas falsas?', a: 'Analizamos patrones típicos de ataques: cuentas recién creadas, autores con una sola reseña, texto repetitivo o duplicado y picos inusuales de reseñas negativas en pocas horas. Cada reseña sospechosa se marca con el motivo para que puedas reportarla en Google.' },
+        { q: '¿Por qué solo veo 5 reseñas si mi negocio tiene cientos?', a: 'La API pública de Google entrega máximo las 5 reseñas más recientes por consulta, es un límite de Google. Al conectar Google Business Profile (gratis, tardas 1 minuto), Notoria accede a todo tu historial de reseñas y puedes responderlas directamente.' },
+        { q: '¿Puedo responder las reseñas desde Notoria?', a: 'Sí. Tienes 30 plantillas profesionales según las estrellas de la reseña y un asistente de IA que redacta la respuesta por ti. Guardamos tu respuesta, la copiamos al portapapeles y te abrimos Google Maps para publicarla. Con Google Business conectado, la publicación será directa.' },
+        { q: '¿Qué pasa si mi rating cae de repente?', a: 'Notoria lo detecta en el siguiente escaneo y te envía una alerta inmediata por email (o Telegram en planes de pago) con el detalle de qué pasó: cuántas reseñas negativas, de qué cuentas y si tienen patrones de bot. Tú decides qué alertas recibir y con qué frecuencia.' },
+        { q: '¿Cómo sabe Notoria quiénes son mis competidores?', a: 'Tú los eliges. Los buscas igual que a tu negocio, en Google Maps, y los agregas a la lista (1 en el plan Gratuito, 5 en Negocio y 15 en Franquicia por cada negocio). Además, en el plan Franquicia Notoria busca por su cuenta locales de tu mismo rubro a la redonda y te los propone.' },
+        { q: '¿Es legal analizar las reseñas de mis competidores?', a: 'Sí. Notoria solo lee lo que ya es público en Google Maps: el mismo rating y las mismas reseñas que vería cualquier persona buscando ese negocio. No accedemos a nada privado de su ficha, no interactuamos con sus reseñas y no publicamos nada en su nombre.' },
+        { q: '¿Funciona en toda mi ciudad o solo en Lima?', a: 'En todo el Perú. Notoria monitorea cualquier negocio que tenga ficha en Google Maps, esté en Lima, Arequipa, Cusco, Trujillo o un distrito pequeño. Por ahora operamos solo en Perú: cobramos en soles y emitimos comprobantes peruanos.' },
+        { q: '¿Puedo cancelar cuando quiera?', a: 'Sí. No hay contratos de permanencia. Puedes bajar de plan o cancelar en cualquier momento desde tu panel de control, y tu negocio seguirá monitoreado con el plan Gratuito.' },
+        { q: '¿Mis datos están seguros?', a: 'Sí. Usamos cifrado en tránsito, tu contraseña se guarda con hash seguro y cumplimos la Ley 29733 de Protección de Datos Personales. No vendemos ni compartimos tus datos, y solo leemos la información pública de tu negocio más la que tú decidas conectar.' },
+      ].map(({ q, a }) => ({
+        '@type': 'Question',
+        name: q,
+        acceptedAnswer: { '@type': 'Answer', text: a },
+      })),
+    },
+  ],
 };
 
 export default function RootLayout({ children }) {
@@ -69,6 +114,7 @@ export default function RootLayout({ children }) {
             <CookieBanner />
           </AuthProvider>
         </IdiomaProvider>
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }} />
         <Analytics />
       </body>
     </html>
