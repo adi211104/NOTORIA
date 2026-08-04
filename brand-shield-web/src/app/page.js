@@ -246,6 +246,7 @@ const TEXTOS = {
           { l:'Comparativa de planes', h:'#comparativa' },
         ]},
         { titulo:'Recursos', links:[
+          { l:'Blog', h:'/blog' },
           { l:'Preguntas frecuentes', h:'#faq' },
           { l:'Contacto', h:'mailto:hola@usenotoria.app' },
         ]},
@@ -432,6 +433,7 @@ const TEXTOS = {
           { l:'Plan comparison', h:'#comparativa' },
         ]},
         { titulo:'Resources', links:[
+          { l:'Blog', h:'/blog' },
           { l:'FAQ', h:'#faq' },
           { l:'Contact', h:'mailto:hola@usenotoria.app' },
         ]},
