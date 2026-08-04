@@ -1,0 +1,122 @@
+// brand-shield/src/api/routes/competidor.routes.js
+// Gestión de competidores por negocio (plan Franquicia)
+
+const express = require('express');
+const { z } = require('zod');
+const prisma = require('../../lib/prisma');
+const { buscarNegocioEnGoogle } = require('../../scrapers/google.scraper');
+
+const router = express.Router();
+const { autenticar } = require('../middlewares/auth.middleware');
+
+router.use(autenticar);
+
+// El plan gratuito incluye 1 competidor para que el usuario pruebe la función;
+// los planes de pago amplían el límite.
+const LIMITE_COMPETIDORES = {
+  GRATIS: 1,
+  NEGOCIO: 5,
+  FRANQUICIA: 15,
+};
+
+// GET /api/competidores — todos los competidores del usuario, agrupados por
+// negocio (vista consolidada para /dashboard/competencia). Los endpoints por
+// negocio de abajo se mantienen igual, se siguen usando desde el detalle de
+// cada negocio.
+router.get('/', async (req, res, next) => {
+  try {
+    const negocios = await prisma.negocio.findMany({
+      where: { usuarioId: req.usuario.id, activo: true },
+      select: {
+        id: true, nombre: true, tipo: true, pais: true,
+        snapshots: { orderBy: { tomadoEn: 'desc' }, take: 1 },
+        competidores: {
+          orderBy: { creadoEn: 'asc' },
+          include: { snapshots: { orderBy: { tomadoEn: 'desc' }, take: 1 } },
+        },
+      },
+      orderBy: { creadoEn: 'asc' },
+    });
+    res.json(negocios);
+  } catch (error) { next(error); }
+});
+
+// GET /api/competidores/:negocioId
+router.get('/:negocioId', async (req, res, next) => {
+  try {
+    const negocio = await prisma.negocio.findFirst({
+      where: { id: req.params.negocioId, usuarioId: req.usuario.id },
+    });
+    if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
+
+    const competidores = await prisma.competidor.findMany({
+      where: { negocioId: req.params.negocioId },
+      include: {
+        snapshots: { orderBy: { tomadoEn: 'desc' }, take: 5 },
+      },
+      orderBy: { creadoEn: 'asc' },
+    });
+
+    res.json(competidores);
+  } catch (error) { next(error); }
+});
+
+// POST /api/competidores/:negocioId
+router.post('/:negocioId', async (req, res, next) => {
+  try {
+    const negocio = await prisma.negocio.findFirst({
+      where: { id: req.params.negocioId, usuarioId: req.usuario.id },
+    });
+    if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
+
+    // Verificar límite según plan
+    const limite = LIMITE_COMPETIDORES[req.usuario.plan] || 1;
+    const total = await prisma.competidor.count({
+      where: { negocioId: req.params.negocioId },
+    });
+    if (total >= limite) {
+      return res.status(403).json({
+        error: `Tu plan permite hasta ${limite} competidor${limite > 1 ? 'es' : ''} por negocio. Actualiza tu plan para monitorear más.`,
+        accion: 'ACTUALIZAR_PLAN',
+      });
+    }
+
+    const { googlePlaceId } = req.body;
+    if (!googlePlaceId) return res.status(400).json({ error: 'googlePlaceId requerido' });
+
+    // Obtener datos del competidor desde Google
+    const info = await buscarNegocioEnGoogle(googlePlaceId);
+    if (!info) return res.status(404).json({ error: 'No se encontró el negocio en Google Places' });
+
+    const competidor = await prisma.competidor.create({
+      data: {
+        nombre: info.nombre,
+        googlePlaceId,
+        ratingActual: info.rating,
+        totalResenas: info.totalResenas,
+        negocioId: req.params.negocioId,
+      },
+    });
+
+    res.status(201).json({ mensaje: 'Competidor agregado correctamente', competidor });
+  } catch (error) { next(error); }
+});
+
+// DELETE /api/competidores/:id
+router.delete('/:id', async (req, res, next) => {
+  try {
+    const competidor = await prisma.competidor.findFirst({
+      where: { id: req.params.id },
+      include: { negocio: true },
+    });
+
+    if (!competidor || competidor.negocio.usuarioId !== req.usuario.id) {
+      return res.status(404).json({ error: 'Competidor no encontrado' });
+    }
+
+    await prisma.competidor.delete({ where: { id: req.params.id } });
+    res.json({ mensaje: 'Competidor eliminado' });
+  } catch (error) { next(error); }
+});
+
+module.exports = router;

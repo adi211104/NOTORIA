@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#141413"/>
+  <rect x="0" y="0" width="1200" height="3" fill="#0B7324"/>
+  <!-- Shield icon -->
+  <g transform="translate(96, 220)">
+    <path d="M40 0L0 14v26c0 22 16.5 37.5 36 42 19.5-4.5 36-20 36-42V14L40 0z" fill="rgba(11,115,36,0.2)" stroke="#0B7324" stroke-width="3"/>
+    <path d="M26 37l11 11 19-21" stroke="#0B7324" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </g>
+  <!-- Title -->
+  <text x="180" y="272" font-family="Georgia, serif" font-size="52" font-weight="700" fill="#FFFFFF" letter-spacing="-2">Vigilio</text>
+  <!-- Tagline -->
+  <text x="96" y="340" font-family="Georgia, serif" font-size="28" fill="#B0AEA5">Tu reputación puede hundirse en una sola noche.</text>
+  <!-- Description -->
+  <text x="96" y="390" font-family="Georgia, serif" font-size="20" fill="#6B6A65">Monitor de reputación para restaurantes y hoteles de LATAM</text>
+  <!-- Stats -->
+  <rect x="96" y="440" width="220" height="80" rx="8" fill="#1A1A18" stroke="#2C2C2A" stroke-width="1"/>
+  <text x="116" y="470" font-family="Georgia, serif" font-size="32" font-weight="900" fill="#0B7324">30%</text>
+  <text x="116" y="498" font-family="Georgia, serif" font-size="13" fill="#6B6A65">reseñas con bots</text>
+  <rect x="336" y="440" width="220" height="80" rx="8" fill="#1A1A18" stroke="#2C2C2A" stroke-width="1"/>
+  <text x="356" y="470" font-family="Georgia, serif" font-size="32" font-weight="900" fill="#0B7324">24/7</text>
+  <text x="356" y="498" font-family="Georgia, serif" font-size="13" fill="#6B6A65">monitoreo activo</text>
+  <rect x="576" y="440" width="220" height="80" rx="8" fill="#1A1A18" stroke="#2C2C2A" stroke-width="1"/>
+  <text x="596" y="470" font-family="Georgia, serif" font-size="32" font-weight="900" fill="#0B7324">18</text>
+  <text x="596" y="498" font-family="Georgia, serif" font-size="13" fill="#6B6A65">países de LATAM</text>
+  <!-- URL -->
+  <text x="96" y="580" font-family="Georgia, serif" font-size="18" fill="#3A3A38">vigilio.app</text>
+</svg>

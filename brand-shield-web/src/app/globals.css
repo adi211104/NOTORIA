@@ -1,0 +1,124 @@
+@import "tailwindcss";
+
+/* ── Variables — modo oscuro (default) ─────────────────── */
+:root {
+  --bg:       #141413;
+  --surface:  #1A1A18;
+  --surface2: #222220;
+  --border-c: #2C2C2A;
+  --text:     #FFFFFF;
+  --text-2:   #B0AEA5;
+  --text-3:   #6B6A65;
+  --accent:   #0B7324;
+  --accent-h: #0D8A2A;
+  --accent-t: rgba(11,115,36,0.12);
+  --accent-b: rgba(11,115,36,0.35);
+  /* Solo las usa el landing: --border-l es su borde "claro" y --bg-t es el
+     fondo con alfa de la viñeta del hero (antes se concatenaba como #141413CC,
+     que con var() ya no es posible). */
+  --border-l: #3A3A38;
+  --bg-t:     rgba(20,20,19,0.8);
+}
+
+/* ── Variables — modo claro ────────────────────────────── */
+[data-theme="light"] {
+  --bg:       #FAF9F5;
+  --surface:  #FFFFFF;
+  --surface2: #E8E6DC;
+  --border-c: #D4D2C8;
+  --text:     #141413;
+  --text-2:   #5C5B57;
+  --text-3:   #9C9B96;
+  --accent:   #0B7324;
+  --accent-h: #0D8A2A;
+  --accent-t: rgba(11,115,36,0.08);
+  --accent-b: rgba(11,115,36,0.25);
+  --border-l: #C4C2B8;
+  --bg-t:     rgba(250,249,245,0.8);
+}
+
+/* ── Base ──────────────────────────────────────────────── */
+html, body {
+  background: var(--bg) !important;
+  color: var(--text);
+  font-family: Georgia, 'Times New Roman', Times, serif;
+  transition: background 0.2s, color 0.2s;
+}
+
+/* ── Fuente del sistema (Configuración → Apariencia) ──────
+   La marca usa Georgia en todas partes, incluyendo estilos inline
+   (fontFamily:"Georgia,...") repartidos por muchos componentes. Para poder
+   cambiar a la fuente del sistema sin reescribir cada inline style, se
+   sobreescribe con !important en cascada cuando data-fuente="sistema". */
+[data-fuente="sistema"],
+[data-fuente="sistema"] * {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+}
+
+/* Desplazamiento animado al hacer clic en enlaces internos (#ancla) —
+   scroll-padding-top compensa el nav sticky de 58px del landing para que
+   el título de la sección no quede tapado. */
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 78px;
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+
+/* ── Override completo de Tailwind indigo → verde ─────── */
+.bg-indigo-600  { background-color: #0B7324 !important; }
+.bg-indigo-500  { background-color: #0D8A2A !important; }
+.text-indigo-400 { color: #4CAF66 !important; }
+.text-indigo-500 { color: #0B7324 !important; }
+.border-indigo-500 { border-color: #0B7324 !important; }
+.border-indigo-600 { border-color: #0B7324 !important; }
+.ring-indigo-500 { --tw-ring-color: #0B7324 !important; }
+.hover\:bg-indigo-500:hover { background-color: #0D8A2A !important; }
+.hover\:bg-indigo-600:hover { background-color: #0B7324 !important; }
+.hover\:text-indigo-300:hover { color: #6BCF82 !important; }
+.focus\:border-indigo-500:focus { border-color: #0B7324 !important; }
+.focus\:ring-indigo-500:focus { --tw-ring-color: #0B7324 !important; }
+
+/* Override grays para paleta Vigilio */
+.bg-gray-950 { background-color: #141413 !important; }
+.bg-gray-900 { background-color: #1A1A18 !important; }
+.bg-gray-800 { background-color: #222220 !important; }
+.bg-gray-700 { background-color: #2C2C2A !important; }
+.border-gray-800 { border-color: #2C2C2A !important; }
+.border-gray-700 { border-color: #3A3A38 !important; }
+.hover\:bg-gray-800:hover { background-color: #222220 !important; }
+
+/* Light mode Tailwind overrides */
+[data-theme="light"] .bg-gray-950 { background-color: #FAF9F5 !important; }
+[data-theme="light"] .bg-gray-900 { background-color: #FFFFFF !important; }
+[data-theme="light"] .bg-gray-800 { background-color: #E8E6DC !important; }
+[data-theme="light"] .border-gray-800 { border-color: #D4D2C8 !important; }
+[data-theme="light"] .text-white  { color: #141413 !important; }
+[data-theme="light"] .text-gray-300 { color: #5C5B57 !important; }
+[data-theme="light"] .text-gray-400 { color: #5C5B57 !important; }
+[data-theme="light"] .text-gray-500 { color: #9C9B96 !important; }
+
+/* ── Animaciones ───────────────────────────────────────── */
+@keyframes pulse-red { 0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.7;transform:scale(1.15);} }
+.pulse-badge { animation: pulse-red 1.5s ease-in-out infinite; }
+
+@keyframes shimmer-scan { 0%{background-position:-200% 0;}100%{background-position:200% 0;} }
+.scan-shimmer {
+  background: linear-gradient(90deg,#0B7324 25%,#3AA857 50%,#0B7324 75%);
+  background-size: 200% 100%;
+  animation: shimmer-scan 1.5s infinite;
+}
+
+/* Navegadores/dispositivos que piden reducir el movimiento (accesibilidad,
+   ahorro de batería en Android de gama baja): apagar animaciones infinitas. */
+@media (prefers-reduced-motion: reduce) {
+  .pulse-badge, .scan-shimmer, .logo-icon { animation: none !important; }
+}
+
+/* ── Layout ────────────────────────────────────────────── */
+aside, main { position: relative; z-index: 1; }
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border-c); border-radius: 3px; }

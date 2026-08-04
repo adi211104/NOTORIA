@@ -1,0 +1,207 @@
+// brand-shield/src/api/routes/comentario.routes.js
+// Comentarios que la gente deja en las publicaciones PROPIAS del negocio
+// (videos de TikTok hoy; Instagram cuando Meta apruebe la key).
+//
+// A diferencia de las menciones, estos SÍ se responden desde Notoria: la API de
+// la plataforma permite crear la respuesta. Por eso hay un POST /responder.
+//
+// Redes sociales = planes de pago, mismo criterio que redes.routes.js.
+
+const express = require('express');
+const prisma = require('../../lib/prisma');
+const { autenticar } = require('../middlewares/auth.middleware');
+const { verificarPlan } = require('../middlewares/verificarPlan.middleware');
+const tiktok = require('../../scrapers/tiktok.scraper');
+const { tokenTikTokVigente, estadoConexionTikTok } = require('../../lib/tiktokToken');
+
+const router = express.Router();
+
+router.use(autenticar);
+router.use(verificarPlan(['NEGOCIO', 'FRANQUICIA']));
+
+const LIMITE_MAX = 200;
+const MAX_LARGO_RESPUESTA = 500;
+
+// Los videos se piden en vivo a TikTok (no hay tabla: no se responden ni se
+// alertan, solo se muestran). Un caché corto en memoria evita una llamada por
+// cada carga del tab sin volver la vista obsoleta — el usuario que acaba de
+// publicar espera verlo enseguida.
+// Ojo con subirlo: la portada de cada video es una URL firmada que caduca a las
+// ~24h, así que el caché tiene que quedar MUY por debajo de eso.
+const CACHE_VIDEOS_MS = 3 * 60 * 1000;
+const cacheVideos = new Map(); // negocioId → { hasta, videos }
+
+const videosDelNegocio = async (negocioId, token) => {
+  if (!token) return null;
+  const enCache = cacheVideos.get(negocioId);
+  if (enCache && enCache.hasta > Date.now()) return enCache.videos;
+
+  const videos = await tiktok.obtenerVideosTikTok(token);
+  // Un fallo no se cachea: si fue temporal, la próxima carga vuelve a intentar.
+  if (videos) cacheVideos.set(negocioId, { hasta: Date.now() + CACHE_VIDEOS_MS, videos });
+  return videos;
+};
+
+const negocioDelUsuario = (negocioId, usuarioId) =>
+  prisma.negocio.findFirst({ where: { id: negocioId, usuarioId } });
+
+// GET /api/comentarios/:negocioId
+// ?sentimiento=negativo|positivo|neutro &plataforma=TIKTOK &pendientes=1 &limite=
+router.get('/:negocioId', async (req, res, next) => {
+  try {
+    const negocio = await negocioDelUsuario(req.params.negocioId, req.usuario.id);
+    if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
+
+    const { sentimiento, plataforma, pendientes } = req.query;
+    const limite = Math.min(Number(req.query.limite) || 50, LIMITE_MAX);
+
+    const where = {
+      negocioId: negocio.id,
+      ...(sentimiento ? { sentimiento } : {}),
+      ...(plataforma ? { plataforma } : {}),
+      ...(pendientes === '1' ? { respondida: false } : {}),
+    };
+
+    // Token vigente: si venció (dura 24h) se renueva acá mismo, así abrir el tab
+    // repara la conexión sin que el usuario tenga que reconectar. Devuelve null
+    // si la cuenta no está conectada o si el refresh token ya no sirve — en ese
+    // caso el helper limpia los tokens y `conectado` pasa a false, que es la
+    // verdad: hay que volver a autorizar.
+    const token = await tokenTikTokVigente(negocio);
+
+    // Backfill del perfil: las cuentas que se conectaron ANTES de que existiera
+    // este cache no tienen nombre guardado. Se pide una sola vez y se persiste;
+    // no es un fetch por carga de página.
+    let perfilNegocio = negocio;
+    if (token && !negocio.tiktokNombre) {
+      const perfil = await tiktok.obtenerPerfilTikTok(token);
+      if (perfil?.nombre) {
+        perfilNegocio = await prisma.negocio.update({
+          where: { id: negocio.id },
+          data: {
+            tiktokNombre: perfil.nombre,
+            tiktokAvatar: perfil.avatar,
+            tiktokUsername: perfil.username,
+            tiktokPerfilUrl: perfil.url,
+          },
+        });
+      }
+    }
+
+    // Los videos no bloquean la respuesta: si TikTok falla, el tab igual carga
+    // con los comentarios que ya estén guardados.
+    const videos = await videosDelNegocio(negocio.id, token).catch(() => null);
+
+    const [comentarios, total, negativos, sinResponder] = await Promise.all([
+      prisma.comentarioSocial.findMany({
+        where,
+        orderBy: [{ fechaComentario: 'desc' }, { detectadoEn: 'desc' }],
+        take: limite,
+      }),
+      prisma.comentarioSocial.count({ where: { negocioId: negocio.id } }),
+      prisma.comentarioSocial.count({ where: { negocioId: negocio.id, sentimiento: 'negativo' } }),
+      prisma.comentarioSocial.count({ where: { negocioId: negocio.id, respondida: false } }),
+    ]);
+
+    res.json({
+      comentarios,
+      resumen: { total, negativos, sinResponder },
+      // Publicaciones propias. `null` = no se pudieron leer (sin cuenta, sin
+      // permiso o TikTok caído); `[]` = la cuenta no tiene videos. El panel
+      // distingue los dos casos igual que con los comentarios.
+      videos,
+      // Qué redes pueden traer comentarios para ESTE negocio, y de QUIÉN es la
+      // cuenta. Sirve para que el panel sepa si mostrar "conecta tu cuenta" en vez
+      // de "no hay comentarios", y para que se vea el perfil en lugar de un
+      // "TikTok" genérico. Nunca se manda el access token.
+      conexiones: {
+        tiktok: {
+          disponible: tiktok.configurado(),
+          conectado: !!perfilNegocio.tiktokAccessToken,
+        // 'ok' | 'vencida' | 'sin_conectar'. El panel decía "escuchando esta
+        // cuenta" aunque el token estuviera muerto; con esto puede avisar.
+        estado: estadoConexionTikTok(perfilNegocio),
+          nombre: perfilNegocio.tiktokNombre || null,
+          avatar: perfilNegocio.tiktokAvatar || null,
+          username: perfilNegocio.tiktokUsername || null,
+          url: perfilNegocio.tiktokPerfilUrl || null,
+        },
+      },
+    });
+  } catch (error) { next(error); }
+});
+
+// POST /api/comentarios/:id/responder — { respuesta }
+router.post('/:id/responder', async (req, res, next) => {
+  try {
+    const comentario = await prisma.comentarioSocial.findFirst({
+      where: { id: req.params.id, negocio: { usuarioId: req.usuario.id } },
+      include: { negocio: true },
+    });
+    if (!comentario) return res.status(404).json({ error: 'Comentario no encontrado' });
+
+    const respuesta = String(req.body?.respuesta || '').trim();
+    if (!respuesta) return res.status(400).json({ error: 'La respuesta no puede estar vacía' });
+    if (respuesta.length > MAX_LARGO_RESPUESTA) {
+      return res.status(400).json({ error: `La respuesta no puede pasar de ${MAX_LARGO_RESPUESTA} caracteres` });
+    }
+    if (comentario.respondida) {
+      return res.status(409).json({ error: 'Este comentario ya fue respondido' });
+    }
+
+    if (comentario.plataforma !== 'TIKTOK') {
+      return res.status(400).json({ error: `Responder en ${comentario.plataforma} todavía no está disponible` });
+    }
+    // La API de TikTok exige el video_id además del comment_id. Los comentarios
+    // guardados sin publicacionId son de solo lectura — no se puede inventar.
+    if (!comentario.publicacionId) {
+      return res.status(422).json({
+        error: 'Este comentario no tiene el video de origen guardado, así que no se puede responder desde acá.',
+      });
+    }
+    // Renueva el token si venció. Si devuelve null la cuenta hay que reconectarla:
+    // mejor un 409 claro que un 502 con "access_token_invalid" de TikTok.
+    const token = await tokenTikTokVigente(comentario.negocio);
+    if (!token) {
+      return res.status(409).json({
+        error: 'La conexión con TikTok expiró. Vuelve a conectar la cuenta desde Conexiones para poder responder.',
+      });
+    }
+
+    const r = await tiktok.responderComentarioTikTok(
+      comentario.publicacionId,
+      comentario.externalId,
+      respuesta,
+      token,
+    );
+    // Solo se marca como respondida si la plataforma confirmó. Si guardáramos
+    // igual, el panel diría "respondido" y en TikTok no habría nada.
+    if (r.error) return res.status(502).json({ error: r.error });
+
+    const actualizado = await prisma.comentarioSocial.update({
+      where: { id: comentario.id },
+      data: { respondida: true, respuesta, vista: true },
+    });
+    res.json({ mensaje: 'Respuesta publicada', comentario: actualizado });
+  } catch (error) { next(error); }
+});
+
+// PATCH /api/comentarios/:id — { vista }
+router.patch('/:id', async (req, res, next) => {
+  try {
+    const comentario = await prisma.comentarioSocial.findFirst({
+      where: { id: req.params.id, negocio: { usuarioId: req.usuario.id } },
+    });
+    if (!comentario) return res.status(404).json({ error: 'Comentario no encontrado' });
+
+    if (req.body?.vista === undefined) return res.status(400).json({ error: 'Nada que actualizar' });
+
+    const actualizado = await prisma.comentarioSocial.update({
+      where: { id: comentario.id },
+      data: { vista: !!req.body.vista },
+    });
+    res.json(actualizado);
+  } catch (error) { next(error); }
+});
+
+module.exports = router;

@@ -1,0 +1,17 @@
+# Red de seguridad a nivel repo (cada paquete ya tiene su propio .gitignore)
+node_modules/
+.env
+.env.*
+!.env.example
+.next/
+dist/
+*.log
+.DS_Store
+
+# Certificados / llaves — NUNCA versionar (CDT de SUNAT, claves de firma, etc.)
+*.p12
+*.pfx
+*.pem
+*.key
+*.cer
+*.crt

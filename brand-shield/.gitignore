@@ -1,0 +1,12 @@
+node_modules/
+.env
+.env.local
+dist/
+*.log
+.DS_Store
+prisma/migrations/
+
+# Salida de los scripts de prueba (PDFs, XMLs firmados, CDRs) y el certificado
+# autofirmado que genera scripts/generar-cert-prueba.js
+scripts/salida/
+scripts/sunat-test.p12

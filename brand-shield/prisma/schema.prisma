@@ -1,0 +1,482 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id                   String        @id @default(cuid())
+  email                String        @unique
+  password             String
+  nombre               String
+  telefono             String?
+  idioma               String        @default("es") // "es" | "en" — preferencia de idioma (dashboard, PDF, emails)
+  telegramChatId       String?
+  googleId             String?       @unique
+  emailVerificado      Boolean       @default(false)
+  tokenVerificacion    String?       @unique
+  tokenVerificaExpira  DateTime?
+  // Recuperación de contraseña ("olvidé mi contraseña"): token de un solo uso con
+  // expiración corta. Se guarda el HASH del token, no el token en claro, para que
+  // una filtración de la BD no permita resetear contraseñas. Índice normal (no
+  // @unique) para agilizar el lookup por hash sin necesidad de constraint única —
+  // el token es aleatorio de 256 bits, la colisión es prácticamente imposible.
+  tokenResetHash       String?
+  tokenResetExpira     DateTime?
+  plan                 Plan          @default(GRATIS)
+  suscripcionId        String?
+  suscripcionActiva    Boolean       @default(false)
+  fechaVencimiento     DateTime?
+  periodoFacturacion   String? // "mensual" | "anual" — ciclo activo, lo usa el cron de renovación para saber qué monto y qué plazo cobrar
+  promoBienvenidaUsada Boolean       @default(false) // 50% off los primeros 2 meses en plan mensual — una sola vez por cuenta, se marca en el primer cobro aunque luego cancele
+  mesesPromoRestantes  Int           @default(0) // cuántas renovaciones mensuales aún faltan cobrar con el 50% de la promo de bienvenida
+  // Contador semanal de respuestas generadas con IA (se reinicia cada semana)
+  iaUsos               Int           @default(0)
+  iaSemana             String?
+  // Preferencias de notificación de alertas:
+  // { tipos: { PICO_RESENAS_NEGATIVAS, CAIDA_RATING, CUENTAS_NUEVAS, RESENA_MUY_NEGATIVA }: bool,
+  //   umbralNegativas: 1|5, frecuencia: 'INMEDIATA'|'SEMANAL'|'MENSUAL', diaSemana: 0-6 }
+  prefsAlertas         Json?
+  // Datos fiscales del receptor del comprobante. Se piden al suscribirse y se
+  // congelan dentro de cada Comprobante al emitirlo (si el usuario luego los
+  // corrige, los comprobantes ya emitidos no cambian — eso sería adulterarlos).
+  // docTipo sigue el catálogo 06 de SUNAT: "6" RUC, "1" DNI, "0" no domiciliado.
+  docTipo              String?
+  docNumero            String?
+  razonSocial          String? // razón social o nombre completo tal como debe salir en el comprobante
+  direccionFiscal      String?
+  paisFiscal           String? // ISO 3166-1 alpha-2 en MAYÚSCULA (ej. "PE"). Determina si la venta lleva IGV o es exportación de servicios.
+  negocios             Negocio[]
+  pagos                Pago[]
+  comprobantes         Comprobante[]
+  creadoEn             DateTime      @default(now())
+  actualizadoEn        DateTime      @updatedAt
+
+  @@index([tokenResetHash])
+  @@map("usuarios")
+}
+
+enum Plan {
+  GRATIS
+  NEGOCIO
+  FRANQUICIA
+}
+
+// Historial de cobros de Culqi — se guarda un registro por cada intento de
+// cobro (inicial o renovación mensual) para que el usuario pueda corroborar
+// en Facturación cuánto pagó, cuándo y con qué tarjeta. Solo se guardan los
+// primeros 4 dígitos de la tarjeta (identifican el banco emisor, no la
+// tarjeta en sí) — nunca el número completo ni el CVV.
+model Pago {
+  id            String       @id @default(cuid())
+  usuarioId     String
+  usuario       Usuario      @relation(fields: [usuarioId], references: [id])
+  plan          Plan
+  periodo       String // "mensual" | "anual"
+  tipo          String // "INICIAL" | "RENOVACION"
+  estado        String // "EXITOSO" | "FALLIDO" | "REEMBOLSADO"
+  monto         Int // en céntimos, misma unidad que Culqi
+  // Los precios de los planes están en soles (7500 = S/75.00) y los cargos se
+  // hacen en PEN. Ambos call-sites (pago.routes.js y el cron de renovación)
+  // pasan la moneda explícita desde lib/precios.js; este default es solo la red
+  // de seguridad. Ojo al cambiarlo: si el default y lib/precios.js discrepan, un
+  // plan de S/75 se cobraría como US$75.
+  moneda        String       @default("PEN")
+  titular       String // nombre del titular al momento del cobro
+  tarjetaInicio String? // primeros 4 dígitos de la tarjeta
+  tarjetaMarca  String? // visa / mastercard / etc. (Culqi: source.iin.card_brand)
+  culqiCargoId  String?      @unique
+  comprobante   Comprobante?
+  creadoEn      DateTime     @default(now())
+
+  @@index([usuarioId])
+  @@map("pagos")
+}
+
+// Correlativo por serie. Una fila por serie ("V001", "F001", "B001"); el
+// correlativo se incrementa con un UPDATE ... RETURNING atómico (ver
+// services/comprobante.service.js) para que dos cobros simultáneos no puedan
+// tomar el mismo número. SUNAT exige numeración consecutiva y sin huecos.
+model SerieComprobante {
+  id            String   @id @default(cuid())
+  tipo          String // "VOUCHER" | "FACTURA" | "BOLETA"
+  serie         String   @unique
+  correlativo   Int      @default(0) // último número emitido
+  actualizadoEn DateTime @updatedAt
+
+  @@map("series_comprobante")
+}
+
+// Comprobante emitido por cada cobro exitoso.
+//
+// FASE A (actual): se emite tipo "VOUCHER" (serie V001) — una constancia de
+// pago interna, con todo el desglose tributario ya calculado, pero que NO es un
+// comprobante de pago electrónico y así lo dice el PDF. Los correlativos
+// fiscales (F001/B001) se dejan sin usar a propósito: reservar números que
+// todavía no se pueden enviar a SUNAT crearía huecos en la numeración.
+//
+// FASE B: al activar el envío a SUNAT se cambia la serie configurada y el mismo
+// código emite FACTURA/BOLETA reales; los campos estadoSunat/hashFirma se
+// llenan con la respuesta del CDR.
+model Comprobante {
+  id        String  @id @default(cuid())
+  pagoId    String  @unique
+  pago      Pago    @relation(fields: [pagoId], references: [id])
+  usuarioId String
+  usuario   Usuario @relation(fields: [usuarioId], references: [id])
+
+  tipo        String // "VOUCHER" | "FACTURA" | "BOLETA"
+  serie       String
+  correlativo Int
+  numero      String @unique // "V001-00000001" — lo que se muestra e imprime
+
+  // Receptor congelado al momento de la emisión
+  receptorTipoDoc   String // catálogo 06: "6" RUC, "1" DNI, "0" no domiciliado
+  receptorNumDoc    String?
+  receptorNombre    String
+  receptorDireccion String?
+  receptorPais      String // ISO alpha-2 en mayúscula
+
+  // Importes en céntimos de `moneda`, mismo criterio que Pago.monto.
+  // El precio publicado INCLUYE IGV: para un cliente peruano $20 se desglosa en
+  // gravadas $16.95 + igv $3.05; para uno del exterior va entero a exportacion.
+  moneda        String
+  gravadas      Int    @default(0) // base imponible de operaciones gravadas
+  exportacion   Int    @default(0) // operaciones de exportación de servicios
+  igv           Int    @default(0)
+  total         Int
+  tipoOperacion String // catálogo 51: "0101" venta interna · "0201" exportación de servicios
+
+  descripcion  String
+  fechaEmision DateTime @default(now())
+
+  // Ciclo SUNAT — "NO_APLICA" mientras se emitan vouchers (Fase A)
+  //   PENDIENTE  en cola de envío
+  //   ACEPTADO   con CDR conforme; recién aquí el comprobante existe para SUNAT
+  //   RECHAZADO  SUNAT lo rechazó; hay que corregir y reemitir, no reintentar
+  //   VENCIDO    se pasó el plazo legal de 3 días sin ser aceptado
+  estadoSunat  String  @default("NO_APLICA") // NO_APLICA | PENDIENTE | ACEPTADO | RECHAZADO | VENCIDO | ANULADO
+  sunatCodigo  String?
+  sunatMensaje String?
+  hashFirma    String? // DigestValue de la firma — va en el QR de la representación impresa
+
+  // El XML firmado y el CDR deben conservarse 5 años. Se guardan aquí y no en
+  // disco porque el sistema de archivos de Railway es efímero. A este volumen
+  // (~10 KB por comprobante) la base de datos es el sitio más simple y seguro;
+  // si el volumen crece mucho, migrar a almacenamiento de objetos.
+  xmlFirmado String? @db.Text
+  cdrXml     String? @db.Text
+
+  // Control de la cola de envío
+  intentosEnvio    Int       @default(0)
+  ultimoIntentoEn  DateTime?
+  proximoIntentoEn DateTime?
+  enviadoEn        DateTime? // momento en que SUNAT lo aceptó
+  // Plazo legal: 3 días calendario contados desde el día siguiente a la emisión.
+  // Pasado ese punto el comprobante pierde validez tributaria aunque ya se le
+  // haya entregado al cliente, así que se calcula al emitir y se vigila.
+  fechaLimiteEnvio DateTime?
+
+  creadoEn DateTime @default(now())
+
+  @@unique([serie, correlativo])
+  @@index([usuarioId])
+  @@index([estadoSunat, proximoIntentoEn])
+  @@map("comprobantes")
+}
+
+model Negocio {
+  id            String      @id @default(cuid())
+  nombre        String
+  tipo          TipoNegocio
+  // Código de país ISO 3166-1 alpha-2 en minúscula (ej. "pe"). Nulo en negocios
+  // creados antes de esta columna — no se hace backfill retroactivo.
+  pais          String?
+  activo        Boolean     @default(true)
+  direccion     String?
+  colorEtiqueta String?     @default("#6366f1")
+  ultimoEscaneo DateTime?
+
+  // Automatizaciones — gating por plan (ver middlewares/verificarPlan)
+  resumenSemanalActivo   Boolean @default(true)
+  autoRespuestaActiva    Boolean @default(false)
+  autoRespuestaPlantilla String? // texto aprobado por el usuario, con placeholder {{autor}}
+  autoRespuestaTono      String? // "formal" | "cercano" | "disculpa" — solo plan Franquicia
+
+  // Último insight IA del resumen semanal — cacheado para mostrarlo en el
+  // tooltip del semáforo del dashboard sin llamar a Groq en cada carga
+  ultimoInsightSemanal String?
+  ultimoInsightFecha   DateTime?
+
+  // Términos extra a buscar en la escucha de menciones, separados por coma
+  // (handle de la marca, hashtags propios, variantes del nombre mal escrito).
+  // Vacío = se busca solo por `nombre`. Ver src/scrapers/menciones.js
+  terminosMencion  String?
+  // Activa la escucha de menciones para este negocio. Por defecto encendida:
+  // las fuentes ya traen su propio guard, así que sin credenciales no hace nada.
+  mencionesActivas Boolean @default(true)
+
+  googlePlaceId    String?
+  googleNombre     String?
+  googleRatingBase Float?
+
+  facebookPageId      String?
+  facebookAccessToken String?
+  facebookTokenExpira DateTime?
+
+  // Instagram (Meta Graph API) — pendiente de aprobación de la app en Meta
+  instagramUserId      String?
+  instagramAccessToken String?
+  instagramTokenExpira DateTime?
+
+  // TikTok (Display/Comments API) — pendiente de aprobación de la app en TikTok
+  tiktokOpenId       String?
+  tiktokAccessToken  String?
+  tiktokRefreshToken String?
+  tiktokTokenExpira  DateTime?
+  // Perfil visible de la cuenta conectada, cacheado para no llamar a TikTok en
+  // cada carga del panel. `tiktokUsername` (el @) solo se llena si el scope
+  // user.info.profile está aprobado; con user.info.basic solo hay nombre y foto.
+  tiktokNombre       String?
+  tiktokAvatar       String?
+  tiktokUsername     String?
+  tiktokPerfilUrl    String?
+
+  // TripAdvisor (Content API) — pendiente de API key. No usa OAuth por negocio,
+  // solo el locationId público (ver src/scrapers/tripadvisor.scraper.js)
+  tripadvisorLocationId String?
+  tripadvisorUrl        String?
+  tripadvisorRatingBase Float?
+
+  // Google Business Profile
+  gbpAccessToken  String?
+  gbpRefreshToken String?
+  gbpAccountId    String?
+  gbpLocationId   String?
+  gbpConectadoEn  DateTime?
+
+  usuarioId String
+  usuario   Usuario @relation(fields: [usuarioId], references: [id])
+
+  resenas      Resena[]
+  alertas      Alerta[]
+  snapshots    Snapshot[]
+  competidores Competidor[]
+  menciones    Mencion[]
+  comentarios  ComentarioSocial[]
+
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  @@map("negocios")
+}
+
+enum TipoNegocio {
+  RESTAURANTE
+  BAR
+  CAFETERIA
+  HOTEL
+  PELUQUERIA
+  SPA
+  GIMNASIO
+  CLINICA
+  TIENDA
+  INMOBILIARIA
+  TALLER
+  OTRO
+}
+
+model Resena {
+  id                String     @id @default(cuid())
+  plataforma        Plataforma
+  externalId        String
+  rating            Int
+  texto             String?
+  autorNombre       String?
+  autorFoto         String?
+  autorResenasTotal Int?
+  fechaResena       DateTime
+  esSospechosa      Boolean    @default(false)
+  motivoSospecha    String?
+  respondida        Boolean    @default(false)
+  respuesta         String?
+  // Evita reenviar la escalación de urgencia (24h sin responder) más de una vez
+  escaladaUrgencia  Boolean    @default(false)
+  negocioId         String
+  negocio           Negocio    @relation(fields: [negocioId], references: [id])
+  detectadaEn       DateTime   @default(now())
+
+  @@unique([plataforma, externalId])
+  @@map("resenas")
+}
+
+enum Plataforma {
+  GOOGLE
+  FACEBOOK
+  TRIPADVISOR
+  // Solo se usa en Alerta (menciones). Resena y Snapshot nunca lo llevan: no hay
+  // rating ni conteo de reseñas del que tomar snapshot.
+  TIKTOK
+  // Huérfano a propósito: la fuente X/Twitter se eliminó del producto el
+  // 2026-07-29 y ninguna fila usa este valor, pero el valor YA ESTÁ APLICADO en la
+  // BD de producción. Borrarlo de un enum de Postgres no es un ALTER: obliga a
+  // recrear el tipo y castear `resenas`, `snapshots` y `alertas` (Prisma genera un
+  // DROP TYPE y pide --accept-data-loss). Riesgo real en prod a cambio de cero
+  // beneficio visible. Se queda.
+  TWITTER
+}
+
+model Snapshot {
+  id                  String     @id @default(cuid())
+  plataforma          Plataforma
+  ratingActual        Float
+  totalResenas        Int
+  resenasNegativas24h Int        @default(0)
+  negocioId           String
+  negocio             Negocio    @relation(fields: [negocioId], references: [id])
+  tomadoEn            DateTime   @default(now())
+
+  @@map("snapshots")
+}
+
+model Alerta {
+  id          String     @id @default(cuid())
+  tipo        TipoAlerta
+  plataforma  Plataforma
+  descripcion String
+  detalle     Json?
+  leida       Boolean    @default(false)
+  notificada  Boolean    @default(false)
+  negocioId   String
+  negocio     Negocio    @relation(fields: [negocioId], references: [id])
+  creadaEn    DateTime   @default(now())
+
+  @@map("alertas")
+}
+
+enum TipoAlerta {
+  PICO_RESENAS_NEGATIVAS
+  CAIDA_RATING
+  CUENTAS_NUEVAS
+  RESENA_MUY_NEGATIVA
+  // Alguien habló mal de la marca fuera de su ficha. Antes esto se emitía como
+  // RESENA_MUY_NEGATIVA con plataforma GOOGLE, que era falso y hacía que el
+  // umbral "solo picos" de prefsAlertas lo silenciara sin querer.
+  MENCION_NEGATIVA
+  // Comentario negativo en una publicación propia del negocio. Distinto de
+  // MENCION_NEGATIVA porque este SÍ se puede responder desde Notoria.
+  COMENTARIO_NEGATIVO
+}
+
+model Competidor {
+  id            String               @id @default(cuid())
+  nombre        String
+  googlePlaceId String
+  ratingActual  Float?
+  totalResenas  Int?
+  negocioId     String
+  negocio       Negocio              @relation(fields: [negocioId], references: [id])
+  snapshots     SnapshotCompetidor[]
+  creadoEn      DateTime             @default(now())
+
+  @@map("competidores")
+}
+
+model SnapshotCompetidor {
+  id           String     @id @default(cuid())
+  ratingActual Float
+  totalResenas Int
+  competidorId String
+  competidor   Competidor @relation(fields: [competidorId], references: [id])
+  tomadoEn     DateTime   @default(now())
+
+  @@map("snapshots_competidores")
+}
+
+// Comentarios que la gente deja en las PUBLICACIONES PROPIAS del negocio
+// (sus videos de TikTok, sus posts de Instagram).
+//
+// Es el tercer tipo de contenido del sistema y conviene no confundirlos:
+//   Resena           → en la ficha del negocio, TIENE rating (Google, Facebook)
+//   ComentarioSocial → en una publicación PROPIA, sin rating, SÍ se responde
+//                      desde Notoria (la API de la plataforma lo permite)
+//   Mencion          → en el perfil de un TERCERO, sin rating, NO se responde
+//                      desde acá (hay que ir a la plataforma)
+//
+// `plataforma` es String y no el enum Plataforma por lo mismo que Mencion: ese
+// enum lo comparten Resena/Snapshot, donde solo caben fuentes con rating.
+// Valores: "TIKTOK" | "INSTAGRAM".
+model ComentarioSocial {
+  id          String  @id @default(cuid())
+  plataforma  String
+  // Prefijado por fuente por los scrapers ("tt_", "ig_") — el @unique es global
+  externalId  String  @unique
+  texto       String
+  autorNombre String?
+
+  // Publicación donde vive el comentario. `publicacionId` NO es opcional en la
+  // práctica: la API de TikTok exige el video_id para poder responder, así que
+  // sin este dato el comentario queda como solo-lectura.
+  publicacionId     String?
+  publicacionTitulo String?
+
+  sentimiento String?
+  respondida  Boolean @default(false)
+  respuesta   String?
+  vista       Boolean @default(false)
+  // Evita re-alertar el mismo comentario en cada ciclo del worker
+  notificada  Boolean @default(false)
+
+  fechaComentario DateTime?
+  negocioId       String
+  negocio         Negocio  @relation(fields: [negocioId], references: [id])
+  detectadoEn     DateTime @default(now())
+
+  @@index([negocioId, detectadoEn])
+  @@map("comentarios_sociales")
+}
+
+// Contenido de terceros que habla de la marca (a diferencia de Resena, que es
+// contenido dejado EN la ficha del negocio). No lleva rating ni se responde
+// desde acá: se responde en la plataforma de origen.
+//
+// `plataforma` es String y no el enum Plataforma a propósito: el enum lo comparten
+// Resena/Snapshot/Alerta, donde solo tienen sentido las fuentes con rating.
+// Valor usado: "TIKTOK". (Hubo una fuente "TWITTER" que se eliminó del producto
+// el 2026-07-29 — ver §18 del CLAUDE.md.)
+model Mencion {
+  id          String  @id @default(cuid())
+  plataforma  String  @default("TIKTOK")
+  // Se prefija por fuente ("tt_") para que el @unique global no colisione entre
+  // plataformas si algún día hay más de una — ver src/scrapers/*Menciones*.
+  externalId  String  @unique
+  texto       String
+  autorNombre String?
+  autorHandle String?
+  url         String?
+  sentimiento String?
+
+  // Fecha de publicación en el origen. Distinta de detectadaEn: un video puede
+  // ser de hace un mes y recién aparecer en la primera búsqueda.
+  fechaMencion DateTime?
+  // Título/descripción del video o post — da contexto sin salir del panel
+  contexto     String?
+  // { vistas, likes, comentarios, compartidos } — se usa para priorizar lo viral.
+  // Json porque cada fuente reporta métricas distintas.
+  metricas     Json?
+
+  vista      Boolean @default(false)
+  archivada  Boolean @default(false)
+  // Evita re-alertar la misma mención en cada ciclo del worker
+  notificada Boolean @default(false)
+
+  negocioId   String
+  negocio     Negocio  @relation(fields: [negocioId], references: [id])
+  detectadaEn DateTime @default(now())
+
+  @@index([negocioId, archivada, detectadaEn])
+  @@map("menciones")
+}
