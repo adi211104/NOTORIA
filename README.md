@@ -118,98 +118,34 @@ Restricciones que condicionan el diseño:
 
 ## 3. Banca
 
-### Situación actual
+**RESUELTO (2026-08-03): se opera con la cuenta que la empresa ya tiene en el BCP.**
+Está a nombre de NOTORIA E.I.R.L., los poderes ya están registrados y **ya está
+registrada en Culqi** con el nombre y el RUC del comercio — que es exactamente lo que
+Culqi exige para depositar (el titular de la cuenta debe coincidir con la ficha RUC).
 
-Cuenta en **BCP**, en soles: **S/45/mes** de mantenimiento y **S/500** de saldo mínimo.
-Es la opción más cara del mercado peruano para una empresa de este tamaño.
+Se evaluó migrar a otro banco por ahorro de mantenimiento y **se descartó**: el ahorro
+anual no compensa rehacer una apertura de persona jurídica (dos documentos de SUNARP con
+caducidad de 15 días + revisión de poderes) ni volver a registrar la cuenta en Culqi y
+esperar el depósito real de verificación. No reabrir esta comparativa.
 
-### Comparativa (julio 2026)
+Datos que siguen siendo ciertos y condicionan la operación:
 
-| Banco / producto | Mantenimiento | Capital inmovilizado | ¿Persona jurídica? |
-|---|---|---|---|
-| BCP (actual) | S/45 siempre | S/500 | Sí |
-| Interbank Cuenta Negocios — Plan Digital | S/0 **si** cumple · **S/50 si no** | **S/3,000** promedio | Sí |
-| BBVA Cuenta Emprendedor | S/0 | Ninguno | **No** — solo persona natural con negocio |
-| BBVA Cuenta Negocio | S/35 (6 meses gratis) | — | Sí |
-| **Mibanco Ahorro Negocios** | **S/0** | **Ninguno** | **Sí** |
+- **La persona jurídica no lleva tarjeta de débito.** Railway, Vercel y las APIs de IA se
+  pagan con tarjeta personal y se rinden, cuidando que el comprobante esté a nombre de
+  NOTORIA. Los importes están muy por debajo del umbral de bancarización (S/2,000 o
+  US$500 por operación), así que es viable, pero hay que documentarlo bien para la
+  deducción del Impuesto a la Renta.
+- **Culqi abona cada 4 días hábiles** y admite **una cuenta bancaria por moneda**, sin
+  convertir entre ellas.
+- La cuenta pasa a "Inactiva" sin movimientos por 6 meses — no aplica: con los abonos de
+  Culqi hay movimiento constante.
 
-**Interbank quedó descartado:** su "S/0 de mantenimiento" exige mantener **S/3,000 (o
-US$1,000) de saldo promedio mensual** sumando todas las Cuentas Negocios, más una
-operación al mes. Sin cumplir ambas condiciones cobra S/50 — más caro que el BCP.
-Fuera del alcance de la caja actual.
+### Cuenta en dólares — diferida
 
-**BBVA Cuenta Emprendedor quedó descartada:** no cobra mantenimiento ni exige saldo
-mínimo, pero es un producto para **personas naturales con negocio**. NOTORIA es una
-E.I.R.L., persona jurídica.
-
-### Decisión: Mibanco Ahorro Negocios
-
-Confirmado contra la **Cartilla de Información Cuenta Ahorro Negocios V020**
-(vigencia 22/07/2024):
-
-- **Mantenimiento de cuenta: sin costo**, columna de Persona Jurídica, ambas monedas.
-- **Saldo mínimo de equilibrio: S/0.00 / US$0.00.**
-- Disponible en **soles y dólares** para persona jurídica.
-- Transferencias entre cuentas propias, a terceros e interbancarias **libres de costo
-  por el APP Mibanco Móvil**.
-- TEA 0.01% para persona jurídica — sin rendimiento relevante.
-
-**Ahorro estimado frente al BCP: S/540/año**, más los S/500 liberados.
-
-### Limitaciones detectadas en la cartilla
-
-1. **La persona jurídica NO recibe tarjeta de débito** (nota 5: *"Para Personas Jurídicas
-   no aplica afiliación de tarjeta de débito"*). Por eso las filas de cajeros automáticos
-   y retiros en ventanilla aparecen en blanco en las columnas de PJ.
-   **Consecuencia:** no se pueden pagar Railway, Vercel y las APIs con una tarjeta de la
-   empresa. Habrá que pagarlos con tarjeta personal y rendirlos, cuidando que el
-   comprobante esté a nombre de NOTORIA. Los importes están muy por debajo del umbral
-   de bancarización (S/2,000 o US$500 por operación), así que es viable, pero es fricción
-   mensual y hay que documentarla bien para la deducción del Impuesto a la Renta.
-2. **Operación digital sin confirmar.** El APP hace transferencias gratis, pero la Banca
-   por Internet figura solo con "consulta de saldos". Si el enrolamiento en el APP exige
-   tarjeta de débito —que la PJ no tiene—, queda por resolver cómo se opera sin ir a una
-   agencia.
-3. **Las comisiones de transferencias no están en la cartilla**: están en el *Tarifario de
-   Servicios Transversales aplicables a Depósitos*, documento aparte.
-4. Cuenta pasa a estado **"Inactivo"** sin movimientos por más de 6 meses (no aplica:
-   Culqi abona cada 4 días hábiles).
-5. Estado de cuenta físico S/10 — solicitarlo por correo, que es gratuito.
-6. El **Fondo de Seguro de Depósitos** cubre a personas naturales y jurídicas *sin fines
-   de lucro*; una E.I.R.L. quedaría fuera. Verificar, no decisivo.
-
-### Preguntas para la agencia
-
-1. ¿Cómo opera una persona jurídica sin tarjeta de débito? ¿El APP funciona para PJ?
-   ¿Hay banca por internet para empresas con capacidad de transferir?
-2. ¿Existe alguna tarjeta empresarial (débito o crédito) que sí aplique a personas jurídicas?
-3. Solicitar el **Tarifario de Servicios Transversales** — costo de transferencias.
-4. ¿Qué **cargos únicos** hay por apertura de persona jurídica? (equivalente a los S/75
-   de "revisión de poderes" que cobra Interbank)
-5. Abrir la de **soles** (es la que se usa: desde 2026-07-28 se cobra en PEN). La de **dólares** solo si piensas vender al exterior pronto — si la abres, pide su **CCI** para registrarla en Culqi.
-6. ¿La cartilla V020 sigue vigente?
-
-### Secuencia de migración
-
-No cerrar el BCP hasta que el banco nuevo esté operativo:
-
-1. Abrir Mibanco en ambas monedas.
-2. Verificar que la cuenta funciona y que se puede transferir sin ir a agencia.
-3. Registrar la cuenta en dólares en Culqi y **esperar a recibir un depósito real**.
-4. Revisar qué hay domiciliado en el BCP (débitos automáticos, cobros recurrentes).
-5. Cerrar el BCP **formalmente, con carta de cierre**. Dejarlo en cero no basta: el
-   mantenimiento sigue corriendo, se acumula como deuda y termina en Infocorp.
-
-### Sobre la cuenta en dólares
-
-**Ya no es urgente.** Desde el 2026-07-28 se cobra en soles, así que una sola cuenta en
-soles basta para operar. Culqi permite registrar **una cuenta bancaria por moneda** y
-abona sin convertir (depósitos cada 4 días hábiles).
-
-Queda pendiente para cuando se venda al exterior: ahí sí conviene abrir la cuenta en
-dólares para evitar la doble conversión (USD→PEN al cobrar, PEN→USD al pagar Railway,
-Vercel y las APIs de IA, con ~1-3% de spread cada una). En Mibanco ambas cuentas comparten
-el mantenimiento sin costo, así que tenerlas las dos no cuesta nada.
+Desde el 2026-07-28 se cobra en soles, así que una sola cuenta basta para operar. Cuando
+llegue el primer cliente del exterior conviene abrir la cuenta en dólares para evitar la
+doble conversión (USD→PEN al cobrar, PEN→USD al pagar Railway, Vercel y las APIs, con
+~1-3% de spread cada una) y registrar su CCI en Culqi.
 
 ---
 
@@ -236,13 +172,9 @@ scripts ya reintentan solos.
 
 ## 4. Pendientes
 
-**Banca**
-- [ ] Llamar al BCP: ¿existe exoneración del mantenimiento por saldo promedio?
-- [ ] Ir a Mibanco con las 6 preguntas de arriba
-- [ ] Abrir la cuenta en **soles** (suficiente para operar hoy)
-- [ ] Registrar la cuenta en soles en Culqi
+**Banca** — resuelto, ver sección 3
+- [x] Cuenta en soles del BCP, a nombre de NOTORIA E.I.R.L. y ya registrada en Culqi
 - [ ] *(diferido)* Abrir la cuenta en dólares y registrar su CCI — solo al vender al exterior
-- [ ] Cerrar el BCP formalmente (solo después de los pasos anteriores)
 
 **SUNAT**
 - [x] Contraseña del `.p12` — certificado verificado, RUC coincide (26/07/2026)
@@ -305,7 +237,13 @@ scripts ya reintentan solos.
 - [x] Fase B — QR en la representación impresa
 - [ ] Fase B — resumen diario de boletas
 - [ ] Fase B — comunicación de baja (anulaciones)
-- [ ] Llaves reales de Culqi (el código ya está listo, hoy responde 501)
+
+**Culqi** (el código ya está listo; sin llaves `/api/pagos/culqi` responde 501)
+- [ ] Llaves de **test** en `brand-shield/.env` y `brand-shield-web/.env.local`
+- [ ] Correr `node scripts/prueba-culqi.js` — circuito real contra el sandbox
+- [ ] Probar el widget en `dashboard/planes` con `npm run dev`
+- [ ] Llaves **live** en Railway (backend) y Vercel (`NEXT_PUBLIC_CULQI_PUBLIC_KEY`)
+- [ ] Registrar el webhook en el panel de Culqi con `?secret=` y `CULQI_WEBHOOK_SECRET`
 
 **Bugs abiertos en producción** (detalle técnico y arreglo en `CLAUDE.md`,
 sección "🔴 Bugs ABIERTOS en producción")
@@ -331,6 +269,4 @@ sección "🔴 Bugs ABIERTOS en producción")
 - [SUNAT — Anexo N.° 8, catálogo de códigos](https://www.sunat.gob.pe/legislacion/superin/2017/anexoE-245-2017.pdf)
 - [SUNAT — Exportación de servicios](https://emprender.sunat.gob.pe/principales-impuestos/impuesto-general-las-ventas-igv/exportacion-servicios)
 - [Culqi — Depósitos](https://docs.culqi.com/es/documentacion/pagos-online/depositos/resumen/)
-- [Mibanco — Ahorro Negocios](https://www.mibanco.com.pe/categoria/ahorro-negocios)
-- [Interbank — Cuenta Negocios](https://interbank.pe/negocios/cuenta-negocios)
-- [BBVA — Cuenta Emprendedor](https://www.bbva.pe/empresas/productos/cuentas/corrientes/cuenta-emprendedor.html)
+- [BCP — Tarifario de cuentas para empresas](https://www.viabcp.com/tarifario)
