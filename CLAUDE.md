@@ -226,6 +226,18 @@ Flujo implementado:
 - Variables de entorno: `CULQI_PUBLIC_KEY`, `CULQI_SECRET_KEY`, `CULQI_WEBHOOK_SECRET` (opcional), `NEXT_PUBLIC_CULQI_PUBLIC_KEY` (frontend)
 - **Cómo probar (2026-08-03):** `node scripts/prueba-culqi.js` corre el circuito entero contra la API real de Culqi con llaves de test, sin levantar el backend ni abrir el navegador. Genera el token desde el script (con llaves `pk_test_` Culqi permite tokenizar server-side; en producción eso solo lo hace el widget en el navegador). Verifica además los campos que consume `registrarPago` — si Culqi renombra `source.iin.card_brand` el cobro igual "funciona", pero el historial de Facturación sale vacío y la renovación mensual se rompe en silencio.
 - **Orden de habilitación:** primero llaves de test en el `.env` local + `.env.local` del frontend → correr el script → probar el widget en `dashboard/planes` con `npm run dev` → recién ahí llaves live en Railway y Vercel.
+- **Cargar las llaves live por terminal** (verificado 2026-08-03, Railway CLI 5.23.3):
+  ```bash
+  cd brand-shield
+  railway variable set CULQI_PUBLIC_KEY=pk_live_... --service api --skip-deploys
+  echo "sk_live_..." | railway variable set CULQI_SECRET_KEY --stdin --service api --skip-deploys
+  echo "<secreto>"   | railway variable set CULQI_WEBHOOK_SECRET --stdin --service api  # sin --skip-deploys: dispara el redeploy
+
+  cd ../brand-shield-web
+  vercel env add NEXT_PUBLIC_CULQI_PUBLIC_KEY production --value pk_live_...
+  vercel --prod --yes   # imprescindible: NEXT_PUBLIC_* se incrusta en build time
+  ```
+  Detalles comprobados: `--stdin` **recorta el salto de línea** que agrega `echo`, así que la llave no queda con `\n` (probado con una variable desechable). Cada `variable set` dispara un redeploy salvo `--skip-deploys` — por eso solo el último va sin la bandera. **`variable delete` NO admite `--skip-deploys`**, siempre redespliega. Y agregar la variable en Vercel no basta: sin un `vercel --prod` nuevo el bundle sigue con el valor viejo.
 - ⚠️ Las llaves live cobran de verdad desde el primer intento: Culqi no tiene "modo prueba" dentro de las llaves live, el entorno lo decide el prefijo de la llave. El script aborta si detecta `sk_live_`.
 - **Promo de bienvenida (2026-07-06):** 50% de descuento los primeros 2 meses, solo facturación mensual, una vez por cuenta. Campos en `Usuario`: `periodoFacturacion` ("mensual"|"anual"), `promoBienvenidaUsada` (se marca en el primer cobro, no se puede reclamar de nuevo con la misma cuenta), `mesesPromoRestantes` (cuenta regresiva que consume el cron de renovación). Aplicado en `POST /api/pagos/culqi` y en `iniciarRenovacionesCulqi`; el frontend (`dashboard/planes/page.js`) replica el mismo cálculo solo para mostrar el monto correcto en el widget de Culqi antes de pagar — el monto real que se cobra siempre lo decide el backend.
 - **Bug corregido (2026-07-06):** el cron de renovación cobraba precio mensual a *todos* los usuarios activos, incluso a quienes se habían suscrito anual, convirtiéndolos silenciosamente a facturación mensual en su primer aniversario. Ahora lee `usuario.periodoFacturacion` y cobra el monto y plazo correctos.
