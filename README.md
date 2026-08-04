@@ -8,7 +8,7 @@ en `CLAUDE.md`.
 > Este archivo no contiene números de cuenta, claves ni credenciales, y no debe contenerlos.
 > Los certificados y secretos van en variables de entorno (ver `brand-shield/.env.example`).
 
-**Última revisión:** 26 de julio de 2026
+**Última revisión:** 3 de agosto de 2026
 
 ---
 
@@ -257,6 +257,34 @@ scripts ya reintentan solos.
 - [ ] Cargar `SUNAT_CERT_P12_BASE64` y `SUNAT_CERT_PASSWORD` en Railway
 - [ ] Mover el `.p12` fuera de OneDrive (hoy la llave privada está sincronizada
       en la nube)
+
+**Meta / Instagram + App Review** (detalle técnico exacto en `CLAUDE.md` §19)
+- [x] Negocio NOTORIA verificado en Meta Business Manager (29/07/2026)
+- [x] Página de eliminación de datos en producción (`usenotoria.app/eliminar-datos`)
+- [x] Formulario de tratamiento de datos respondido (política de respaldo en
+      `docs/politica-solicitudes-autoridades.md`)
+- [ ] **Crear la app tipo NEGOCIO** — la primera app (1709333600393009) salió tipo
+      Consumidor y no tiene los permisos de Instagram; no sirve. Pasos en CLAUDE.md §19
+- [ ] Cargar las llaves de la app nueva en Railway y redesplegar el backend
+      (el soporte de `config_id` está commiteado sin desplegar)
+- [ ] Probar "Conectar Instagram" en `/dashboard/conexiones` con IG Business + página de FB
+- [ ] Crear cuenta de prueba del revisor (plan NEGOCIO vía `scripts/dar-plan.js`)
+- [ ] Grabar screencast y enviar el App Review (4 permisos: instagram_basic,
+      instagram_manage_comments, pages_show_list, pages_read_engagement)
+- [ ] WhatsApp Cloud API en la misma app: plantilla UTILITY + credenciales en Railway
+
+**Crecimiento / landing (sesión 03/08/2026)**
+- [x] Repo en GitHub (`adi211104/NOTORIA`) con push funcionando
+- [x] Widget "analiza tu negocio gratis" en el hero — funcionando en producción
+- [x] Drip de emails de onboarding activo (día 2 / 5 / 7, cron 10:00 Lima)
+- [x] Botón de WhatsApp de ventas (51 955 599 041)
+- [x] Tabla comparativa rediseñada, sin "Próximamente" en páginas públicas
+- [x] `@vercel/analytics` instalado
+- [ ] Habilitar Web Analytics en el dashboard de Vercel (sin eso no recolecta)
+- [ ] Decidir qué hacer con **Facebook Reviews** en la tabla/tarjetas (¿el scraper
+      trae datos reales o es stub? — si es stub, quitarlo por honestidad)
+- [ ] Blog SEO (artículos para búsquedas de reputación de restaurantes en Perú)
+- [ ] Capturas reales del panel en el landing
 
 **Producto**
 - [x] `npx prisma db push` para crear las tablas de comprobantes en producción

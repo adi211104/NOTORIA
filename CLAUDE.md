@@ -87,9 +87,10 @@ GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 GROQ_API_KEY=gsk_...
 BACKEND_URL=http://localhost:3000            # cambiar a https://api.usenotoria.app en prod
-META_APP_ID=                                 # pendiente — Meta aprobación
-META_APP_SECRET=                             # pendiente
+META_APP_ID=                                 # cargado en Railway (2026-08-03) pero de la app tipo Consumidor FALLIDA — reemplazar con la app tipo Negocio, ver §19
+META_APP_SECRET=                             # ídem
 META_REDIRECT_URI=                           # opcional — por defecto BACKEND_URL + /api/redes/instagram/callback
+META_LOGIN_CONFIG_ID=                        # solo apps Negocio con Facebook Login for Business: ID de la "Configuración" de permisos; si está seteado, el OAuth manda config_id en vez de scope (§19)
 TIKTOK_CLIENT_KEY=                           # Sandbox cargado en Railway (2026-07-29)
 TIKTOK_CLIENT_SECRET=                        # Sandbox cargado en Railway
 TIKTOK_SCOPES=                               # opcional — default "user.info.basic,video.list". Ver §15
@@ -130,6 +131,7 @@ META_GRAPH_VERSION=                          # opcional, default v21.0
 NEXT_PUBLIC_API_URL=http://localhost:3000    # cambiar a URL de Railway en prod
 NEXT_PUBLIC_GOOGLE_CLIENT_ID=...
 NEXT_PUBLIC_CULQI_PUBLIC_KEY=                # pendiente — llave pública de Culqi
+NEXT_PUBLIC_WHATSAPP_VENTAS=51955599041      # botón flotante de ventas del landing; sin la variable el botón no se renderiza. Ya cargada en Vercel (2026-08-03)
 ```
 
 ---
@@ -272,7 +274,7 @@ cd brand-shield-web && vercel --prod --yes         # frontend → https://usenot
 ```
 `railway status` / `vercel ls` confirman a qué proyecto está linkeada cada carpeta antes de desplegar.
 
-⚠️ **Cómo saber qué falta desplegar: NO se puede por git.** El repo tiene archivos en stage pero **cero commits** (`master` no tiene ni uno), así que `git status` y `git log` no dicen absolutamente nada sobre el estado de producción — todo aparece como "nuevo" para siempre. No hay historial ni forma de revertir. El método que sí funciona son las tres fuentes de verdad reales:
+✅ **Git YA FUNCIONA (2026-08-03).** Rama `main` con historial, remoto `origin` = **https://github.com/adi211104/NOTORIA** (privacidad del repo: decidirla el usuario). `gh` está instalado en `C:\Program Files\GitHub CLI\gh.exe` (usar ruta completa en Git Bash), autenticado como `adi211104`, y git tiene a gh como credential helper global — **`git push` funciona directo desde el agente**. Commitear y pushear al cerrar cada bloque de trabajo. `git status`/`git log` ahora SÍ dicen qué falta desplegar, pero la hora de los deploys sigue saliendo de estas fuentes:
 
 ```bash
 # 1. ¿Cuándo se desplegó cada lado?
@@ -930,11 +932,43 @@ esta es la razón para no hacerlo.
 que devolvió "empty migration"). El cambio de default cosmético que figuraba acá
 (`menciones.plataforma` de `'TWITTER'` a `'TIKTOK'`) ya entró en un `db push`.
 
+## Sesión 2026-08-03 — GitHub, crecimiento del landing y Meta (§19)
+
+### 19. Estado EXACTO al cierre de la sesión — leer esto para continuar
+
+**Desplegado y verificado en producción (frontend Vercel + backend Railway):**
+- **Widget "analiza tu negocio gratis"** en el hero (solo visitantes sin sesión). Backend `src/api/routes/publico.routes.js` (`/api/publico/buscar-negocio` + `/analizar`): sin auth, rate-limit propio 15 req/15min por IP, máx. 4 verificaciones de país por búsqueda, caché en memoria 6h por placeId, teaser con UNA muestra sospechosa recortada (el informe completo pide registro). Frontend `components/AnalisisGratis.js`. Probado end-to-end contra prod. Script: `scripts/prueba-publico.js` (⚠️ gasta ~6 llamadas reales de Places).
+- **Drip de onboarding ACTIVO**: `Usuario.dripEtapa` (db push aplicado en prod), `workers/drip.worker.js` (cron diario 10:00 Lima), `enviarDrip` en `utils/emails.js` (4 variantes ES/EN). Día 2 según estado real (sin negocio / sin GBP / nada que pedir), día 5 valor con cifras, día 7 promo 50% solo GRATIS sin promo usada. Ventana 30 días, solo emails verificados, máx. 1 etapa/día, **la etapa avanza ANTES de enviar** (fallo de Resend = ese correo se pierde, no se duplica). 11 pruebas en `scripts/prueba-drip.js`.
+- **Página `/eliminar-datos`** (bilingüe, footer + sitemap) — es la URL para el campo "Eliminación de datos de usuario" de la app de Meta (opción "URL de instrucciones").
+- **Botón flotante de WhatsApp** (`components/BotonWhatsApp.js`), gated por `NEXT_PUBLIC_WHATSAPP_VENTAS` (ya en Vercel con 51955599041).
+- **Tabla comparativa rediseñada** (ES+EN): filas idénticas en los 3 planes movidas a la línea `incluidos` sobre la tabla; labels como beneficio ("Un ataque se detecta en máximo 24h/4h/1h"); **cero "Próximamente" en landing y dashboard/planes** (regla de producto §18). La pastilla "Próximamente" de `dashboard/conexiones` se queda: desaparece sola al configurar Meta. Verificado: 0 chunks del landing con ese texto.
+- **`@vercel/analytics`** montado en `layout.js`. ⚠️ Falta que el usuario habilite Web Analytics en el dashboard de Vercel (proyecto notoria-web → Analytics → Enable) o no recolecta.
+- **Factura electrónica como feature visible**: grupo Facturación en la comparativa + línea en tarjetas de precios y dashboard/planes.
+- `docs/politica-solicitudes-autoridades.md`: respaldo del "requests-4" del formulario de tratamiento de datos de Meta (se marcaron las 4 casillas).
+
+### Meta / Instagram — dónde quedó EXACTAMENTE
+
+1. **Negocio verificado** en Business Manager (29-jul-2026). ✔
+2. **Primera app (ID 1709333600393009) es tipo CONSUMIDOR → NO SIRVE.** Sus permisos disponibles son solo `email`/`public_profile`/`user_*`; los `instagram_*`/`pages_*` no existen en ese tipo y no se pueden agregar (error "Invalid Scopes" al abrir el diálogo OAuth). Sus llaves quedaron cargadas en Railway y hay que REEMPLAZARLAS.
+3. **Siguiente paso del usuario: crear app tipo NEGOCIO** (Crear app → caso de uso "Otro" → tipo "Negocio"), vinculada al portfolio Notoria verificado. Configurar: Básica → Dominios de la app `usenotoria.app`, privacidad `https://usenotoria.app/privacidad`, eliminación de datos `https://usenotoria.app/eliminar-datos`; producto **Facebook Login for Business** → Valid OAuth Redirect URIs `https://api.usenotoria.app/api/redes/instagram/callback`. Cargar las llaves NUEVAS en Railway (`railway variables --set META_APP_ID=... --set META_APP_SECRET=...`).
+4. **Si vuelve a salir "Invalid Scopes" con la app Negocio**: crear una **Configuración** en Facebook Login for Business con los 4 permisos y cargar su ID como `META_LOGIN_CONFIG_ID` en Railway. `redes.routes.js` ya la soporta (si la variable existe manda `config_id`, si no `scope`) — **ese cambio está commiteado pero SIN desplegar a Railway**: hace falta `railway up --service api` tras crear la app.
+5. Lección aprendida hoy: la URL del callback NO va en "Administrador de dominios" (eso es para contenido compartido); el error "dominio no incluido" se arregla con el campo **Dominios de la app** de Configuración Básica + el redirect URI en el producto de login.
+6. **Formulario App Review**: los textos en inglés (instrucciones de prueba, APIs usadas, sin pagos, sin geobloqueo) ya están redactados — buscarlos en la conversación del 2026-08-03 o pedirlos de nuevo. Falta: crear cuenta de prueba del revisor (registrar email controlado, verificar, `railway run --service api node scripts/dar-plan.js <email> NEGOCIO`) y grabar el screencast (login → Conexiones → Conectar Instagram → autorizar → comentarios → tuerca → Eliminar conexión).
+
+### Pendientes de código (en orden sugerido)
+
+1. **Desplegar backend** (`railway up`) — el soporte de `config_id` está commiteado sin subir. Nada más del backend está pendiente de deploy.
+2. **Cablear comentarios de Instagram al worker** cuando el OAuth funcione: agregar `INSTAGRAM` al enum `Plataforma` (+ `db push` del usuario), entrada en `FUENTES_COMENTARIOS` del worker, y probar contra la Graph API real (método §15-sexies: nunca a ciegas).
+3. **Decisión del usuario pendiente: Facebook Reviews.** El scraper es un "stub funcional" — si no trae datos reales, por la regla §18 hay que sacarlo de la tabla comparativa, las tarjetas del landing y dashboard/planes hasta que funcione. PREGUNTADO, sin respuesta aún.
+4. **Blog SEO** (artículos "cómo responder reseñas negativas restaurante", etc.) y **capturas reales del panel** en el landing — aceptados por el usuario, no empezados.
+
 ### Scripts útiles añadidos
 
 | Script | Para qué |
 |--------|----------|
 | `scripts/dar-plan.js <email> <PLAN>` | Cambia el plan de una cuenta a mano, sin pasar por Culqi. No crea `Pago` ni comprobante (la numeración es correlativa y no admite huecos) |
+| `scripts/prueba-publico.js` | Endpoint público del widget contra la Places API real (~6 llamadas de cuota). Valida búsqueda, análisis, caché y validación de entrada |
+| `scripts/prueba-drip.js` | 11 pruebas del drip con Prisma y Resend simulados: variantes por estado, avance de etapa, exclusiones, 1 etapa/día |
 | `scripts/prueba-whatsapp-meta.js` | 14 pruebas de `whatsappMeta.js` con axios interceptado, sin gastar credenciales |
 | `scripts/prueba-tiktok-comentarios.js` | 12 pruebas del circuito de comentarios de TikTok con axios interceptado: parseo, aislamiento del fallo de `comment.list`, `null` vs `[]`, sentimiento, dedupe y forma del request de respuesta. No llama a TikTok ni toca la BD |
 | `scripts/prueba-negocio-publico.js` | 10 pruebas del saneador que impide que los access tokens lleguen al navegador. **Correr siempre que se agregue un campo nuevo al modelo `Negocio`**: la prueba 9 avisa si es un secreto que nadie está quitando |
