@@ -1,0 +1,28 @@
+# Monitor de uptime sin servicios externos: GitHub Actions golpea el backend y
+# el landing cada 15 minutos. Si algo no responde 200, el workflow falla y
+# GitHub le manda un email al dueño del repo (configuración por defecto de
+# notificaciones). El cron de Actions puede atrasarse unos minutos en horas
+# pico — es aceptable para este uso.
+name: uptime
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Backend /health
+        run: |
+          codigo=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 https://api.usenotoria.app/health)
+          echo "api.usenotoria.app/health -> $codigo"
+          [ "$codigo" = "200" ]
+      - name: Landing
+        if: always()
+        run: |
+          codigo=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 https://usenotoria.app/)
+          echo "usenotoria.app -> $codigo"
+          [ "$codigo" = "200" ]
