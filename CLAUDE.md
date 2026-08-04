@@ -992,6 +992,7 @@ que devolvió "empty migration"). El cambio de default cosmético que figuraba a
 |--------|----------|
 | `scripts/dar-plan.js <email> <PLAN>` | Cambia el plan de una cuenta a mano, sin pasar por Culqi. No crea `Pago` ni comprobante (la numeración es correlativa y no admite huecos) |
 | `scripts/prueba-publico.js` | Endpoint público del widget contra la Places API real (~6 llamadas de cuota). Valida búsqueda, análisis, caché y validación de entrada |
+| `scripts/set-culqi-keys.js <pk_test> <sk_test>` | Escribe las llaves de test en `brand-shield/.env` y `brand-shield-web/.env.local` de una vez, sin editar a mano. Rechaza llaves `live` (esas van en Railway/Vercel, no en archivos locales) y detecta si se pasaron al revés |
 | `scripts/prueba-culqi.js` | Circuito de cobro completo contra la API real de Culqi con llaves de **test**: token → customer → tarjeta guardada → cargo. Verifica los campos de los que depende el resto del código (`cargo.id`, `source.card_number`, `source.iin.card_brand`, `tarjeta.id`) y que el monto cobrado sea el de `precios.js`. **Se niega a correr con llaves `sk_live_`** salvo `--vivo` |
 | `scripts/prueba-drip.js` | 11 pruebas del drip con Prisma y Resend simulados: variantes por estado, avance de etapa, exclusiones, 1 etapa/día |
 | `scripts/prueba-whatsapp-meta.js` | 14 pruebas de `whatsappMeta.js` con axios interceptado, sin gastar credenciales |
