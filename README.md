@@ -280,11 +280,20 @@ scripts ya reintentan solos.
 - [x] Botón de WhatsApp de ventas (51 955 599 041)
 - [x] Tabla comparativa rediseñada, sin "Próximamente" en páginas públicas
 - [x] `@vercel/analytics` instalado
+- [x] **Facebook Reviews retirado** de comparativa/tarjetas/planes: verificado en
+      código que no existe ruta para conectar una página de FB (el token jamás se
+      llena). El scraper queda intacto para cuando se construya el flujo
+- [x] OG image en PNG (las vistas previas de WhatsApp/Facebook no renderizan SVG)
+- [x] JSON-LD: FAQPage + SoftwareApplication (layout) y BlogPosting (blog)
+- [x] Google Search Console verificado + sitemap enviado (03/08/2026)
+- [x] DMARC `p=none` en Cloudflare — revisar reportes y subir a `p=quarantine` (~sept)
+- [x] Monitor de uptime con GitHub Actions (ping cada 15 min, email si falla)
+- [x] **Blog SEO en producción**: `/blog` + 5 artículos (contenido en
+      `brand-shield-web/src/lib/blog.js`; agregar artículo = una entrada ahí)
 - [ ] Habilitar Web Analytics en el dashboard de Vercel (sin eso no recolecta)
-- [ ] Decidir qué hacer con **Facebook Reviews** en la tabla/tarjetas (¿el scraper
-      trae datos reales o es stub? — si es stub, quitarlo por honestidad)
-- [ ] Blog SEO (artículos para búsquedas de reputación de restaurantes en Perú)
-- [ ] Capturas reales del panel en el landing
+- [ ] Capturas reales del panel en el landing (faltan 4 screenshots del dashboard:
+      score/gauge, reseñas con sospechosa, chat IA, tab Comentarios con TikTok)
+- [ ] Escribir 1-2 artículos nuevos del blog al mes
 
 **Producto**
 - [x] `npx prisma db push` para crear las tablas de comprobantes en producción
