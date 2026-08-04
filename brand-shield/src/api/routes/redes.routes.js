@@ -190,9 +190,17 @@ router.post('/:negocioId/instagram/conectar', async (req, res, next) => {
       client_id: process.env.META_APP_ID,
       redirect_uri: META_REDIRECT_URI,
       response_type: 'code',
-      scope: 'instagram_basic,instagram_manage_comments,pages_show_list,pages_read_engagement',
       state: codificarState(negocio.id, req.usuario.id),
     });
+    // Facebook Login for Business (apps tipo Negocio) reemplaza el `scope`
+    // suelto por una "Configuración" — un paquete de permisos creado en la
+    // consola que se referencia por config_id. Si la variable está seteada se
+    // manda config_id (y Meta IGNORA scope); si no, el scope clásico.
+    if (process.env.META_LOGIN_CONFIG_ID) {
+      params.set('config_id', process.env.META_LOGIN_CONFIG_ID);
+    } else {
+      params.set('scope', 'instagram_basic,instagram_manage_comments,pages_show_list,pages_read_engagement');
+    }
 
     res.json({ url: `https://www.facebook.com/v21.0/dialog/oauth?${params.toString()}` });
   } catch (error) { next(error); }
