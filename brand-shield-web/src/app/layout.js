@@ -1,5 +1,6 @@
 import './globals.css';
 import Script from 'next/script';
+import { Analytics } from '@vercel/analytics/next';
 import { AuthProvider } from '../context/AuthContext';
 import { IdiomaProvider } from '../context/IdiomaContext';
 import CookieBanner from '../components/CookieBanner';
@@ -68,6 +69,7 @@ export default function RootLayout({ children }) {
             <CookieBanner />
           </AuthProvider>
         </IdiomaProvider>
+        <Analytics />
       </body>
     </html>
   );

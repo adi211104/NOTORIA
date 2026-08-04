@@ -9,6 +9,7 @@ import { useIdioma } from '../context/IdiomaContext';
 const PixelBlast = dynamic(() => import('../components/PixelBlast'), { ssr: false });
 
 import LogoNotoria from '../components/LogoNotoria';
+import BotonWhatsApp from '../components/BotonWhatsApp';
 
 // Símbolo de la moneda de cobro. Los precios se cobran en soles; ver MONEDA en
 // brand-shield/src/lib/precios.js, que es lo que manda en el cargo real.
@@ -207,6 +208,8 @@ const TEXTOS = {
         { label:'Facebook Reviews', valores:[false,true,true] },
         { label:'Instagram y TikTok', valores:[false,'Próximamente','Próximamente'] },
         { label:'Panel de control ejecutivo multi-sede', valores:[false,false,true] },
+        { grupo:'Facturación' },
+        { label:'Boleta o factura electrónica a tu RUC, automática', valores:[false,true,true] },
         { grupo:'Soporte' },
         { label:'Soporte', valores:['Estándar','Prioritario','Prioritario por WhatsApp'] },
       ],
@@ -259,6 +262,7 @@ const TEXTOS = {
         { titulo:'Legal', links:[
           { l:'Términos de servicio', h:'/terminos' },
           { l:'Política de privacidad', h:'/privacidad' },
+          { l:'Eliminación de datos', h:'/eliminar-datos' },
         ]},
       ],
       copyright:(anio)=>`© ${anio} Notoria. Todos los derechos reservados.`,
@@ -396,6 +400,8 @@ const TEXTOS = {
         { label:'Facebook Reviews', valores:[false,true,true] },
         { label:'Instagram and TikTok', valores:[false,'Coming soon','Coming soon'] },
         { label:'Multi-location executive dashboard', valores:[false,false,true] },
+        { grupo:'Billing' },
+        { label:'Automatic electronic invoice (SUNAT, Peru)', valores:[false,true,true] },
         { grupo:'Support' },
         { label:'Support', valores:['Standard','Priority','Priority via WhatsApp'] },
       ],
@@ -448,6 +454,7 @@ const TEXTOS = {
         { titulo:'Legal', links:[
           { l:'Terms of service', h:'/terminos' },
           { l:'Privacy policy', h:'/privacidad' },
+          { l:'Data deletion', h:'/eliminar-datos' },
         ]},
       ],
       copyright:(anio)=>`© ${anio} Notoria. All rights reserved.`,
@@ -1170,6 +1177,7 @@ export default function LandingPage() {
             </div>
           </div>
         </footer>
+        <BotonWhatsApp />
       </div>
     </>
   );
