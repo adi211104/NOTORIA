@@ -19,6 +19,7 @@ const publicoRoutes = require('./api/routes/publico.routes');
 
 const { iniciarMonitoreo, iniciarReportesMensuales, iniciarResumenesAlertas, iniciarRenovacionesCulqi, iniciarEscalacionUrgencias } = require('./workers/monitoreo.worker');
 const { iniciarResumenSemanal } = require('./workers/resumenSemanal.worker');
+const { iniciarDrip } = require('./workers/drip.worker');
 const { iniciarEnvioSunat } = require('./workers/envioSunat.worker');
 
 const app = express();
@@ -147,6 +148,7 @@ app.listen(PORT, () => {
     // Solo arranca si SUNAT_EMISION_ACTIVA=true y hay certificado y credenciales;
     // si no, se registra en el log y no hace nada (ver envioSunat.worker.js)
     iniciarEnvioSunat();
+    iniciarDrip();
     console.log('🔄 Monitoreo periódico iniciado');
     console.log('📄 Cron de reportes mensuales iniciado');
     console.log('📬 Cron de resúmenes de alertas iniciado');

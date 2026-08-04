@@ -40,6 +40,10 @@ model Usuario {
   // { tipos: { PICO_RESENAS_NEGATIVAS, CAIDA_RATING, CUENTAS_NUEVAS, RESENA_MUY_NEGATIVA }: bool,
   //   umbralNegativas: 1|5, frecuencia: 'INMEDIATA'|'SEMANAL'|'MENSUAL', diaSemana: 0-6 }
   prefsAlertas         Json?
+  // Secuencia de emails de onboarding (drip): 0 = ninguno enviado, 1 = día 2,
+  // 2 = día 5, 3 = día 7 (fin). El worker solo procesa cuentas creadas hace
+  // menos de 30 días, así el default 0 en cuentas viejas no dispara nada.
+  dripEtapa            Int           @default(0)
   // Datos fiscales del receptor del comprobante. Se piden al suscribirse y se
   // congelan dentro de cada Comprobante al emitirlo (si el usuario luego los
   // corrige, los comprobantes ya emitidos no cambian — eso sería adulterarlos).

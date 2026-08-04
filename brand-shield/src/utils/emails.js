@@ -282,4 +282,92 @@ const enviarComprobante = async ({ usuario, comprobante, pdf }) => {
   return res;
 };
 
-module.exports = { enviarBienvenida, enviarVerificacion, enviarConfirmacionContrasena, enviarRecuperacionContrasena, enviarAlertaCritica, enviarResumenAlertas, enviarResumenSemanal, enviarResumenSemanalConsolidado, enviarComprobante, getResend, FROM, base, h1, p, btn, hr };
+// ── 10. Drip de onboarding ────────────────────────────────
+// Tres correos que empujan al usuario nuevo hacia el momento de valor:
+// etapa 1 (día 2) según su estado real, etapa 2 (día 5) con lo que Notoria ya
+// vio de su negocio, etapa 3 (día 7) con la promo de bienvenida. El worker
+// decide cuándo y a quién; acá solo vive el contenido.
+const DRIP = {
+  es: {
+    sinNegocio: {
+      asunto: (n) => `${n}, tu cuenta de Notoria sigue vacía`,
+      cuerpo: () => `
+        ${h1('Aún no vigilamos nada tuyo.')}
+        ${p('Creaste tu cuenta hace un par de días, pero todavía no agregaste tu negocio. Mientras tanto, cualquier reseña falsa que te dejen pasa desapercibida.')}
+        ${p('Agregarlo toma un minuto: lo buscas como en Google Maps y listo.')}
+        ${btn('Agregar mi negocio →', `${FRONT()}/onboarding`)}`,
+    },
+    sinGbp: {
+      asunto: () => 'Estás viendo solo 5 de tus reseñas',
+      cuerpo: (negocio) => `
+        ${h1('Te falta el paso que más cambia.')}
+        ${p(`Google solo nos deja leer las 5 reseñas públicas más recientes de <strong>${negocio}</strong>. Conectando tu cuenta de Google Business (gratis, 1 minuto) desbloqueas el historial completo y puedes responder directo desde Notoria.`)}
+        ${btn('Conectar Google Business →', `${FRONT()}/dashboard/conexiones`)}`,
+    },
+    valor: {
+      asunto: (n) => `${n}, esto es lo que Notoria vigila por ti`,
+      cuerpo: (stats) => `
+        ${h1('Tu resumen de la primera semana.')}
+        ${p(`Desde que llegaste, Notoria escaneó tu negocio de forma automática y registró <strong>${stats.resenas} reseña${stats.resenas === 1 ? '' : 's'}</strong>${stats.alertas > 0 ? ` y generó <strong>${stats.alertas} alerta${stats.alertas === 1 ? '' : 's'}</strong>` : ''} sin que tuvieras que hacer nada.`)}
+        ${p('Cada escaneo revisa patrones de ataque: cuentas recién creadas, texto duplicado y picos de reseñas negativas.')}
+        ${btn('Ver mi panel →', `${FRONT()}/dashboard`)}`,
+    },
+    promo: {
+      asunto: () => 'Tu descuento de bienvenida vence pronto',
+      cuerpo: () => `
+        ${h1('50% de descuento tus primeros 2 meses.')}
+        ${p('Por ser cuenta nueva, el plan Negocio te cuesta la mitad los primeros 2 meses: escaneo cada 4 horas, historial de 90 días, 100 usos de IA a la semana y alertas por Telegram.')}
+        ${p('La promo es exclusiva para cuentas recién creadas — después ya no aparece.')}
+        ${btn('Ver planes →', `${FRONT()}/dashboard/planes`)}`,
+    },
+  },
+  en: {
+    sinNegocio: {
+      asunto: (n) => `${n}, your Notoria account is still empty`,
+      cuerpo: () => `
+        ${h1('We are not watching anything for you yet.')}
+        ${p('You created your account a couple of days ago but have not added your business. Meanwhile, any fake review posted about you goes unnoticed.')}
+        ${p('It takes one minute: search it like on Google Maps and you are done.')}
+        ${btn('Add my business →', `${FRONT()}/onboarding`)}`,
+    },
+    sinGbp: {
+      asunto: () => 'You are only seeing 5 of your reviews',
+      cuerpo: (negocio) => `
+        ${h1('You are missing the step that matters most.')}
+        ${p(`Google only lets us read the 5 most recent public reviews of <strong>${negocio}</strong>. Connect your Google Business account (free, 1 minute) to unlock the full history and reply right from Notoria.`)}
+        ${btn('Connect Google Business →', `${FRONT()}/dashboard/conexiones`)}`,
+    },
+    valor: {
+      asunto: (n) => `${n}, this is what Notoria watches for you`,
+      cuerpo: (stats) => `
+        ${h1('Your first-week summary.')}
+        ${p(`Since you joined, Notoria scanned your business automatically and recorded <strong>${stats.resenas} review${stats.resenas === 1 ? '' : 's'}</strong>${stats.alertas > 0 ? ` and raised <strong>${stats.alertas} alert${stats.alertas === 1 ? '' : 's'}</strong>` : ''} without you lifting a finger.`)}
+        ${p('Every scan checks for attack patterns: brand-new accounts, duplicated text and spikes of negative reviews.')}
+        ${btn('Open my dashboard →', `${FRONT()}/dashboard`)}`,
+    },
+    promo: {
+      asunto: () => 'Your welcome discount expires soon',
+      cuerpo: () => `
+        ${h1('50% off your first 2 months.')}
+        ${p('As a new account, the Business plan costs half price for your first 2 months: scans every 4 hours, 90-day history, 100 AI uses per week and Telegram alerts.')}
+        ${p('The promo is exclusive to newly created accounts — it will not show up later.')}
+        ${btn('See plans →', `${FRONT()}/dashboard/planes`)}`,
+    },
+  },
+};
+
+// tipo: 'sinNegocio' | 'sinGbp' | 'valor' | 'promo'. datos: string (nombre del
+// negocio) para sinGbp, {resenas, alertas} para valor.
+const enviarDrip = async (usuario, tipo, datos) => {
+  const t = (DRIP[usuario.idioma] || DRIP.es)[tipo];
+  const nombre = usuario.nombre.split(' ')[0];
+  console.log(`[Email] Drip "${tipo}" a:`, usuario.email);
+  const r = getResend();
+  return r.emails.send({
+    from: FROM(), to: usuario.email,
+    subject: t.asunto(nombre),
+    html: base(t.cuerpo(datos)),
+  });
+};
+
+module.exports = { enviarBienvenida, enviarVerificacion, enviarConfirmacionContrasena, enviarRecuperacionContrasena, enviarAlertaCritica, enviarResumenAlertas, enviarResumenSemanal, enviarResumenSemanalConsolidado, enviarComprobante, enviarDrip, getResend, FROM, base, h1, p, btn, hr };
