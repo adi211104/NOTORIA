@@ -385,6 +385,8 @@ const TEXTOS = {
       oculto:'Oculto', fijado:'Fijado',
       ocultarAyuda:'Lo quita de la vista pública sin borrarlo. Su autor lo sigue viendo y no recibe aviso.',
       fijarAyuda:'Lo sube al inicio de los comentarios del video.',
+      borrarRespuesta:'Borrar respuesta', confirmarBorrado:'¿Seguro? Se borra de TikTok',
+      borrarRespuestaAyuda:'La retira de TikTok y deja el comentario como pendiente para que puedas escribir otra.',
     },
     sospechosas: {
       sinSospechosas:'Sin reseñas sospechosas detectadas',
@@ -697,6 +699,8 @@ const TEXTOS = {
       oculto:'Hidden', fijado:'Pinned',
       ocultarAyuda:'Removes it from public view without deleting it. Its author still sees it and is not notified.',
       fijarAyuda:'Moves it to the top of the video comments.',
+      borrarRespuesta:'Delete reply', confirmarBorrado:'Sure? This deletes it on TikTok',
+      borrarRespuestaAyuda:'Removes it from TikTok and marks the comment as pending so you can write a new one.',
     },
     sospechosas: {
       sinSospechosas:'No suspicious reviews detected',
@@ -1034,6 +1038,22 @@ export default function DetallePage() {
   // deshabilitar solo esa tarjeta mientras viaja la llamada — un estado global
   // congelaría toda la lista.
   const [comModerando, setComModerando] = useState(null);
+  // Confirmación en dos pasos: borrar en TikTok no se deshace, así que el primer
+  // clic solo arma el botón y el segundo ejecuta.
+  const [comBorrando, setComBorrando] = useState(null);
+  const borrarRespuesta = async (comentarioId) => {
+    setComModerando(comentarioId);
+    setComError('');
+    try {
+      await comentariosApi.borrarRespuesta(comentarioId);
+      setComBorrando(null);
+      await cargarComentarios();
+    } catch (e) {
+      setComError(e.message);
+    } finally {
+      setComModerando(null);
+    }
+  };
   const moderarComentario = async (comentarioId, accion, activar) => {
     setComModerando(comentarioId);
     setComError('');
@@ -1902,6 +1922,22 @@ export default function DetallePage() {
                         <div style={{ marginTop:10, paddingLeft:11, borderLeft:'2px solid var(--border-c)' }}>
                           <p style={{ color:'var(--text-3)', fontSize:11, margin:'0 0 2px' }}>{tc.tuRespuesta}</p>
                           <p style={{ color:'var(--text-2)', fontSize:12.5, margin:0, lineHeight:1.55 }}>{c.respuesta}</p>
+                          {/* Borrar la respuesta PROPIA, para reescribirla. Solo si
+                              tenemos su id de TikTok: las publicadas antes del
+                              2026-08-06 no lo tienen y el worker lo rellena luego. */}
+                          {c.respuestaExternalId && (
+                            <button title={tc.borrarRespuestaAyuda} disabled={comModerando === c.id}
+                              onClick={() => (comBorrando === c.id ? borrarRespuesta(c.id) : setComBorrando(c.id))}
+                              onBlur={() => setComBorrando(b => (b === c.id ? null : b))}
+                              style={{ marginTop:7, fontSize:11,
+                                       color: comBorrando === c.id ? '#f87171' : 'var(--text-3)',
+                                       background:'transparent',
+                                       border:`1px solid ${comBorrando === c.id ? 'rgba(248,113,113,0.4)' : 'var(--border-c)'}`,
+                                       padding:'4px 11px', borderRadius:9,
+                                       cursor: comModerando === c.id ? 'wait' : 'pointer' }}>
+                              {comBorrando === c.id ? tc.confirmarBorrado : tc.borrarRespuesta}
+                            </button>
+                          )}
                         </div>
                       ) : !c.publicacionId ? (
                         <p style={{ color:'var(--text-3)', fontSize:11.5, margin:'10px 0 0', fontStyle:'italic' }}>

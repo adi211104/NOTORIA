@@ -353,6 +353,7 @@ const FUENTES_COMENTARIOS = [
       // eternamente en la cola de pendientes.
       respondida: !!c.respuestaDueno,
       respuesta: c.respuestaDueno || null,
+      respuestaExternalId: c.respuestaDuenoId || null,
       // Estado de moderación tal como está HOY en la plataforma. La fuente de
       // verdad es TikTok, no nuestra base: el dueño puede ocultar o fijar desde
       // la app y el panel tiene que reflejarlo.
@@ -397,6 +398,12 @@ const procesarComentariosSociales = async (negocio) => {
           if (!existente.respondida && fila.respondida) {
             cambios.respondida = true;
             cambios.respuesta = fila.respuesta;
+          }
+          // Backfill del id de la respuesta: las guardadas antes del 2026-08-06
+          // no lo tienen y sin él no se pueden borrar desde el panel. Se rellena
+          // en cuanto el hilo la devuelve, sin tocar nada más.
+          if (!existente.respuestaExternalId && fila.respuestaExternalId) {
+            cambios.respuestaExternalId = fila.respuestaExternalId;
           }
           // La moderación sí se sincroniza en AMBAS direcciones, al revés que
           // `respondida`: acá TikTok es la fuente de verdad y desocultar en la

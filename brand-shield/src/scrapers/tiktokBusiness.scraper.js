@@ -293,9 +293,11 @@ const obtenerComentariosTikTokBiz = async (businessId, accessToken, limiteVideos
         // visible, que es la lectura segura.
         oculto: !!c.status && c.status !== 'PUBLIC',
         respuestas: c.replies ?? 0,
-        // null = el dueño no ha respondido. String = ya respondió (desde acá o
-        // desde la app de TikTok), y el worker lo marca como respondido.
-        respuestaDueno,
+        // null = el dueño no ha respondido. { texto, id } = ya respondió (desde
+        // acá o desde la app de TikTok), y el worker lo marca como respondido.
+        // El id se guarda para poder borrar esa respuesta más adelante.
+        respuestaDueno: respuestaDueno?.texto || null,
+        respuestaDuenoId: respuestaDueno?.id || null,
       });
     }
   }
@@ -316,6 +318,9 @@ const obtenerComentariosTikTokBiz = async (businessId, accessToken, limiteVideos
  * `replies` cuenta TODAS las respuestas, vengan de quien vengan, así que no
  * alcanza con mirar ese número: hay que pedir el hilo y buscar `owner: true`.
  * Verificado contra la API real el 2026-08-06.
+ *
+ * Devuelve { texto, id } | null. El `id` hace falta para poder BORRAR esa
+ * respuesta después: es el único identificador con el que TikTok la reconoce.
  */
 const obtenerRespuestaDelDueno = async (businessId, accessToken, videoId, comentarioId) => {
   const r = await llamar('get', '/business/comment/reply/list/', {
@@ -329,7 +334,33 @@ const obtenerRespuestaDelDueno = async (businessId, accessToken, videoId, coment
   });
   if (r.error) return null;
   const propia = (r.datos?.comments || []).find((c) => c.owner);
-  return propia ? propia.text : null;
+  return propia ? { texto: propia.text, id: propia.comment_id } : null;
+};
+
+/**
+ * Borra un comentario. Se usa para que el dueño pueda retirar UNA RESPUESTA SUYA
+ * —se equivocó, quiere reescribirla— que es el caso legítimo y sin víctimas.
+ *
+ * Dos diferencias con las acciones de moderación, ambas verificadas probando:
+ *  · NO pide `video_id`, solo `business_id` + `comment_id`.
+ *  · El `comment_id` va como STRING numérico. Los mensajes de error de la API se
+ *    contradicen —con un id no numérico dice "expected int"— pero mandarlo como
+ *    número lo rechaza con "Field must be set to string". Y menos mal: los ids
+ *    de TikTok superan el entero seguro de JavaScript, así que convertirlos a
+ *    número perdería precisión y podría apuntar a otro comentario.
+ */
+const eliminarComentarioTikTokBiz = async (businessId, accessToken, comentarioId) => {
+  if (!configurado()) return { error: 'TikTok no está configurado.' };
+  if (!comentarioId) return { error: 'Falta el identificador del comentario.' };
+  const r = await llamar('post', '/business/comment/delete/', {
+    accessToken,
+    cuerpo: {
+      business_id: businessId,
+      comment_id: String(comentarioId).replace(/^ttb_/, ''),
+    },
+  });
+  if (r.error) return { error: r.error };
+  return { ok: true };
 };
 
 /**
@@ -405,6 +436,7 @@ module.exports = {
   obtenerComentariosTikTokBiz,
   obtenerRespuestaDelDueno,
   responderComentarioTikTokBiz,
+  eliminarComentarioTikTokBiz,
   moderarComentarioTikTokBiz,
   ACCIONES_MODERACION,
   configurado,

@@ -193,6 +193,26 @@ const COMENTARIOS = [
     };
     const [c] = await tk.obtenerComentariosTikTokBiz('biz1', 'tok');
     assert.strictEqual(c.respuestaDueno, '¡Gracias!', 'sin esto el comentario queda pendiente para siempre');
+    // El id es lo único con lo que se puede BORRAR esa respuesta después.
+    assert.strictEqual(c.respuestaDuenoId, 'r1');
+  });
+
+  await prueba('borrar la respuesta manda comment_id como string, sin video_id', async () => {
+    respuestasFalsas = { '/business/comment/delete/': { code: 0, data: {} } };
+    const r = await tk.eliminarComentarioTikTokBiz('biz1', 'tok', 'ttb_7670811393569882901');
+    assert.strictEqual(r.ok, true);
+    const cuerpo = requests[0].data;
+    // Los ids de TikTok superan el entero seguro de JS: convertirlos a número
+    // perdería precisión y podría apuntar a OTRO comentario.
+    assert.strictEqual(typeof cuerpo.comment_id, 'string');
+    assert.strictEqual(cuerpo.comment_id, '7670811393569882901');
+    assert.ok(!('video_id' in cuerpo), 'delete es el único que NO lo pide');
+  });
+
+  await prueba('sin id de respuesta no se llama a borrar', async () => {
+    const r = await tk.eliminarComentarioTikTokBiz('biz1', 'tok', null);
+    assert.ok(r.error);
+    assert.strictEqual(requests.length, 0);
   });
 
   await prueba('respuestas de OTROS usuarios no cuentan como respondido', async () => {

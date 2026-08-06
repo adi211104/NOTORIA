@@ -297,9 +297,64 @@ router.post('/:id/responder', async (req, res, next) => {
 
     const actualizado = await prisma.comentarioSocial.update({
       where: { id: comentario.id },
-      data: { respondida: true, respuesta, vista: true },
+      data: {
+        respondida: true,
+        respuesta,
+        vista: true,
+        // Id que TikTok le dio a esta respuesta. Es lo único con lo que se puede
+        // borrar después, así que se guarda ahora: recuperarlo más tarde obliga
+        // a recorrer el hilo entero.
+        respuestaExternalId: r.id || null,
+      },
     });
     res.json({ mensaje: 'Respuesta publicada', comentario: actualizado });
+  } catch (error) { next(error); }
+});
+
+// DELETE /api/comentarios/:id/respuesta
+//
+// Retira la respuesta que el negocio publicó, para poder reescribirla. Borra en
+// TikTok y deja el comentario otra vez como pendiente.
+//
+// Solo borra respuestas PROPIAS. El comentario del cliente no se toca: para eso
+// está Ocultar, que lo retira de la vista pública sin borrarlo ni avisarle a su
+// autor. Borrar la crítica de un cliente es irreversible y suele escalar el
+// conflicto, así que no existe ese botón.
+router.delete('/:id/respuesta', async (req, res, next) => {
+  try {
+    const comentario = await prisma.comentarioSocial.findFirst({
+      where: { id: req.params.id, negocio: { usuarioId: req.usuario.id } },
+      include: { negocio: true },
+    });
+    if (!comentario) return res.status(404).json({ error: 'Comentario no encontrado' });
+    if (!comentario.respondida) return res.status(409).json({ error: 'Este comentario no tiene respuesta.' });
+
+    // Las respuestas anteriores al 2026-08-06 se guardaron sin el id de TikTok.
+    // El worker lo rellena al leer el hilo, así que esto se resuelve solo en el
+    // próximo escaneo — conviene decirlo en vez de dar un error opaco.
+    if (!comentario.respuestaExternalId) {
+      return res.status(422).json({
+        error: 'Esta respuesta se publicó antes de que guardáramos su identificador. Se podrá borrar tras el próximo escaneo, o puedes borrarla desde la app de TikTok.',
+      });
+    }
+
+    const conexion = await conexionTikTok(comentario.negocio);
+    if (!conexion.token || conexion.modo !== 'biz') {
+      return res.status(409).json({ error: 'Para borrar respuestas hay que reconectar TikTok desde Conexiones.' });
+    }
+
+    const r = await tiktokBiz.eliminarComentarioTikTokBiz(
+      conexion.businessId, conexion.token, comentario.respuestaExternalId,
+    );
+    // Si TikTok no confirmó, no se limpia nada: el panel diría "sin responder"
+    // mientras la respuesta sigue publicada.
+    if (r.error) return res.status(502).json({ error: r.error });
+
+    const actualizado = await prisma.comentarioSocial.update({
+      where: { id: comentario.id },
+      data: { respondida: false, respuesta: null, respuestaExternalId: null },
+    });
+    res.json({ mensaje: 'Respuesta eliminada', comentario: actualizado });
   } catch (error) { next(error); }
 });
 
