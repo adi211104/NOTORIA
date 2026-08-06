@@ -13,6 +13,8 @@ const { autenticar } = require('../middlewares/auth.middleware');
 const { verificarPlan } = require('../middlewares/verificarPlan.middleware');
 const tiktok = require('../../scrapers/tiktok.scraper');
 const { tokenTikTokVigente, estadoConexionTikTok } = require('../../lib/tiktokToken');
+const tiktokBiz = require('../../scrapers/tiktokBusiness.scraper');
+const { tokenTikTokBizVigente, estadoConexionTikTokBiz } = require('../../lib/tiktokBizToken');
 
 const router = express.Router();
 
@@ -31,15 +33,32 @@ const MAX_LARGO_RESPUESTA = 500;
 const CACHE_VIDEOS_MS = 3 * 60 * 1000;
 const cacheVideos = new Map(); // negocioId → { hasta, videos }
 
-const videosDelNegocio = async (negocioId, token) => {
-  if (!token) return null;
+const videosDelNegocio = async (negocioId, conexion) => {
+  if (!conexion?.token) return null;
   const enCache = cacheVideos.get(negocioId);
   if (enCache && enCache.hasta > Date.now()) return enCache.videos;
 
-  const videos = await tiktok.obtenerVideosTikTok(token);
+  const videos = conexion.modo === 'biz'
+    ? await tiktokBiz.obtenerVideosTikTokBiz(conexion.businessId, conexion.token)
+    : await tiktok.obtenerVideosTikTok(conexion.token);
   // Un fallo no se cachea: si fue temporal, la próxima carga vuelve a intentar.
   if (videos) cacheVideos.set(negocioId, { hasta: Date.now() + CACHE_VIDEOS_MS, videos });
   return videos;
+};
+
+/**
+ * Resuelve por cuál de las dos APIs de TikTok se opera este negocio, renovando
+ * el token si venció. La Accounts API manda porque es la única que lee y
+ * responde comentarios; la Display queda para conexiones viejas todavía no
+ * migradas (§15-octies).
+ *
+ * Devuelve { modo: 'biz'|'display', token, businessId } — con token null si no
+ * hay conexión utilizable.
+ */
+const conexionTikTok = async (negocio) => {
+  const tokenBiz = await tokenTikTokBizVigente(negocio);
+  if (tokenBiz) return { modo: 'biz', token: tokenBiz, businessId: negocio.tiktokBizId };
+  return { modo: 'display', token: await tokenTikTokVigente(negocio), businessId: null };
 };
 
 const negocioDelUsuario = (negocioId, usuarioId) =>
@@ -67,14 +86,17 @@ router.get('/:negocioId', async (req, res, next) => {
     // si la cuenta no está conectada o si el refresh token ya no sirve — en ese
     // caso el helper limpia los tokens y `conectado` pasa a false, que es la
     // verdad: hay que volver a autorizar.
-    const token = await tokenTikTokVigente(negocio);
+    const conexion = await conexionTikTok(negocio);
+    const token = conexion.token;
 
     // Backfill del perfil: las cuentas que se conectaron ANTES de que existiera
     // este cache no tienen nombre guardado. Se pide una sola vez y se persiste;
     // no es un fetch por carga de página.
     let perfilNegocio = negocio;
     if (token && !negocio.tiktokNombre) {
-      const perfil = await tiktok.obtenerPerfilTikTok(token);
+      const perfil = conexion.modo === 'biz'
+        ? await tiktokBiz.obtenerPerfilTikTokBiz(conexion.businessId, token)
+        : await tiktok.obtenerPerfilTikTok(token);
       if (perfil?.nombre) {
         perfilNegocio = await prisma.negocio.update({
           where: { id: negocio.id },
@@ -90,7 +112,7 @@ router.get('/:negocioId', async (req, res, next) => {
 
     // Los videos no bloquean la respuesta: si TikTok falla, el tab igual carga
     // con los comentarios que ya estén guardados.
-    const videos = await videosDelNegocio(negocio.id, token).catch(() => null);
+    const videos = await videosDelNegocio(negocio.id, conexion).catch(() => null);
 
     const [comentarios, total, negativos, sinResponder] = await Promise.all([
       prisma.comentarioSocial.findMany({
@@ -116,11 +138,17 @@ router.get('/:negocioId', async (req, res, next) => {
       // "TikTok" genérico. Nunca se manda el access token.
       conexiones: {
         tiktok: {
-          disponible: tiktok.configurado(),
-          conectado: !!perfilNegocio.tiktokAccessToken,
+          disponible: tiktokBiz.configurado() || tiktok.configurado(),
+          conectado: !!(perfilNegocio.tiktokBizAccessToken || perfilNegocio.tiktokAccessToken),
+          // Solo la Accounts API lee y responde comentarios. Sin esto el panel
+          // mostraría el botón Responder a quien tiene una conexión Display
+          // heredada, que fallaría al pulsarlo.
+          comentarios: !!perfilNegocio.tiktokBizAccessToken,
         // 'ok' | 'vencida' | 'sin_conectar'. El panel decía "escuchando esta
         // cuenta" aunque el token estuviera muerto; con esto puede avisar.
-        estado: estadoConexionTikTok(perfilNegocio),
+        estado: perfilNegocio.tiktokBizAccessToken
+          ? estadoConexionTikTokBiz(perfilNegocio)
+          : estadoConexionTikTok(perfilNegocio),
           nombre: perfilNegocio.tiktokNombre || null,
           avatar: perfilNegocio.tiktokAvatar || null,
           username: perfilNegocio.tiktokUsername || null,
@@ -161,18 +189,27 @@ router.post('/:id/responder', async (req, res, next) => {
     }
     // Renueva el token si venció. Si devuelve null la cuenta hay que reconectarla:
     // mejor un 409 claro que un 502 con "access_token_invalid" de TikTok.
-    const token = await tokenTikTokVigente(comentario.negocio);
-    if (!token) {
+    const conexion = await conexionTikTok(comentario.negocio);
+    if (!conexion.token) {
       return res.status(409).json({
         error: 'La conexión con TikTok expiró. Vuelve a conectar la cuenta desde Conexiones para poder responder.',
       });
     }
+    // Responder solo existe en la Accounts API. Si el negocio sigue con la
+    // conexión vieja de Display, la llamada fallaría con un 404 de TikTok; es
+    // más honesto pedirle que reconecte y decirle por qué.
+    if (conexion.modo !== 'biz') {
+      return res.status(409).json({
+        error: 'Para responder comentarios hay que reconectar TikTok desde Conexiones: la conexión actual es de solo lectura.',
+      });
+    }
 
-    const r = await tiktok.responderComentarioTikTok(
+    const r = await tiktokBiz.responderComentarioTikTokBiz(
+      conexion.businessId,
+      conexion.token,
       comentario.publicacionId,
       comentario.externalId,
       respuesta,
-      token,
     );
     // Solo se marca como respondida si la plataforma confirmó. Si guardáramos
     // igual, el panel diría "respondido" y en TikTok no habría nada.

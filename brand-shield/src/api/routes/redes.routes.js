@@ -9,6 +9,7 @@ const prisma = require('../../lib/prisma');
 const { autenticar } = require('../middlewares/auth.middleware');
 const instagram = require('../../scrapers/instagram.scraper');
 const tiktok = require('../../scrapers/tiktok.scraper');
+const tiktokBiz = require('../../scrapers/tiktokBusiness.scraper');
 const { firmarState, verificarState } = require('../../lib/oauthState');
 
 const router = express.Router();
@@ -17,6 +18,7 @@ const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3000';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3001';
 const META_REDIRECT_URI = process.env.META_REDIRECT_URI || `${BACKEND_URL}/api/redes/instagram/callback`;
 const TIKTOK_REDIRECT_URI = process.env.TIKTOK_REDIRECT_URI || `${BACKEND_URL}/api/redes/tiktok/callback`;
+const TIKTOK_BIZ_REDIRECT_URI = process.env.TIKTOK_BIZ_REDIRECT_URI || `${BACKEND_URL}/api/redes/tiktok-business/callback`;
 
 const negocioDelUsuario = async (negocioId, usuarioId) =>
   prisma.negocio.findFirst({ where: { id: negocioId, usuarioId } });
@@ -146,6 +148,54 @@ router.get('/tiktok/callback', async (req, res) => {
   }
 });
 
+// ── GET /api/redes/tiktok-business/callback ───────────────
+// Callback de la TikTok Accounts API (§15-octies). Va ANTES de `router.use(autenticar)`
+// porque quien llega acá es el navegador redirigido por TikTok, sin nuestro JWT;
+// la identidad viaja en el `state` firmado.
+router.get('/tiktok-business/callback', async (req, res) => {
+  const { code, state, error: oauthError } = req.query;
+  if (oauthError || !code || !state) {
+    return res.redirect(`${FRONTEND_URL}/dashboard?tt_error=${oauthError || 'missing_params'}`);
+  }
+
+  try {
+    const { negocioId } = decodificarState(state);
+
+    const t = await tiktokBiz.canjearCodigoTikTokBiz(code, TIKTOK_BIZ_REDIRECT_URI);
+    if (t.error) {
+      console.error(`[TikTok Biz OAuth] Canje fallido: ${t.error}`);
+      return res.redirect(`${FRONTEND_URL}/dashboard?tt_error=callback_failed`);
+    }
+
+    // Perfil visible en el mismo momento de conectar, para que el panel muestre
+    // de quién es la cuenta y no un "TikTok" genérico. Si falla no se aborta la
+    // conexión: el token es lo importante y el perfil se rellena en el próximo
+    // escaneo.
+    const perfil = await tiktokBiz.obtenerPerfilTikTokBiz(t.businessId, t.accessToken);
+
+    await prisma.negocio.update({
+      where: { id: negocioId },
+      data: {
+        tiktokBizId: t.businessId,
+        tiktokBizAccessToken: t.accessToken,
+        tiktokBizRefreshToken: t.refreshToken,
+        tiktokBizTokenExpira: t.expiraEn,
+        ...(perfil ? {
+          tiktokNombre: perfil.nombre,
+          tiktokAvatar: perfil.avatar,
+          tiktokUsername: perfil.username,
+          tiktokPerfilUrl: perfil.url,
+        } : {}),
+      },
+    });
+
+    res.redirect(`${FRONTEND_URL}/dashboard/negocios/${negocioId}?tt=conectado&tab=comentarios`);
+  } catch (error) {
+    console.error('[TikTok Biz OAuth] Error en callback:', error.message);
+    res.redirect(`${FRONTEND_URL}/dashboard?tt_error=callback_failed`);
+  }
+});
+
 router.use(autenticar);
 
 // ── GET /api/redes/:negocioId/estado ──────────────────────
@@ -160,8 +210,13 @@ router.get('/:negocioId/estado', async (req, res, next) => {
         conectado: !!negocio.instagramAccessToken,
       },
       tiktok: {
-        disponible: tiktok.configurado(),
-        conectado: !!negocio.tiktokAccessToken,
+        // La Accounts API es la conexión que ofrecemos hoy; la Display quedó de
+        // respaldo. `disponible` mira la que se va a usar al pulsar Conectar.
+        disponible: tiktokBiz.configurado() || tiktok.configurado(),
+        conectado: !!(negocio.tiktokBizAccessToken || negocio.tiktokAccessToken),
+        // Solo la Accounts API lee y responde comentarios. El panel lo usa para
+        // no prometer algo que una conexión heredada de Display no puede dar.
+        comentarios: !!negocio.tiktokBizAccessToken,
       },
       facebook: {
         disponible: true,
@@ -213,6 +268,29 @@ router.post('/:negocioId/tiktok/conectar', async (req, res, next) => {
     const negocio = await negocioDelUsuario(req.params.negocioId, req.usuario.id);
     if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
 
+    // Ruta preferente: TikTok Accounts API (§15-octies). Cubre todo lo que hace
+    // la Display API y además comentarios, así que si hay credenciales de
+    // Business se conecta por ahí y el usuario autoriza UNA sola vez.
+    //
+    // Los scopes van fijos en el código y NO por variable de entorno, al revés
+    // que en la Display API. La razón: esta lista se verificó permiso por
+    // permiso contra TikTok el 2026-08-06 y un valor equivocado rompe TODA la
+    // autorización con `invalid_scope`, sin decir cuál sobra. Dejarla suelta en
+    // Railway invita justo a esa clase de error.
+    //   · `comment.create` NO EXISTE — el permiso para responder es
+    //     `comment.list.manage`. Ese fue el que hacía fallar la autorización.
+    //   · `user.info.profile` es obligatorio o `/business/get/` responde 40130.
+    if (tiktokBiz.configurado()) {
+      const params = new URLSearchParams({
+        client_key: process.env.TIKTOK_BIZ_CLIENT_ID,
+        redirect_uri: TIKTOK_BIZ_REDIRECT_URI,
+        response_type: 'code',
+        state: codificarState(negocio.id, req.usuario.id),
+        scope: 'user.info.basic,user.info.profile,video.list,comment.list,comment.list.manage',
+      });
+      return res.json({ url: `https://www.tiktok.com/v2/auth/authorize/?${params.toString()}` });
+    }
+
     if (!tiktok.configurado()) {
       return res.status(501).json({
         error: 'La integración con TikTok está en proceso de aprobación por TikTok. Te avisaremos cuando esté disponible.',
@@ -261,6 +339,10 @@ router.post('/:negocioId/tiktok/conectar', async (req, res, next) => {
 const REDES_DESCONECTABLES = {
   tiktok: [
     'tiktokOpenId', 'tiktokAccessToken', 'tiktokRefreshToken', 'tiktokTokenExpira',
+    // Las DOS conexiones se borran juntas: para el usuario "TikTok" es una sola
+    // cosa, y dejar viva la mitad haría que el panel siguiera diciendo
+    // "conectado" después de pulsar Eliminar conexión.
+    'tiktokBizId', 'tiktokBizAccessToken', 'tiktokBizRefreshToken', 'tiktokBizTokenExpira',
     // El perfil cacheado también se va: si mañana se conecta OTRA cuenta, dejarlo
     // haría que el panel muestre el nombre y el avatar de la anterior.
     'tiktokNombre', 'tiktokAvatar', 'tiktokUsername', 'tiktokPerfilUrl',
@@ -300,6 +382,26 @@ router.delete('/:negocioId/:red', async (req, res, next) => {
         revocado = !!r.ok;
         // Un fallo acá no aborta nada: la conexión local se borra igual.
         if (r.error) console.warn(`[TikTok] No se pudo revocar el token de ${negocio.nombre}: ${r.error}`);
+      }
+    }
+
+    // Lo mismo para la conexión de la Accounts API, con idéntico cuidado: la
+    // revocación es global a la cuenta, así que solo se revoca si ningún otro
+    // negocio del usuario comparte ese refresh token.
+    if (red === 'tiktok' && negocio.tiktokBizAccessToken) {
+      const otrosBiz = negocio.tiktokBizRefreshToken
+        ? await prisma.negocio.count({
+          where: {
+            id: { not: negocio.id },
+            usuarioId: req.usuario.id,
+            tiktokBizRefreshToken: negocio.tiktokBizRefreshToken,
+          },
+        })
+        : 0;
+      if (otrosBiz === 0) {
+        const r = await tiktokBiz.revocarTokenTikTokBiz(negocio.tiktokBizAccessToken);
+        revocado = revocado || !!r.ok;
+        if (r.error) console.warn(`[TikTok Biz] No se pudo revocar el token de ${negocio.nombre}: ${r.error}`);
       }
     }
 

@@ -236,14 +236,27 @@ model Negocio {
   instagramAccessToken String?
   instagramTokenExpira DateTime?
 
-  // TikTok (Display/Comments API) — pendiente de aprobación de la app en TikTok
+  // TikTok — Display API (open.tiktokapis.com). Da perfil y videos, NO comentarios.
+  // Queda como respaldo: la conexión principal es la Accounts API de abajo.
   tiktokOpenId       String?
   tiktokAccessToken  String?
   tiktokRefreshToken String?
   tiktokTokenExpira  DateTime?
+
+  // TikTok — Accounts API (business-api.tiktok.com). Es la conexión PRINCIPAL:
+  // cubre perfil, videos, lectura de comentarios y respuestas (§15-octies).
+  // `tiktokBizId` es el business_id, que resulta ser el `open_id` del canje.
+  tiktokBizId           String?
+  tiktokBizAccessToken  String?
+  tiktokBizRefreshToken String?
+  tiktokBizTokenExpira  DateTime?
+
   // Perfil visible de la cuenta conectada, cacheado para no llamar a TikTok en
-  // cada carga del panel. `tiktokUsername` (el @) solo se llena si el scope
-  // user.info.profile está aprobado; con user.info.basic solo hay nombre y foto.
+  // cada carga del panel. COMPARTIDO por las dos conexiones a propósito: es la
+  // misma cuenta de TikTok mostrada en el mismo sitio, así que duplicar estos
+  // cuatro campos solo crearía dos versiones que se contradicen.
+  // El @ solo se llena con el scope user.info.profile (que la Accounts API sí
+  // tiene concedido; la Display no).
   tiktokNombre       String?
   tiktokAvatar       String?
   tiktokUsername     String?

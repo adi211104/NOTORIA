@@ -888,6 +888,80 @@ terminar se recarga el listado completo, no se parchea el estado local: la desco
 también limpia `tiktokNombre/Avatar/Username/PerfilUrl`, que vienen del listado de
 negocios y no de `/estado`.
 
+### 15-octies. Comentarios de TikTok FUNCIONANDO — Accounts API (2026-08-06)
+
+**Se acabó el bloqueo que estaba abierto desde el 2026-07-29.** La app `Notoria`
+(App ID `7669515464170536977`) quedó aprobada en `business-api.tiktok.com` con
+los 4 sub-permisos de *TikTok Accounts*, y el circuito completo se verificó
+**contra la API real** con la cuenta `@usenotoria`: perfil, videos, lectura de
+comentarios y **una respuesta publicada de verdad** en un video de prueba.
+
+**Método (§15-bis, otra vez):** no se escribió una línea del scraper hasta tener
+las respuestas crudas de la API. `scripts/sonda-tiktok-business.js` queda en el
+repo para volver a hacerlo: valida credenciales sin autorizar nada, imprime la
+URL de consentimiento, canja el código y vuelca los tres endpoints.
+
+**Lo que costó descubrir y no hay que re-derivar:**
+
+| Cosa | Valor correcto | Qué pasa si se equivoca |
+|---|---|---|
+| URL de autorización | `https://www.tiktok.com/v2/auth/authorize/` con `client_key` = App ID | — |
+| Scope para responder | **`comment.list.manage`** | `comment.create` **NO EXISTE**: `error=invalid_scope` y falla TODA la autorización, sin decir cuál sobra |
+| Scope de perfil | `user.info.profile` obligatorio | sin él `/business/get/` responde `40130` |
+| `business_id` | es el **`open_id`** del canje | — |
+| Header de auth | **`Access-Token`** | `Authorization: Bearer` se ignora |
+| Parámetro del canje | **`client_id`** | muchos ejemplos dicen `app_id` y TikTok lo rechaza |
+| Errores | **HTTP 200 con `code != 0`** en el cuerpo | el `catch` de axios no los ve y todo parece OK |
+| Campos | `caption` (no title), `comments` (no comment_count), `videos_count` (no video_count) | `40002`, y la API enumera los válidos — leer ese mensaje |
+| `create_time` | llega como **string** de segundos | `new Date()` directo da Invalid Date |
+
+Pedir un campo no autorizado hace fallar la llamada **entera** con `40130`; no
+devuelve el resto. `is_business_account`, `followers_count` y `profile_views`
+cuelgan de *Brand Insights*, que no está concedido — no incluirlos.
+
+**Endpoints habilitados que NO se habían previsto** y que valen para el producto:
+`comment/hide`, `comment/pin`, `comment/like`, `comment/delete`,
+`comment/reply/list`. Ocultar y fijar son las dos herramientas que un dueño
+quiere de verdad ante un comentario tóxico. Hoy solo está cableado `hide`.
+
+**Arquitectura elegida: UNA sola conexión, por la Accounts API.** Cubre todo lo
+que hacía la Display (perfil + videos) y además comentarios, así que el usuario
+autoriza una vez. `POST /:negocioId/tiktok/conectar` devuelve la URL de Business
+si hay credenciales, y cae a Display si no. `tiktok.scraper.js` **se conserva
+intacto** como respaldo hasta confirmar que la app de Business no está en Sandbox
+— migrar a ciegas rompería la conexión de clientes reales.
+
+Los 4 campos del perfil cacheado (`tiktokNombre/Avatar/Username/PerfilUrl`) los
+comparten las dos conexiones a propósito: es la misma cuenta en el mismo sitio;
+duplicarlos crearía dos versiones que se contradicen.
+
+**Archivos:** `src/scrapers/tiktokBusiness.scraper.js`, `src/lib/tiktokBizToken.js`
+(gemelo de `tiktokToken.js`, con la misma rotación de refresh token de §15-quater),
+`redes.routes.js` (callback + conectar + desconexión de las dos), `comentario.routes.js`
+(helper `conexionTikTok`), `monitoreo.worker.js` (la fuente TIKTOK prefiere Business),
+`negocioPublico.js` (2 campos secretos nuevos), `schema.prisma` (4 campos `tiktokBiz*`).
+Pruebas: `scripts/prueba-tiktok-business.js` (15, con `axios.request` sustituido).
+
+**Regla de producto que hay que decirle al cliente:** TikTok solo expone videos
+**públicos**. Uno publicado como "Amigos" devuelve `videos: []` con `code: 0` —
+indistinguible de una cuenta vacía. Si el negocio publica en privado, Notoria no
+ve nada y no hay forma de rodearlo.
+
+**Revocación:** `POST /tt_user/oauth2/revoke/` existe (verificado con el método de
+§15-sexies: responde `40131` sobre el token, no `40006 no schema found`) y está
+cableada. Se revoca solo si ningún otro negocio del usuario comparte el refresh
+token, igual que en §15-septies.
+
+**Nota que corrige un comentario del código:** `redes.routes.js` afirma que TikTok
+exige las comas del `scope` sin codificar y que `%2C` rompe la autorización. En
+las pruebas del 2026-08-06 la URL llevaba `%2C` y funcionó. No se tocó el código
+de Display por eso, pero esa nota puede mandar a alguien a buscar un problema que
+no existe.
+
+**Pendiente:** el `db push` de los 4 campos a producción, cargar
+`TIKTOK_BIZ_CLIENT_ID/SECRET/REDIRECT_URI` en Railway, y confirmar si la app de
+Business está en Sandbox (si lo está, solo funcionará con cuentas *target user*).
+
 ### 15-ter. Limpieza de navegación pedida por el usuario (2026-07-29)
 
 - **La pestaña "Sospechosas" ya no existe** en la ficha del negocio: eran las mismas

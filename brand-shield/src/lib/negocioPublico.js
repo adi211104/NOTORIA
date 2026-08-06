@@ -28,6 +28,8 @@ const CAMPOS_SECRETOS = [
   'instagramAccessToken',
   'tiktokAccessToken',
   'tiktokRefreshToken',
+  'tiktokBizAccessToken',
+  'tiktokBizRefreshToken',
   'gbpAccessToken',
   'gbpRefreshToken',
 ];
@@ -48,7 +50,12 @@ const negocioPublico = (negocio) => {
     // quedó a medias (el usuario autorizó pero no eligió local) y no se puede leer
     // ni responder nada. Es el mismo criterio que ya usaba el frontend.
     gbpConectado: !!(negocio.gbpAccessToken && negocio.gbpLocationId),
-    tiktokConectado: !!negocio.tiktokAccessToken,
+    // Cualquiera de las dos conexiones cuenta como "TikTok conectado" para la
+    // pastilla del panel; da igual por cuál API se esté leyendo.
+    tiktokConectado: !!(negocio.tiktokAccessToken || negocio.tiktokBizAccessToken),
+    // Pero solo la Accounts API permite leer y responder comentarios, así que el
+    // tab Comentarios necesita distinguirlas.
+    tiktokComentariosActivos: !!negocio.tiktokBizAccessToken,
     instagramConectado: !!negocio.instagramAccessToken,
     facebookConectado: !!negocio.facebookAccessToken,
   };

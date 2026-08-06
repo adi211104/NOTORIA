@@ -298,7 +298,7 @@ const VIDEOS_OK = { data: { videos: [{ id: 'v1', title: 'Nuestro nuevo plato' },
 
   console.log(
     fallos === 0
-      ? '\n✅ Todo el circuito de comentarios de TikTok pasa. Ojo con lo que falta para verlo con datos reales: video.list ya funciona (2026-07-30), pero los comentarios NO se pueden leer con la Display API — esas rutas devuelven 404, viven en la API for Business. Ver CLAUDE.md §15-quinquies.\n'
+      ? '\n✅ El circuito de la Display API pasa. OJO: la Display API NO lee comentarios (sus rutas dan 404) y desde el 2026-08-06 dejó de ser la conexión principal. Los comentarios reales van por la Accounts API, verificada en vivo — sus pruebas están en prueba-tiktok-business.js (CLAUDE.md §15-octies). Este archivo cubre la ruta de respaldo.\n'
       : `\n❌ ${fallos} prueba(s) fallando.\n`
   );
   process.exit(fallos === 0 ? 0 : 1);

@@ -307,6 +307,8 @@ const ejecutarAhora = async (negocioId = null) => {
 // no existía el modelo. Ahora entra en el ciclo de escaneo.
 const tiktokComentarios = require('../scrapers/tiktok.scraper');
 const { tokenTikTokVigente } = require('../lib/tiktokToken');
+const tiktokBiz = require('../scrapers/tiktokBusiness.scraper');
+const { tokenTikTokBizVigente } = require('../lib/tiktokBizToken');
 const { clasificar } = require('../nlp/sentimiento');
 
 // Una entrada por red. Instagram NO está acá a propósito: su API key sigue en
@@ -321,7 +323,18 @@ const FUENTES_COMENTARIOS = [
     // Devuelve null si falta credencial o la cuenta no está conectada.
     // El token se renueva acá si venció (dura 24h): sin esto el escaneo llamaba
     // a TikTok con un token muerto y traía cero sin decir por qué.
+    //
+    // Se prueba PRIMERO la Accounts API y solo se cae a la Display si el negocio
+    // no la tiene conectada (§15-octies). Motivo: la Display API **no expone
+    // comentarios** — `/v2/comment/list/` no existe — así que por esa vía esta
+    // función siempre devolvió una lista vacía. Las conexiones viejas siguen
+    // pasando por acá para no romperlas, pero no traen nada hasta que el dueño
+    // reconecte; el panel se lo indica con `tiktokComentariosActivos`.
     obtener: async (negocio) => {
+      const tokenBiz = await tokenTikTokBizVigente(negocio);
+      if (tokenBiz) {
+        return tiktokBiz.obtenerComentariosTikTokBiz(negocio.tiktokBizId, tokenBiz);
+      }
       const token = await tokenTikTokVigente(negocio);
       if (!token) return null;
       return tiktokComentarios.obtenerComentariosTikTok(negocio.tiktokOpenId, token);
