@@ -212,8 +212,8 @@ y reinicies el backend, empiezan a funcionar sin tocar código.
 |------|--------|------------------------|
 | **Culqi** (pagos) | Código listo, sin API key | Agregar `CULQI_PUBLIC_KEY` (frontend y backend) y `CULQI_SECRET_KEY` (backend) en `.env` / `.env.local` |
 | **Meta / Instagram** | Código listo, sin aprobación | Agregar `META_APP_ID` y `META_APP_SECRET` en `.env`; registrar el redirect URI `https://api.usenotoria.app/api/redes/instagram/callback` en Meta for Developers |
-| **TikTok — perfil y videos** | ✅ **Funcionando en prod (2026-07-30)** | Nada pendiente. Credenciales en Railway, `TIKTOK_SCOPES=user.info.basic,video.list`, token con renovación automática (§15-quater). La app sigue en Sandbox: solo opera con las cuentas registradas como *target users* |
-| **TikTok — comentarios** | **Esperando revisión de TikTok** (solicitud enviada 2026-07-30) | No se resuelve con la app actual: las rutas de comentarios no existen en la Display API (§15-quinquies). Plan completo y evidencia en **§15-sexies**. Antes de codificar: esperar aprobación + pasar @adipri a cuenta Business |
+| **TikTok — perfil, videos, comentarios, respuestas y moderación** | ✅ **COMPLETO en producción (2026-08-06)** — vía la **Accounts API**, ver **§15-octies** | Nada pendiente. Conexión única desde Conexiones. La app **NO está en Sandbox** (ese es otro entorno, con otro dominio): opera cuentas de clientes reales |
+| **TikTok — Display API** | Conservada como **respaldo**, sin usarse | `tiktok.scraper.js` sigue intacto por si hiciera falta una cuenta personal, pero no lee comentarios y ya no es la conexión principal |
 | **Meta WhatsApp** (alertas urgentes Franquicia) | **Código listo (2026-07-28)** — `src/lib/whatsappMeta.js`, ya usado por `monitoreo.worker.js`. Twilio eliminado. Falta la plantilla y las credenciales | 1) Habilitar el producto WhatsApp en el mismo Meta App de Instagram, 2) **crear la plantilla en Meta Business Manager**: categoría **UTILITY**, un solo parámetro en el cuerpo (ej. `"Notoria: {{1}}"`), y esperar aprobación, 3) agregar `META_WHATSAPP_PHONE_NUMBER_ID`, `META_WHATSAPP_ACCESS_TOKEN` y `META_WHATSAPP_TEMPLATE` en Railway. Probar con `node scripts/prueba-whatsapp-meta.js` |
 | **TripAdvisor** (2026-07-06) | Solo base preparada a propósito — decisión de negocio de no activarlo hasta tener buena cantidad de clientes, no solo falta de API key | Ver subsección dedicada más abajo antes de continuar |
 | **Menciones (TikTok)** | Motor, panel y alertas listos; **falta la fuente de datos** | Decisión de negocio: contratar un proveedor externo (§18). No se resuelve escribiendo código — TikTok no expone búsqueda de videos ajenos a apps comerciales. **Comprobado el 2026-07-30:** `business/mention/list/` tampoco existe en la API for Business, así que esa vía queda descartada (§15-sexies). El candidato que queda es el permiso *Discovery Search* de TikTok Accounts, que exigiría una segunda solicitud con la función declarada. Mientras no haya proveedor, la sección no aparece en el panel |
@@ -392,6 +392,10 @@ arquitectura:
 - **2026-07-30 17:50:** desplegadas las **miniaturas y el reproductor** de los videos en el tab Comentarios — backend `scrapers/tiktok.scraper.js` (campos `video_description`, `duration`, `embed_link`), frontend `dashboard/negocios/[id]/page.js`. Railway "Deploy complete", Vercel `notoria-50wlk20pa` READY. Dos cosas comprobadas en vivo antes de construirlo: `cover_image_url` carga desde fuera de TikTok (HTTP 200, webp) y `embed_link` responde **sin `x-frame-options`**, así que el video se reproduce en un iframe propio sin cargar `embed.js` de TikTok. ⚠️ La portada es una **URL firmada con `x-expires` (~24h)**: por eso los videos se piden en vivo con caché de 3 min y no se guardan en la BD.
 - **2026-07-30 17:25:** desplegada la sección **Tus últimos videos** en el tab Comentarios — backend `scrapers/tiktok.scraper.js` (`obtenerVideosTikTok`) y `api/routes/comentario.routes.js` (campo `videos`, caché en memoria de 3 min); frontend `dashboard/negocios/[id]/page.js`. Railway "Deploy complete", Vercel `notoria-e4ii26st3` READY. Es la respuesta a §15-quinquies: los comentarios no se pueden leer, pero los videos sí, y el tab dejó de verse vacío con la cuenta funcionando.
 - **2026-07-30 17:35:** desplegado el botón **Reconectar** en `dashboard/conexiones` (frontend). Faltaba una salida: con la cuenta ya conectada la fila solo mostraba la pastilla "Conectado", así que no había forma de volver a pasar por el diálogo de TikTok — imprescindible cuando se habilita un scope nuevo, porque el token conserva los permisos que tenía al emitirse. Vercel READY, `/dashboard/conexiones` 200.
+- **2026-08-06 (madrugada):** desplegada la **integración completa de TikTok por la Accounts API** (§15-octies), en 5 tandas. Backend Railway `0e4cd4cb` → `c76319dd` → `8d2ba976` → `c8b0a1b7` → `eeb18e7d`, todas SUCCESS; frontend Vercel `dpl_47aic4Mj` y `dpl_9u5BPVJD` READY. **Tres `db push`** (los 4 campos `tiktokBiz*`; `oculto`+`fijado`; `respuestaExternalId`), todos aditivos y verificados con `migrate diff` = *empty migration*. 8 commits, `d140fd0`→`8360c0e`, en GitHub. Verificado en vivo y **probado por el usuario en la interfaz**: conectar, leer, responder, borrar la propia respuesta, ocultar y fijar.
+  - **Truco de verificación que sí sirvió:** el callback `/api/redes/tiktok-business/callback` va ANTES del middleware de autenticación, así que sin parámetros devuelve **302** a `?tt_error=missing_params` — prueba de que la ruta existe. Una ruta inventada bajo `/api/redes/` devuelve **401**, que es la trampa del truco 401/404: parece viva y no lo está.
+  - **Se creó un servicio basura** en el proyecto Railway "Vigilio" por correr `railway up` desde la raíz del repo en vez de desde `brand-shield/`. El deploy falló y el servicio se borró. **La raíz está enlazada a otro proyecto: correr `railway up` siempre desde `brand-shield/`.**
+
 - **2026-08-02:** desplegada la **eliminación de conexiones** (§15-septies) — backend `redes.routes.js` (`DELETE /:negocioId/:red`) y `scrapers/tiktok.scraper.js` (`revocarTokenTikTok`); frontend `dashboard/conexiones/page.js` (tuerca + modal de ajustes) y `lib/api.js` (`redes.desconectar`). Railway `26322137` SUCCESS, Vercel `notoria-2sqh9xqj5` READY. Sin cambios en `schema.prisma`, así que no hubo `db push`. Verificado: `/health` 200 y `/dashboard/conexiones` 200 — pero ojo, el 401 del DELETE **no** prueba que la ruta exista (ver la advertencia del truco 401/404 más arriba).
 - **2026-07-29 17:40:** desplegado el cierre de la fuga de access tokens (`src/lib/negocioPublico.js` + las 5 respuestas de `negocio.routes.js`; frontend `conexiones/page.js` y `dashboard/negocios/[id]/page.js`). Railway y Vercel OK, logs limpios, `/api/negocios` 401 y `/dashboard/conexiones` 200. **Falta la comprobación autenticada end-to-end** — ver la nota de abajo.
 
@@ -948,6 +952,16 @@ cuelgan de *Brand Insights*, que no está concedido — no incluirlos.
 `comment/reply/list`. Ocultar y fijar son las dos herramientas que un dueño
 quiere de verdad ante un comentario tóxico. Hoy solo está cableado `hide`.
 
+**Scope final y correcto**, el que usa `POST /:negocioId/tiktok/conectar`:
+
+```
+user.info.basic,user.info.profile,user.info.stats,video.list,comment.list,comment.list.manage
+```
+
+Va **fijo en el código**, no por variable de entorno: se verificó permiso por
+permiso y un valor equivocado rompe TODA la autorización con `invalid_scope` sin
+decir cuál sobra. Dejarlo suelto en Railway invita justo a esa clase de error.
+
 **Arquitectura elegida: UNA sola conexión, por la Accounts API.** Cubre todo lo
 que hacía la Display (perfil + videos) y además comentarios, así que el usuario
 autoriza una vez. `POST /:negocioId/tiktok/conectar` devuelve la URL de Business
@@ -982,15 +996,45 @@ las pruebas del 2026-08-06 la URL llevaba `%2C` y funcionó. No se tocó el cód
 de Display por eso, pero esa nota puede mandar a alguien a buscar un problema que
 no existe.
 
-**Desplegado y verificado el 2026-08-06** (Railway `8d2ba976` + Vercel
-`dpl_47aic4Mj`): `db push` aplicado, las 3 variables en Railway, conexión real de
-@usenotoria funcionando, comentarios entrando por el worker y respuesta publicada
-desde el panel.
+**Desplegado, verificado y PROBADO POR EL USUARIO en la interfaz el 2026-08-06.**
+Funcionan de punta a punta: conexión, lectura de comentarios, responder, borrar
+la propia respuesta, ocultar y fijar.
 
-**Sigue abierto:** confirmar si la app de Business está en **Sandbox**. Si lo
-está, solo opera con cuentas registradas como *target user* — la conexión propia
-no lo revela porque el dueño de la app siempre lo es. Averiguarlo **antes** de
-vender la función a un cliente.
+#### ✅ NO está en Sandbox (resuelto el 2026-08-06)
+
+En la API for Business el sandbox es un entorno **aparte y opt-in, con otro
+dominio** (`sandbox-ads.tiktok.com/open_api/`), que además solo aplica a cuentas
+publicitarias; el propio portal etiqueta `business-api.tiktok.com/open_api/`
+como *Production*. **No confundirlo con el Sandbox de `developers.tiktok.com`**,
+que sí limita la app de Display a cuentas *target user*. La función se puede
+vender a clientes.
+
+#### ⚠️ `/business/get/` exige `user.info.stats` — costó una hora
+
+Síntoma: la cuenta se conectaba bien, los comentarios entraban, pero el panel se
+quedaba con el avatar genérico. El callback guardaba los tokens y a continuación
+fallaba al leer el perfil con `40130`, así que nombre y avatar nunca se llenaban.
+
+Se diagnosticó comparando **dos tokens que solo diferían en ese scope**: sin
+`user.info.stats`, `/business/get/` responde 40130 **incluso pidiendo solo
+`display_name`**. Se había excluido pensando que solo servía para el contador de
+seguidores. Además `CAMPOS_PERFIL` incluye `videos_count`, que es un campo de
+estadísticas, y pedir un campo no autorizado hace fallar la llamada **entera**.
+
+Red de seguridad añadida: ante un 40130 el perfil se reintenta con lo mínimo
+(`display_name` + `profile_image`), para que un permiso ausente no deje al panel
+sin nombre ni avatar pudiendo tenerlos.
+
+**Trampa de la pantalla de consentimiento:** el primer interruptor ("Acceder a la
+información de tu perfil — avatar y nombre") **se ve encendido y no se puede
+mover** porque es `user.info.basic`, obligatorio. Verlo así **no** significa que
+el resto de permisos estén concedidos. Se perdió tiempo buscando un interruptor
+apagado que no existía; la respuesta estaba en `railway logs`, que se debieron
+mirar antes.
+
+**Y no desconectar/reconectar en bucle al depurar:** cada "Eliminar conexión"
+revoca de verdad del lado de TikTok. Ese bucle dejó al negocio sin conexión y
+añadió ruido al diagnóstico.
 
 #### Respuestas hechas fuera de Notoria
 

@@ -190,6 +190,14 @@ scripts ya reintentan solos.
 - [ ] Mover el `.p12` fuera de OneDrive (hoy la llave privada está sincronizada
       en la nube)
 
+**TikTok** — ✅ terminado el 06/08/2026 (detalle en `CLAUDE.md` §15-octies)
+- [x] App aprobada en `business-api.tiktok.com` con los 4 permisos de TikTok Accounts
+- [x] Leer comentarios, responder, borrar la propia respuesta, ocultar y fijar — en producción
+- [x] Confirmado que la app **no** está en Sandbox: sirve para cuentas de clientes reales
+- [ ] *(opcional)* Probarlo con la cuenta de un tercero, no solo la propia
+- [ ] *(opcional)* Pedir el permiso **Discovery Search**, único candidato para hacer
+      menciones sin pagar un proveedor externo (§18)
+
 **Meta / Instagram + App Review** (detalle técnico exacto en `CLAUDE.md` §19)
 - [x] Negocio NOTORIA verificado en Meta Business Manager (29/07/2026)
 - [x] Página de eliminación de datos en producción (`usenotoria.app/eliminar-datos`)
