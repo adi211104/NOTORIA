@@ -240,13 +240,14 @@ scripts ya reintentan solos.
       cuenta vinculada a una página de Facebook autorizaba y volvía a una
       pantalla que no decía nada. Ahora el aviso explica el caso y lleva los
       pasos para vincularla
-- [ ] **Desplegar el frontend a Vercel** (`cd brand-shield-web && vercel --prod
-      --yes`) — el backend ya está desplegado; el aviso no se ve hasta que suba
+- [x] **Frontend desplegado a Vercel** (06/08/2026) — verificado descargando el
+      bundle desde `usenotoria.app`: el aviso nuevo se sirve de verdad, no solo
+      "el deploy dice READY"
 - [ ] ⚠️ **Límite conocido:** un negocio sin cuenta de Facebook no puede
       conectar Instagram. Si llega a pesar, la salida es añadir el sabor
       *Instagram Login* como segunda opción (aditivo, pero con su propio App
       Review) — ver `CLAUDE.md` §19.8
-- [ ] Probar "Conectar Instagram" en `/dashboard/conexiones` con IG Business + página de FB
+- [x] "Conectar Instagram" probado con IG Business + página de FB (06/08/2026)
 - [x] **Renovación del acceso a datos enviada** (06/08/2026, *In review*, hasta
       10 días) — era el requisito para pasar la app a modo Activo
 - [x] **App en modo Activo**, que es lo que habilita enviar el App Review
