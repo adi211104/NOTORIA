@@ -20,6 +20,7 @@ import { useAuth } from '../../context/AuthContext';
 import { pagos } from '../../lib/api';
 import { CATALOGO, MONEDA, SIMBOLO, montoEnCentimos, formatearSoles } from '../../lib/catalogo';
 import PieLegal from '../../components/PieLegal';
+import BannerPromo from '../../components/BannerPromo';
 
 const GEO = "Georgia,'Times New Roman',serif";
 const G = '#0B7324';
@@ -75,7 +76,12 @@ export default function PreciosPage() {
   const [error, setError] = useState('');
   const [culqiListo, setCulqiListo] = useState(false);
 
-  const puedeUsarPromo = usuario && !usuario.promoBienvenidaUsada;
+  // Un visitante sin sesión es, por definición, candidato a la promo: se le
+  // muestra el descuento para que sepa que existe antes de registrarse. Solo se
+  // oculta a quien ya la gastó. `promoRechazada` la desactiva cuando el backend
+  // avisa de que esa tarjeta ya la usó.
+  const [promoRechazada, setPromoRechazada] = useState(false);
+  const puedeUsarPromo = !promoRechazada && (!usuario || !usuario.promoBienvenidaUsada);
 
   // Abre el widget de Culqi para un ítem del catálogo. El monto que se manda
   // acá es solo el que ve el usuario en el widget: el backend recalcula el
@@ -92,6 +98,10 @@ export default function PreciosPage() {
 
     window.__notoriaPlanPendiente = item.plan;
     window.__notoriaAnualPendiente = item.periodo === 'anual';
+    // Se deja en window, igual que plan y periodo, para que el callback global
+    // de Culqi lo lea en el momento del cobro: si dependiera del estado de
+    // React se quedaría con el valor de cuando se montó el callback.
+    window.__notoriaSinPromo = !aplicaPromo;
 
     Culqi.publicKey = publicKey;
     // En céntimos y con el mismo redondeo que el backend — ver montoEnCentimos()
@@ -115,12 +125,21 @@ export default function PreciosPage() {
           token: Culqi.token.id,
           plan: window.__notoriaPlanPendiente,
           anual: window.__notoriaAnualPendiente,
+          sinPromo: window.__notoriaSinPromo,
         });
         await refrescarPerfil();
         setMensaje('¡Pago aprobado! Tu plan ya está activo. Te llevamos a tu panel…');
         setTimeout(() => router.push('/dashboard'), 1800);
       } catch (e) {
-        setError(e.message || 'No se pudo procesar el pago. Intenta con otra tarjeta.');
+        // La tarjeta ya gastó la promo: no se cobró nada. Se apaga el descuento
+        // y se le pide que confirme al precio de lista, en vez de cobrarle un
+        // importe distinto del que aceptó en el widget.
+        if (e.codigo === 'PROMO_NO_APLICA') {
+          setPromoRechazada(true);
+          setError('Esta tarjeta ya usó la promoción de bienvenida, así que no te cobramos nada. Los precios de arriba ya muestran la tarifa regular: pulsa "Pagar" de nuevo si quieres continuar.');
+        } else {
+          setError(e.message || 'No se pudo procesar el pago. Intenta con otra tarjeta.');
+        }
       } finally {
         setProcesando(false);
       }
@@ -192,6 +211,8 @@ export default function PreciosPage() {
         {procesando && (
           <div style={{ background: '#fff', border: '1px solid #E8E6DC', color: '#5C5B57', borderRadius: 6, padding: '12px 16px', fontSize: 14, marginBottom: 20 }}>Procesando tu pago, no cierres esta ventana…</div>
         )}
+
+        {puedeUsarPromo && <BannerPromo />}
 
         {/* Catálogo */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 18 }}>

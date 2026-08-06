@@ -6,6 +6,7 @@
 // Verificar los nombres de campo contra el sandbox de Culqi antes de cobrar en producción.
 
 const axios = require('axios');
+const crypto = require('crypto');
 
 const BASE_URL = 'https://api.culqi.com/v2';
 
@@ -84,4 +85,34 @@ const datosTarjeta = (cargo) => {
   };
 };
 
-module.exports = { configurado, crearCliente, crearTarjeta, crearCargo, datosTarjeta };
+// Huella estable de una tarjeta, para atar la promo de bienvenida al medio de
+// pago y no solo a la cuenta (ver modelo PromoTarjeta).
+//
+// Culqi no expone un "fingerprint" de tarjeta, así que se compone con lo único
+// estable que sí devuelve: BIN (primeros 6) + últimos 4. Se guarda como HMAC
+// para que la tabla no contenga datos de tarjeta en claro.
+//
+// Acepta tanto el objeto tarjeta (POST /cards) como un cargo, porque en ambos
+// los datos viven en `.source` — en el cargo con tarjeta guardada, anidados.
+//
+// ⚠️ Limitación conocida: dos tarjetas distintas con el mismo BIN y los mismos
+// 4 últimos dígitos comparten huella. Es poco probable, y el efecto de una
+// colisión es que al segundo cliente no se le aplique el descuento (nunca un
+// cobro incorrecto), así que se prefiere ese falso negativo a dejar la promo
+// abierta a repetición.
+const huellaTarjeta = (objeto) => {
+  const source = objeto?.source;
+  const tarjeta = source?.source || source;
+  const bin = tarjeta?.iin?.bin;
+  const last4 = tarjeta?.last_four || (tarjeta?.card_number ? String(tarjeta.card_number).slice(-4) : null);
+  if (!bin || !last4) return null;
+
+  // Sin secreto no se puede garantizar la protección del hash. Se prefiere
+  // fallar y no aplicar la promo antes que guardar una huella débil.
+  const secreto = process.env.PROMO_HASH_SECRET || process.env.JWT_SECRET;
+  if (!secreto) return null;
+
+  return crypto.createHmac('sha256', secreto).update(`${bin}|${last4}`).digest('hex');
+};
+
+module.exports = { configurado, crearCliente, crearTarjeta, crearCargo, datosTarjeta, huellaTarjeta };

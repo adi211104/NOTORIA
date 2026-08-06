@@ -537,3 +537,31 @@ model Reclamacion {
   @@index([estado, creadoEn])
   @@map("reclamaciones")
 }
+
+// Tarjetas que ya consumieron la promo de bienvenida (50% los 2 primeros meses).
+//
+// El flag `Usuario.promoBienvenidaUsada` solo impide reclamarla dos veces con la
+// MISMA cuenta: crear otra cuenta con otro correo bastaba para repetirla
+// indefinidamente. Este registro la ata además al medio de pago, que es mucho
+// más caro de multiplicar que un correo.
+//
+// Se guarda un HMAC de BIN + últimos 4 dígitos, nunca el número: son los únicos
+// datos de tarjeta que Culqi devuelve y que se pueden almacenar, y el hash evita
+// que la tabla sirva para reconstruir nada.
+//
+// ⚠️ El secreto del HMAC (PROMO_HASH_SECRET) NO se puede rotar sin vaciar esta
+// tabla: cambiarlo hace que ninguna huella anterior vuelva a coincidir y la
+// promo se podría reclamar de nuevo con las mismas tarjetas.
+model PromoTarjeta {
+  id     String @id @default(cuid())
+  // HMAC-SHA256 de "bin|last4". Único: es la condición que impide repetir.
+  huella String @unique
+
+  // Con qué cuenta se usó. Sirve para auditar un patrón de abuso, no para la
+  // validación (esa es la huella).
+  usuarioId String
+  usadaEn   DateTime @default(now())
+
+  @@index([usuarioId])
+  @@map("promo_tarjetas")
+}

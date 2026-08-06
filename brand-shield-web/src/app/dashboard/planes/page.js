@@ -8,6 +8,7 @@ import { pagos } from '../../../lib/api';
 // Mismo redondeo a céntimos que usa el backend, para que el importe del widget
 // coincida exactamente con el que se cobra.
 import { montoEnCentimos } from '../../../lib/catalogo';
+import BannerPromo from '../../../components/BannerPromo';
 
 const GEO = "Georgia,'Times New Roman',serif";
 const G = '#0B7324';
@@ -259,7 +260,11 @@ export default function PlanesPage() {
   // Promo de bienvenida (50% los primeros 2 meses, solo mensual, una vez por
   // cuenta): el backend es quien decide el monto real al cobrar, esto solo
   // sirve para mostrar el mismo monto en el widget de Culqi antes de pagar.
-  const puedeUsarPromo = !usuario?.promoBienvenidaUsada;
+  // `promoRechazada` se activa si el backend avisa de que esa tarjeta ya usó la
+  // promo: se apaga el descuento para que el importe mostrado vuelva a ser el
+  // que realmente se va a cobrar.
+  const [promoRechazada, setPromoRechazada] = useState(false);
+  const puedeUsarPromo = !promoRechazada && !usuario?.promoBienvenidaUsada;
 
   // Callback global que exige el widget de Checkout de Culqi (window.culqi)
   useEffect(() => {
@@ -274,10 +279,17 @@ export default function PlanesPage() {
       setProcesando(true);
       setErrorPago('');
       try {
-        await pagos.suscribir({ token, plan, anual: esAnual });
+        await pagos.suscribir({ token, plan, anual: esAnual, sinPromo: window.__notoriaSinPromo });
         await refrescarPerfil();
       } catch (e) {
-        setErrorPago(e.message || t.errorPagoGenerico);
+        // Tarjeta que ya gastó la promo: no se cobró nada. Se apaga el descuento
+        // para que el importe mostrado coincida con el que se cobraría.
+        if (e.codigo === 'PROMO_NO_APLICA') {
+          setPromoRechazada(true);
+          setErrorPago('Esta tarjeta ya usó la promoción de bienvenida, así que no te cobramos nada. Los precios ya muestran la tarifa regular: vuelve a pulsar el botón si quieres continuar.');
+        } else {
+          setErrorPago(e.message || t.errorPagoGenerico);
+        }
       } finally {
         setProcesando(false);
       }
@@ -303,6 +315,9 @@ export default function PlanesPage() {
       const aplicaPromo = !anual && puedeUsarPromo;
       window.__notoriaPlanPendiente = plan.id;
       window.__notoriaAnualPendiente = anual;
+      // En window, no en estado: el callback global de Culqi se monta una vez y
+      // se quedaría con el valor viejo.
+      window.__notoriaSinPromo = !aplicaPromo;
 
       Culqi.publicKey = publicKey;
       // En céntimos y con el mismo redondeo que el backend. Redondeando en
@@ -347,6 +362,8 @@ export default function PlanesPage() {
           ))}
         </div>
       </div>
+
+      {puedeUsarPromo && !anual && <BannerPromo compacto />}
 
       {/* Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 14, marginBottom: 32 }}>

@@ -57,7 +57,16 @@ const api = async (url, options = {}) => {
   }
 
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+  if (!res.ok) {
+    // Se conservan `codigo` y `status`: hay respuestas que el llamador necesita
+    // distinguir del resto, no solo mostrar (p. ej. PROMO_NO_APLICA en el pago,
+    // que ofrece continuar al precio regular en vez de ser un error final).
+    const err = new Error(data.error || `Error ${res.status}`);
+    err.codigo = data.codigo;
+    err.status = res.status;
+    err.datos = data;
+    throw err;
+  }
   return data;
 };
 

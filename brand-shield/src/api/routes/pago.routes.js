@@ -77,7 +77,11 @@ router.use(autenticar);
 // ── POST /api/pagos/culqi ──────────────────────────────────
 // Recibe el token del widget de Checkout, guarda la tarjeta y cobra el primer periodo.
 router.post('/culqi', async (req, res) => {
-  const { token, plan, anual } = req.body;
+  // `sinPromo` lo manda el frontend cuando el usuario ya fue avisado de que su
+  // tarjeta no tiene derecho al descuento y aun así quiere pagar el precio de
+  // lista. Sin esto, el 409 de abajo se repetiría en cada reintento y esa
+  // tarjeta no podría suscribirse nunca.
+  const { token, plan, anual, sinPromo } = req.body;
 
   if (!culqi.configurado()) {
     return res.status(501).json({
@@ -94,20 +98,49 @@ router.post('/culqi', async (req, res) => {
     const usuario = await prisma.usuario.findUnique({ where: { id: req.usuario.id } });
     const precioBase = anual ? PRECIOS[plan].anual : PRECIOS[plan].mensual;
 
-    // Promo de bienvenida: 50% de descuento los primeros 2 meses. Solo aplica a
-    // facturación mensual (el plan Anual ya tiene su propio 20% todo el año) y
-    // solo la primera vez que la cuenta se suscribe a un plan de pago — el flag
-    // se marca de una vez aquí para que no se pueda reclamar de nuevo si cancela
-    // y vuelve a suscribirse con la misma cuenta.
-    const aplicaPromo = !anual && !usuario.promoBienvenidaUsada;
-    const monto = aplicaPromo ? Math.round(precioBase / 2) : precioBase;
-
     const cuentaCulqi = await culqi.crearCliente({
       email: usuario.email,
       nombre: usuario.nombre,
       direccion: usuario.direccionFiscal,
     });
     const tarjeta = await culqi.crearTarjeta({ customerId: cuentaCulqi.id, tokenId: token });
+
+    // Promo de bienvenida: 50% los primeros 2 meses. Solo facturación mensual
+    // (el plan anual ya tiene su propio 20% todo el año) y una sola vez.
+    //
+    // "Una sola vez" se comprueba por partida doble: por cuenta
+    // (`promoBienvenidaUsada`) y por TARJETA (tabla `promo_tarjetas`). Sin lo
+    // segundo bastaba con registrar otro correo para repetir el descuento
+    // indefinidamente.
+    //
+    // Se decide DESPUÉS de guardar la tarjeta y ANTES de cobrar, porque la
+    // huella solo se conoce con la tarjeta ya creada y el importe no se puede
+    // cambiar una vez hecho el cargo.
+    const huella = culqi.huellaTarjeta(tarjeta);
+    const tarjetaYaUsoPromo = huella
+      ? !!(await prisma.promoTarjeta.findUnique({ where: { huella } }))
+      // Sin huella (Culqi no devolvió los datos, o falta PROMO_HASH_SECRET) no
+      // se puede verificar la tarjeta: se trata como ya usada para no dejar el
+      // descuento sin control.
+      : true;
+
+    const cuentaPuedePromo = !anual && !usuario.promoBienvenidaUsada && !sinPromo;
+    const aplicaPromo = cuentaPuedePromo && !tarjetaYaUsoPromo;
+
+    // Si la cuenta tenía derecho al descuento pero la tarjeta ya lo gastó, NO se
+    // cobra: el widget le mostró al usuario el importe con descuento y cobrarle
+    // el precio regular sería cobrarle algo distinto de lo que aceptó. Se le
+    // avisa y decide si continúa al precio de lista.
+    if (cuentaPuedePromo && tarjetaYaUsoPromo) {
+      return res.status(409).json({
+        error: 'Esta tarjeta ya usó la promoción de bienvenida. Puedes continuar al precio regular.',
+        codigo: 'PROMO_NO_APLICA',
+        montoRegular: precioBase,
+      });
+    }
+
+    const monto = aplicaPromo ? Math.round(precioBase / 2) : precioBase;
+
     const cargo = await culqi.crearCargo({
       monto,
       moneda: MONEDA,
@@ -131,6 +164,16 @@ router.post('/culqi', async (req, res) => {
       },
       select: { plan: true, suscripcionActiva: true, fechaVencimiento: true },
     });
+
+    // Quema la tarjeta para la promo. Va después del cobro exitoso: si el cargo
+    // falla, la tarjeta no debe quedar marcada. `create` puede chocar contra el
+    // @unique si dos cobros con la misma tarjeta entran a la vez — es
+    // precisamente lo que la restricción evita, así que el error se absorbe: el
+    // cobro ya es válido y la tarjeta queda registrada igual.
+    if (aplicaPromo && huella) {
+      await prisma.promoTarjeta.create({ data: { huella, usuarioId: usuario.id } })
+        .catch(e => console.error('[Promo] No se pudo registrar la tarjeta:', e.message));
+    }
 
     const pago = await registrarPago({
       usuarioId: usuario.id, plan, periodo: anual ? 'anual' : 'mensual', tipo: 'INICIAL',
