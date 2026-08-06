@@ -17,6 +17,7 @@ const mencionRoutes = require('./api/routes/mencion.routes');
 const comentarioRoutes = require('./api/routes/comentario.routes');
 const publicoRoutes = require('./api/routes/publico.routes');
 const reclamacionRoutes = require('./api/routes/reclamacion.routes');
+const webhooksRoutes = require('./api/routes/webhooks.routes');
 
 const { iniciarMonitoreo, iniciarReportesMensuales, iniciarResumenesAlertas, iniciarRenovacionesCulqi, iniciarEscalacionUrgencias, iniciarAvisoReclamaciones } = require('./workers/monitoreo.worker');
 const { iniciarResumenSemanal } = require('./workers/resumenSemanal.worker');
@@ -74,7 +75,14 @@ const limiter = rateLimit({
   skip: (req) => {
     // No limitar rutas de OAuth — son redirecciones únicas del navegador
     return req.path.startsWith('/auth/google-business/') ||
-           req.path.startsWith('/auth/google');
+           req.path.startsWith('/auth/google') ||
+           // Ni los webhooks de Meta: llegan a ráfagas (una publicación con
+           // muchos comentarios manda un evento por cada uno) y todos desde las
+           // mismas IPs de Meta, así que el cupo de 100/15min se agotaría solo.
+           // Un 429 no es un fallo silencioso: Meta reintenta y, si sigue
+           // fallando, DESACTIVA la suscripción. La firma HMAC es el filtro real
+           // de esta ruta, no el rate-limit.
+           req.path.startsWith('/webhooks/');
   },
 });
 app.use('/api/', limiter);
@@ -98,6 +106,13 @@ app.use([
   '/api/auth/recuperar-password',
   '/api/auth/resetear-password',
 ], authLimiter);
+
+// ─── Webhooks ─────────────────────────────────────────────
+// VA ANTES del body parser JSON a propósito: Meta firma los bytes exactos del
+// cuerpo, así que esta ruta necesita el buffer crudo. Si `express.json()` lo
+// consumiera primero, habría que re-serializar el objeto para validar la firma
+// y cualquier diferencia de formato invalidaría eventos legítimos.
+app.use('/api/webhooks', webhooksRoutes);
 
 // ─── Body parser ──────────────────────────────────────────
 app.use(express.json());

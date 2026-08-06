@@ -106,6 +106,19 @@ router.get('/instagram/callback', async (req, res) => {
       },
     });
 
+    // Suscribir la página a los webhooks de comentarios. La suscripción es POR
+    // CUENTA: tener el webhook activo en el panel de Meta no basta, hay que
+    // pedirla para cada cliente que conecta, y este es el único punto donde
+    // tenemos el token de página recién emitido.
+    //
+    // Un fallo NO aborta la conexión: sin webhook los comentarios siguen
+    // llegando por el escaneo periódico, con su ventana de 25 publicaciones y
+    // hasta 4 horas de retraso. Conectar a medias es mejor que no conectar.
+    const suscripcion = await instagram.suscribirWebhookInstagram(pagina.access_token);
+    if (suscripcion.error) {
+      console.warn(`[Instagram] Webhook no suscrito para ${pagina.name}: ${suscripcion.error}`);
+    }
+
     volverA('ig=conectado');
   } catch (error) {
     console.error('[Instagram OAuth] Error en callback:', error.response?.data?.error?.message || error.message);
@@ -266,10 +279,16 @@ router.post('/:negocioId/instagram/conectar', async (req, res, next) => {
     // suelto por una "Configuración" — un paquete de permisos creado en la
     // consola que se referencia por config_id. Si la variable está seteada se
     // manda config_id (y Meta IGNORA scope); si no, el scope clásico.
+    //
+    // ⚠️ `pages_manage_metadata` es el permiso que permite suscribir la página a
+    // los webhooks (`/me/subscribed_apps`). Va aquí para el camino sin config_id,
+    // pero cuando se usa config_id manda la Configuración de la consola: si el
+    // permiso no está TAMBIÉN allí, el token no lo trae y la suscripción falla
+    // en silencio (la conexión funciona, los webhooks no llegan nunca).
     if (process.env.META_LOGIN_CONFIG_ID) {
       params.set('config_id', process.env.META_LOGIN_CONFIG_ID);
     } else {
-      params.set('scope', 'instagram_basic,instagram_manage_comments,pages_show_list,pages_read_engagement');
+      params.set('scope', 'instagram_basic,instagram_manage_comments,pages_show_list,pages_read_engagement,pages_manage_metadata');
     }
 
     res.json({ url: `https://www.facebook.com/v21.0/dialog/oauth?${params.toString()}` });
@@ -422,6 +441,26 @@ router.delete('/:negocioId/:red', async (req, res, next) => {
         const r = await tiktokBiz.revocarTokenTikTokBiz(negocio.tiktokBizAccessToken);
         revocado = revocado || !!r.ok;
         if (r.error) console.warn(`[TikTok Biz] No se pudo revocar el token de ${negocio.nombre}: ${r.error}`);
+      }
+    }
+
+    // Retirar la suscripción a los webhooks ANTES de borrar el token: después
+    // no habría con qué llamar a Meta y la página se quedaría mandando eventos
+    // de un negocio que ya no está en Notoria. Igual que en TikTok, solo se
+    // retira si ningún otro negocio del usuario sigue usando esa cuenta: la
+    // suscripción es de la página, no del negocio, y quitarla tumbaría los
+    // webhooks de los demás.
+    if (red === 'instagram' && negocio.instagramAccessToken) {
+      const otrosIg = await prisma.negocio.count({
+        where: {
+          id: { not: negocio.id },
+          usuarioId: req.usuario.id,
+          instagramUserId: negocio.instagramUserId,
+        },
+      });
+      if (otrosIg === 0) {
+        const r = await instagram.desuscribirWebhookInstagram(negocio.instagramAccessToken);
+        if (r.error) console.warn(`[Instagram] No se pudo retirar el webhook de ${negocio.nombre}: ${r.error}`);
       }
     }
 

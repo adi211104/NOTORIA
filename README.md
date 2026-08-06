@@ -250,9 +250,14 @@ scripts ya reintentan solos.
       *Instagram Login* como segunda opción (aditivo, pero con su propio App
       Review) — ver `CLAUDE.md` §19.8
 - [x] "Conectar Instagram" probado con IG Business + página de FB (06/08/2026)
-- [x] **Renovación del acceso a datos enviada** (06/08/2026, *In review*, hasta
-      10 días) — era el requisito para pasar la app a modo Activo
-- [x] **App en modo Activo**, que es lo que habilita enviar el App Review
+- [x] ✅ **Renovación del acceso a datos COMPLETADA** (06/08/2026, correo de Meta
+      el mismo día: *"Se completó la renovación del acceso a los datos de
+      Notoria"*, app `2232447584255257` / negocio `1337974595147527`). No pide
+      ninguna acción más hasta la evaluación anual siguiente
+- [x] ✅ **App en modo Activo** y **negocio Verificado** en Portfolio comercial
+      (verificado en el panel el 06/08/2026). Modo Activo es requisito de dos
+      cosas distintas: enviar el App Review **y recibir webhooks** — Meta no
+      manda ni un evento a una app en Desarrollo
 - [x] **Comentarios de Instagram cableados** (leer, responder y borrar la
       respuesta propia). Sin esto el revisor habría conectado la cuenta y visto
       la pestaña vacía: rechazo seguro
@@ -265,18 +270,33 @@ scripts ya reintentan solos.
       NEGOCIO y FRANQUICIA, que llevaba oculta desde julio por no tener ninguna
       fuente gratuita. Solo capta arrobas y etiquetas, no búsqueda por palabra
       clave (eso sería otro App Review)
-- [ ] *(mejora de fondo, tras el App Review)* **Webhooks de Instagram** para
-      recibir comentarios de **cualquier** publicación, sin ventana. Usan el
-      mismo permiso ya solicitado. No sustituyen al barrido: los webhooks solo
-      notifican desde que se configuran, así que el histórico sigue leyéndose
+- [x] ✅ **Webhooks de Instagram — código listo** (06/08/2026): comentarios de
+      **cualquier** publicación, sin ventana y en segundos.
+      `GET/POST /api/webhooks/instagram` (handshake + firma HMAC), la página se
+      suscribe sola al conectar y se desuscribe al desconectar. No sustituyen al
+      barrido: los webhooks solo notifican desde que se configuran, así que el
+      histórico se sigue leyendo por el escaneo. 33 pruebas en
+      `scripts/prueba-instagram-webhook.js`
+- [ ] ⚠️ **`pages_manage_metadata` — añadirlo a la Configuración de Meta y al App
+      Review.** Es el permiso que deja suscribir la página a los webhooks. Sin
+      él la conexión funciona igual y los comentarios siguen llegando por el
+      escaneo, pero **no llega ni un webhook**. Añadirlo AHORA sale gratis;
+      después del App Review cuesta una revisión entera aparte
+- [ ] **Poner `META_WEBHOOK_VERIFY_TOKEN` en Railway** (cadena al azar, la elige
+      el usuario) y pegar la misma en Meta → Webhooks. Sin ella el endpoint
+      responde 403 al handshake **a propósito**, y Meta no guarda la URL
+- [ ] ⚠️ **Los webhooks de `comments` exigen Acceso avanzado**, o sea que no
+      llega ningún evento hasta que el App Review apruebe. El código puede
+      configurarse y verificarse antes; los eventos empiezan después
 - [x] **Migración del enum aplicada en producción** (06/08/2026): backend
       desplegado primero (`02a27eaa`) y después el `db push`. Verificado con
       `prisma migrate diff` en ambos sentidos → *empty migration*
 - [ ] Crear cuenta de prueba del revisor (plan NEGOCIO vía `scripts/dar-plan.js`)
       con un negocio y su Instagram ya conectado — si el revisor entra y no ve
       comentarios, no puede verificar `instagram_manage_comments`
-- [ ] Grabar screencast y enviar el App Review (4 permisos: instagram_basic,
-      instagram_manage_comments, pages_show_list, pages_read_engagement).
+- [ ] Grabar screencast y enviar el App Review (**5** permisos: instagram_basic,
+      instagram_manage_comments, pages_show_list, pages_read_engagement y
+      **pages_manage_metadata** por los webhooks).
       💡 El panel se autodetecta en inglés según el navegador y hay selector en
       Ajustes, así que el screencast puede grabarse en inglés y evitar el
       requisito de subtítulos de Meta

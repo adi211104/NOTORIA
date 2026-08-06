@@ -395,6 +395,89 @@ const FUENTES_COMENTARIOS = [
   },
 ];
 
+// Guarda UN comentario ya normalizado y dispara la alerta si toca.
+//
+// Vive fuera del bucle del escaneo porque tiene un segundo consumidor: el
+// webhook de Instagram (`webhooks.routes.js`), que recibe comentarios sueltos en
+// el momento en que se publican. Los dos caminos tienen que dedupear, clasificar
+// y alertar EXACTAMENTE igual — si se duplicara esta lógica, un comentario
+// llegado por webhook podría no alertar, o alertar dos veces al llegar después
+// por el barrido periódico.
+//
+// Devuelve 'creado' | 'actualizado' | 'sin-cambios'.
+const guardarComentarioSocial = async (negocio, fuente, crudo) => {
+  const fila = fuente.aFila(crudo);
+  const existente = await prisma.comentarioSocial.findUnique({
+    where: { externalId: fila.externalId },
+  });
+  // No se pisa lo ya guardado: sobrescribir la fila borraría la respuesta
+  // que el usuario ya escribió y el flag de vista.
+  //
+  // Única excepción: si el comentario figura como pendiente pero TikTok
+  // dice que el dueño YA respondió (lo hizo desde la app, no desde acá),
+  // se sincroniza ese hecho. Se tocan solo esos dos campos, y solo en esa
+  // dirección — nunca se desmarca algo ya respondido, porque una lectura
+  // fallida de TikTok reabriría comentarios cerrados.
+  if (existente) {
+    const cambios = {};
+    if (!existente.respondida && fila.respondida) {
+      cambios.respondida = true;
+      cambios.respuesta = fila.respuesta;
+    }
+    // Backfill del id de la respuesta: las guardadas antes del 2026-08-06
+    // no lo tienen y sin él no se pueden borrar desde el panel. Se rellena
+    // en cuanto el hilo la devuelve, sin tocar nada más.
+    if (!existente.respuestaExternalId && fila.respuestaExternalId) {
+      cambios.respuestaExternalId = fila.respuestaExternalId;
+    }
+    // La moderación sí se sincroniza en AMBAS direcciones, al revés que
+    // `respondida`: acá la plataforma es la fuente de verdad y desocultar
+    // en la app debe reflejarse en el panel. No hay nada del usuario que
+    // pisar. Solo para fuentes que informan ese estado: si no lo leen, no
+    // pueden desmentirlo.
+    if (fuente.moderacionRemota) {
+      if (fila.oculto !== existente.oculto) cambios.oculto = fila.oculto;
+      if (fila.fijado !== existente.fijado) cambios.fijado = fila.fijado;
+    }
+
+    if (Object.keys(cambios).length) {
+      await prisma.comentarioSocial.update({ where: { id: existente.id }, data: cambios });
+      if (cambios.respondida) {
+        console.log(`[Comentarios ${fuente.id}] ${negocio.nombre}: uno ya respondido en la app, sincronizado.`);
+      }
+      return 'actualizado';
+    }
+    return 'sin-cambios';
+  }
+
+  const sentimiento = clasificar(fila.texto);
+  const comentario = await prisma.comentarioSocial.create({
+    data: { ...fila, plataforma: fuente.id, sentimiento, negocioId: negocio.id },
+  });
+
+  // Un comentario negativo que el dueño YA respondió por su cuenta no
+  // necesita alerta: la alerta existe para que reaccione, y ya reaccionó.
+  // Mandarla igual sería avisarle por correo y WhatsApp de algo que acaba
+  // de resolver, que es la clase de ruido que hace que la gente empiece a
+  // ignorar las notificaciones.
+  if (sentimiento === 'negativo' && !fila.respondida) {
+    const alerta = await prisma.alerta.create({
+      data: {
+        tipo: 'COMENTARIO_NEGATIVO',
+        plataforma: fuente.id,
+        descripcion: `Comentario negativo en ${fuente.nombre} de ${fila.autorNombre || 'un usuario'}: "${(fila.texto || '').slice(0, 80)}…"`,
+        detalle: { comentarioId: comentario.id, plataforma: fuente.id, publicacionId: fila.publicacionId },
+        negocioId: negocio.id,
+      },
+    });
+    await notificar({ usuario: negocio.usuario, negocio, alerta });
+    await prisma.comentarioSocial.update({ where: { id: comentario.id }, data: { notificada: true } });
+    await prisma.alerta.update({ where: { id: alerta.id }, data: { notificada: true } });
+  }
+
+  return 'creado';
+};
+
 const procesarComentariosSociales = async (negocio) => {
   // Redes sociales = planes de pago, igual que la conexión en redes.routes.js
   if (negocio.usuario?.plan === 'GRATIS') return;
@@ -413,74 +496,7 @@ const procesarComentariosSociales = async (negocio) => {
     let nuevos = 0;
     for (const crudo of crudos) {
       try {
-        const fila = fuente.aFila(crudo);
-        const existente = await prisma.comentarioSocial.findUnique({
-          where: { externalId: fila.externalId },
-        });
-        // No se pisa lo ya guardado: sobrescribir la fila borraría la respuesta
-        // que el usuario ya escribió y el flag de vista.
-        //
-        // Única excepción: si el comentario figura como pendiente pero TikTok
-        // dice que el dueño YA respondió (lo hizo desde la app, no desde acá),
-        // se sincroniza ese hecho. Se tocan solo esos dos campos, y solo en esa
-        // dirección — nunca se desmarca algo ya respondido, porque una lectura
-        // fallida de TikTok reabriría comentarios cerrados.
-        if (existente) {
-          const cambios = {};
-          if (!existente.respondida && fila.respondida) {
-            cambios.respondida = true;
-            cambios.respuesta = fila.respuesta;
-          }
-          // Backfill del id de la respuesta: las guardadas antes del 2026-08-06
-          // no lo tienen y sin él no se pueden borrar desde el panel. Se rellena
-          // en cuanto el hilo la devuelve, sin tocar nada más.
-          if (!existente.respuestaExternalId && fila.respuestaExternalId) {
-            cambios.respuestaExternalId = fila.respuestaExternalId;
-          }
-          // La moderación sí se sincroniza en AMBAS direcciones, al revés que
-          // `respondida`: acá la plataforma es la fuente de verdad y desocultar
-          // en la app debe reflejarse en el panel. No hay nada del usuario que
-          // pisar. Solo para fuentes que informan ese estado: si no lo leen, no
-          // pueden desmentirlo.
-          if (fuente.moderacionRemota) {
-            if (fila.oculto !== existente.oculto) cambios.oculto = fila.oculto;
-            if (fila.fijado !== existente.fijado) cambios.fijado = fila.fijado;
-          }
-
-          if (Object.keys(cambios).length) {
-            await prisma.comentarioSocial.update({ where: { id: existente.id }, data: cambios });
-            if (cambios.respondida) {
-              console.log(`[Comentarios ${fuente.id}] ${negocio.nombre}: uno ya respondido en la app, sincronizado.`);
-            }
-          }
-          continue;
-        }
-
-        const sentimiento = clasificar(fila.texto);
-        const comentario = await prisma.comentarioSocial.create({
-          data: { ...fila, plataforma: fuente.id, sentimiento, negocioId: negocio.id },
-        });
-        nuevos++;
-
-        // Un comentario negativo que el dueño YA respondió por su cuenta no
-        // necesita alerta: la alerta existe para que reaccione, y ya reaccionó.
-        // Mandarla igual sería avisarle por correo y WhatsApp de algo que acaba
-        // de resolver, que es la clase de ruido que hace que la gente empiece a
-        // ignorar las notificaciones.
-        if (sentimiento === 'negativo' && !fila.respondida) {
-          const alerta = await prisma.alerta.create({
-            data: {
-              tipo: 'COMENTARIO_NEGATIVO',
-              plataforma: fuente.id,
-              descripcion: `Comentario negativo en ${fuente.nombre} de ${fila.autorNombre || 'un usuario'}: "${(fila.texto || '').slice(0, 80)}…"`,
-              detalle: { comentarioId: comentario.id, plataforma: fuente.id, publicacionId: fila.publicacionId },
-              negocioId: negocio.id,
-            },
-          });
-          await notificar({ usuario: negocio.usuario, negocio, alerta });
-          await prisma.comentarioSocial.update({ where: { id: comentario.id }, data: { notificada: true } });
-          await prisma.alerta.update({ where: { id: alerta.id }, data: { notificada: true } });
-        }
+        if (await guardarComentarioSocial(negocio, fuente, crudo) === 'creado') nuevos++;
       } catch (e) {
         console.error(`[Comentarios ${fuente.id}] ${negocio.nombre}: ${e.message}`);
       }
@@ -869,6 +885,9 @@ module.exports = {
   iniciarRenovacionesCulqi, iniciarEscalacionUrgencias, revisarEscalacionesUrgentes,
   iniciarAvisoReclamaciones, revisarPlazosReclamaciones,
   procesarMenciones, procesarComentariosSociales,
+  // Lo usa el webhook de Instagram para guardar un comentario suelto por el
+  // mismo camino que el escaneo (dedupe + sentimiento + alerta).
+  guardarComentarioSocial,
   // Se exporta para que las pruebas comprueben el contrato entre cada scraper y
   // el worker: si un scraper renombra un campo, `aFila` deja de mapearlo y el
   // comentario se guardaría a medias sin que nada falle.

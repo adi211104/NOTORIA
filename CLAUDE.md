@@ -87,10 +87,11 @@ GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 GROQ_API_KEY=gsk_...
 BACKEND_URL=http://localhost:3000            # cambiar a https://api.usenotoria.app en prod
-META_APP_ID=                                 # cargado en Railway (2026-08-03) pero de la app tipo Consumidor FALLIDA — reemplazar con la app tipo Negocio, ver §19
-META_APP_SECRET=                             # ídem
+META_APP_ID=                                 # 2232447584255257 (app tipo NEGOCIO), cargado en Railway y verificado en el contenedor — ver §19
+META_APP_SECRET=                             # cargado en Railway. PENDIENTE ROTARLO (se compartió por chat). Firma además los webhooks: al rotarlo, Meta empieza a firmar con el nuevo de inmediato
 META_REDIRECT_URI=                           # opcional — por defecto BACKEND_URL + /api/redes/instagram/callback
-META_LOGIN_CONFIG_ID=                        # solo apps Negocio con Facebook Login for Business: ID de la "Configuración" de permisos; si está seteado, el OAuth manda config_id en vez de scope (§19)
+META_LOGIN_CONFIG_ID=                        # 4655107931374707 — apps Negocio con Facebook Login for Business: ID de la "Configuración" de permisos; si está seteado, el OAuth manda config_id en vez de scope (§19)
+META_WEBHOOK_VERIFY_TOKEN=                   # PENDIENTE — cadena al azar que se elige una vez y se pega igual en Railway y en Meta → Webhooks. Sin ella el handshake responde 403 y Meta no guarda la URL (§20)
 TIKTOK_CLIENT_KEY=                           # Sandbox cargado en Railway (2026-07-29)
 TIKTOK_CLIENT_SECRET=                        # Sandbox cargado en Railway
 TIKTOK_SCOPES=                               # opcional — default "user.info.basic,video.list". Ver §15
@@ -1280,7 +1281,11 @@ que devolvió "empty migration"). El cambio de default cosmético que figuraba a
 
 ### Meta / Instagram — dónde quedó EXACTAMENTE
 
-1. **Negocio verificado** en Business Manager (29-jul-2026). ✔
+1. **Negocio verificado** en Business Manager (29-jul-2026). ✔ Confirmado también desde la app el 2026-08-06: *Configuración → Básica → Portfolio comercial* muestra **Notoria, identificador 1337974595147527, Verificado**.
+
+1-bis. ✅ **Renovación del acceso a los datos COMPLETADA y app en modo ACTIVO (2026-08-06).** Correo de Meta ese mismo día: *"Se completó la renovación del acceso a los datos de Notoria"* (app `2232447584255257`, negocio `1337974595147527`), sin más acciones hasta la evaluación anual siguiente. Con eso el interruptor *Modo de la app* pasó a **Activo**.
+
+   **El orden importa y costó encontrarlo:** renovación del acceso a datos → modo Activo → App Review. Y ahora hay un tercer motivo para estar en Activo que no se conocía al documentar esto: **Meta no envía webhooks a una app en modo Desarrollo**. O sea que el modo Activo no era solo el trámite previo a la revisión, era también la condición para que exista el canal de eventos en tiempo real (§20).
 2. **Primera app (ID 1709333600393009) es tipo CONSUMIDOR → NO SIRVE.** Sus permisos disponibles son solo `email`/`public_profile`/`user_*`; los `instagram_*`/`pages_*` no existen en ese tipo y no se pueden agregar (error "Invalid Scopes" al abrir el diálogo OAuth). Sus llaves quedaron cargadas en Railway y hay que REEMPLAZARLAS.
 3. ✅ **App tipo NEGOCIO creada (2026-08-06): ID `2232447584255257`.** Llaves cargadas en Railway y **verificadas dentro del contenedor** (`railway ssh --service api "printenv META_APP_ID"` → devuelve la nueva; secreto presente, 32 chars). Railway `4ebfdbc3` SUCCESS, `/health` 200. ⚠️ El secreto se compartió por chat, así que **el usuario va a rotarlo**: al rotar hay que volver a cargarlo en Railway o el OAuth deja de funcionar con un error genérico de credenciales que no menciona el secreto.
 4. ⚠️⚠️ **TRAMPA: hay DOS "APIs de Instagram" y no son intercambiables.** La consola ofrece por defecto *"Configuración de la API con inicio de sesión de empresa de Instagram"* (**Instagram Login**): habla con `api.instagram.com`, usa permisos `instagram_business_*` y no involucra ninguna página de Facebook. **El código de Notoria NO usa esa.** `redes.routes.js` pide el token a `graph.facebook.com/v21.0/oauth/access_token`, llama a `me/accounts` buscando la página con `instagram_business_account`, y pide `instagram_basic,instagram_manage_comments,pages_show_list,pages_read_engagement` — es el sabor **Facebook Login**. Entrar por la pantalla de Instagram Login lleva a configurar algo que el backend no sabe consumir. **Ir siempre a Agregar producto → Facebook Login for Business**, no a la sección de Instagram. Se decidió mantener el sabor Facebook Login: el mercado son restaurantes y hoteles, que casi siempre ya tienen página de Facebook ligada al Instagram, y cambiar de sabor obligaría a reescribir OAuth, scraper y los textos del App Review.
@@ -1327,6 +1332,46 @@ que devolvió "empty migration"). El cambio de default cosmético que figuraba a
 5. Lección aprendida hoy: la URL del callback NO va en "Administrador de dominios" (eso es para contenido compartido); el error "dominio no incluido" se arregla con el campo **Dominios de la app** de Configuración Básica + el redirect URI en el producto de login.
 6. **Formulario App Review**: los textos en inglés (instrucciones de prueba, APIs usadas, sin pagos, sin geobloqueo) ya están redactados — buscarlos en la conversación del 2026-08-03 o pedirlos de nuevo. Falta: crear cuenta de prueba del revisor (registrar email controlado, verificar, `railway run --service api node scripts/dar-plan.js <email> NEGOCIO`) y grabar el screencast (login → Conexiones → Conectar Instagram → autorizar → comentarios → tuerca → Eliminar conexión).
 
+### 20. Webhook de comentarios de Instagram (2026-08-06)
+
+**Qué resuelve.** El escaneo lee una **ventana**: las 25 últimas publicaciones × 30 comentarios, cada 4 horas. Un comentario en una foto más antigua no se ve **nunca**, y ese es justo el sitio donde puede vivir una crisis: una publicación viral de hace meses con una queja nueva. El webhook avisa de **cualquier** publicación, sin ventana, en segundos.
+
+**No sustituye al barrido, convive con él.** Los webhooks solo notifican desde que se configuran: al conectar una cuenta nueva, todo el histórico sigue llegando por el escaneo. Borrar el escaneo dejaría a cada cliente nuevo con la bandeja vacía hasta que alguien comentara.
+
+**Piezas:**
+
+| Archivo | Qué hace |
+|---------|----------|
+| `src/lib/webhookMeta.js` | Lo puro y probable sin Express: `firmaValida` (HMAC-SHA256), `verificacion` (handshake) y `comentariosDelEvento` (normaliza el evento a la forma del scraper) |
+| `src/api/routes/webhooks.routes.js` | `GET/POST /api/webhooks/instagram`. Valida, contesta 200 y procesa después |
+| `src/scrapers/instagram.scraper.js` | `suscribirWebhookInstagram` / `desuscribirWebhookInstagram` / `obtenerCaptionPublicacion` |
+| `src/workers/monitoreo.worker.js` | `guardarComentarioSocial()` — extraído del bucle del escaneo y **exportado**, para que webhook y barrido guarden por el MISMO camino |
+| `scripts/prueba-instagram-webhook.js` | 33 pruebas con axios, Prisma y el notificador interceptados. Verde el 2026-08-06 |
+
+**Decisiones que no son obvias:**
+
+1. 🔴 **El cuerpo se valida CRUDO, y por eso el router va montado ANTES de `express.json()`.** Meta firma los bytes exactos: si se parsea y se vuelve a serializar para calcular el HMAC, cualquier diferencia de orden de claves, espaciado o escape de unicode cambia el hash y **todo evento legítimo se rechazaría**. La ruta usa `express.raw()` propio.
+2. **Se contesta 200 ANTES de procesar.** Meta espera respuesta rápida; si tarda, reintenta el mismo evento y tras varios fallos **desactiva la suscripción**. Guardar un comentario puede mandar correo y WhatsApp — demasiado para dejarlo esperando. El procesamiento va en un `.catch()` suelto.
+3. **El eco propio se descarta.** Meta también notifica los comentarios y respuestas que publica la **propia cuenta**, incluidas las que Notoria acaba de enviar desde el panel. Sin ese filtro (`value.from.id === entry.id`) nuestras respuestas entrarían en la bandeja como si fueran de un cliente, y una disculpa bien escrita clasificaría como **negativa** y dispararía una alerta por nuestro propio mensaje.
+4. **La ruta está exenta del rate-limit** (`skip` en `index.js`). Los eventos llegan a ráfagas desde las mismas IPs de Meta: el cupo de 100/15min se agotaría solo, y un 429 no es inofensivo — Meta reintenta y luego desactiva la suscripción. **El filtro real de esta ruta es la firma HMAC, no el rate-limit.**
+5. **El evento se normaliza a la forma del scraper**, no a la de la tabla. Así pasa por el mismo `aFila` de `FUENTES_COMENTARIOS`, y la prueba 23 vigila ese contrato: si alguien renombra un campo del scraper, el webhook se entera.
+6. **La suscripción es POR CUENTA, no de la app.** Activar el webhook en la consola no basta: hay que llamar a `POST /me/subscribed_apps?subscribed_fields=comments` **una vez por cada cliente** que conecta su Instagram. Se hace dentro del callback de OAuth, que es el único punto donde existe el token de página recién emitido. Con un token de PÁGINA, `me` **es** la página — por eso no hizo falta guardar el id de la página en la base ni migrar nada.
+7. **Un fallo de suscripción no aborta la conexión.** Se registra un `warn` y el negocio queda conectado: sin webhook los comentarios siguen llegando por el escaneo, con retraso. Conectar a medias es mejor que no conectar.
+8. **Al desconectar se desuscribe**, y solo si ningún otro negocio del usuario usa esa misma cuenta (mismo cuidado que con los tokens de TikTok: la suscripción es de la página, no del negocio). Sin esto seguiríamos recibiendo datos personales de alguien que **retiró su consentimiento** — que es exactamente lo que mira un revisor de permisos.
+9. **El caption se pide aparte.** El evento trae el id de la publicación pero no su texto, y el panel lo muestra como contexto. `obtenerCaptionPublicacion` lo trae; si falla, el comentario se guarda igual sin título: perder el título es molesto, perder el comentario sería grave.
+
+**Dos bloqueos que NO son código:**
+
+- ⚠️ **`pages_manage_metadata`.** Es el permiso que permite suscribir la página. No estaba en los 4 que se pidieron. Ya está en el `scope` de respaldo de `redes.routes.js`, pero **cuando se usa `config_id` manda la Configuración de la consola**: si el permiso no está también ahí, el token no lo trae y la suscripción falla en silencio (la conexión funciona, los webhooks no llegan nunca). **Añadirlo a la Configuración y al App Review ANTES de enviar la revisión** — después cuesta una revisión entera aparte.
+- ⚠️ **Acceso avanzado.** La documentación es explícita: *"Advanced Access is required to receive `comments` and `live_comments` webhook notifications"* y *"Apps must be set to Live"*. Lo segundo ya está (§19.1-bis); lo primero llega con el App Review. O sea que **el webhook se puede configurar y verificar hoy, pero no llegará ningún evento hasta que aprueben la revisión**. No es un bug: si tras la aprobación no llega nada, mirar primero `pages_manage_metadata` y la suscripción de la página, no el código.
+
+**Para dejarlo activo (pasos en la consola, del usuario):**
+1. Elegir una cadena al azar (`openssl rand -hex 16`) y ponerla en Railway como `META_WEBHOOK_VERIFY_TOKEN`. Desplegar **antes** de continuar: el handshake se hace contra el servidor vivo.
+2. Meta → la app → **Webhooks** → objeto **Instagram** → *URL de devolución de llamada* `https://api.usenotoria.app/api/webhooks/instagram`, *Token de verificación* la misma cadena → Verificar y guardar.
+3. Suscribirse al campo **`comments`** (los demás — `messages`, `story_insights`, `live_comments` — no se usan; suscribirlos solo traería eventos que nadie lee).
+4. Añadir `pages_manage_metadata` a la Configuración de Facebook Login for Business y a la lista del App Review.
+5. Reconectar Instagram desde el panel una vez (las cuentas conectadas ANTES de este cambio no tienen la página suscrita: la suscripción ocurre en el callback de OAuth).
+
 ### Cierre de la sesión (2026-08-03 noche) — pulido SEO, todo desplegado y verificado
 
 - **OG image en PNG**: `public/og-image.png` (1200×630, generado con sharp desde el SVG — WhatsApp/Facebook no renderizan `og:image` en SVG). `layout.js` apunta al PNG. Regenerar si cambia el SVG: `node -e "require('sharp')('public/og-image.svg',{density:150}).resize(1200,630).png().toFile('public/og-image.png')"`.
@@ -1345,7 +1390,7 @@ que devolvió "empty migration"). El cambio de default cosmético que figuraba a
    - **`moderacionRemota` en las fuentes.** TikTok informa el estado de ocultado/fijado tal como está en la plataforma; Instagram no lo lee. Sin esa distinción el escaneo habría pisado esos campos en cada pasada con valores que nunca comprobó. Moderar sigue cortado a TikTok en `comentario.routes.js` (400) y el frontend ya ocultaba esos botones para otras redes.
    - **Moderar en Instagram NO está hecho a propósito**: la Graph API lo permite, pero el scraper no lee ese estado. Al implementarlo hay que añadir la lectura *y* declarar `moderacionRemota`, o el panel y la plataforma se desincronizan.
    - **Ventana de lectura: 25 publicaciones × 30 comentarios**, ambos explícitos en `LIMITE_PUBLICACIONES` / `LIMITE_COMENTARIOS`. Son decisión nuestra, no de la API. ⚠️ Antes el de comentarios **no se fijaba**, así que mandaba el valor por defecto de Meta — un techo que no controlábamos y que puede cambiar sin avisar. La sintaxis para acotar un campo anidado es `comments.limit(N){...}`; sin el `.limit(N)` decide Meta. Instagram admite ventana más ancha que TikTok (10) porque aquí los comentarios vienen **anidados en la misma llamada**: 25 publicaciones cuestan una petición, mientras que en TikTok cada video suma la suya.
-   - ⚠️ **Sigue siendo una ventana.** Un comentario en una publicación más antigua que las 25 últimas no se ve, y ese es justo el sitio donde puede vivir una crisis (una foto viral de hace meses con una queja nueva). **El arreglo de fondo son los webhooks de Instagram** (campo `comments`): avisan de cualquier publicación, sin ventana, y usan el mismo permiso `instagram_manage_comments` que ya se pidió. Ojo: los webhooks solo notifican **desde que se configuran**, así que este barrido seguirá haciendo falta para el histórico al conectar una cuenta nueva — conviven, no se sustituyen. Aplazado a después del App Review para no mezclar piezas nuevas con la revisión en curso.
+   - ⚠️ **Sigue siendo una ventana.** Un comentario en una publicación más antigua que las 25 últimas no se ve, y ese es justo el sitio donde puede vivir una crisis (una foto viral de hace meses con una queja nueva). **El arreglo de fondo son los webhooks de Instagram** (campo `comments`): avisan de cualquier publicación, sin ventana. ✅ **IMPLEMENTADOS el 2026-08-06 — ver §20.** Los webhooks solo notifican **desde que se configuran**, así que este barrido sigue haciendo falta para el histórico al conectar una cuenta nueva: conviven, no se sustituyen. Corrección de lo que decía aquí antes: **no usan solo `instagram_manage_comments`**, hace falta además `pages_manage_metadata` para suscribir la página, y no llega ningún evento sin Acceso avanzado (§20).
    - `scripts/prueba-instagram-comentarios.js` — 25 pruebas con axios interceptado, sin tocar la BD. Cubren el parseo anidado (media → comments), el prefijo `ig_`, la forma de las peticiones, que un error de la API devuelva `null` y no `[]` (el worker lee `[]` como "sin novedades"), y **el contrato entre scraper y worker**: si alguien renombra un campo del scraper, `aFila` deja de mapearlo y el comentario se guardaría a medias sin que nada falle. Por eso `FUENTES_COMENTARIOS` se exporta.
 3. **Decisión del usuario pendiente: Facebook Reviews.** El scraper es un "stub funcional" — si no trae datos reales, por la regla §18 hay que sacarlo de la tabla comparativa, las tarjetas del landing y dashboard/planes hasta que funcione. PREGUNTADO, sin respuesta aún.
 4. **Blog SEO** (artículos "cómo responder reseñas negativas restaurante", etc.) y **capturas reales del panel** en el landing — aceptados por el usuario, no empezados.

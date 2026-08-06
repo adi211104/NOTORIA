@@ -24,11 +24,11 @@ const GRAPH_URL = 'https://graph.facebook.com/v21.0';
 // petición, mientras que en TikTok cada video suma la suya.
 //
 // ⚠️ Sigue siendo una ventana: un comentario en una publicación más antigua que
-// las 25 últimas no se ve. El arreglo de fondo son los webhooks de Instagram
-// (campo `comments`), que avisan de cualquier publicación sin ventana ninguna;
-// usan este mismo permiso `instagram_manage_comments`. Los webhooks solo
-// notifican desde que se configuran, así que este barrido seguiría haciendo
-// falta para el histórico al conectar una cuenta nueva.
+// las 25 últimas no se ve. Para eso están los webhooks (ver
+// `api/routes/webhooks.routes.js`), que avisan de cualquier publicación sin
+// ventana ninguna. No sustituyen a este barrido: los webhooks solo notifican
+// desde que se configuran, así que el histórico de una cuenta recién conectada
+// sigue llegando por aquí.
 const LIMITE_PUBLICACIONES = 25;
 const LIMITE_COMENTARIOS = 30;
 
@@ -77,6 +77,69 @@ const obtenerComentariosInstagram = async (
 };
 
 /**
+ * Caption de una publicación. Lo usa el webhook: el evento trae el id de la
+ * publicación pero no su texto, y el panel muestra ese texto como contexto del
+ * comentario. Devuelve '' ante cualquier fallo — quedarse sin título no puede
+ * costar el comentario.
+ */
+const obtenerCaptionPublicacion = async (publicacionId, accessToken) => {
+  if (!publicacionId || !accessToken) return '';
+  try {
+    const { data } = await axios.get(`${GRAPH_URL}/${publicacionId}`, {
+      params: { fields: 'caption', access_token: accessToken },
+    });
+    return (data.caption || '').slice(0, 120);
+  } catch {
+    return '';
+  }
+};
+
+/**
+ * Suscribe la página de Facebook ligada a la cuenta de Instagram para que Meta
+ * envíe los webhooks de comentarios de ESA cuenta.
+ *
+ * Dos cosas que no son obvias:
+ *  1. La suscripción es POR CUENTA, no de la app: activar el webhook en el panel
+ *     de Meta no basta, hay que llamar a esto una vez por cada cliente que
+ *     conecta su Instagram. Por eso se hace dentro del callback de OAuth.
+ *  2. Con un token de PÁGINA, `me` es la propia página — de ahí que no haga
+ *     falta guardar el id de la página en la base.
+ *
+ * Requiere el permiso `pages_manage_metadata`: sin él Meta responde error y no
+ * llega ni un evento (los comentarios se siguen leyendo por el escaneo).
+ */
+const suscribirWebhookInstagram = async (pageAccessToken) => {
+  if (!configurado() || !pageAccessToken) return { error: 'Instagram no está configurado.' };
+  try {
+    const { data } = await axios.post(`${GRAPH_URL}/me/subscribed_apps`, null, {
+      params: { subscribed_fields: 'comments', access_token: pageAccessToken },
+    });
+    return { ok: !!data.success };
+  } catch (error) {
+    return { error: error.response?.data?.error?.message || error.message };
+  }
+};
+
+/**
+ * Retira la suscripción al desconectar la cuenta. Sin esto Meta seguiría
+ * mandando eventos de un negocio que ya no está en Notoria: no se guardarían
+ * (el webhook no encuentra el negocio), pero seguiríamos recibiendo datos
+ * personales de alguien que retiró su consentimiento, que es exactamente lo que
+ * mira un revisor de permisos.
+ */
+const desuscribirWebhookInstagram = async (pageAccessToken) => {
+  if (!pageAccessToken) return { error: 'Sin token de página.' };
+  try {
+    await axios.delete(`${GRAPH_URL}/me/subscribed_apps`, {
+      params: { access_token: pageAccessToken },
+    });
+    return { ok: true };
+  } catch (error) {
+    return { error: error.response?.data?.error?.message || error.message };
+  }
+};
+
+/**
  * Responde un comentario de Instagram (crea una respuesta anidada).
  */
 const responderComentarioInstagram = async (comentarioId, mensaje, accessToken) => {
@@ -111,5 +174,6 @@ const eliminarComentarioInstagram = async (comentarioId, accessToken) => {
 module.exports = {
   obtenerComentariosInstagram, responderComentarioInstagram,
   eliminarComentarioInstagram, configurado,
+  obtenerCaptionPublicacion, suscribirWebhookInstagram, desuscribirWebhookInstagram,
   LIMITE_PUBLICACIONES, LIMITE_COMENTARIOS,
 };
