@@ -186,9 +186,13 @@ scripts ya reintentan solos.
 - [ ] Afiliación al SEE-Del Contribuyente + usuario SOL secundario
 - [ ] Registro de Exportadores de Servicios
 - [ ] Validar el criterio de IGV y exportación con un contador
-- [ ] Preguntar al contador si las boletas se informan por **resumen diario** o
-      se pueden enviar individualmente (el beta aceptó ambas, pero el canal
-      reglamentario es el resumen diario)
+- [x] ~~Preguntar al contador si las boletas van por resumen diario~~ —
+      **resuelto por norma el 06/08/2026, no hacía falta preguntar.** El resumen
+      diario es **obligatorio** para toda boleta de venta electrónica y sus
+      notas: hay que enviarlo el mismo día de emisión o, como muy tarde, hasta
+      el **sétimo día calendario siguiente**. Que el web service acepte una
+      boleta suelta por `sendBill` no sustituye la obligación de informarla por
+      resumen. No hay elección que hacer ni depende del tipo de negocio
 - [ ] Verificar que el ubigeo **070104** corresponde al domicilio fiscal
 - [ ] Cargar `SUNAT_CERT_P12_BASE64` y `SUNAT_CERT_PASSWORD` en Railway
 - [ ] Mover el `.p12` fuera de OneDrive (hoy la llave privada está sincronizada
@@ -259,13 +263,14 @@ scripts ya reintentan solos.
       están construidos y aceptados, pero `envioSunat.worker.js` sigue mandando
       **cada comprobante uno a uno** con `sendBill`, boletas incluidas. Falta
       agrupar las boletas del día y mandarlas por resumen.
-      ⚠️ **Bloqueado por una decisión, no por el código:** depende de la
-      respuesta del contador (ver más abajo) sobre si las boletas van por
-      resumen diario o pueden informarse individualmente — el beta acepta las
-      dos. Cuando se decida, hace falta además **guardar el ticket en base de
-      datos** (hoy no hay dónde: ningún campo del schema lo recoge); sin él, si
-      el proceso se cae entre el envío y la consulta no hay forma de saber si
-      SUNAT aceptó, y reenviar produciría un duplicado.
+      **Ya no está bloqueado por ninguna decisión**: el resumen diario es
+      obligatorio por norma (ver la casilla de SUNAT más abajo). Lo que exige es
+      **guardar el ticket en base de datos** — hoy no hay dónde, ningún campo
+      del schema lo recoge — porque si el proceso se cae entre el envío y la
+      consulta no hay forma de saber si SUNAT aceptó, y reenviar produciría un
+      duplicado. Ojo al plazo: la cola vigila **3 días** (el de la factura),
+      pero el resumen de boletas tiene **7 días calendario**; son relojes
+      distintos y no se pueden tratar con la misma regla.
 
 **Culqi** — operativo con llaves de **TEST** desde el 05/08/2026
 - [x] Llaves de test en `.env` / `.env.local` **y en Railway y Vercel**

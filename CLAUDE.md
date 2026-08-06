@@ -1691,9 +1691,13 @@ tocarlas.
    2026-08-06** — faltaba `cac:Status/cbc:ConditionCode`. La Fase B quedó
    completa: resumen diario, anulación de boletas y comunicación de baja, las
    tres aceptadas por el beta. Ver las secciones de arriba.
-   ⚠️ Lo que sigue siendo del contador, y no del código: confirmar que el
-   resumen diario es el canal que le corresponde a la empresa. La duda ya no
-   bloquea nada, porque el circuito está construido de las dos formas.
+   ⚠️ **La duda sobre el canal se cerró contra la norma, no con el contador.**
+   El resumen diario es **obligatorio** para toda boleta de venta electrónica y
+   sus notas, con plazo hasta el sétimo día calendario siguiente a la emisión.
+   No es una opción que dependa del tipo de negocio, y que el web service acepte
+   una boleta suelta por `sendBill` no releva de informarla por resumen — el
+   beta es permisivo, la obligación sigue. Lo que sí es del contador son los
+   criterios de IGV y exportación, no el canal de envío.
 2. **Culqi**: esperando respuesta a la solicitud. Al aprobar → llaves live +
    **redespliegue de Vercel** (ver README).
 
