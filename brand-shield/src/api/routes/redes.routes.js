@@ -286,7 +286,12 @@ router.post('/:negocioId/tiktok/conectar', async (req, res, next) => {
         redirect_uri: TIKTOK_BIZ_REDIRECT_URI,
         response_type: 'code',
         state: codificarState(negocio.id, req.usuario.id),
-        scope: 'user.info.basic,user.info.profile,video.list,comment.list,comment.list.manage',
+        // `user.info.stats` NO es opcional aunque no mostremos seguidores:
+        // `/business/get/` responde 40130 sin él, incluso pidiendo solo
+        // `display_name` (comprobado el 2026-08-06 comparando dos tokens que
+        // solo diferían en ese scope). Sin esto la cuenta se conecta bien pero
+        // el panel se queda con el avatar genérico.
+        scope: 'user.info.basic,user.info.profile,user.info.stats,video.list,comment.list,comment.list.manage',
       });
       return res.json({ url: `https://www.tiktok.com/v2/auth/authorize/?${params.toString()}` });
     }

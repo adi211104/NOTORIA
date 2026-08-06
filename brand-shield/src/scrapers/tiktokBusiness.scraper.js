@@ -176,10 +176,25 @@ const revocarTokenTikTokBiz = async (accessToken) => {
  */
 const obtenerPerfilTikTokBiz = async (businessId, accessToken) => {
   if (!configurado() || !businessId || !accessToken) return null;
-  const r = await llamar('get', '/business/get/', {
+
+  let r = await llamar('get', '/business/get/', {
     accessToken,
     params: { business_id: businessId, fields: JSON.stringify(CAMPOS_PERFIL) },
   });
+
+  // Reintento con lo mínimo. Pedir un campo no autorizado hace fallar la llamada
+  // ENTERA con 40130, así que un solo scope faltante nos dejaba sin nombre ni
+  // avatar pudiendo tenerlos. Pasó de verdad: `videos_count` necesita
+  // `user.info.stats`, y una conexión hecha sin ese permiso se quedaba con el
+  // avatar genérico aunque el nombre estuviera perfectamente disponible.
+  if (r.error && String(r.codigo) === '40130') {
+    r = await llamar('get', '/business/get/', {
+      accessToken,
+      params: { business_id: businessId, fields: JSON.stringify(['display_name', 'profile_image']) },
+    });
+    if (!r.error) console.warn('[TikTok Biz] Perfil leído en modo mínimo: faltan scopes para los campos extra.');
+  }
+
   if (r.error) {
     console.warn(`[TikTok Biz] No se pudo leer el perfil: ${r.error}`);
     return null;
