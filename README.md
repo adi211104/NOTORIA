@@ -253,10 +253,9 @@ scripts ya reintentan solos.
 - [x] **Comentarios de Instagram cableados** (leer, responder y borrar la
       respuesta propia). Sin esto el revisor habría conectado la cuenta y visto
       la pestaña vacía: rechazo seguro
-- [ ] **Aplicar la migración del enum en producción** — después de desplegar,
-      nunca antes: `railway ssh --service api "npx prisma db push --skip-generate"`.
-      Es un `ALTER TYPE "Plataforma" ADD VALUE 'INSTAGRAM'`, aditivo.
-      ⚠️ Sin él, la primera alerta de un comentario negativo de Instagram falla
+- [x] **Migración del enum aplicada en producción** (06/08/2026): backend
+      desplegado primero (`02a27eaa`) y después el `db push`. Verificado con
+      `prisma migrate diff` en ambos sentidos → *empty migration*
 - [ ] Crear cuenta de prueba del revisor (plan NEGOCIO vía `scripts/dar-plan.js`)
       con un negocio y su Instagram ya conectado — si el revisor entra y no ve
       comentarios, no puede verificar `instagram_manage_comments`
