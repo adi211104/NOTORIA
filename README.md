@@ -195,7 +195,17 @@ scripts ya reintentan solos.
       boleta suelta por `sendBill` no sustituye la obligación de informarla por
       resumen. No hay elección que hacer ni depende del tipo de negocio
 - [ ] Verificar que el ubigeo **070104** corresponde al domicilio fiscal
-- [ ] Cargar `SUNAT_CERT_P12_BASE64` y `SUNAT_CERT_PASSWORD` en Railway
+- [x] `SUNAT_CERT_P12_BASE64` cargado en Railway (06/08/2026, 12.616 caracteres,
+      longitud verificada contra el archivo local)
+- [ ] `SUNAT_CERT_PASSWORD` en Railway — **la pone el usuario**, no está en
+      ningún archivo:
+      `railway variables --set "SUNAT_CERT_PASSWORD=..." --service api`
+- [ ] `SUNAT_SOL_USUARIO` y `SUNAT_SOL_CLAVE` (del usuario SOL secundario, que
+      todavía no existe)
+- [ ] `SUNAT_ENTORNO=produccion`. ⚠️ **Sin esta variable el backend apunta al
+      BETA**: los comprobantes de clientes reales se irían al entorno de
+      pruebas y no existirían para SUNAT, sin ningún error visible
+- [ ] `SUNAT_EMISION_ACTIVA=true` — **el último interruptor, no el primero**
 - [ ] Mover el `.p12` fuera de OneDrive (hoy la llave privada está sincronizada
       en la nube)
 
@@ -290,6 +300,14 @@ scripts ya reintentan solos.
 > `4111 1111 1111 1111` y **activa el plan sin cobrar dinero real**. Al rotar a
 > live, revisar la tabla `pagos` por si alguien se coló (los de prueba tienen
 > `culqiCargoId` con prefijo `chr_test_`).
+>
+> 🔴 **Y por eso Culqi tiene que pasar a live ANTES de encender
+> `SUNAT_EMISION_ACTIVA`.** Con la emisión activa y llaves de test, cualquiera
+> que pague con `4111 1111 1111 1111` generaría un **comprobante fiscal real
+> enviado a SUNAT por una venta que nunca ocurrió**. Eso es declarar ingresos
+> inexistentes, y no se borra: habría que emitir comunicación de baja o nota de
+> crédito, con el agravante de que la numeración no admite huecos. **El orden
+> correcto es: Culqi live → trámites en SOL → emisión.**
 
 **Observación de la web por Culqi (05/08/2026) — subsanada**
 Culqi observó usenotoria.app por "Flujo de compra | Carrito de compras | Botón

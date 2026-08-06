@@ -1693,6 +1693,41 @@ que anule un comprobante. El modelo `ResumenSunat` ya distingue `tipo` RC/RA par
 que el RA tenga sitio cuando ese disparador exista; construir el worker antes
 sería código muerto.
 
+### Qué falta para encender la emisión, y en qué orden (2026-08-06)
+
+`SUNAT_CERT_P12_BASE64` ya está cargado en Railway (12.616 caracteres, longitud
+verificada contra el archivo local). Es la **única** variable `SUNAT_*` que
+existe en producción: la emisión sigue apagada y los dos workers lo declaran en
+el arranque.
+
+El orden no es negociable, y el primer punto es el que más caro sale:
+
+1. 🔴 **Culqi a llaves live.** Con `SUNAT_EMISION_ACTIVA=true` y llaves de test,
+   cualquiera que pague en `/precios` con `4111 1111 1111 1111` activa el plan
+   sin pagar **y dispara un comprobante fiscal real contra SUNAT por una venta
+   que no existió**. Son ingresos fantasma declarados, y deshacerlos exige
+   comunicación de baja o nota de crédito — con la numeración, que no admite
+   huecos, ya gastada.
+2. **Afiliación al SEE-Del Contribuyente** y **usuario SOL secundario**. Sin la
+   afiliación, producción rechaza todo; sin el usuario, `billService.configurado()`
+   es falso y los workers ni arrancan.
+3. `SUNAT_CERT_PASSWORD`, `SUNAT_SOL_USUARIO`, `SUNAT_SOL_CLAVE` — **las pone el
+   usuario**, nunca se guardan en archivos ni pasan por el chat:
+   `railway variables --set "X=..." --service api`.
+4. ⚠️ **`SUNAT_ENTORNO=produccion`.** Sin esta variable `billService` apunta al
+   **beta**: los comprobantes de clientes reales se irían al entorno de pruebas,
+   sin ningún error visible, y la empresa creería tener documentos válidos que
+   para SUNAT no existen. Es el fallo más silencioso de toda la Fase B.
+5. `SUNAT_EMISION_ACTIVA=true` — el último interruptor, no el primero.
+
+⚠️ Ojo con `certificado.configurado()`: devuelve `true` con solo el base64
+cargado, aunque falte la contraseña. Hoy no importa porque `listoParaEmitir()`
+exige además el interruptor y las credenciales SOL, pero no tomarlo como prueba
+de que el certificado se puede abrir.
+
+Sigue pendiente de seguridad: **mover el `.p12` fuera de OneDrive** — la llave
+privada está hoy sincronizada en la nube.
+
 ---
 
 ## Bugs de Culqi encontrados el 2026-08-05 (resumen para no repetirlos)
