@@ -247,9 +247,24 @@ scripts ya reintentan solos.
       *Instagram Login* como segunda opción (aditivo, pero con su propio App
       Review) — ver `CLAUDE.md` §19.8
 - [ ] Probar "Conectar Instagram" en `/dashboard/conexiones` con IG Business + página de FB
+- [x] **Renovación del acceso a datos enviada** (06/08/2026, *In review*, hasta
+      10 días) — era el requisito para pasar la app a modo Activo
+- [x] **App en modo Activo**, que es lo que habilita enviar el App Review
+- [x] **Comentarios de Instagram cableados** (leer, responder y borrar la
+      respuesta propia). Sin esto el revisor habría conectado la cuenta y visto
+      la pestaña vacía: rechazo seguro
+- [ ] **Aplicar la migración del enum en producción** — después de desplegar,
+      nunca antes: `railway ssh --service api "npx prisma db push --skip-generate"`.
+      Es un `ALTER TYPE "Plataforma" ADD VALUE 'INSTAGRAM'`, aditivo.
+      ⚠️ Sin él, la primera alerta de un comentario negativo de Instagram falla
 - [ ] Crear cuenta de prueba del revisor (plan NEGOCIO vía `scripts/dar-plan.js`)
+      con un negocio y su Instagram ya conectado — si el revisor entra y no ve
+      comentarios, no puede verificar `instagram_manage_comments`
 - [ ] Grabar screencast y enviar el App Review (4 permisos: instagram_basic,
-      instagram_manage_comments, pages_show_list, pages_read_engagement)
+      instagram_manage_comments, pages_show_list, pages_read_engagement).
+      💡 El panel se autodetecta en inglés según el navegador y hay selector en
+      Ajustes, así que el screencast puede grabarse en inglés y evitar el
+      requisito de subtítulos de Meta
 - [ ] WhatsApp Cloud API en la misma app: plantilla UTILITY + credenciales en Railway
 
 **Crecimiento / landing (sesión 03/08/2026)**
