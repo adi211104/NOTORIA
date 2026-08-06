@@ -27,7 +27,10 @@ const TEXTOS = {
     fuenteActiva: 'Activa',
 
     vacio: 'Sin menciones por ahora',
-    vacioDetalle: 'Se buscan cada 4 horas junto con el resto del monitoreo.',
+    // No prometer una búsqueda que en Instagram no existe: ahí no se busca por
+    // palabra clave, solo llega lo que etiqueta a la cuenta. Decir "se buscan
+    // cada 4 horas" a secas deja esperando algo que nunca iba a llegar.
+    vacioDetalle: 'Se revisan cada 4 horas junto con el resto del monitoreo. En Instagram solo aparecen las publicaciones que etiquetan o arroban a tu cuenta, y hace falta tenerla conectada.',
     vacioFiltro: 'Ninguna mención coincide con este filtro.',
 
     terminos: 'Buscando',
@@ -61,7 +64,7 @@ const TEXTOS = {
     fuenteActiva: 'Active',
 
     vacio: 'No mentions yet',
-    vacioDetalle: 'They are searched every 4 hours along with the rest of the monitoring.',
+    vacioDetalle: 'Checked every 4 hours along with the rest of the monitoring. On Instagram only posts that tag or @mention your account show up, and the account must be connected.',
     vacioFiltro: 'No mention matches this filter.',
 
     terminos: 'Searching for',

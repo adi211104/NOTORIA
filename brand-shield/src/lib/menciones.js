@@ -4,6 +4,7 @@
 // Fuente única de esas dos respuestas para que el panel no pueda mentir.
 
 const tiktokMenciones = require('../scrapers/tiktokMenciones.scraper');
+const instagramMenciones = require('../scrapers/instagramMenciones.scraper');
 
 // Tope de términos por negocio. No es una restricción de plan: las APIs de
 // búsqueda tienen un largo máximo de query, y más allá de esto la búsqueda
@@ -45,6 +46,11 @@ const construirTerminos = (negocio) => {
 // fuente con solo reiniciar el backend.
 const FUENTES = [
   { id: 'TIKTOK', nombre: 'TikTok', disponible: () => tiktokMenciones.configurado() },
+  // Instagram no busca términos: recibe las publicaciones donde etiquetaron a la
+  // cuenta. `disponible()` mira solo las credenciales de la app, que son
+  // globales; que un negocio concreto tenga o no Instagram conectado lo resuelve
+  // el scraper devolviendo [].
+  { id: 'INSTAGRAM', nombre: 'Instagram', disponible: () => instagramMenciones.configurado() },
 ];
 
 /**

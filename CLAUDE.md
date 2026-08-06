@@ -1308,7 +1308,14 @@ que devolvió "empty migration"). El cambio de default cosmético que figuraba a
 
    **Una mención NO es una reseña**: no trae rating ni entra en el promedio. Va al modelo `Mencion`, no a `Resena` — la distinción de §15-bis se mantiene.
 
-   Trabajo pendiente si se implementa: scraper de menciones de IG, entrada en las fuentes, y **agregar `INSTAGRAM` al enum `Plataforma`** (+ `db push`) porque el modelo `Alerta` sí usa ese enum y la notificación reventaría al primer envío. `Mencion` no necesita cambios: su `plataforma` ya es `String`.
+   ✅ **IMPLEMENTADO el 2026-08-06.** `src/scrapers/instagramMenciones.scraper.js` (endpoint `/{ig-user-id}/tags`), entrada en `FUENTES` de `lib/menciones.js` y en `procesarMenciones`. 23 pruebas en `scripts/prueba-instagram-menciones.js`.
+
+   ⚠️ **Con esto la sección Menciones DEJA DE ESTAR OCULTA.** `hayFuenteDisponible()` mira `META_APP_ID/SECRET`, que ya están en Railway, así que la sección aparece para los planes NEGOCIO y FRANQUICIA. Es lo correcto —ahora sí se puede entregar— pero cambia lo que ve el cliente sin que nadie toque nada más.
+
+   Diferencias con TikTok que condicionan el producto y el copy:
+   - **TikTok BUSCA** términos por toda la red (requiere proveedor de pago). **Instagram NO busca**: recibe las publicaciones donde etiquetaron a la cuenta. Por eso `construirTerminos` no aplica a Instagram, y el corte por `terminos.length` se movió DENTRO de la rama de TikTok — si cortara el método entero, un negocio sin términos válidos perdería también las menciones de Instagram, que no dependen de ellos.
+   - El texto del estado vacío decía *"se buscan cada 4 horas"*, lo cual es falso para Instagram y dejaba al usuario esperando algo que nunca iba a llegar. Ahora explica que solo aparecen las publicaciones que etiquetan o arroban a la cuenta, y que hace falta tenerla conectada.
+   - **Métricas: `null` no es `0`.** Instagram omite `like_count` si el autor ocultó los contadores, y no expone vistas ni compartidos. Guardarlos como 0 haría que el panel ordenara esas menciones al final, como si nadie las hubiera visto. La prueba lo cubre.
 8. ⚠️ **Límite estructural del sabor Facebook Login, y a quién deja fuera.** Una cuenta profesional de Instagram **NO necesita** página de Facebook (ese paso se salta al crearla), pero este sabor **sí la exige**, y exige además que el dueño tenga cuenta de Facebook con rol en esa página. Un negocio que abrió Instagram con su número de celular y no usa Facebook **no puede conectarse**. Son dos casos muy distintos: el que *tiene* Facebook sin vincular lo arregla en dos minutos (el panel ya le explica cómo), y el que *no tiene* Facebook tendría que crear cuenta y página.
 
    La salida, si algún día pesa: **añadir el sabor Instagram Login como segunda opción**, que autentica contra Instagram sin Facebook de por medio y también da comentarios y menciones. Es **aditivo** — no rompe lo construido — pero cuesta un segundo App Review, un flag en `Negocio` para saber con qué sabor se conectó cada cuenta, y llamar a `graph.instagram.com` en vez de `graph.facebook.com`. Su límite documentado: *"cannot access ads or tagging"*, o sea que pierde `/tags` (etiquetas en fotos) pero **conserva las @menciones**. **No cambiar ahora**: Facebook Login ya está configurado y probado, y es lo que Meta recomienda para herramientas que gestionan cuentas de clientes.
@@ -1761,8 +1768,10 @@ cargado, aunque falte la contraseña. Hoy no importa porque `listoParaEmitir()`
 exige además el interruptor y las credenciales SOL, pero no tomarlo como prueba
 de que el certificado se puede abrir.
 
-Sigue pendiente de seguridad: **mover el `.p12` fuera de OneDrive** — la llave
-privada está hoy sincronizada en la nube.
+✅ **`.p12` fuera de OneDrive (2026-08-06).** La llave privada ya no se
+sincroniza a la nube. Operativamente el certificado vive en Railway como
+`SUNAT_CERT_P12_BASE64`, así que el archivo local es solo respaldo. ⚠️ Cualquier
+ruta de OneDrive que aparezca en documentación anterior a esta fecha ya no vale.
 
 ---
 

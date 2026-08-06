@@ -499,9 +499,10 @@ const procesarComentariosSociales = async (negocio) => {
 // producto (2026-07-29): X cerró el tier gratuito de lectura en febrero de 2026,
 // así que era tan de pago como TikTok y no aportaba una fuente sin costo.
 const tiktokMenciones = require('../scrapers/tiktokMenciones.scraper');
+const instagramMenciones = require('../scrapers/instagramMenciones.scraper');
 const { construirTerminos } = require('../lib/menciones');
 
-const NOMBRE_FUENTE = { TIKTOK: 'TikTok' };
+const NOMBRE_FUENTE = { TIKTOK: 'TikTok', INSTAGRAM: 'Instagram' };
 
 const procesarMenciones = async (negocio) => {
   // Escucha social = planes de pago, igual que la conexión de redes
@@ -509,17 +510,27 @@ const procesarMenciones = async (negocio) => {
   if (negocio.mencionesActivas === false) return;
 
   const terminos = construirTerminos(negocio);
-  if (!terminos.length) return;
 
-  // La fuente devuelve [] si no está configurada, así que esto no cuesta nada
-  // mientras no haya proveedor de datos. El array de una sola fuente se mantiene
-  // porque sumar otra es agregar una línea, no reescribir el flujo.
-  const [deTikTok] = await Promise.all([
-    tiktokMenciones.buscarMencionesTikTok(terminos).catch(() => []),
+  // Cada fuente devuelve [] si no está disponible, así que esto no cuesta nada
+  // mientras falte el proveedor o la cuenta no esté conectada.
+  //
+  // ⚠️ Los términos son SOLO de TikTok, que busca por palabra clave. Instagram
+  // no busca: recibe las publicaciones donde etiquetaron a la cuenta. Por eso el
+  // corte por `terminos.length` va aquí dentro y no arriba — si cortara el
+  // método entero, un negocio sin términos válidos se quedaría también sin las
+  // menciones de Instagram, que no dependen de ellos.
+  const [deTikTok, deInstagram] = await Promise.all([
+    terminos.length
+      ? tiktokMenciones.buscarMencionesTikTok(terminos).catch(() => [])
+      : Promise.resolve([]),
+    instagramMenciones
+      .buscarMencionesInstagram(negocio.instagramUserId, negocio.instagramAccessToken)
+      .catch(() => []),
   ]);
 
   const encontradas = [
     ...deTikTok.map((m) => ({ ...m, plataforma: 'TIKTOK' })),
+    ...deInstagram.map((m) => ({ ...m, plataforma: 'INSTAGRAM' })),
   ];
 
   for (const m of encontradas) {

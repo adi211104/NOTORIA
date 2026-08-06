@@ -206,8 +206,10 @@ scripts ya reintentan solos.
       BETA**: los comprobantes de clientes reales se irían al entorno de
       pruebas y no existirían para SUNAT, sin ningún error visible
 - [ ] `SUNAT_EMISION_ACTIVA=true` — **el último interruptor, no el primero**
-- [ ] Mover el `.p12` fuera de OneDrive (hoy la llave privada está sincronizada
-      en la nube)
+- [x] **`.p12` movido fuera de OneDrive** (06/08/2026) — la llave privada ya no
+      se sincroniza a la nube. Operativamente el certificado vive en Railway como
+      `SUNAT_CERT_P12_BASE64`; el archivo local es solo respaldo. ⚠️ La ruta de
+      OneDrive que aparece en documentación antigua ya no es válida
 
 **TikTok** — ✅ terminado el 06/08/2026 (detalle en `CLAUDE.md` §15-octies)
 - [x] App aprobada en `business-api.tiktok.com` con los 4 permisos de TikTok Accounts
@@ -257,6 +259,12 @@ scripts ya reintentan solos.
 - [x] Ventana de lectura explícita: **25 publicaciones × 30 comentarios**. Antes
       el límite de comentarios no se fijaba y mandaba el valor por defecto de
       Meta, que no controlamos
+- [x] **Menciones de Instagram cableadas** (06/08/2026): publicaciones de
+      terceros que etiquetan o arroban a la cuenta, vía `/{ig-user-id}/tags`.
+      Sin permisos nuevos. ⚠️ **Esto hace visible la sección Menciones** para
+      NEGOCIO y FRANQUICIA, que llevaba oculta desde julio por no tener ninguna
+      fuente gratuita. Solo capta arrobas y etiquetas, no búsqueda por palabra
+      clave (eso sería otro App Review)
 - [ ] *(mejora de fondo, tras el App Review)* **Webhooks de Instagram** para
       recibir comentarios de **cualquier** publicación, sin ventana. Usan el
       mismo permiso ya solicitado. No sustituyen al barrido: los webhooks solo
