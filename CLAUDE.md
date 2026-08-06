@@ -1351,3 +1351,110 @@ a las 21:49 de Lima. Ahora ambos usan `tributario.fechaPeru()` /
 
 Verificado tras el cambio: `prueba-sunat-beta.js` sigue con las tres
 **ACEPTADAS sin observaciones**.
+
+---
+
+## Bugs de Culqi encontrados el 2026-08-05 (resumen para no repetirlos)
+
+Los cinco salieron al cargar las llaves y empezar a cobrar de verdad. **Ninguno
+era visible sin llaves**, y cuatro habrían roto cobros de clientes reales.
+
+| # | Qué pasaba | Por qué importaba |
+|---|-----------|-------------------|
+| 1 | `crearCliente` mandaba `address: '-'` | Culqi exige 5-100 caracteres → **toda alta fallaba** |
+| 2 | `crearCliente` mandaba `last_name: '-'` cuando el nombre era **una sola palabra** | El registro tiene un único campo "nombre", así que **quien no pusiera apellido no podía pagar**. Ver §"Nombres sin apellido" |
+| 3 | `registrarPago` leía `cargo.source.card_number` | Con **tarjeta guardada** esos campos van un nivel más abajo → historial de Facturación **vacío en silencio** |
+| 4 | El alta llamaba a `crearCliente` siempre | Culqi **rechaza un segundo customer con el mismo correo** → quien se suscribiera dos veces quedaba **sin poder pagar nunca** |
+| 5 | El widget mostraba el 50% redondeado en **soles** | Decía **S/30.00** y se cobraba **S/29.50** |
+
+**Regla que resume 1 y 2: a Culqi no se le mandan rellenos de un carácter.**
+Valida `address`, `last_name` y `description` (esta última, 5-80 caracteres).
+
+### Nombres sin apellido (bug 2)
+
+`crearCliente` partía el nombre por espacios y usaba `'-'` como apellido cuando
+no había. Culqi lo rechaza. Como el formulario de registro **solo pide "nombre"**,
+registrarse sin apellido es lo normal, no un caso raro.
+
+Ahora se manda `'No indicado'` como apellido y se recortan ambos a 50 caracteres.
+Comprobado con un cobro real de S/29.50 a nombre de "giorrnell":
+`outcome: venta_exitosa`. `prueba-culqi.js` cubre "giorrnell", "Ana" y nombres
+con espacios de sobra.
+
+> ⚠️ **`paid` NO indica si el cobro se hizo.** Una venta aceptada devuelve
+> `paid: false` — ese campo se refiere a la liquidación del dinero hacia el
+> comercio, que ocurre después. El estado real está en
+> `outcome.type === 'venta_exitosa'`. No escribir comprobaciones sobre `paid`.
+
+### "7 días gratis": reclamo retirado (2026-08-05)
+
+Los botones decían "Comenzar/Probar 7 días gratis" y **no existe ningún periodo
+de prueba**: el cobro es inmediato. Lo confirmó el primer pago real (S/29.50
+cobrados en el acto). Además contradecía los Términos, que dicen que los planes
+de pago se facturan por adelantado.
+
+Los 4 botones (ES y EN, landing y panel) pasaron a texto veraz. Queda un
+comentario en cada sitio para que no vuelva a colarse. **No reintroducir la
+promesa sin implementar el periodo de prueba de verdad** — sería publicidad
+engañosa (Ley 29571) y la web está bajo revisión de Culqi.
+
+Existe sí un **retracto real de 7 días** con devolución del 100% en
+`/devoluciones`: ese sí se puede anunciar.
+
+### Receptor incompleto: `tributario.validarReceptorParaSunat()`
+
+Complementa la §"Identificación obligatoria desde S/700". Se llama desde
+`comprobante.service.js` **antes de pedir el correlativo** (la numeración no
+admite huecos) y desde `pago.routes.js` **antes de cobrar**. Si falta algo, no se
+emite y se avisa a `EMAIL_CONTABILIDAD`: el cliente pagó y tiene derecho a su
+comprobante, así que se corrige y se reemite, no se degrada a VOUCHER a
+escondidas. 7 casos en `prueba-comprobantes.js`.
+
+---
+
+## Cierre de la sesión 2026-08-05 — por dónde seguir mañana
+
+Todo lo de hoy está desplegado y verificado en producción. Backend
+`/health` 200, las 7 páginas públicas en 200 por HTTPS, y en verde
+`prueba-culqi.js`, `prueba-promo.js`, `prueba-comprobantes.js`,
+`prueba-xml-firma.js` y `prueba-sunat-beta.js`.
+
+**Estado de la base (dejada limpia a propósito):** 0 pagos, 0 comprobantes,
+0 reclamaciones, 0 `promo_tarjetas`, series sin iniciar. Las cuentas
+`padkar4@gmail.com` y `giorrnellprincipe@gmail.com` están en Gratuito con la
+promo disponible. Las cuentas con plan NEGOCIO concedido a mano
+(`didier@usenotoria.app`, `didierprincipe@gmail.com`) **son del usuario**, no
+tocarlas.
+
+### Lo primero, mañana
+
+1. **Resumen diario (RC): resolver el error 2522.** Es el punto exacto donde se
+   paró. Descartado ya que sea `sac:BillingPayment` ni el Id de la firma.
+   Reproducir con `node scripts/prueba-resumen-beta.js`.
+   ⚠️ **Antes de invertir más ahí:** el usuario debe confirmar con su contador
+   si el resumen diario le aplica o si puede informar boletas individualmente.
+   Si es lo segundo, este bloque deja de ser urgente.
+2. **Culqi**: esperando respuesta a la solicitud. Al aprobar → llaves live +
+   **redespliegue de Vercel** (ver README).
+
+### Pendiente, sin bloquear
+
+- `EMAIL_RECLAMACIONES` sin fijar: los avisos van a `hola@usenotoria.app`, que
+  el usuario reenvía a `didierprincipe@gmail.com` con Cloudflare. **Sin verificar
+  que el reenvío llegue de verdad** — si no llega, el plazo legal se pasa sin que
+  nadie se entere.
+- Capturas reales en `/precios` en vez de las ilustraciones SVG: **aparcado por
+  decisión del usuario** hasta ver si Culqi aprueba.
+- El landing (`app/page.js`) se pinta en el cliente: su HTML va casi vacío. No
+  afecta a Culqi (el revisor usa navegador) pero sí al SEO.
+- Integraciones sin credenciales: Instagram/Meta, comentarios de TikTok (en
+  revisión), plantilla de WhatsApp, proveedor de menciones.
+
+### Decisiones de hoy que NO hay que deshacer
+
+- **Sin rol de administrador.** El Libro de Reclamaciones se gestiona por
+  terminal. Guarda datos personales de terceros y no se expone tras el panel.
+- **La promo de bienvenida se queda**, anunciada con `BannerPromo` y limitada
+  por cuenta **y por tarjeta**.
+- **Nada de "7 días gratis"**: no existe periodo de prueba.
+- **Ninguna fecha a SUNAT con `toISOString()`** — usar `tributario.fechaPeru()`.

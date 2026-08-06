@@ -235,15 +235,41 @@ scripts ya reintentan solos.
 - [x] Fase B — cola de envío con reintentos y vigilancia del plazo legal
 - [x] Fase B — persistencia del XML firmado y el CDR
 - [x] Fase B — QR en la representación impresa
-- [ ] Fase B — resumen diario de boletas
-- [ ] Fase B — comunicación de baja (anulaciones)
+- [ ] Fase B — resumen diario de boletas — **en curso**: el XML ya pasa la
+      validación de esquema de SUNAT, falta resolver el error de negocio 2522.
+      Cliente asíncrono (`sendSummary` → ticket → `getStatus`) ya hecho
+- [ ] Fase B — comunicación de baja (anulaciones) — reutiliza el mismo flujo
+      asíncrono del resumen, que ya está construido
 
-**Culqi** (el código ya está listo; sin llaves `/api/pagos/culqi` responde 501)
-- [ ] Llaves de **test** en `brand-shield/.env` y `brand-shield-web/.env.local`
-- [ ] Correr `node scripts/prueba-culqi.js` — circuito real contra el sandbox
-- [ ] Probar el widget en `dashboard/planes` con `npm run dev`
-- [ ] Llaves **live** en Railway (backend) y Vercel (`NEXT_PUBLIC_CULQI_PUBLIC_KEY`)
+**Culqi** — operativo con llaves de **TEST** desde el 05/08/2026
+- [x] Llaves de test en `.env` / `.env.local` **y en Railway y Vercel**
+- [x] `node scripts/prueba-culqi.js` — circuito real contra Culqi, en verde
+- [x] Pago real de prueba end-to-end: cobro, comprobante y promo aplicada
+- [ ] **Solicitud enviada a Culqi** (asunto `MI COMERCIO FUE OBSERVADO`) —
+      esperando respuesta. Ver "Observación de la web" abajo
+- [ ] Llaves **live** en Railway y Vercel cuando aprueben.
+      ⚠️ **En Vercel no basta con cargar la variable: hay que volver a desplegar**,
+      porque `NEXT_PUBLIC_*` se incrusta en el build
 - [ ] Registrar el webhook en el panel de Culqi con `?secret=` y `CULQI_WEBHOOK_SECRET`
+
+> ⚠️ **Riesgo asumido mientras haya llaves de test en producción:** el botón
+> "Pagar" de https://usenotoria.app/precios acepta la tarjeta de prueba
+> `4111 1111 1111 1111` y **activa el plan sin cobrar dinero real**. Al rotar a
+> live, revisar la tabla `pagos` por si alguien se coló (los de prueba tienen
+> `culqiCargoId` con prefijo `chr_test_`).
+
+**Observación de la web por Culqi (05/08/2026) — subsanada**
+Culqi observó usenotoria.app por "Flujo de compra | Carrito de compras | Botón
+pagar" y "Falta información legal". Se creó el catálogo público `/precios` con
+botón de pago sin sesión, el Libro de Reclamaciones **integrado**
+(`/libro-reclamaciones`), `/devoluciones` y `/contacto`, y los datos de contacto
+en el pie de todas las páginas. Detalle en `CLAUDE.md` §2-bis.
+- [ ] **Pendiente:** no se enviaron credenciales de cuenta de prueba (decisión:
+      que el revisor cree la suya). Si vuelven a observar, mirar aquí primero.
+
+**Gestión del Libro de Reclamaciones** — por terminal, sin panel web:
+`railway run --service api node scripts/reclamaciones.js`. Plazo legal: **15 días
+hábiles**. Un cron diario avisa de lo que está por vencer.
 
 **Bugs abiertos en producción** (detalle técnico y arreglo en `CLAUDE.md`,
 sección "🔴 Bugs ABIERTOS en producción")
