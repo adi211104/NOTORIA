@@ -86,6 +86,22 @@ const muestra = (over) => ({
     fs.writeFileSync(path.join(SALIDA, `${c.numero}.pdf`), pdf);
   }
 
+  // Receptor completo para SUNAT. El caso que importa es la boleta anual: los
+  // planes anuales (S/564 y S/1716) pasan el umbral de S/700 desde el que la
+  // boleta exige DNI, así que emitirla sin él sería un rechazo seguro.
+  const casosReceptor = [
+    ['boleta mensual solo con nombre', { receptor: { nombre: 'Ana Perez', tipoDoc: '1', numDoc: null, pais: 'PE' }, tipoFiscal: 'BOLETA', total: 5900 }, false],
+    ['boleta anual sin DNI', { receptor: { nombre: 'Ana Perez', tipoDoc: '1', numDoc: null, pais: 'PE' }, tipoFiscal: 'BOLETA', total: 171600 }, true],
+    ['boleta anual con DNI', { receptor: { nombre: 'Ana Perez', tipoDoc: '1', numDoc: '12345678', pais: 'PE' }, tipoFiscal: 'BOLETA', total: 171600 }, false],
+    ['factura sin RUC', { receptor: { nombre: 'Empresa SAC', tipoDoc: '1', numDoc: '12345678', pais: 'PE' }, tipoFiscal: 'FACTURA', total: 5900 }, true],
+    ['factura con RUC', { receptor: { nombre: 'Empresa SAC', tipoDoc: '6', numDoc: '20601030405', pais: 'PE' }, tipoFiscal: 'FACTURA', total: 5900 }, false],
+    ['exterior sin documento', { receptor: { nombre: 'John Smith', tipoDoc: '0', numDoc: null, pais: 'US' }, tipoFiscal: 'FACTURA', total: 171600 }, false],
+    ['sin nombre', { receptor: { nombre: '', tipoDoc: '1', numDoc: '12345678', pais: 'PE' }, tipoFiscal: 'BOLETA', total: 5900 }, true],
+  ];
+  for (const [nombre, arg, debeBloquear] of casosReceptor) {
+    check(`receptor: ${nombre}`, !!t.validarReceptorParaSunat(arg), debeBloquear);
+  }
+
   // El servicio debe cargar (require de prisma incluido)
   require(path.join(base, 'services/comprobante.service'));
   console.log('OK   comprobante.service carga');

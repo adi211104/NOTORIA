@@ -14,7 +14,7 @@
 const prisma = require('../lib/prisma');
 const tributario = require('../lib/tributario');
 const { generarPDFComprobante } = require('./comprobante.pdf');
-const { enviarComprobante } = require('../utils/emails');
+const { enviarComprobante, getResend, FROM, base, h1, p, hr } = require('../utils/emails');
 
 const SERIES = {
   VOUCHER: 'V001',
@@ -56,6 +56,30 @@ const siguienteCorrelativo = async (tipo, intento = 0) => {
   }
 };
 
+// Un cobro sin comprobante no se arregla solo y el cliente sí tiene derecho a
+// él: hay que pedirle sus datos fiscales y reemitir. Alguien debe enterarse el
+// mismo día, no al cerrar el mes.
+const avisarReceptorIncompleto = async ({ pago, usuario, receptor, tipoFiscal, motivo }) => {
+  const destino = process.env.EMAIL_CONTABILIDAD;
+  if (!destino) return;
+  await getResend().emails.send({
+    from: FROM(), to: destino,
+    subject: `Cobro SIN comprobante: faltan datos fiscales de ${usuario.email}`,
+    html: base(`
+      ${h1('No se pudo emitir el comprobante')}
+      ${p(`Se cobró correctamente, pero <strong>no se emitió comprobante</strong> porque ${motivo}.`)}
+      ${p('No se gastó ningún correlativo. Hay que completar los datos fiscales del cliente y reemitir.')}
+      ${hr()}
+      ${p(`<strong>Cliente:</strong> ${usuario.email}<br/>
+           <strong>Tipo que correspondía:</strong> ${tipoFiscal}<br/>
+           <strong>Receptor:</strong> ${receptor.nombre || '(sin nombre)'} · doc ${receptor.tipoDoc || '—'} ${receptor.numDoc || '(sin número)'}<br/>
+           <strong>Importe:</strong> ${tributario.formatearImporte(pago.monto, pago.moneda)}<br/>
+           <strong>Pago:</strong> ${pago.id}`)}
+    `),
+  });
+  console.log('[Comprobante] Aviso de receptor incompleto enviado a', destino);
+};
+
 const formatearNumero = (serie, correlativo) => `${serie}-${String(correlativo).padStart(8, '0')}`;
 
 const descripcionDe = (pago) => {
@@ -80,6 +104,26 @@ const emitirComprobante = async ({ pago, usuario }) => {
     const tipo = emisionSunatActiva() ? tipoFiscal : 'VOUCHER';
 
     const importes = tributario.desglosar({ total: pago.monto, paisFiscal: receptor.pais });
+
+    // Con la emisión activa, un comprobante fiscal con el receptor incompleto
+    // sería rechazado por SUNAT — y el correlativo ya estaría gastado, cosa que
+    // la numeración no admite. Se comprueba ANTES de pedir el número.
+    //
+    // No se degrada a VOUCHER a escondidas: el cliente pagó y tiene derecho a su
+    // comprobante, así que se avisa a contabilidad para completar sus datos y
+    // reemitir. Mientras la emisión esté apagada esto no cambia nada.
+    if (emisionSunatActiva()) {
+      const falta = tributario.validarReceptorParaSunat({
+        receptor, tipoFiscal, total: importes.total,
+      });
+      if (falta) {
+        console.error(`[Comprobante] NO emitido para ${usuario.email}: ${falta}. Pago ${pago.id}`);
+        await avisarReceptorIncompleto({ pago, usuario, receptor, tipoFiscal, motivo: falta })
+          .catch(e => console.error('[Comprobante] No se pudo avisar del receptor incompleto:', e.message));
+        return null;
+      }
+    }
+
     const { serie, correlativo } = await siguienteCorrelativo(tipo);
 
     const comprobante = await prisma.comprobante.create({

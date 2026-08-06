@@ -127,6 +127,44 @@ const validarDatosFiscales = ({ docTipo, docNumero, razonSocial, paisFiscal }) =
   return null;
 };
 
+// Importe a partir del cual una BOLETA obliga a identificar al comprador con su
+// DNI (RS 007-99/SUNAT, art. 8). Por debajo basta con el nombre.
+//
+// No es teórico: el plan anual (S/564 y S/1716) supera el umbral, así que una
+// boleta anual sin DNI sería rechazada por SUNAT.
+const UMBRAL_IDENTIFICACION = 70000; // S/700.00 en céntimos
+
+// ¿Están los datos del receptor que SUNAT va a exigir para este comprobante?
+// Devuelve null si todo está en orden, o el motivo si falta algo.
+//
+// Existe porque `receptorDesdeUsuario` rellena los huecos con lo que haya
+// (`razonSocial || nombre`, y `numDoc` puede quedar en null) para poder imprimir
+// el VOUCHER interno. Eso vale mientras no se emita a SUNAT; en cuanto se emita
+// de verdad, esos huecos son un comprobante rechazado. Se comprueba ANTES de
+// gastar un correlativo, porque la numeración no admite huecos.
+const validarReceptorParaSunat = ({ receptor, tipoFiscal, total }) => {
+  const nombre = (receptor.nombre || '').trim();
+  if (nombre.length < 3) return 'falta el nombre o razón social del receptor';
+
+  // Al cliente del exterior no se le exige documento peruano, solo identificarlo
+  if (!esDomestico(receptor.pais)) return null;
+
+  const num = (receptor.numDoc || '').trim();
+
+  if (tipoFiscal === 'FACTURA') {
+    if (receptor.tipoDoc !== DOC.RUC) return 'una factura exige RUC del receptor';
+    if (!/^(10|15|17|20)\d{9}$/.test(num)) return 'el RUC del receptor no es válido';
+    return null;
+  }
+
+  // BOLETA
+  if (total >= UMBRAL_IDENTIFICACION) {
+    if (receptor.tipoDoc !== DOC.DNI) return `una boleta de ${formatearImporte(total, 'PEN')} exige DNI del receptor`;
+    if (!/^\d{8}$/.test(num)) return 'el DNI del receptor no es válido';
+  }
+  return null;
+};
+
 // Plazo legal para que SUNAT reciba el comprobante: 3 días calendario contados
 // desde el día siguiente a la emisión, hasta el final de ese tercer día.
 // Vencido el plazo el comprobante pierde validez tributaria total, aunque ya se
@@ -189,7 +227,8 @@ const totalEnLetras = (centimos, moneda) => {
 };
 
 module.exports = {
-  IGV_TASA, EMISOR, TIPO_OPERACION, DOC, PLAZO_ENVIO_DIAS,
+  IGV_TASA, EMISOR, TIPO_OPERACION, DOC, PLAZO_ENVIO_DIAS, UMBRAL_IDENTIFICACION,
   esDomestico, desglosar, tipoFiscalPara, receptorDesdeUsuario, validarDatosFiscales,
+  validarReceptorParaSunat,
   calcularFechaLimiteEnvio, formatearImporte, totalEnLetras, numeroEnLetras,
 };
