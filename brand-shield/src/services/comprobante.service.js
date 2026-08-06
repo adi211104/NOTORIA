@@ -151,7 +151,16 @@ const emitirComprobante = async ({ pago, usuario }) => {
         estadoSunat: emisionSunatActiva() ? 'PENDIENTE' : 'NO_APLICA',
         // El plazo legal se fija en la emisión, no en el envío: es lo que
         // vigila el worker para no dejar vencer un comprobante.
-        fechaLimiteEnvio: emisionSunatActiva() ? tributario.calcularFechaLimiteEnvio(new Date()) : null,
+        //
+        // ⚠️ Cada tipo corre por su reloj: la factura se envía sola y tiene 3
+        // días; la boleta se informa por resumen diario y tiene 7. Darle a la
+        // boleta el plazo de la factura la daría por vencida cuatro días antes
+        // de tiempo, con el aviso a contabilidad incluido.
+        fechaLimiteEnvio: emisionSunatActiva()
+          ? (tipo === 'BOLETA'
+            ? tributario.calcularFechaLimiteResumen(new Date())
+            : tributario.calcularFechaLimiteEnvio(new Date()))
+          : null,
       },
     });
 

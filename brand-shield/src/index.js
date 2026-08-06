@@ -22,6 +22,7 @@ const { iniciarMonitoreo, iniciarReportesMensuales, iniciarResumenesAlertas, ini
 const { iniciarResumenSemanal } = require('./workers/resumenSemanal.worker');
 const { iniciarDrip } = require('./workers/drip.worker');
 const { iniciarEnvioSunat } = require('./workers/envioSunat.worker');
+const { iniciarResumenSunat } = require('./workers/resumenSunat.worker');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -148,9 +149,12 @@ app.listen(PORT, () => {
     iniciarResumenSemanal();
     iniciarEscalacionUrgencias();
     iniciarAvisoReclamaciones();
-    // Solo arranca si SUNAT_EMISION_ACTIVA=true y hay certificado y credenciales;
-    // si no, se registra en el log y no hace nada (ver envioSunat.worker.js)
+    // Solo arrancan si SUNAT_EMISION_ACTIVA=true y hay certificado y credenciales;
+    // si no, se registra en el log y no hacen nada (ver envioSunat.worker.js).
+    // Son dos colas distintas a propósito: las facturas se envían una a una y
+    // las boletas por resumen diario, que es obligatorio y tiene otro plazo.
     iniciarEnvioSunat();
+    iniciarResumenSunat();
     iniciarDrip();
     console.log('🔄 Monitoreo periódico iniciado');
     console.log('📄 Cron de reportes mensuales iniciado');

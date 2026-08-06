@@ -162,7 +162,10 @@ const avisar = async (motivo, comprobante) => {
 // enviar: no tiene sentido gastar intentos en algo que ya perdió validez.
 const marcarVencidos = async () => {
   const vencidos = await prisma.comprobante.findMany({
-    where: { estadoSunat: 'PENDIENTE', fechaLimiteEnvio: { lt: new Date() } },
+    // Solo facturas, igual que el envío: el vencimiento de una boleta lo declara
+    // su resumen, no ella. Si las dos colas marcaran vencimientos, una boleta
+    // podría quedar VENCIDA aquí mientras su resumen sigue vivo y en plazo.
+    where: { tipo: 'FACTURA', estadoSunat: 'PENDIENTE', fechaLimiteEnvio: { lt: new Date() } },
   });
 
   for (const c of vencidos) {
@@ -186,6 +189,12 @@ const procesarPendientes = async ({ limite = 20 } = {}) => {
   const ahora = new Date();
   const pendientes = await prisma.comprobante.findMany({
     where: {
+      // Solo FACTURAS. Las boletas se informan por resumen diario, que es
+      // obligatorio y va por otro camino (resumenSunat.worker.js) con otro
+      // plazo. Es un filtro por tipo explícito, no un "todo lo que no sea
+      // boleta": un VOUCHER en PENDIENTE sería un error de datos y mandarlo a
+      // SUNAT lo convertiría en un problema fiscal en vez de en un aviso.
+      tipo: 'FACTURA',
       estadoSunat: 'PENDIENTE',
       OR: [{ proximoIntentoEn: null }, { proximoIntentoEn: { lte: ahora } }],
     },

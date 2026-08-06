@@ -1611,6 +1611,67 @@ una nota de crédito. Y fuera del plazo de 7 días la baja ya no es posible:
 
 Prueba: `node scripts/prueba-baja-beta.js`.
 
+### El resumen, enchufado a la cola (2026-08-06)
+
+Hasta ahora `envioSunat.worker.js` mandaba **todo** uno a uno con `sendBill`,
+boletas incluidas. Ahora son **dos colas separadas**, y la separación es
+deliberada:
+
+| | Factura | Boleta |
+|---|---|---|
+| Worker | `envioSunat.worker.js` | `resumenSunat.worker.js` |
+| Envío | `sendBill`, una a una | `sendSummary`, agrupadas por día |
+| Respuesta | CDR en el acto | **ticket**, y el CDR se pide aparte |
+| Plazo | 3 días | **7 días** |
+
+`envioSunat.worker.js` filtra ahora por `tipo: 'FACTURA'`. Es un filtro
+positivo, no un "todo lo que no sea boleta": un VOUCHER en `PENDIENTE` sería un
+error de datos, y mandarlo a SUNAT lo convertiría en un problema fiscal en vez
+de en un aviso.
+
+**El ticket es lo que obliga a tener tabla propia** (`ResumenSunat`). Un resumen
+agrupa muchas boletas bajo un envío, así que el ticket, el CDR y el veredicto
+son del resumen y no de cada boleta. Y el ticket **se persiste antes de dar el
+envío por terminado**: si el proceso se cae entre el envío y la consulta, sin él
+no hay forma de saber si SUNAT aceptó, y reenviar sería un duplicado. Por eso el
+ciclo pregunta `if (ticket && estado === 'EN_PROCESO')` → consultar, nunca
+reenviar.
+
+Decisiones que conviene no deshacer:
+- **Solo se agrupan días ya cerrados.** Un resumen del día en curso obligaría a
+  un segundo resumen para las boletas que entren después. Esperar al día
+  siguiente da un resumen por día y sobra plazo: hay 7 días.
+- **Los dos plazos viven juntos** en `tributario.js`
+  (`calcularFechaLimiteEnvio` / `calcularFechaLimiteResumen`) para que no se
+  confundan. Darle a la boleta el plazo de la factura la daría por vencida
+  cuatro días antes de tiempo, con aviso a contabilidad incluido. `marcarVencidos`
+  de la cola de facturas también filtra por `tipo: 'FACTURA'`: si las dos colas
+  declararan vencimientos, una boleta podría quedar VENCIDA mientras su resumen
+  sigue vivo y en plazo.
+- **Solo se propagan estados finales** a las boletas. `EN_PROCESO` es del
+  resumen; `Comprobante.estadoSunat` no lo contempla y escribirlo dejaría las
+  boletas en un estado que ninguna pantalla sabe leer.
+- El cron del resumen va **desfasado 5 minutos** del de facturas
+  (`5-59/10 * * * *`) para no pegarle a SUNAT con las dos cosas a la vez y
+  provocar el 401 de saturación.
+
+Pruebas: `prueba-resumen-cola.js`, 20 comprobaciones con Prisma en memoria pero
+**envío real al beta** — agrupación por día, ticket persistido, no reenviar lo
+que ya tiene ticket, veredicto propagado a cada boleta y vencimiento que arrastra
+a las boletas que agrupaba.
+
+⚠️ **Falta aplicar la migración en producción**: `resumenes_sunat` y
+`comprobantes.resumenId` no existen aún en la BD de prod. Es aditiva (tabla
+nueva, columna nullable, índices y FK), así que no pide `--accept-data-loss`.
+Hasta aplicarla el backend arranca, pero el worker del resumen falla al primer
+tick.
+
+**Lo que sigue sin cablear, y es a propósito:** la comunicación de baja (RA) y la
+anulación de boletas no tienen disparador — no hay ninguna acción en el producto
+que anule un comprobante. El modelo `ResumenSunat` ya distingue `tipo` RC/RA para
+que el RA tenga sitio cuando ese disparador exista; construir el worker antes
+sería código muerto.
+
 ---
 
 ## Bugs de Culqi encontrados el 2026-08-05 (resumen para no repetirlos)

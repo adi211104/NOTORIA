@@ -184,6 +184,20 @@ const calcularFechaLimiteEnvio = (fechaEmision) => {
   return limite;
 };
 
+// ⚠️ El resumen diario de boletas corre por OTRO reloj: hasta el sétimo día
+// calendario siguiente a la emisión, no los 3 de la factura. Los dos plazos
+// viven aquí juntos justamente para que no se confundan: aplicar el de la
+// factura al resumen haría saltar la alarma de vencimiento cuatro días antes de
+// tiempo, y aplicar el del resumen a la factura la dejaría vencer en silencio.
+const PLAZO_RESUMEN_DIAS = 7;
+
+const calcularFechaLimiteResumen = (fechaEmision) => {
+  const limite = new Date(fechaEmision);
+  limite.setDate(limite.getDate() + PLAZO_RESUMEN_DIAS);
+  limite.setHours(23, 59, 59, 999);
+  return limite;
+};
+
 // Fecha y hora en la zona horaria de Perú, que es la que usa SUNAT.
 //
 // NO usar `toISOString()` para esto: devuelve UTC, y Perú va en UTC-5. Entre las
@@ -256,9 +270,11 @@ const totalEnLetras = (centimos, moneda) => {
 };
 
 module.exports = {
-  IGV_TASA, EMISOR, TIPO_OPERACION, DOC, PLAZO_ENVIO_DIAS, UMBRAL_IDENTIFICACION,
+  IGV_TASA, EMISOR, TIPO_OPERACION, DOC, PLAZO_ENVIO_DIAS, PLAZO_RESUMEN_DIAS,
+  UMBRAL_IDENTIFICACION,
   esDomestico, desglosar, tipoFiscalPara, receptorDesdeUsuario, validarDatosFiscales,
   validarReceptorParaSunat, requiereIdentificacion,
-  calcularFechaLimiteEnvio, formatearImporte, totalEnLetras, numeroEnLetras,
+  calcularFechaLimiteEnvio, calcularFechaLimiteResumen,
+  formatearImporte, totalEnLetras, numeroEnLetras,
   ZONA_PERU, fechaPeru, horaPeru,
 };

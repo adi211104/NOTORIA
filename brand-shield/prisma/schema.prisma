@@ -184,12 +184,70 @@ model Comprobante {
   // haya entregado al cliente, así que se calcula al emitir y se vigila.
   fechaLimiteEnvio DateTime?
 
+  // Resumen diario que informó esta boleta. Nulo en las facturas, que se envían
+  // una a una, y en las boletas que aún no han entrado en ningún resumen.
+  resumenId String?
+  resumen   ResumenSunat? @relation(fields: [resumenId], references: [id])
+
   creadoEn DateTime @default(now())
 
   @@unique([serie, correlativo])
   @@index([usuarioId])
   @@index([estadoSunat, proximoIntentoEn])
+  @@index([resumenId])
   @@map("comprobantes")
+}
+
+// Envío agrupado a SUNAT: resumen diario de boletas (RC) y comunicación de baja
+// de facturas (RA).
+//
+// Existe como tabla aparte, y no como campos en Comprobante, porque un resumen
+// agrupa MUCHAS boletas bajo un solo envío: el ticket, el CDR y el veredicto son
+// del resumen, no de cada boleta.
+//
+// ⚠️ El TICKET es la razón de ser de este modelo. `sendSummary` no devuelve el
+// CDR sino un ticket, y el veredicto se pide después con `getStatus`. Si el
+// proceso se cae entre el envío y la consulta y el ticket no está guardado, no
+// hay forma de saber si SUNAT aceptó, y reenviar el resumen produciría un
+// duplicado. Por eso se persiste antes de dar el envío por terminado.
+model ResumenSunat {
+  id String @id @default(cuid())
+
+  tipo          String // "RC" resumen diario de boletas · "RA" comunicación de baja
+  identificador String @unique // "RC-20260806-1" — es también el nombre del archivo
+  correlativo   Int
+  // Día de emisión de los comprobantes que agrupa. Un resumen informa un solo
+  // día: es lo que viaja en cbc:ReferenceDate.
+  fechaReferencia DateTime
+
+  // PENDIENTE   construido, todavía sin enviar
+  // EN_PROCESO  enviado; SUNAT dio ticket y falta pedirle el veredicto
+  // ACEPTADO    con CDR conforme; recién aquí las boletas existen para SUNAT
+  // RECHAZADO   SUNAT lo rechazó; hay que corregir y rehacerlo
+  // VENCIDO     se pasó el plazo legal sin ser aceptado
+  estado       String  @default("PENDIENTE")
+  ticket       String?
+  sunatCodigo  String?
+  sunatMensaje String?
+
+  // Se conservan 5 años, igual que los del comprobante y por el mismo motivo
+  xmlFirmado String? @db.Text
+  cdrXml     String? @db.Text
+
+  intentosEnvio    Int       @default(0)
+  ultimoIntentoEn  DateTime?
+  proximoIntentoEn DateTime?
+  enviadoEn        DateTime?
+  // ⚠️ Plazo legal del resumen: 7 días calendario, NO los 3 de la factura. Son
+  // relojes distintos; mezclarlos hace avisar tarde o avisar de más.
+  fechaLimiteEnvio DateTime?
+
+  creadoEn DateTime @default(now())
+
+  comprobantes Comprobante[]
+
+  @@index([estado, proximoIntentoEn])
+  @@map("resumenes_sunat")
 }
 
 model Negocio {
