@@ -1160,3 +1160,31 @@ Desplegado y verificado: Railway "Deploy complete" + `/health` 200; Vercel
 los importes con descuento (S/29.50 y S/89.50). `prueba-promo.js` y
 `prueba-culqi.js` en verde. Tabla `promo_tarjetas` creada con `db push`
 (aditivo, verificado antes con `migrate diff`). Commits `5effd41` y `49718b4`.
+
+### Feedback del pago (2026-08-05, tras el primer pago real de prueba)
+
+El primer cobro de verdad salió perfecto en la base (S/29.50, Visa 4111,
+comprobante `VOUCHER V001-00000001`, promo aplicada y tarjeta quemada) pero el
+usuario **no vio nada**: "solo se me actualizó la página y no lo noté".
+
+Tres causas, ninguna del cobro:
+1. **No se llamaba a `Culqi.close()`.** El widget de Checkout entrega el token y
+   **deja su ventana abierta**: cerrarla es responsabilidad de la app. El cobro
+   se procesaba detrás de una ventana que seguía mostrando el formulario, sin
+   carga ni confirmación. **Es el fallo importante: si se toca el callback
+   `window.culqi`, `Culqi.close()` va primero, antes de cualquier `await`.**
+2. El aviso de éxito era una franja arriba de la página; el botón de pagar está
+   abajo, en las tarjetas. Quedaba fuera de vista.
+3. Redirigía sola a `/dashboard` a los 1,8 s, que se percibe como una recarga.
+   En `dashboard/planes` no había **ningún** aviso de éxito.
+
+Ahora el estado del cobro vive en `components/ResultadoPago.js`: superposición a
+pantalla completa con tres estados (procesando / aprobado / fallido), inmune al
+scroll. La de éxito detalla importe, comprobante, próxima renovación y número de
+operación, y **solo se sale pulsando el botón** — sin redirección automática.
+Para poder detallarlo, `POST /api/pagos/culqi` devuelve además `monto`, `moneda`,
+`promoAplicada` y `comprobante`.
+
+**Lección para el resto del producto:** un aviso en el flujo de pago no puede
+depender de dónde esté el scroll ni durar menos de lo que tarda el usuario en
+mirar. Desplegado: Railway `ceda499d` SUCCESS, Vercel `notoria-fz01z27vi` READY.
