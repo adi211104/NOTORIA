@@ -539,6 +539,24 @@ const TEXTOS = {
       },
       ttErrorGenerico:'TikTok rechazó la conexión.',
       gbpExito:'Google Business Profile conectado correctamente. Ahora puedes ver y responder todas tus reseñas.',
+      igExito:'Instagram conectado. Los comentarios entrarán en el próximo escaneo.',
+      igErrorTitulo:'No se pudo conectar Instagram',
+      igError:{
+        // Es el caso más frecuente y tiene solución: casi siempre la cuenta sí
+        // es profesional, pero nunca se vinculó a una página de Facebook.
+        sin_cuenta_business:'Tu cuenta de Instagram debe ser profesional (Empresa o Creador) y estar vinculada a una página de Facebook que administres. Es gratis y toma un par de minutos.',
+        callback_failed:'Instagram aceptó el permiso pero falló el último paso de la conexión. Vuelve a intentarlo; si sigue igual, escríbenos.',
+        access_denied:'Cancelaste la autorización en Facebook. Puedes volver a intentarlo cuando quieras.',
+        missing_params:'Facebook no devolvió el código de autorización. Vuelve a intentarlo.',
+      },
+      igErrorGenerico:'Instagram rechazó la conexión.',
+      igComoVincular:'Cómo vincularla',
+      igPasos:[
+        'En Instagram: Configuración → Tipo de cuenta y herramientas → Cambiar a cuenta profesional.',
+        'Después, Configuración → Compartir en otras apps → Facebook, y elige la página de tu negocio.',
+        'Si no tienes página de Facebook, créala desde facebook.com/pages/create (gratis).',
+        'Vuelve aquí y pulsa Conectar Instagram otra vez.',
+      ],
       zonaPeligro:'Zona de peligro',
       zonaPeligroDesc:'Eliminar este negocio detendrá el monitoreo permanentemente y borrará todas sus alertas, reseñas y snapshots.',
       eliminarNegocio:'Eliminar este negocio',
@@ -853,6 +871,22 @@ const TEXTOS = {
       },
       ttErrorGenerico:'TikTok rejected the connection.',
       gbpExito:'Google Business Profile connected successfully. You can now view and reply to all your reviews.',
+      igExito:'Instagram connected. Comments will be picked up on the next scan.',
+      igErrorTitulo:'Could not connect Instagram',
+      igError:{
+        sin_cuenta_business:'Your Instagram account must be professional (Business or Creator) and linked to a Facebook Page you manage. It is free and takes a couple of minutes.',
+        callback_failed:'Instagram granted the permission but the last step failed. Try again; if it keeps failing, get in touch.',
+        access_denied:'You cancelled the authorization on Facebook. You can try again any time.',
+        missing_params:'Facebook did not return the authorization code. Please try again.',
+      },
+      igErrorGenerico:'Instagram rejected the connection.',
+      igComoVincular:'How to link it',
+      igPasos:[
+        'In Instagram: Settings → Account type and tools → Switch to professional account.',
+        'Then Settings → Sharing to other apps → Facebook, and pick your business Page.',
+        'If you do not have a Facebook Page, create one at facebook.com/pages/create (free).',
+        'Come back here and hit Connect Instagram again.',
+      ],
       zonaPeligro:'Danger zone',
       zonaPeligroDesc:'Deleting this business will permanently stop monitoring and erase all its alerts, reviews and snapshots.',
       eliminarNegocio:'Delete this business',
@@ -1084,6 +1118,30 @@ export default function DetallePage() {
       setModalBienvenida(true);
       router.replace(`/dashboard/negocios/${id}`);
     }
+  }, [id]);
+
+  // Resultado del OAuth de Instagram (?ig=conectado | ?ig_error=...).
+  //
+  // Se lee en un efecto y no durante el render para no romper la hidratación, y
+  // se limpia la URL después: recargar la página no debe resucitar el mensaje de
+  // una conexión vieja.
+  //
+  // Y se fuerza la pestaña de configuración. El backend ya mandaba `tab=config`
+  // en el redirect, pero `tab` nunca se leyó de la URL: el usuario aterrizaba en
+  // "resumen" y el aviso se quedaba en una pestaña que no estaba mirando —
+  // invisible igual que cuando no existía.
+  const [igConectado, setIgConectado] = useState(false);
+  const [igError, setIgError] = useState(null);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const p = new URLSearchParams(window.location.search);
+    const ok = p.get('ig') === 'conectado';
+    const err = p.get('ig_error');
+    if (!ok && !err) return;
+    setIgConectado(ok);
+    setIgError(err);
+    setTab('config');
+    router.replace(`/dashboard/negocios/${id}`);
   }, [id]);
 
   useEffect(() => {
@@ -2449,6 +2507,34 @@ export default function DetallePage() {
           {typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('gbp') === 'conectado' && (
             <div style={{ background:'rgba(34,197,94,0.1)', border:'1px solid rgba(34,197,94,0.3)', borderRadius:10, padding:'12px 16px' }}>
               <p style={{ color:'#22c55e', fontSize:13, fontWeight:500, margin:0, display:'flex', alignItems:'center', gap:8 }}><Icon name="checkCirc" size={15} /> {t.config.gbpExito}</p>
+            </div>
+          )}
+
+          {/* Resultado de la conexión de Instagram.
+              El backend redirige acá con ?ig=conectado o ?ig_error=..., y hasta
+              ahora nadie leía esos parámetros: quien no tenía la cuenta
+              vinculada a una página de Facebook autorizaba, volvía al panel y no
+              veía absolutamente nada. El silencio se lee como "está roto", y
+              este caso tiene solución, así que además del error van los pasos. */}
+          {igConectado && (
+            <div style={{ background:'rgba(34,197,94,0.1)', border:'1px solid rgba(34,197,94,0.3)', borderRadius:10, padding:'12px 16px' }}>
+              <p style={{ color:'#22c55e', fontSize:13, fontWeight:500, margin:0, display:'flex', alignItems:'center', gap:8 }}><Icon name="checkCirc" size={15} /> {t.config.igExito}</p>
+            </div>
+          )}
+          {igError && (
+            <div style={{ background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:10, padding:'12px 16px' }}>
+              <p style={{ color:'#f87171', fontSize:13, margin:'0 0 4px', fontWeight:600 }}>{t.config.igErrorTitulo}</p>
+              <p style={{ color:'var(--text-2)', fontSize:12.5, margin:0, lineHeight:1.5 }}>
+                {t.config.igError[igError] || t.config.igErrorGenerico}
+              </p>
+              {igError === 'sin_cuenta_business' && (
+                <>
+                  <p style={{ color:'var(--text-3)', fontSize:11, fontWeight:600, textTransform:'uppercase', letterSpacing:0.5, margin:'12px 0 6px' }}>{t.config.igComoVincular}</p>
+                  <ol style={{ color:'var(--text-2)', fontSize:12.5, margin:0, paddingLeft:18, lineHeight:1.6 }}>
+                    {t.config.igPasos.map((paso, i) => <li key={i}>{paso}</li>)}
+                  </ol>
+                </>
+              )}
             </div>
           )}
           <Card style={{ border:'1px solid rgba(239,68,68,0.3)' }}>

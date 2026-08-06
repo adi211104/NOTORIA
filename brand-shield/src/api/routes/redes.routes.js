@@ -45,12 +45,24 @@ const decodificarState = (state) => verificarState(state);
 // tras el diálogo de Meta) — el usuario y negocio viajan codificados en "state".
 router.get('/instagram/callback', async (req, res) => {
   const { code, state, error: oauthError } = req.query;
+
+  // El negocio viaja en `state`, y Meta lo devuelve también cuando el usuario
+  // cancela el diálogo. Se decodifica ANTES que nada para poder devolverlo a SU
+  // negocio pase lo que pase: la ficha del negocio es la única pantalla que lee
+  // estos parámetros, así que un error que aterriza en /dashboard es un error
+  // que el usuario nunca ve — la conexión simplemente "no hace nada".
+  let negocioId = null;
+  try { ({ negocioId } = decodificarState(state)); } catch { /* state ausente o manipulado */ }
+
+  const volverA = (params) => res.redirect(
+    `${FRONTEND_URL}${negocioId ? `/dashboard/negocios/${negocioId}` : '/dashboard'}?${params}`,
+  );
+
   if (oauthError || !code || !state) {
-    return res.redirect(`${FRONTEND_URL}/dashboard?ig_error=${oauthError || 'missing_params'}`);
+    return volverA(`ig_error=${oauthError || 'missing_params'}`);
   }
 
   try {
-    const { negocioId } = decodificarState(state);
 
     // 1. Code → token de usuario de corta duración
     const { data: tokenCorto } = await axios.get('https://graph.facebook.com/v21.0/oauth/access_token', {
@@ -77,9 +89,12 @@ router.get('/instagram/callback', async (req, res) => {
       params: { fields: 'id,name,access_token,instagram_business_account', access_token: tokenLargo.access_token },
     });
 
+    // El caso frecuente: la cuenta es profesional pero nunca se vinculó a una
+    // página de Facebook, así que `me/accounts` viene vacío. Tiene arreglo, y el
+    // panel muestra los pasos — ver el aviso de `ig_error` en negocios/[id].
     const pagina = (paginas.data || []).find((p) => p.instagram_business_account);
     if (!pagina) {
-      return res.redirect(`${FRONTEND_URL}/dashboard/negocios/${negocioId}?ig_error=sin_cuenta_business&tab=config`);
+      return volverA('ig_error=sin_cuenta_business');
     }
 
     await prisma.negocio.update({
@@ -91,10 +106,10 @@ router.get('/instagram/callback', async (req, res) => {
       },
     });
 
-    res.redirect(`${FRONTEND_URL}/dashboard/negocios/${negocioId}?ig=conectado&tab=config`);
+    volverA('ig=conectado');
   } catch (error) {
     console.error('[Instagram OAuth] Error en callback:', error.response?.data?.error?.message || error.message);
-    res.redirect(`${FRONTEND_URL}/dashboard?ig_error=callback_failed`);
+    volverA('ig_error=callback_failed');
   }
 });
 
