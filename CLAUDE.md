@@ -1490,20 +1490,57 @@ active la emisión.
 
 Desplegado: Railway `a26b6ade` SUCCESS, Vercel `notoria-16c292tsn` READY.
 
-### Resumen diario de boletas (RC) — EN CURSO (2026-08-05)
+### Resumen diario de boletas (RC) — ACEPTADO POR SUNAT (2026-08-06)
 
-**Estado: el XML ya pasa la validación de esquema de SUNAT, pero el resumen
-todavía NO es aceptado.** Último error del beta:
+**Estado: resuelto.** El resumen diario es aceptado por el beta con código 0,
+incluidas las tres formas de boleta (sin documento del comprador, con DNI, y
+cruzando el umbral de S/700) y también la **anulación**.
+
+#### La causa del error 2522, y por qué costó tanto
+
+El error era:
 
 ```
 2522 "No existe información del documento del anticipo" (nodo "/" valor "")
 ```
 
-Es un error de regla de negocio, no de esquema. **Ya se descartó que lo cause
-`sac:BillingPayment`**: quitándolo del todo, el 2522 se mantiene igual. Tampoco
-es el identificador de la firma (se alineó con `firma.ID_FIRMA`, como en
-`ublInvoice.js`). Queda pendiente encontrar la causa — probablemente falte algún
-bloque obligatorio a nivel de documento.
+El mensaje es una pista falsa: no había ningún anticipo en el documento. Lo que
+faltaba era el **estado de cada línea**, `cac:Status/cbc:ConditionCode`.
+
+Lo que despistó fue el **prefijo del namespace**. Se había intentado con
+`sac:Status`, siguiendo al resto de campos propios de SUNAT de la línea
+(`sac:TotalAmount`, `sac:BillingPayment`), y el validador lo rechaza en
+cualquier posición — de ahí la conclusión, anotada aquí mismo, de que "el estado
+no pertenece a este esquema". Sí pertenece: **va en `cac:`**. Es el único
+elemento de la línea que no lleva el prefijo `sac:`.
+
+El bloque es **opcional para el XSD pero obligatorio para SUNAT**, y esa es la
+combinación que hace difícil el diagnóstico: el XML valida contra el esquema, se
+envía, devuelve ticket, y el rechazo llega después con un código que apunta a
+otra cosa.
+
+**Cómo se encontró, que sirve para la próxima:** el propio validador de esquema
+es un oráculo. Al mandar un elemento en el sitio equivocado, SUNAT no responde
+"error", responde *qué elemento esperaba a continuación*:
+
+```
+found <sac:Status>, but next item should be {…}TotalAmount
+```
+
+Y la bisección resolvió lo demás: reduciendo la línea al mínimo
+(`LineID` + `DocumentTypeCode` + `ID` + `TotalAmount`) el 2522 se mantuvo, lo
+que descartó de golpe el receptor, `BillingPayment` y `TaxTotal`, y demostró que
+el problema no estaba en lo que la línea tenía, sino en lo que le faltaba.
+
+**Regla que queda:** un error de SUNAT con nodo `"/"` y valor vacío no señala el
+sitio del fallo. No perseguir el texto del mensaje; bisecar el documento.
+
+#### Anular una boleta
+
+Se hace con **otro resumen diario en estado 3**, no con una comunicación de
+baja. Verificado de punta a punta contra el beta: informar la boleta (estado 1),
+luego anularla (estado 3), ambos aceptados. `prueba-resumen-beta.js` cubre ese
+ciclo, porque el camino de anulación es el que nadie prueba hasta que hace falta.
 
 Piezas ya hechas y utilizables:
 - `billService.enviarResumen()` y `billService.consultarTicket()` — el flujo
@@ -1514,9 +1551,10 @@ Piezas ya hechas y utilizables:
   forma de saber si SUNAT aceptó, y reenviar produciría un duplicado.
 - `src/sunat/ublResumenBoletas.js` — construye el RC 1.1. Correcciones ya
   ganadas contra el validador de SUNAT, **no revertirlas**:
-  1. En `sac:SummaryDocumentsLine` el orden es `TotalAmount` → `BillingPayment`;
-     `sac:Status` **no pertenece a este esquema** (lo rechaza en cualquier
-     posición) y se quitó.
+  1. El orden dentro de `sac:SummaryDocumentsLine` es
+     `cac:Status` → `sac:TotalAmount` → `sac:BillingPayment` → `cac:TaxTotal`.
+     El estado va en `cac:`, no en `sac:` (ver arriba), y sin él SUNAT rechaza
+     el resumen entero con el error 2522.
   2. El bloque del receptor solo va si la boleta lo identifica.
   3. `cac:Signature/cbc:ID` debe ser `SignatureSP`, el mismo Id con el que
      firmaXades crea la firma.
@@ -1540,6 +1578,38 @@ a las 21:49 de Lima. Ahora ambos usan `tributario.fechaPeru()` /
 
 Verificado tras el cambio: `prueba-sunat-beta.js` sigue con las tres
 **ACEPTADAS sin observaciones**.
+
+### Comunicación de baja (RA) — ACEPTADA POR SUNAT (2026-08-06)
+
+`src/sunat/ublComunicacionBaja.js` construye el `VoidedDocuments` 1.0, que viaja
+por el mismo canal asíncrono que el resumen (`sendSummary` → ticket →
+`getStatus`). Aceptada por el beta con código 0.
+
+**El reparto entre los dos documentos no es intercambiable:**
+
+| Se anula | Con qué | Plazo |
+|---|---|---|
+| Factura (y sus notas 07/08) | Comunicación de baja **RA** | 7º día calendario siguiente a la emisión |
+| Boleta (y sus notas) | Resumen diario **RC** en estado 3 | 7 días desde el CDR del resumen que la informó |
+
+Meter una boleta en un RA es rechazo seguro, así que `construir` lo corta antes
+de gastar un envío, con un mensaje que dice a dónde va. Lo mismo con el motivo
+de anulación vacío y con mezclar comprobantes de días distintos: una baja se
+refiere a los comprobantes de UN día, y si se mezclan SUNAT rechaza el documento
+entero, tirando también las anulaciones que sí eran correctas.
+
+Dos detalles del formato que SUNAT no perdona:
+- `sac:DocumentNumberID` va **sin los ceros de relleno**: la factura que se
+  imprime como `F001-00000123` se da de baja como serie `F001` y número `123`.
+  De eso se encarga `partirNumero`.
+- `cbc:CustomizationID` es **1.0**, no 1.1 como el resumen diario.
+
+**Anular no es corregir.** Una factura dada de baja desaparece, no se rectifica.
+Si el cliente ya la tiene y lo que cambia es el importe, lo que corresponde es
+una nota de crédito. Y fuera del plazo de 7 días la baja ya no es posible:
+`dentroDePlazo()` responde a eso, para no descubrirlo en el rechazo.
+
+Prueba: `node scripts/prueba-baja-beta.js`.
 
 ---
 
@@ -1617,12 +1687,13 @@ tocarlas.
 
 ### Lo primero, mañana
 
-1. **Resumen diario (RC): resolver el error 2522.** Es el punto exacto donde se
-   paró. Descartado ya que sea `sac:BillingPayment` ni el Id de la firma.
-   Reproducir con `node scripts/prueba-resumen-beta.js`.
-   ⚠️ **Antes de invertir más ahí:** el usuario debe confirmar con su contador
-   si el resumen diario le aplica o si puede informar boletas individualmente.
-   Si es lo segundo, este bloque deja de ser urgente.
+1. ~~**Resumen diario (RC): resolver el error 2522.**~~ **Resuelto el
+   2026-08-06** — faltaba `cac:Status/cbc:ConditionCode`. La Fase B quedó
+   completa: resumen diario, anulación de boletas y comunicación de baja, las
+   tres aceptadas por el beta. Ver las secciones de arriba.
+   ⚠️ Lo que sigue siendo del contador, y no del código: confirmar que el
+   resumen diario es el canal que le corresponde a la empresa. La duda ya no
+   bloquea nada, porque el circuito está construido de las dos formas.
 2. **Culqi**: esperando respuesta a la solicitud. Al aprobar → llaves live +
    **redespliegue de Vercel** (ver README).
 

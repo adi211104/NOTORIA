@@ -9,12 +9,23 @@
 // En la versión 1.1 cada línea es UNA boleta con su propio estado, importes y
 // receptor — no un rango de correlativos, como en la 1.0.
 //
-// Estados de línea (sac:Status/ConditionCode):
+// Estados de línea (cac:Status/cbc:ConditionCode):
 //   1 = adicionar (la boleta se informa por primera vez)
 //   2 = modificar
 //   3 = anular
-// Aquí solo se usa el 1: anular una boleta ya informada es una comunicación de
-// baja, que es otro documento.
+// ⚠️ Una boleta se ANULA por aquí, con estado 3 en otro resumen — NO por
+// comunicación de baja. El RA es solo para facturas y para las notas ligadas a
+// facturas (ver ublComunicacionBaja.js). Como la boleta se informa por resumen,
+// se corrige por resumen.
+//
+// ⚠️ El estado va en el namespace `cac:`, NO en `sac:`. Es el único elemento de
+// la línea que no sigue el prefijo de los demás campos propios de SUNAT, y
+// equivocarlo cuesta caro: `sac:Status` no existe en el esquema, así que el
+// validador lo rechaza en cualquier posición y es fácil concluir que el estado
+// no pertenece al documento. No pertenece con ESE prefijo. Sin el bloque, el
+// esquema pasa igual (es opcional para el XSD) pero SUNAT rechaza el resumen
+// entero con un error que no lleva a ningún sitio: 2522 "No existe información
+// del documento del anticipo", en el nodo "/" y con valor vacío.
 //
 // Plazo: hasta 7 días calendario desde el día siguiente a la emisión. Pasado
 // ese punto la boleta ya no se puede informar en un resumen.
@@ -38,6 +49,9 @@ const TIPO_BOLETA = '03';
 // importe. 01 = gravado, 02 = exonerado, 03 = inafecto, 05 = exportación.
 const CONCEPTO = { GRAVADO: '01', EXPORTACION: '05' };
 
+// cac:Status/cbc:ConditionCode — qué se hace con la boleta en este resumen.
+const ESTADO = { ADICIONAR: '1', MODIFICAR: '2', ANULAR: '3' };
+
 const dec = (centimos) => (centimos / 100).toFixed(2);
 // Zona horaria de Perú, no UTC — ver tributario.fechaPeru (error 2236)
 const soloFecha = (d) => tributario.fechaPeru(d);
@@ -53,7 +67,8 @@ const nombreArchivo = (id) => `${tributario.EMISOR.ruc}-${id}`;
 // firmaXades.js inserte ahí la firma. Mismo criterio que ublInvoice.js: la
 // firma cubre el documento entero, así que el documento va primero.
 //
-// `boletas` son filas de Comprobante ya emitidas, TODAS de la misma fecha.
+// `boletas` son filas de Comprobante ya emitidas, TODAS de la misma fecha. Cada
+// una puede traer `estado` (ver ESTADO); sin él se informa como adicionada.
 const construir = ({ boletas, fechaGeneracion = new Date(), correlativo = 1 }) => {
   if (!boletas?.length) throw new Error('Un resumen diario no puede ir vacío');
 
@@ -91,8 +106,9 @@ const construir = ({ boletas, fechaGeneracion = new Date(), correlativo = 1 }) =
 
     // El ORDEN de estos elementos lo fija el esquema y no es negociable: SUNAT
     // valida la secuencia y rechaza el resumen entero con el error 0306 si algo
-    // va fuera de sitio. Comprobado contra el beta: TotalAmount antes que
-    // Status. No reordenar "por legibilidad".
+    // va fuera de sitio. Comprobado contra el beta: el estado va ANTES de
+    // TotalAmount. No reordenar "por legibilidad".
+    linea['cac:Status'] = { 'cbc:ConditionCode': b.estado || ESTADO.ADICIONAR };
     linea['sac:TotalAmount'] = monto(b.total);
     linea['sac:BillingPayment'] = {
       'cbc:PaidAmount': monto(valorVenta),
@@ -158,4 +174,4 @@ const construir = ({ boletas, fechaGeneracion = new Date(), correlativo = 1 }) =
   };
 };
 
-module.exports = { construir, nombreDocumento, nombreArchivo, TIPO_BOLETA, CONCEPTO };
+module.exports = { construir, nombreDocumento, nombreArchivo, TIPO_BOLETA, CONCEPTO, ESTADO };

@@ -63,6 +63,19 @@ const boletas = [
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// MODDATOS es un usuario compartido y devuelve 401 si se le pega seguido:
+// reintenta con espera creciente antes de dar el envío por fallido.
+const enviarConReintento = async (args) => {
+  let r;
+  for (let intento = 0; intento < 5; intento++) {
+    if (intento) await esperar(5000 * intento);
+    r = await billService.enviarResumen(args);
+    if (r.httpStatus !== 401) break;
+    console.log(`  (401 — reintento ${intento + 1})`);
+  }
+  return r;
+};
+
 (async () => {
   console.log(`Resumen diario contra ${billService.endpoint()}\n`);
 
@@ -99,7 +112,7 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
   fs.writeFileSync(path.join(SALIDA, `${doc.nombreArchivo}.xml`), firmado, 'utf8');
 
   // ── 3. Envío ───────────────────────────────────────────
-  const envio = await billService.enviarResumen({ xmlFirmado: firmado, nombreArchivo: doc.nombreArchivo });
+  const envio = await enviarConReintento({ xmlFirmado: firmado, nombreArchivo: doc.nombreArchivo });
   if (envio.estado !== 'EN_PROCESO') {
     return mal(`SUNAT no aceptó el envío [${envio.estado}] ${envio.codigo || ''} ${envio.mensaje || ''}`);
   }
@@ -128,6 +141,32 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
     break;
   }
   if (intento >= 12) mal('SUNAT no resolvió el ticket tras 12 consultas');
+
+  // ── 5. Anulación ───────────────────────────────────────
+  // Una boleta ya informada se ANULA con otro resumen en estado 3, no con una
+  // comunicación de baja (esa es solo para facturas). Se comprueba de verdad
+  // porque el camino de anulación es el que nadie prueba hasta que hace falta.
+  if (!fallos) {
+    const anulada = { ...boletas[1], estado: ubl.ESTADO.ANULAR };
+    const doc2 = ubl.construir({ boletas: [anulada], fechaGeneracion: new Date(), correlativo: 2 });
+    const { xml } = firma.firmar(doc2.xml);
+    const envio2 = await enviarConReintento({ xmlFirmado: xml, nombreArchivo: doc2.nombreArchivo });
+
+    if (envio2.estado !== 'EN_PROCESO') {
+      mal(`La anulación no fue admitida [${envio2.estado}] ${envio2.codigo || ''} ${envio2.mensaje || ''}`);
+    } else {
+      let veredicto = null;
+      for (let i = 0; i < 12 && !veredicto; i++) {
+        await esperar(i === 0 ? 3000 : 5000);
+        const r = await billService.consultarTicket({ ticket: envio2.ticket });
+        if (r.estado === 'EN_PROCESO' || r.estado === 'ERROR_TRANSPORTE') continue;
+        veredicto = r;
+      }
+      if (!veredicto) mal('SUNAT no resolvió el ticket de la anulación');
+      else if (veredicto.estado === 'ACEPTADO') ok(`Anulación de ${anulada.numero} ACEPTADA — ${veredicto.mensaje}`);
+      else mal(`Anulación RECHAZADA — código ${veredicto.codigo}: ${veredicto.mensaje}`);
+    }
+  }
 
   console.log(fallos ? `\n${fallos} fallo(s)` : '\nTodo OK — el resumen diario funciona contra SUNAT');
   process.exit(fallos ? 1 : 0);

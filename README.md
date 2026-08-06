@@ -87,8 +87,10 @@ correo a la empresa** ante un rechazo o un vencimiento: son cosas que no se arre
 solas y hay que verlas el mismo día, no al cerrar el mes. El XML firmado y el CDR se
 guardan en la base de datos, y la representación impresa ya lleva el código QR.
 
-Falta para poder emitir de verdad: **resumen diario de boletas** y **comunicación de
-baja** para anulaciones.
+Los cuatro documentos están construidos y **aceptados por el entorno beta de
+SUNAT** desde el 06/08/2026: factura, boleta, **resumen diario de boletas**
+(incluida la anulación en estado 3) y **comunicación de baja** de facturas.
+Falta enchufar el resumen a la cola de envío — ver Pendientes.
 
 Restricciones que condicionan el diseño:
 
@@ -151,8 +153,8 @@ doble conversión (USD→PEN al cobrar, PEN→USD al pagar Railway, Vercel y las
 
 ### Cómo verificar que todo sigue funcionando
 
-Cuatro scripts en `brand-shield/scripts/`. Los dos primeros son locales; los dos
-últimos **envían de verdad al entorno beta de SUNAT**, sin tocar producción:
+Seis scripts en `brand-shield/scripts/`. Los dos primeros son locales; los demás
+**envían de verdad al entorno beta de SUNAT**, sin tocar producción:
 
 ```bash
 cd brand-shield
@@ -161,6 +163,8 @@ node scripts/prueba-comprobantes.js   # reglas tributarias y PDFs
 node scripts/prueba-xml-firma.js      # XML UBL, firma y verificación criptográfica
 node scripts/prueba-sunat-beta.js     # factura, exportación y boleta contra SUNAT beta
 node scripts/prueba-cola-envio.js     # cola: reintentos, plazo vencido, rechazo
+node scripts/prueba-resumen-beta.js   # resumen diario de boletas y su anulación
+node scripts/prueba-baja-beta.js      # comunicación de baja de facturas
 ```
 
 El beta usa el RUC de pruebas `20000000001` con usuario `MODDATOS`/`moddatos` y acepta
@@ -243,11 +247,25 @@ scripts ya reintentan solos.
 - [x] Fase B — cola de envío con reintentos y vigilancia del plazo legal
 - [x] Fase B — persistencia del XML firmado y el CDR
 - [x] Fase B — QR en la representación impresa
-- [ ] Fase B — resumen diario de boletas — **en curso**: el XML ya pasa la
-      validación de esquema de SUNAT, falta resolver el error de negocio 2522.
-      Cliente asíncrono (`sendSummary` → ticket → `getStatus`) ya hecho
-- [ ] Fase B — comunicación de baja (anulaciones) — reutiliza el mismo flujo
-      asíncrono del resumen, que ya está construido
+- [x] Fase B — resumen diario de boletas: **aceptado por SUNAT** (06/08/2026).
+      El error 2522 era `cac:Status/cbc:ConditionCode`, que faltaba — va en
+      `cac:`, no en `sac:` (detalle en `CLAUDE.md`)
+- [x] Fase B — anulación de boletas: resumen diario en estado 3, verificado
+      contra el beta (informar → anular, ambos aceptados)
+- [x] Fase B — comunicación de baja (RA) para facturas: aceptada por SUNAT
+      (06/08/2026). `src/sunat/ublComunicacionBaja.js`
+
+- [ ] Fase B — **enchufar el resumen a la cola de envío**. Los cuatro documentos
+      están construidos y aceptados, pero `envioSunat.worker.js` sigue mandando
+      **cada comprobante uno a uno** con `sendBill`, boletas incluidas. Falta
+      agrupar las boletas del día y mandarlas por resumen.
+      ⚠️ **Bloqueado por una decisión, no por el código:** depende de la
+      respuesta del contador (ver más abajo) sobre si las boletas van por
+      resumen diario o pueden informarse individualmente — el beta acepta las
+      dos. Cuando se decida, hace falta además **guardar el ticket en base de
+      datos** (hoy no hay dónde: ningún campo del schema lo recoge); sin él, si
+      el proceso se cae entre el envío y la consulta no hay forma de saber si
+      SUNAT aceptó, y reenviar produciría un duplicado.
 
 **Culqi** — operativo con llaves de **TEST** desde el 05/08/2026
 - [x] Llaves de test en `.env` / `.env.local` **y en Railway y Vercel**
