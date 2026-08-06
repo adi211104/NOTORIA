@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import Script from 'next/script';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../context/AuthContext';
 import { useIdioma } from '../../../context/IdiomaContext';
 import { pagos } from '../../../lib/api';
@@ -9,6 +10,7 @@ import { pagos } from '../../../lib/api';
 // coincida exactamente con el que se cobra.
 import { montoEnCentimos } from '../../../lib/catalogo';
 import BannerPromo from '../../../components/BannerPromo';
+import ResultadoPago from '../../../components/ResultadoPago';
 
 const GEO = "Georgia,'Times New Roman',serif";
 const G = '#0B7324';
@@ -249,6 +251,7 @@ const CheckIcon = ({ ok }) => (
 );
 
 export default function PlanesPage() {
+  const router = useRouter();
   const { usuario, refrescarPerfil } = useAuth();
   const { idioma } = useIdioma();
   const t = TEXTOS[idioma] || TEXTOS.es;
@@ -264,6 +267,10 @@ export default function PlanesPage() {
   // promo: se apaga el descuento para que el importe mostrado vuelva a ser el
   // que realmente se va a cobrar.
   const [promoRechazada, setPromoRechazada] = useState(false);
+  // Respuesta del cobro exitoso y mensaje de cobro fallido: los dos disparan la
+  // confirmación a pantalla completa (components/ResultadoPago.js)
+  const [resultado, setResultado] = useState(null);
+  const [errorModal, setErrorModal] = useState('');
   const puedeUsarPromo = !promoRechazada && !usuario?.promoBienvenidaUsada;
 
   // Callback global que exige el widget de Checkout de Culqi (window.culqi)
@@ -276,11 +283,19 @@ export default function PlanesPage() {
       const plan = window.__notoriaPlanPendiente;
       const esAnual = window.__notoriaAnualPendiente;
 
+      // Culqi entrega el token pero NO cierra su ventana: sin esto el usuario
+      // pulsa "Pagar" y la ventana se queda igual, sin señal de nada, mientras
+      // el cobro ocurre detrás. Va antes de cualquier await.
+      try { Culqi.close(); } catch {}
+
       setProcesando(true);
       setErrorPago('');
       try {
-        await pagos.suscribir({ token, plan, anual: esAnual, sinPromo: window.__notoriaSinPromo });
+        const resultado = await pagos.suscribir({ token, plan, anual: esAnual, sinPromo: window.__notoriaSinPromo });
         await refrescarPerfil();
+        // Confirmación a pantalla completa: antes esta pantalla no daba NINGÚN
+        // aviso de que el pago hubiera salido bien.
+        setResultado(resultado);
       } catch (e) {
         // Tarjeta que ya gastó la promo: no se cobró nada. Se apaga el descuento
         // para que el importe mostrado coincida con el que se cobraría.
@@ -288,7 +303,9 @@ export default function PlanesPage() {
           setPromoRechazada(true);
           setErrorPago('Esta tarjeta ya usó la promoción de bienvenida, así que no te cobramos nada. Los precios ya muestran la tarifa regular: vuelve a pulsar el botón si quieres continuar.');
         } else {
-          setErrorPago(e.message || t.errorPagoGenerico);
+          // Un cobro fallido va a la pantalla completa, no a una franja que se
+          // puede quedar fuera de vista
+          setErrorModal(e.message || t.errorPagoGenerico);
         }
       } finally {
         setProcesando(false);
@@ -337,10 +354,15 @@ export default function PlanesPage() {
           {errorPago}
         </div>
       )}
-      {procesando && (
-        <div style={{ background: 'rgba(11,115,36,0.08)', border: '1px solid rgba(11,115,36,0.25)', color: G, borderRadius: 6, padding: '10px 14px', fontSize: 13, marginBottom: 16, textAlign: 'center' }}>
-          {t.procesandoPago}
-        </div>
+      {/* Estado del cobro por encima de todo, sin depender del scroll */}
+      {(procesando || resultado || errorModal) && (
+        <ResultadoPago
+          estado={procesando ? 'procesando' : resultado ? 'exito' : 'error'}
+          datos={resultado}
+          error={errorModal}
+          onCerrar={() => setErrorModal('')}
+          onIrAlPanel={() => { setResultado(null); router.push('/dashboard'); }}
+        />
       )}
       {/* Header */}
       <div style={{ textAlign: 'center', marginBottom: 36 }}>

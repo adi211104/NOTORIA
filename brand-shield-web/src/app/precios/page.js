@@ -21,6 +21,7 @@ import { pagos } from '../../lib/api';
 import { CATALOGO, MONEDA, SIMBOLO, montoEnCentimos, formatearSoles } from '../../lib/catalogo';
 import PieLegal from '../../components/PieLegal';
 import BannerPromo from '../../components/BannerPromo';
+import ResultadoPago from '../../components/ResultadoPago';
 
 const GEO = "Georgia,'Times New Roman',serif";
 const G = '#0B7324';
@@ -75,6 +76,10 @@ export default function PreciosPage() {
   const [mensaje, setMensaje] = useState('');
   const [error, setError] = useState('');
   const [culqiListo, setCulqiListo] = useState(false);
+  // Respuesta del cobro exitoso y mensaje de cobro fallido: los dos disparan la
+  // confirmación a pantalla completa (components/ResultadoPago.js)
+  const [resultado, setResultado] = useState(null);
+  const [errorPago, setErrorPago] = useState('');
 
   // Un visitante sin sesión es, por definición, candidato a la promo: se le
   // muestra el descuento para que sepa que existe antes de registrarse. Solo se
@@ -118,27 +123,39 @@ export default function PreciosPage() {
     window.culqi = async () => {
       const Culqi = window.Culqi;
       if (!Culqi?.token) return;
-      setProcesando(true);
+
+      // Cerrar el widget es responsabilidad NUESTRA: Culqi entrega el token y
+      // deja su ventana abierta. Sin esto el usuario pulsa "Pagar", la ventana
+      // se queda igual —sin carga ni confirmación— y el cobro ocurre detrás sin
+      // que él lo vea. Va primero, antes de cualquier await.
+      try { Culqi.close(); } catch {}
+
       setError(''); setMensaje('');
+      setProcesando(true);
       try {
-        await pagos.suscribir({
+        const resultado = await pagos.suscribir({
           token: Culqi.token.id,
           plan: window.__notoriaPlanPendiente,
           anual: window.__notoriaAnualPendiente,
           sinPromo: window.__notoriaSinPromo,
         });
         await refrescarPerfil();
-        setMensaje('¡Pago aprobado! Tu plan ya está activo. Te llevamos a tu panel…');
-        setTimeout(() => router.push('/dashboard'), 1800);
+        // Confirmación a pantalla completa: no se redirige solo. Ver
+        // components/ResultadoPago.js.
+        setResultado(resultado);
       } catch (e) {
         // La tarjeta ya gastó la promo: no se cobró nada. Se apaga el descuento
         // y se le pide que confirme al precio de lista, en vez de cobrarle un
         // importe distinto del que aceptó en el widget.
         if (e.codigo === 'PROMO_NO_APLICA') {
           setPromoRechazada(true);
-          setError('Esta tarjeta ya usó la promoción de bienvenida, así que no te cobramos nada. Los precios de arriba ya muestran la tarifa regular: pulsa "Pagar" de nuevo si quieres continuar.');
+          setError('Esta tarjeta ya usó la promoción de bienvenida, así que no te cobramos nada. Los precios ya muestran la tarifa regular: pulsa "Pagar" de nuevo si quieres continuar.');
+          // El aviso vive arriba de la página y el botón de pagar está abajo:
+          // sin esto el usuario no lo vería y creería que no pasó nada.
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         } else {
-          setError(e.message || 'No se pudo procesar el pago. Intenta con otra tarjeta.');
+          // Un cobro fallido también necesita un aviso imposible de perderse
+          setErrorPago(e.message || 'No se pudo procesar el pago. Intenta con otra tarjeta.');
         }
       } finally {
         setProcesando(false);
@@ -176,6 +193,18 @@ export default function PreciosPage() {
     <div style={{ minHeight: '100vh', background: '#FAF9F5', fontFamily: GEO }}>
       <Script src="https://checkout.culqi.com/js/v4" strategy="afterInteractive" onLoad={() => setCulqiListo(true)} />
 
+      {/* Estado del cobro, siempre por encima de todo: da igual dónde esté el
+          scroll o si el widget de Culqi acaba de cerrarse. */}
+      {(procesando || resultado || errorPago) && (
+        <ResultadoPago
+          estado={procesando ? 'procesando' : resultado ? 'exito' : 'error'}
+          datos={resultado}
+          error={errorPago}
+          onCerrar={() => setErrorPago('')}
+          onIrAlPanel={() => router.push('/dashboard')}
+        />
+      )}
+
       {/* Nav */}
       <nav style={{ borderBottom: '1px solid #E8E6DC', padding: '0 28px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#FAF9F5', position: 'sticky', top: 0, zIndex: 20 }}>
         <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none' }}>
@@ -207,9 +236,6 @@ export default function PreciosPage() {
         )}
         {error && (
           <div style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.35)', color: '#B91C1C', borderRadius: 6, padding: '12px 16px', fontSize: 14, marginBottom: 20 }}>{error}</div>
-        )}
-        {procesando && (
-          <div style={{ background: '#fff', border: '1px solid #E8E6DC', color: '#5C5B57', borderRadius: 6, padding: '12px 16px', fontSize: 14, marginBottom: 20 }}>Procesando tu pago, no cierres esta ventana…</div>
         )}
 
         {puedeUsarPromo && <BannerPromo />}

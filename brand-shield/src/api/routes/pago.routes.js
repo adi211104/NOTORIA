@@ -182,9 +182,21 @@ router.post('/culqi', async (req, res) => {
 
     // El comprobante nunca tumba el cobro: si falla, se registra en el log y el
     // pago sigue siendo válido (emitirComprobante ya absorbe sus propios errores).
-    if (pago) await emitirComprobante({ pago, usuario });
+    const comprobante = pago ? await emitirComprobante({ pago, usuario }) : null;
 
-    res.json({ mensaje: 'Suscripción activada correctamente', usuario: usuarioActualizado, cargoId: cargo.id });
+    // La respuesta lleva el detalle del cobro para que la pantalla de
+    // confirmación pueda decir exactamente qué se cobró y con qué comprobante,
+    // en vez de un "listo" genérico. `comprobante` puede venir null: el pago
+    // vale igual y la pantalla se adapta.
+    res.json({
+      mensaje: 'Suscripción activada correctamente',
+      usuario: usuarioActualizado,
+      cargoId: cargo.id,
+      monto,
+      moneda: MONEDA,
+      promoAplicada: aplicaPromo,
+      comprobante: comprobante ? { tipo: comprobante.tipo, numero: comprobante.numero } : null,
+    });
   } catch (error) {
     const msg = error.response?.data?.user_message || error.response?.data?.merchant_message || error.message;
     console.error('[Culqi] Error al procesar el pago:', msg);
