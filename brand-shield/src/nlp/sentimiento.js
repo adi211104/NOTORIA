@@ -22,7 +22,35 @@ const PALABRAS_NEGATIVAS = [
   'basura', 'decepción', 'decepcion', 'decepcionado', 'decepcionante', 'fraude',
   'malogrado', 'vencido', 'caro para lo que', 'no lo recomiendo', 'jamás vuelvo',
   'jamas vuelvo', 'maltrato', 'grosero', 'grosera', 'no me atendieron', 'estafadores',
+  // Agregadas el 2026-08-06 tras ver "no me gusta" clasificado como neutro con
+  // un comentario real de TikTok. Eran ausencias llamativas: el disgusto llano
+  // es más común que "pésimo" en un comentario de red social, donde la gente
+  // escribe corto y sin tildes.
+  'no me gusta', 'no me gustó', 'no me gusto', 'no me gustan', 'malísimo', 'malisimo',
+  'malísima', 'malisima', 'pésima', 'pesima', 'mala experiencia', 'una porquería',
+  'una porqueria', 'porquería', 'porqueria', 'horrible', 'nefasto', 'lamentable',
+  'no vale la pena', 'perdí mi tiempo', 'perdi mi tiempo', 'no sirve', 'pura estafa',
+  // "mala" suelta NO se lista: rompería "no está mala" (que en Perú es elogio) y
+  // "mala hierba". Se listan las construcciones donde el adjetivo va separado de
+  // su sustantivo, que es lo que el diccionario por subcadenas se perdía:
+  // "la atención fue mala" no casaba con 'mala atención'.
+  'fue mala', 'fue malo', 'muy mala', 'muy malo', 'estuvo mal', 'atendieron mal',
+  'todo mal', 'bastante malo', 'bastante mala',
 ];
+
+// Negadores que INVIERTEN una palabra positiva cercana: "no me encanta",
+// "nunca lo recomiendo", "ni de broma volvería".
+//
+// Por qué hace falta: el diccionario buscaba subcadenas sueltas, así que
+// "no me encanta" contenía "me encanta" y se clasificaba POSITIVO — el peor
+// error posible acá, porque un cliente molesto quedaba archivado como elogio y
+// no disparaba alerta. Encontrado el 2026-08-06.
+const NEGADORES = ['no', 'nunca', 'jamás', 'jamas', 'ni', 'tampoco', 'nada'];
+
+// Ventana de palabras hacia atrás donde se busca el negador. Tres alcanza para
+// "no me encanta" o "nunca lo recomiendo" sin llegar a frases anteriores, que
+// producirían falsos negativos ("no había cola, el servicio es excelente").
+const VENTANA_NEGACION = 3;
 
 const PALABRAS_POSITIVAS = [
   'excelente', 'delicioso', 'deliciosa', 'recomiendo', 'increíble', 'increible',
@@ -38,11 +66,31 @@ const PALABRAS_POSITIVAS = [
  * positivo (el usuario ve una mención que no era grave) a un falso negativo
  * (una queja que se propaga sin que nadie se entere).
  */
+/**
+ * ¿La palabra positiva que empieza en `posicion` viene negada?
+ * Mira las VENTANA_NEGACION palabras anteriores en busca de un negador.
+ */
+const vieneNegada = (lower, posicion) => {
+  const previas = lower.slice(0, posicion).split(/[^\wáéíóúñü]+/).filter(Boolean);
+  return previas.slice(-VENTANA_NEGACION).some((p) => NEGADORES.includes(p));
+};
+
 const clasificar = (texto) => {
   if (!texto) return 'neutro';
   const lower = texto.toLowerCase();
+
   if (PALABRAS_NEGATIVAS.some((p) => lower.includes(p))) return 'negativo';
-  if (PALABRAS_POSITIVAS.some((p) => lower.includes(p))) return 'positivo';
+
+  // Una palabra positiva solo cuenta si NO está negada. Y si lo está, el texto
+  // pasa a negativo en vez de a neutro: "no me gustó nada" es una queja, no una
+  // opinión tibia, y preferimos un falso positivo a dejar pasar un enojo.
+  for (const p of PALABRAS_POSITIVAS) {
+    const i = lower.indexOf(p);
+    if (i === -1) continue;
+    if (vieneNegada(lower, i)) return 'negativo';
+    return 'positivo';
+  }
+
   return 'neutro';
 };
 
