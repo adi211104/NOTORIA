@@ -102,7 +102,7 @@ CULQI_PUBLIC_KEY=                            # cargada (test) en local y Railway
 CULQI_SECRET_KEY=                            # cargada (test) en local y Railway — rotar a live tras la aprobación
 CULQI_WEBHOOK_SECRET=                        # opcional — protege /api/pagos/culqi/webhook
 EMAIL_RECLAMACIONES=                         # opcional — destino de los avisos del Libro de Reclamaciones (default hola@usenotoria.app)
-PROMO_HASH_SECRET=                           # opcional — HMAC de la huella de tarjeta de la promo (default: JWT_SECRET). NO rotar sin vaciar promo_tarjetas
+PROMO_HASH_SECRET=                           # CARGADA en Railway y .env local (2026-08-05, con promo_tarjetas vacía). NO rotar sin vaciar esa tabla
 META_WHATSAPP_PHONE_NUMBER_ID=               # pendiente — WhatsApp Business Cloud API (mismo Meta App que Instagram)
 META_WHATSAPP_ACCESS_TOKEN=                  # pendiente — token permanente del System User de ese Meta App
 META_WHATSAPP_TEMPLATE=                      # nombre de la plantilla aprobada (default: notoria_alerta_urgente)
@@ -1259,3 +1259,11 @@ router entero.
 Probado de punta a punta contra la base real (alta → listar → ver → responder →
 correo → aviso de plazo) y **los datos de prueba se borraron después**.
 Desplegado: Railway `a5b85cc4` SUCCESS, `/health` 200.
+
+**`PROMO_HASH_SECRET` fijada (2026-08-05).** Se generó con
+`crypto.randomBytes(32)` y se cargó en Railway y en el `.env` local, **aprovechando
+que `promo_tarjetas` estaba vacía**: es el único momento en que fijarla no
+invalida ninguna huella anterior. Hasta entonces caía en `JWT_SECRET`, así que
+rotar el JWT habría reseteado en silencio el límite de la promo por tarjeta.
+Requirió redespliegue (`--skip-deploys` no aplica la variable al contenedor en
+marcha). Railway `1c0fdb48` SUCCESS.
