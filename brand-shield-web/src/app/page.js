@@ -166,7 +166,10 @@ const TEXTOS = {
       tag:'Precios', titulo:'Precios sin sorpresas',
       mensual:'Mensual', anual:'Anual (20% off)', ahorras:(m)=>`Ahorras ${S}${m}/año`,
       gratis:'Gratis', mes:'/mes', anio:'/año', popular:'Más popular', promoBienvenida:'50% OFF tus primeros 2 meses',
-      ctaGratis:'Empezar gratis', ctaPago:'Probar 7 días gratis', ctaActual:'Plan actual', ctaUpgrade:'Actualizar',
+      // ctaPago NO puede prometer días gratis: no hay periodo de prueba, el
+      // cobro es inmediato. Lleva a /precios, donde está el detalle y el botón
+      // de pago.
+      ctaGratis:'Empezar gratis', ctaPago:'Ver precios y contratar', ctaActual:'Plan actual', ctaUpgrade:'Actualizar',
       noIncluyeLabel:'No incluye:',
       planes: [
         { n:'Gratuito', p:0,
@@ -356,7 +359,7 @@ const TEXTOS = {
       tag:'Pricing', titulo:'Pricing with no surprises',
       mensual:'Monthly', anual:'Yearly (20% off)', ahorras:(m)=>`Save ${S}${m}/year`,
       gratis:'Free', mes:'/mo', anio:'/yr', popular:'Most popular', promoBienvenida:'50% OFF your first 2 months',
-      ctaGratis:'Start free', ctaPago:'Try 7 days free', ctaActual:'Current plan', ctaUpgrade:'Upgrade',
+      ctaGratis:'Start free', ctaPago:'See pricing and subscribe', ctaActual:'Current plan', ctaUpgrade:'Upgrade',
       noIncluyeLabel:'Not included:',
       planes: [
         { n:'Free', p:0,

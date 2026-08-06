@@ -75,7 +75,11 @@ const PLANES = {
         { texto: 'Dashboard ejecutivo multi-sede', ok: false },
         { texto: 'Soporte prioritario', ok: false },
       ],
-      cta: 'Comenzar 7 días gratis',
+      // No decir "7 días gratis": NO existe periodo de prueba. El cobro es
+      // inmediato al suscribirse, así que anunciarlo sería publicidad engañosa
+      // (Ley 29571) y contradice los propios Términos, que dicen que los planes
+      // de pago se facturan por adelantado.
+      cta: 'Contratar plan Negocio',
       ctaActivo: true,
     },
     {
@@ -157,7 +161,7 @@ const PLANES = {
         { texto: 'Multi-location executive dashboard', ok: false },
         { texto: 'Priority support', ok: false },
       ],
-      cta: 'Start 7 days free',
+      cta: 'Get the Business plan', // ver la nota del plan Negocio en español
       ctaActivo: true,
     },
     {
