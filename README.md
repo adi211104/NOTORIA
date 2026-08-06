@@ -222,10 +222,21 @@ scripts ya reintentan solos.
 - [x] Página de eliminación de datos en producción (`usenotoria.app/eliminar-datos`)
 - [x] Formulario de tratamiento de datos respondido (política de respaldo en
       `docs/politica-solicitudes-autoridades.md`)
-- [ ] **Crear la app tipo NEGOCIO** — la primera app (1709333600393009) salió tipo
-      Consumidor y no tiene los permisos de Instagram; no sirve. Pasos en CLAUDE.md §19
-- [ ] Cargar las llaves de la app nueva en Railway y redesplegar el backend
-      (el soporte de `config_id` está commiteado sin desplegar)
+- [x] **App tipo NEGOCIO creada** (06/08/2026): ID `2232447584255257`. La primera
+      (1709333600393009) era tipo Consumidor y no servía
+- [x] Llaves de la app nueva en Railway, verificadas dentro del contenedor, y el
+      soporte de `config_id` ya desplegado (Railway `4ebfdbc3`)
+- [ ] **Rotar `META_APP_SECRET`** (se compartió por chat) y volver a cargarlo en
+      Railway — si se rota sin actualizar, el OAuth falla con un error genérico
+- [ ] Completar Configuración → Básica: dominios, privacidad, condiciones,
+      eliminación de datos e ícono. ⚠️ Meta deja `https://www.facebook.com/` de
+      relleno en dos campos y **el App Review rechaza con eso puesto**
+- [ ] Añadir el producto **Facebook Login for Business** + redirect URI
+      `https://api.usenotoria.app/api/redes/instagram/callback`, y crear la
+      Configuración con los 4 permisos → `META_LOGIN_CONFIG_ID` en Railway.
+      ⚠️ **No usar la pantalla "API con inicio de sesión de empresa de
+      Instagram"**: es el otro sabor de la API y el backend no sabe consumirlo
+      (detalle en `CLAUDE.md` §19)
 - [ ] Probar "Conectar Instagram" en `/dashboard/conexiones` con IG Business + página de FB
 - [ ] Crear cuenta de prueba del revisor (plan NEGOCIO vía `scripts/dar-plan.js`)
 - [ ] Grabar screencast y enviar el App Review (4 permisos: instagram_basic,
