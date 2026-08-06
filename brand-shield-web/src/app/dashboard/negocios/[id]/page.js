@@ -381,6 +381,10 @@ const TEXTOS = {
       enviando:'Publicando…',
       cancelar:'Cancelar',
       sinVideoOrigen:'Sin video de origen guardado — no se puede responder desde acá.',
+      ocultar:'Ocultar', mostrar:'Mostrar', fijar:'Fijar', desfijar:'Desfijar',
+      oculto:'Oculto', fijado:'Fijado',
+      ocultarAyuda:'Lo quita de la vista pública sin borrarlo. Su autor lo sigue viendo y no recibe aviso.',
+      fijarAyuda:'Lo sube al inicio de los comentarios del video.',
     },
     sospechosas: {
       sinSospechosas:'Sin reseñas sospechosas detectadas',
@@ -689,6 +693,10 @@ const TEXTOS = {
       enviando:'Publishing…',
       cancelar:'Cancel',
       sinVideoOrigen:'Source video not stored — cannot reply from here.',
+      ocultar:'Hide', mostrar:'Unhide', fijar:'Pin', desfijar:'Unpin',
+      oculto:'Hidden', fijado:'Pinned',
+      ocultarAyuda:'Removes it from public view without deleting it. Its author still sees it and is not notified.',
+      fijarAyuda:'Moves it to the top of the video comments.',
     },
     sospechosas: {
       sinSospechosas:'No suspicious reviews detected',
@@ -1019,6 +1027,23 @@ export default function DetallePage() {
       setComError(e.message);
     } finally {
       setComEnviando(false);
+    }
+  };
+
+  // Ocultar / fijar un comentario en TikTok. `comModerando` guarda el id para
+  // deshabilitar solo esa tarjeta mientras viaja la llamada — un estado global
+  // congelaría toda la lista.
+  const [comModerando, setComModerando] = useState(null);
+  const moderarComentario = async (comentarioId, accion, activar) => {
+    setComModerando(comentarioId);
+    setComError('');
+    try {
+      await comentariosApi.moderar(comentarioId, accion, activar);
+      await cargarComentarios();
+    } catch (e) {
+      setComError(e.message);
+    } finally {
+      setComModerando(null);
     }
   };
 
@@ -1828,6 +1853,18 @@ export default function DetallePage() {
                               {tc.respondido}
                             </span>
                           )}
+                          {c.fijado && (
+                            <span style={{ fontSize:11, color:'var(--text-3)', background:'var(--surface2)',
+                                           border:'1px solid var(--border-c)', padding:'2px 8px', borderRadius:9 }}>
+                              {tc.fijado}
+                            </span>
+                          )}
+                          {c.oculto && (
+                            <span style={{ fontSize:11, color:'#f59e0b', background:'rgba(245,158,11,0.1)',
+                                           border:'1px solid rgba(245,158,11,0.25)', padding:'2px 8px', borderRadius:9 }}>
+                              {tc.oculto}
+                            </span>
+                          )}
                         </div>
                         <span style={{ fontSize:11.5, color:'var(--text-3)', whiteSpace:'nowrap' }}>
                           {c.fechaComentario ? new Date(c.fechaComentario).toLocaleDateString(idioma==='en'?'en-US':'es-PE', { day:'numeric', month:'short' }) : ''}
@@ -1899,6 +1936,31 @@ export default function DetallePage() {
                                    border:'1px solid rgba(11,115,36,0.3)', padding:'5px 13px', borderRadius:10, cursor:'pointer' }}>
                           {tc.responder}
                         </button>
+                      )}
+
+                      {/* Moderación. Va aparte del bloque de respuesta a
+                          propósito: ocultar y fijar siguen teniendo sentido en un
+                          comentario ya respondido. Se muestran solo en TikTok y
+                          solo si sabemos de qué video es, porque la API exige el
+                          video_id. Borrar NO se expone: es irreversible y suele
+                          escalar el conflicto; ocultar consigue lo mismo sin que
+                          el autor se entere. */}
+                      {c.plataforma === 'TIKTOK' && c.publicacionId && (
+                        <div style={{ display:'flex', gap:7, marginTop:9, flexWrap:'wrap' }}>
+                          {[
+                            { accion:'ocultar', activo:c.oculto, on:tc.mostrar, off:tc.ocultar, ayuda:tc.ocultarAyuda },
+                            { accion:'fijar',   activo:c.fijado, on:tc.desfijar, off:tc.fijar,  ayuda:tc.fijarAyuda },
+                          ].map(({ accion, activo, on, off, ayuda }) => (
+                            <button key={accion} title={ayuda} disabled={comModerando === c.id}
+                              onClick={() => moderarComentario(c.id, accion, !activo)}
+                              style={{ fontSize:11, color:'var(--text-3)', background:'transparent',
+                                       border:'1px solid var(--border-c)', padding:'4px 11px', borderRadius:9,
+                                       cursor: comModerando === c.id ? 'wait' : 'pointer',
+                                       opacity: comModerando === c.id ? 0.5 : 1 }}>
+                              {activo ? on : off}
+                            </button>
+                          ))}
+                        </div>
                       )}
                     </Card>
                   );

@@ -982,9 +982,56 @@ las pruebas del 2026-08-06 la URL llevaba `%2C` y funcionó. No se tocó el cód
 de Display por eso, pero esa nota puede mandar a alguien a buscar un problema que
 no existe.
 
-**Pendiente:** el `db push` de los 4 campos a producción, cargar
-`TIKTOK_BIZ_CLIENT_ID/SECRET/REDIRECT_URI` en Railway, y confirmar si la app de
-Business está en Sandbox (si lo está, solo funcionará con cuentas *target user*).
+**Desplegado y verificado el 2026-08-06** (Railway `8d2ba976` + Vercel
+`dpl_47aic4Mj`): `db push` aplicado, las 3 variables en Railway, conexión real de
+@usenotoria funcionando, comentarios entrando por el worker y respuesta publicada
+desde el panel.
+
+**Sigue abierto:** confirmar si la app de Business está en **Sandbox**. Si lo
+está, solo opera con cuentas registradas como *target user* — la conexión propia
+no lo revela porque el dueño de la app siempre lo es. Averiguarlo **antes** de
+vender la función a un cliente.
+
+#### Respuestas hechas fuera de Notoria
+
+Si el dueño contesta desde la app de TikTok, Notoria no se enteraba y le mostraba
+el comentario como pendiente para siempre — y la métrica que vende el producto es
+justamente el tiempo de respuesta. `replies` cuenta las de cualquiera, así que se
+pide el hilo con `/business/comment/reply/list/` y se busca `owner: true`. Solo
+para comentarios con respuestas: la mayoría no tiene ninguna y sería una llamada
+extra por cada uno.
+
+El worker sincroniza `respondida` en **una sola dirección** (marca, nunca
+desmarca): una lectura fallida de TikTok reabriría comentarios ya cerrados. La
+moderación sí va en las dos, porque ahí TikTok es la fuente de verdad y no hay
+nada escrito por el usuario que pisar.
+
+Un comentario negativo que el dueño ya respondió **no dispara alerta**: avisar
+por correo y WhatsApp de algo recién resuelto es el ruido que hace que la gente
+deje de mirar las notificaciones.
+
+#### Moderación: ocultar, fijar, like
+
+Las tres comparten forma de request, **verificada contra la API real**:
+
+| ruta | acciones |
+|---|---|
+| `/business/comment/hide/` | `HIDE` · `UNHIDE` |
+| `/business/comment/pin/` | `PIN` · `UNPIN` |
+| `/business/comment/like/` | `LIKE` · `UNLIKE` |
+
+⚠️ **`video_id` es obligatorio en las tres**, aunque el `comment_id` ya
+identifique el comentario sin ambigüedad. Omitirlo da `40002 video_id: Missing
+data for required field` — la primera versión de este código lo omitía, y el
+error solo apareció al probar de verdad.
+
+**`/business/comment/delete/` existe pero NO se expone en el panel**: es
+irreversible y suele escalar el conflicto. Ocultar consigue lo mismo — el
+comentario desaparece de la vista pública, su autor lo sigue viendo y no recibe
+aviso — sin nada que lamentar. No ponerlo a un clic de distancia.
+
+Columnas `ComentarioSocial.oculto` y `.fijado` para que los botones muestren el
+estado real al recargar; el worker las resincroniza desde TikTok en cada escaneo.
 
 ### 15-ter. Limpieza de navegación pedida por el usuario (2026-07-29)
 

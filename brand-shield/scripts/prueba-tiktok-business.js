@@ -238,13 +238,36 @@ const COMENTARIOS = [
     assert.ok(!r.ok);
   });
 
-  await prueba('ocultar manda la acción HIDE y se puede revertir', async () => {
+  await prueba('las 3 acciones de moderación mandan su par correcto', async () => {
+    const esperado = { ocultar: ['HIDE', 'UNHIDE'], fijar: ['PIN', 'UNPIN'], like: ['LIKE', 'UNLIKE'] };
+    for (const [accion, [si, no]] of Object.entries(esperado)) {
+      respuestasFalsas = { '/business/comment/': { code: 0, data: {} } };
+      requests = [];
+      await tk.moderarComentarioTikTokBiz(accion, 'biz1', 'tok', 'vid1', 'ttb_9', true);
+      assert.strictEqual(requests[0].data.action, si, `${accion} activar`);
+      requests = [];
+      await tk.moderarComentarioTikTokBiz(accion, 'biz1', 'tok', 'vid1', 'ttb_9', false);
+      assert.strictEqual(requests[0].data.action, no, `${accion} revertir`);
+    }
+  });
+
+  await prueba('moderar SIEMPRE manda video_id (la API lo exige)', async () => {
     respuestasFalsas = { '/business/comment/hide/': { code: 0, data: {} } };
-    await tk.ocultarComentarioTikTokBiz('biz1', 'tok', 'ttb_9', true);
-    assert.strictEqual(requests[0].data.action, 'HIDE');
-    requests = [];
-    await tk.ocultarComentarioTikTokBiz('biz1', 'tok', 'ttb_9', false);
-    assert.strictEqual(requests[0].data.action, 'UNHIDE');
+    await tk.moderarComentarioTikTokBiz('ocultar', 'biz1', 'tok', 'vid1', 'ttb_9');
+    assert.strictEqual(requests[0].data.video_id, 'vid1');
+    assert.strictEqual(requests[0].data.comment_id, '9', 'el prefijo ttb_ es nuestro');
+  });
+
+  await prueba('sin video_id no llama: la API respondería 40002', async () => {
+    const r = await tk.moderarComentarioTikTokBiz('ocultar', 'biz1', 'tok', null, 'ttb_9');
+    assert.ok(r.error);
+    assert.strictEqual(requests.length, 0);
+  });
+
+  await prueba('una acción desconocida no sale a la red', async () => {
+    const r = await tk.moderarComentarioTikTokBiz('borrar_todo', 'biz1', 'tok', 'vid1', 'ttb_9');
+    assert.ok(r.error);
+    assert.strictEqual(requests.length, 0);
   });
 
   console.log('\nGuardas');

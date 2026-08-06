@@ -148,6 +148,9 @@ export const comentariosApi = {
     return api(`/api/comentarios/${negocioId}${qs ? `?${qs}` : ''}`);
   },
   responder: (id, respuesta) => api(`/api/comentarios/${id}/responder`, { method:'POST', body:JSON.stringify({ respuesta }) }),
+  // accion: 'ocultar' | 'fijar' | 'like'. Con `activar:false` se revierte.
+  moderar: (id, accion, activar = true) =>
+    api(`/api/comentarios/${id}/moderar`, { method:'POST', body:JSON.stringify({ accion, activar }) }),
   marcarVista: (id) => api(`/api/comentarios/${id}`, { method:'PATCH', body:JSON.stringify({ vista:true }) }),
 };
 

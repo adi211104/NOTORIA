@@ -183,6 +183,62 @@ router.get('/:negocioId', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// POST /api/comentarios/:id/moderar — { accion: 'ocultar'|'fijar'|'like', activar: bool }
+//
+// Ocultar es la acción que más valor tiene acá: retira un comentario tóxico de
+// la vista pública sin borrarlo ni avisarle a su autor. Borrar existe en la API
+// pero NO se expone: es irreversible y suele escalar el conflicto, así que no
+// queremos que esté a un clic de distancia en un panel.
+router.post('/:id/moderar', async (req, res, next) => {
+  try {
+    const { accion } = req.body || {};
+    const activar = req.body?.activar !== false;
+    if (!tiktokBiz.ACCIONES_MODERACION[accion]) {
+      return res.status(400).json({ error: `Acción no soportada: ${accion}` });
+    }
+
+    const comentario = await prisma.comentarioSocial.findFirst({
+      where: { id: req.params.id, negocio: { usuarioId: req.usuario.id } },
+      include: { negocio: true },
+    });
+    if (!comentario) return res.status(404).json({ error: 'Comentario no encontrado' });
+    if (comentario.plataforma !== 'TIKTOK') {
+      return res.status(400).json({ error: `Moderar en ${comentario.plataforma} todavía no está disponible` });
+    }
+    // Las tres acciones exigen el video_id además del comment_id.
+    if (!comentario.publicacionId) {
+      return res.status(422).json({
+        error: 'Este comentario no tiene el video de origen guardado, así que no se puede moderar desde acá.',
+      });
+    }
+
+    const conexion = await conexionTikTok(comentario.negocio);
+    if (!conexion.token || conexion.modo !== 'biz') {
+      return res.status(409).json({
+        error: 'Para moderar comentarios hay que reconectar TikTok desde Conexiones.',
+      });
+    }
+
+    const r = await tiktokBiz.moderarComentarioTikTokBiz(
+      accion, conexion.businessId, conexion.token,
+      comentario.publicacionId, comentario.externalId, activar,
+    );
+    // Solo se guarda si la plataforma confirmó: si guardáramos igual, el panel
+    // diría "oculto" y en TikTok el comentario seguiría a la vista.
+    if (r.error) return res.status(502).json({ error: r.error });
+
+    // `like` no se persiste: no hay columna y el estado lo resincroniza el
+    // worker desde TikTok. Ocultar y fijar sí, para que el botón no "salte"
+    // hasta el próximo escaneo.
+    const campo = { ocultar: 'oculto', fijar: 'fijado' }[accion];
+    const actualizado = campo
+      ? await prisma.comentarioSocial.update({ where: { id: comentario.id }, data: { [campo]: activar } })
+      : comentario;
+
+    res.json({ ok: true, comentario: actualizado });
+  } catch (error) { next(error); }
+});
+
 // POST /api/comentarios/:id/responder — { respuesta }
 router.post('/:id/responder', async (req, res, next) => {
   try {

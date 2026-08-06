@@ -353,6 +353,11 @@ const FUENTES_COMENTARIOS = [
       // eternamente en la cola de pendientes.
       respondida: !!c.respuestaDueno,
       respuesta: c.respuestaDueno || null,
+      // Estado de moderación tal como está HOY en la plataforma. La fuente de
+      // verdad es TikTok, no nuestra base: el dueño puede ocultar o fijar desde
+      // la app y el panel tiene que reflejarlo.
+      oculto: !!c.oculto,
+      fijado: !!c.fijado,
     }),
   },
 ];
@@ -388,12 +393,22 @@ const procesarComentariosSociales = async (negocio) => {
         // dirección — nunca se desmarca algo ya respondido, porque una lectura
         // fallida de TikTok reabriría comentarios cerrados.
         if (existente) {
+          const cambios = {};
           if (!existente.respondida && fila.respondida) {
-            await prisma.comentarioSocial.update({
-              where: { id: existente.id },
-              data: { respondida: true, respuesta: fila.respuesta },
-            });
-            console.log(`[Comentarios ${fuente.id}] ${negocio.nombre}: uno ya respondido en la app, sincronizado.`);
+            cambios.respondida = true;
+            cambios.respuesta = fila.respuesta;
+          }
+          // La moderación sí se sincroniza en AMBAS direcciones, al revés que
+          // `respondida`: acá TikTok es la fuente de verdad y desocultar en la
+          // app debe reflejarse en el panel. No hay nada del usuario que pisar.
+          if (fila.oculto !== existente.oculto) cambios.oculto = fila.oculto;
+          if (fila.fijado !== existente.fijado) cambios.fijado = fila.fijado;
+
+          if (Object.keys(cambios).length) {
+            await prisma.comentarioSocial.update({ where: { id: existente.id }, data: cambios });
+            if (cambios.respondida) {
+              console.log(`[Comentarios ${fuente.id}] ${negocio.nombre}: uno ya respondido en la app, sincronizado.`);
+            }
           }
           continue;
         }

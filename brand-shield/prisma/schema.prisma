@@ -443,6 +443,11 @@ model ComentarioSocial {
   sentimiento String?
   respondida  Boolean @default(false)
   respuesta   String?
+  // Moderación hecha en la plataforma (§15-octies). Se guardan para que los
+  // botones del panel muestren el estado real al recargar; el worker los
+  // resincroniza en cada escaneo por si el dueño moderó desde la app de TikTok.
+  oculto      Boolean @default(false)
+  fijado      Boolean @default(false)
   vista       Boolean @default(false)
   // Evita re-alertar el mismo comentario en cada ciclo del worker
   notificada  Boolean @default(false)

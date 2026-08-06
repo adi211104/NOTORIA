@@ -287,6 +287,11 @@ const obtenerComentariosTikTokBiz = async (businessId, accessToken, limiteVideos
         videoTitulo: video.titulo,
         likes: c.likes ?? 0,
         fijado: !!c.pinned,
+        // `status` viene 'PUBLIC' cuando se ve y cambia al ocultarlo. Se compara
+        // contra PUBLIC y no contra un valor de "oculto" concreto porque solo
+        // se observó PUBLIC en vivo: cualquier otro estado lo tratamos como no
+        // visible, que es la lectura segura.
+        oculto: !!c.status && c.status !== 'PUBLIC',
         respuestas: c.replies ?? 0,
         // null = el dueño no ha respondido. String = ya respondió (desde acá o
         // desde la app de TikTok), y el worker lo marca como respondido.
@@ -347,18 +352,44 @@ const responderComentarioTikTokBiz = async (businessId, accessToken, videoId, co
 };
 
 /**
- * Oculta un comentario sin borrarlo — queda invisible para el público pero
- * sigue existiendo para su autor, que no se entera. Es la herramienta correcta
- * para un comentario tóxico: borrar es más agresivo y suele escalar el conflicto.
+ * Acciones de moderación sobre un comentario. Las tres comparten exactamente la
+ * misma forma de request, verificada contra la API real el 2026-08-06:
+ *
+ *   ruta                      acciones válidas
+ *   /business/comment/hide/   HIDE   · UNHIDE
+ *   /business/comment/pin/    PIN    · UNPIN
+ *   /business/comment/like/   LIKE   · UNLIKE
+ *
+ * ⚠️ `video_id` es OBLIGATORIO en las tres, aunque el comment_id ya identifique
+ * el comentario sin ambigüedad. Omitirlo da `40002 video_id: Missing data for
+ * required field` — la primera versión de este código lo omitía.
+ *
+ * Qué hace cada una, y por qué están las tres:
+ *  · ocultar — quita el comentario de la vista pública SIN borrarlo; su autor
+ *    lo sigue viendo y no se entera. Es la respuesta correcta a un comentario
+ *    tóxico: borrar es más agresivo y suele escalar el conflicto.
+ *  · fijar — sube la conversación que el negocio quiere que se lea primero.
+ *  · like — reconocer un comentario positivo sin escribir nada.
  */
-const ocultarComentarioTikTokBiz = async (businessId, accessToken, comentarioId, ocultar = true) => {
+const ACCIONES_MODERACION = {
+  ocultar:   { ruta: '/business/comment/hide/', si: 'HIDE', no: 'UNHIDE' },
+  fijar:     { ruta: '/business/comment/pin/',  si: 'PIN',  no: 'UNPIN' },
+  like:      { ruta: '/business/comment/like/', si: 'LIKE', no: 'UNLIKE' },
+};
+
+const moderarComentarioTikTokBiz = async (accion, businessId, accessToken, videoId, comentarioId, activar = true) => {
+  const cfg = ACCIONES_MODERACION[accion];
+  if (!cfg) return { error: `Acción de moderación desconocida: ${accion}` };
   if (!configurado()) return { error: 'TikTok no está configurado.' };
-  const r = await llamar('post', '/business/comment/hide/', {
+  if (!videoId) return { error: 'Falta el video de origen del comentario.' };
+
+  const r = await llamar('post', cfg.ruta, {
     accessToken,
     cuerpo: {
       business_id: businessId,
+      video_id: videoId,
       comment_id: String(comentarioId).replace(/^ttb_/, ''),
-      action: ocultar ? 'HIDE' : 'UNHIDE',
+      action: activar ? cfg.si : cfg.no,
     },
   });
   if (r.error) return { error: r.error };
@@ -374,6 +405,7 @@ module.exports = {
   obtenerComentariosTikTokBiz,
   obtenerRespuestaDelDueno,
   responderComentarioTikTokBiz,
-  ocultarComentarioTikTokBiz,
+  moderarComentarioTikTokBiz,
+  ACCIONES_MODERACION,
   configurado,
 };
