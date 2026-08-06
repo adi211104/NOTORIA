@@ -48,7 +48,7 @@ Vigilio/
 | PDF | PDFKit |
 | Auth | JWT + Google Sign-In (OAuth) |
 | Alertas | Email (Resend) + Telegram Bot |
-| Pagos | Culqi — **código implementado, pendiente de llaves** |
+| Pagos | Culqi — **operativo con llaves de TEST** (2026-08-05). Falta aprobación del comercio y rotar a live. Ver §2 |
 | Social | Instagram Graph API — pendiente de credenciales · **TikTok — perfil y videos funcionando en producción (2026-07-30)**, ver §15 y §15-quater. Los **comentarios NO están en la Display API** (§15-quinquies): solicitud enviada a la API for Business, en revisión (§15-sexies) |
 | Menciones | **Motor y panel completos (2026-07-29)**, ver §18. Sin fuente de datos: requiere un proveedor externo de pago (decisión de negocio). Hoy la sección no se muestra en el panel |
 | WhatsApp | **Meta WhatsApp Cloud API** — migración **hecha** (`src/lib/whatsappMeta.js`); Twilio eliminado. Falta la plantilla aprobada y las credenciales |
@@ -98,9 +98,10 @@ TIKTOK_REDIRECT_URI=                         # opcional — por defecto BACKEND_
 MENCIONES_PROVEEDOR=                         # sin decidir — proveedor de datos para menciones de TikTok. Ver §18
 MENCIONES_PROVEEDOR_API_KEY=                 # sin decidir
 MENCIONES_MAX_POR_TERMINO=                   # opcional — default 20. Techo de gasto por término y ciclo
-CULQI_PUBLIC_KEY=                            # pendiente — llave de Culqi
-CULQI_SECRET_KEY=                            # pendiente
+CULQI_PUBLIC_KEY=                            # cargada (test) en local y Railway — rotar a live tras la aprobación
+CULQI_SECRET_KEY=                            # cargada (test) en local y Railway — rotar a live tras la aprobación
 CULQI_WEBHOOK_SECRET=                        # opcional — protege /api/pagos/culqi/webhook
+EMAIL_RECLAMACIONES=                         # opcional — destino de los avisos del Libro de Reclamaciones (default hola@usenotoria.app)
 META_WHATSAPP_PHONE_NUMBER_ID=               # pendiente — WhatsApp Business Cloud API (mismo Meta App que Instagram)
 META_WHATSAPP_ACCESS_TOKEN=                  # pendiente — token permanente del System User de ese Meta App
 META_WHATSAPP_TEMPLATE=                      # nombre de la plantilla aprobada (default: notoria_alerta_urgente)
@@ -216,10 +217,45 @@ y reinicies el backend, empiezan a funcionar sin tocar código.
 | **TripAdvisor** (2026-07-06) | Solo base preparada a propósito — decisión de negocio de no activarlo hasta tener buena cantidad de clientes, no solo falta de API key | Ver subsección dedicada más abajo antes de continuar |
 | **Menciones (TikTok)** | Motor, panel y alertas listos; **falta la fuente de datos** | Decisión de negocio: contratar un proveedor externo (§18). No se resuelve escribiendo código — TikTok no expone búsqueda de videos ajenos a apps comerciales. **Comprobado el 2026-07-30:** `business/mention/list/` tampoco existe en la API for Business, así que esa vía queda descartada (§15-sexies). El candidato que queda es el permiso *Discovery Search* de TikTok Accounts, que exigiría una segunda solicitud con la función declarada. Mientras no haya proveedor, la sección no aparece en el panel |
 
-### 2. Culqi — integración de pagos (implementada, pendiente de llaves)
+### 2. Culqi — integración de pagos (ACTIVA con llaves de TEST desde 2026-08-05)
+
+> **Estado (2026-08-05):** las llaves **de prueba** están cargadas en local, en
+> Railway y en Vercel, y el circuito completo está verificado contra la API real
+> (`node scripts/prueba-culqi.js` → "Todo OK"). El comercio **todavía no está
+> aprobado por Culqi**, así que no hay llaves live.
+>
+> ⚠️ **Consecuencia mientras haya llaves de test en producción:** el botón "Pagar"
+> de https://usenotoria.app/precios acepta la tarjeta de prueba
+> `4111 1111 1111 1111` y **activa el plan sin cobrar dinero real**. Cualquiera
+> que llegue a /precios puede darse un plan de pago gratis. Es un riesgo asumido a
+> propósito para que Culqi pueda revisar el flujo; **rotar a llaves live apenas
+> aprueben el comercio** y revisar si alguien se activó un plan en el intermedio
+> (tabla `pagos`: los de prueba tienen `culqiCargoId` con prefijo `chr_test_`).
+
+**Bugs que aparecieron al cargar las llaves (2026-08-05).** Ninguno era visible
+sin llaves; los dos habrían roto el primer cobro real:
+- `culqi.crearCliente` mandaba `address: '-'` y Culqi **rechaza el customer**
+  (exige entre 5 y 100 caracteres, `parameter_error`). Toda alta de suscripción
+  habría fallado. Ahora usa `usuario.direccionFiscal` si existe.
+- `registrarPago` leía `cargo.source.card_number` / `source.iin.card_brand`. Esa
+  es la forma que devuelve Culqi al cobrar con un **token suelto**; cobrando con
+  **tarjeta guardada** (que es lo que hace este código) esos campos van un nivel
+  más abajo, en `cargo.source.source`. Resultado: `tarjetaInicio` y
+  `tarjetaMarca` se habrían guardado en `null` **en silencio**, dejando vacío el
+  historial de Facturación. Se extrajo a `culqi.datosTarjeta(cargo)`, que
+  contempla las dos formas; la usan el alta y el cron de renovación, que antes
+  duplicaban la lógica rota.
+- `prueba-culqi.js` no lo detectaba porque releía la ruta de campos por su
+  cuenta. Ahora verifica **a través de `datosTarjeta()`**, que es lo que corre en
+  producción. Lección: el script debe llamar al mismo código que producción, no
+  a una copia.
+- Dato de la API que conviene recordar: `description` del cargo también valida
+  longitud (**5 a 80 caracteres**).
 
 Flujo implementado:
-- Frontend: botón "Comenzar 7 días gratis" (plan Negocio) en `dashboard/planes/page.js` abre el widget de Checkout v4 de Culqi → genera `token`
+- Frontend: catálogo público `/precios` (`app/precios/page.js`) con botón "Pagar" que abre el widget de Checkout v4 → genera `token`. También desde `dashboard/planes/page.js` para quien ya tiene sesión
+- Sin sesión, `/precios` guarda la compra en `sessionStorage` y manda a `/login?next=/precios`; al volver retoma el pago solo. `AuthContext` valida que `next` sea ruta interna, para que `?next=` no sirva de redirección abierta
+- El plan **Franquicia ya se cobra con tarjeta** (antes su botón abría un `mailto:` y no se podía contratar online)
 - Backend: `POST /api/pagos/culqi` recibe el token, crea customer + tarjeta guardada en Culqi, cobra el primer periodo y actualiza `usuario.plan`/`suscripcionActiva`/`fechaVencimiento` (`brand-shield/src/lib/culqi.js`, `brand-shield/src/api/routes/pago.routes.js`)
 - Renovación mensual automática: cron diario `iniciarRenovacionesCulqi` en `monitoreo.worker.js` cobra a quienes vencen ese día usando la tarjeta guardada
 - Webhook: `POST /api/pagos/culqi/webhook` (sin auth de sesión, protegido con `CULQI_WEBHOOK_SECRET` opcional en la query) desactiva la suscripción ante reembolsos/contracargos
@@ -241,6 +277,75 @@ Flujo implementado:
 - ⚠️ Las llaves live cobran de verdad desde el primer intento: Culqi no tiene "modo prueba" dentro de las llaves live, el entorno lo decide el prefijo de la llave. El script aborta si detecta `sk_live_`.
 - **Promo de bienvenida (2026-07-06):** 50% de descuento los primeros 2 meses, solo facturación mensual, una vez por cuenta. Campos en `Usuario`: `periodoFacturacion` ("mensual"|"anual"), `promoBienvenidaUsada` (se marca en el primer cobro, no se puede reclamar de nuevo con la misma cuenta), `mesesPromoRestantes` (cuenta regresiva que consume el cron de renovación). Aplicado en `POST /api/pagos/culqi` y en `iniciarRenovacionesCulqi`; el frontend (`dashboard/planes/page.js`) replica el mismo cálculo solo para mostrar el monto correcto en el widget de Culqi antes de pagar — el monto real que se cobra siempre lo decide el backend.
 - **Bug corregido (2026-07-06):** el cron de renovación cobraba precio mensual a *todos* los usuarios activos, incluso a quienes se habían suscrito anual, convirtiéndolos silenciosamente a facturación mensual en su primer aniversario. Ahora lee `usuario.periodoFacturacion` y cobra el monto y plazo correctos.
+
+#### 2-bis. "Tu página web ha sido observada" — subsanado el 2026-08-05
+
+Culqi mandó un correo observando la web con dos motivos: **"Flujo de compra |
+Carrito de comprar | Botón pagar"** y **"Falta información legal"**. La causa
+real de la primera era que el único checkout vivía en `/dashboard/planes`,
+**detrás del login**: el revisor de Culqi abría usenotoria.app y no encontraba
+ningún precio comprable ni botón de pago.
+
+Los requisitos salen de la infografía oficial (`Infografía requisitos online.pdf`):
+información general (qué se vende, contacto con número/correo/dirección, redes
+que enlacen de verdad), información legal (términos, política de cambios y
+devoluciones, **Libro de Reclamaciones integrado en la web**, sin depender de
+formularios o enlaces externos tipo Google Drive), **mínimo 5 productos** con
+foto + descripción + precio visible, carrito o botón de comprar, y SSL en
+**todas** las URLs, no solo el inicio.
+
+Qué se creó para levantarla:
+- `/precios` — catálogo público. Son **5 ítems** (Gratuito, y Negocio y
+  Franquicia en sus dos modalidades de cobro), cada uno con ilustración propia,
+  descripción y precio visible. Se contaron así, en vez de inventar servicios
+  que no se prestan, porque cada modalidad es un cargo distinto y real. La
+  fuente de verdad es `brand-shield-web/src/lib/catalogo.js` y **sus precios
+  deben coincidir con `brand-shield/src/lib/precios.js`**, que es quien decide
+  el monto que se cobra de verdad.
+- `/libro-reclamaciones` — Libro de Reclamaciones **dentro de la web** (ver §2-ter).
+- `/devoluciones` — política de cambios y devoluciones (retracto de 7 días,
+  cancelación, prorrateo, plazos de reembolso).
+- `/contacto` — teléfono, WhatsApp, correo, dirección y datos de la empresa.
+- `components/PieLegal.js` — pie compartido con los datos de contacto y el
+  distintivo del Libro de Reclamaciones. **Es la fuente única de los datos de
+  contacto públicos** (`CONTACTO`); el landing también los importa de ahí.
+- Teléfono público: **+51 955 599 041** (el mismo del botón flotante de
+  WhatsApp, `NEXT_PUBLIC_WHATSAPP_VENTAS=51955599041`).
+
+⚠️ **El landing (`app/page.js`) renderiza su cuerpo en el cliente**: `curl` a
+https://usenotoria.app devuelve ~24KB con solo el JSON-LD y los scripts, sin
+footer ni enlaces legales. Es previo a este trabajo, no un bug introducido acá,
+y no afecta a un revisor humano (el navegador sí lo pinta). Pero **no sirve
+`curl | grep` para verificar cambios del landing** — hay que mirar los chunks de
+`/_next/static/chunks/` o abrirlo en un navegador. Las páginas nuevas
+(`/precios`, `/contacto`, …) sí son estáticas y se verifican con `curl`.
+
+**Pendiente del lado del usuario:** responder a culqi.com/soporte con el asunto
+`MI COMERCIO FUE OBSERVADO`, y entregarles **credenciales de una cuenta de
+prueba** — la infografía lo exige cuando el flujo de compra pide acceso, y el
+nuestro lo pide (hace falta cuenta para asociar la suscripción y emitir el
+comprobante).
+
+#### 2-ter. Libro de Reclamaciones (Ley 29571 · D.S. 101-2022-PCM)
+
+- Modelo `Reclamacion` en `schema.prisma` (tabla `reclamaciones`) y ruta pública
+  `POST /api/reclamaciones` (`api/routes/reclamacion.routes.js`), montada en
+  `index.js`. **Sin autenticación a propósito:** la norma no permite exigir
+  registro previo para reclamar. Lleva rate-limit propio (10/hora por IP).
+- Numeración **correlativa por año** (`2026-000001`). El `count`+`create` puede
+  chocar contra el `@unique` de `numero` con dos reclamos simultáneos, así que
+  reintenta con el siguiente correlativo; el índice único es la garantía real.
+- Al registrar se mandan dos correos (`utils/emails.js`):
+  `enviarCargoReclamacion` (la **constancia** al consumidor, obligatoria: repite
+  toda la hoja, no solo el número) y `enviarAvisoReclamacionInterno` a
+  `EMAIL_RECLAMACIONES` (default `hola@usenotoria.app`). Si Resend falla, la
+  reclamación **igual queda guardada** y se registra en el log.
+- Distingue **RECLAMO** (disconformidad con el servicio) de **QUEJA** (malestar
+  con la atención): son figuras distintas en la ley. Plazo de respuesta: **15
+  días hábiles**.
+- ⚠️ La tabla es un **registro legal** (hay que conservarlo 2 años). Verificado
+  el 2026-08-05 con 2 reclamaciones de prueba contra la BD de producción, y
+  **las dos filas se borraron después**. No dejar datos de prueba ahí.
 
 ### 3. TripAdvisor — solo base preparada, no activar todavía
 
@@ -993,9 +1098,37 @@ que devolvió "empty migration"). El cambio de default cosmético que figuraba a
 | `scripts/dar-plan.js <email> <PLAN>` | Cambia el plan de una cuenta a mano, sin pasar por Culqi. No crea `Pago` ni comprobante (la numeración es correlativa y no admite huecos) |
 | `scripts/prueba-publico.js` | Endpoint público del widget contra la Places API real (~6 llamadas de cuota). Valida búsqueda, análisis, caché y validación de entrada |
 | `scripts/set-culqi-keys.js <pk_test> <sk_test>` | Escribe las llaves de test en `brand-shield/.env` y `brand-shield-web/.env.local` de una vez, sin editar a mano. Rechaza llaves `live` (esas van en Railway/Vercel, no en archivos locales) y detecta si se pasaron al revés |
-| `scripts/prueba-culqi.js` | Circuito de cobro completo contra la API real de Culqi con llaves de **test**: token → customer → tarjeta guardada → cargo. Verifica los campos de los que depende el resto del código (`cargo.id`, `source.card_number`, `source.iin.card_brand`, `tarjeta.id`) y que el monto cobrado sea el de `precios.js`. **Se niega a correr con llaves `sk_live_`** salvo `--vivo` |
+| `scripts/prueba-culqi.js` | Circuito de cobro completo contra la API real de Culqi con llaves de **test**: token → customer → tarjeta guardada → cargo. Verifica los campos de los que depende el resto del código llamando a `culqi.datosTarjeta()` (el mismo código que corre en producción), más `cargo.id` y `tarjeta.id` y que el monto cobrado sea el de `precios.js`. **Se niega a correr con llaves `sk_live_`** salvo `--vivo` |
 | `scripts/prueba-drip.js` | 11 pruebas del drip con Prisma y Resend simulados: variantes por estado, avance de etapa, exclusiones, 1 etapa/día |
 | `scripts/prueba-whatsapp-meta.js` | 14 pruebas de `whatsappMeta.js` con axios interceptado, sin gastar credenciales |
 | `scripts/prueba-tiktok-comentarios.js` | 12 pruebas del circuito de comentarios de TikTok con axios interceptado: parseo, aislamiento del fallo de `comment.list`, `null` vs `[]`, sentimiento, dedupe y forma del request de respuesta. No llama a TikTok ni toca la BD |
 | `scripts/prueba-negocio-publico.js` | 10 pruebas del saneador que impide que los access tokens lleguen al navegador. **Correr siempre que se agregue un campo nuevo al modelo `Negocio`**: la prueba 9 avisa si es un secreto que nadie está quitando |
 | `marca/generar-logos.py` | Regenera los PNG del logo a 1024px |
+
+---
+
+## Sesión 2026-08-05 — Culqi operativo y observación de la web subsanada
+
+Culqi observó usenotoria.app ("Flujo de compra | Carrito de comprar | Botón
+pagar" + "Falta información legal"). Se cargaron las llaves de prueba, se
+arreglaron dos bugs de cobro que solo aparecieron al usarlas y se crearon las
+páginas que faltaban. Detalle completo en §2, §2-bis y §2-ter.
+
+**Desplegado y verificado en producción:**
+- Backend: Railway `a6882324` SUCCESS · `/health` 200 · `POST /api/reclamaciones`
+  responde con la validación esperada.
+- Frontend: Vercel `notoria-hnr95wvmx` READY. `/precios`, `/contacto`,
+  `/devoluciones` y `/libro-reclamaciones` devuelven **200 por HTTPS** (la
+  infografía exige SSL en todas las URLs, no solo el inicio). Los precios se ven
+  en el HTML y la llave `pk_test_` viaja en el bundle de `/precios`.
+- BD: tabla `reclamaciones` creada con `prisma db push` (cambio puramente
+  aditivo, verificado antes con `prisma migrate diff`).
+- Git: commit `681fb07` pusheado a `main`.
+
+**Lo que queda pendiente y es del usuario, no del código:**
+1. Escribir a culqi.com/soporte, asunto `MI COMERCIO FUE OBSERVADO`.
+2. Entregarles credenciales de una **cuenta de prueba** (el flujo de compra pide
+   sesión, y la infografía obliga a darlas en ese caso). Crear la cuenta y
+   dejarla en plan Gratuito para que puedan recorrer el pago entero.
+3. **Rotar a llaves live apenas aprueben** — ver la advertencia de §2 sobre lo
+   que implica tener llaves de test en producción.
