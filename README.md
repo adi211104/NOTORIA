@@ -235,8 +235,17 @@ scripts ya reintentan solos.
       en acceso avanzado, y Configuración creada:
       `META_LOGIN_CONFIG_ID=4655107931374707`, cargado en Railway y verificado
       dentro del contenedor. El diálogo de Facebook responde 200 nombrando la app
-- [ ] **Probar "Conectar Instagram"** en `/dashboard/conexiones` con una cuenta
-      profesional ligada a una página de Facebook
+- [x] **"Conectar Instagram" probado y funcionando** (06/08/2026)
+- [x] Resultado de la conexión visible en el panel: antes, quien no tenía la
+      cuenta vinculada a una página de Facebook autorizaba y volvía a una
+      pantalla que no decía nada. Ahora el aviso explica el caso y lleva los
+      pasos para vincularla
+- [ ] **Desplegar el frontend a Vercel** (`cd brand-shield-web && vercel --prod
+      --yes`) — el backend ya está desplegado; el aviso no se ve hasta que suba
+- [ ] ⚠️ **Límite conocido:** un negocio sin cuenta de Facebook no puede
+      conectar Instagram. Si llega a pesar, la salida es añadir el sabor
+      *Instagram Login* como segunda opción (aditivo, pero con su propio App
+      Review) — ver `CLAUDE.md` §19.8
 - [ ] Probar "Conectar Instagram" en `/dashboard/conexiones` con IG Business + página de FB
 - [ ] Crear cuenta de prueba del revisor (plan NEGOCIO vía `scripts/dar-plan.js`)
 - [ ] Grabar screencast y enviar el App Review (4 permisos: instagram_basic,
