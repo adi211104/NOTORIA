@@ -392,9 +392,10 @@ enum Plataforma {
   GOOGLE
   FACEBOOK
   TRIPADVISOR
-  // Solo se usa en Alerta (menciones). Resena y Snapshot nunca lo llevan: no hay
-  // rating ni conteo de reseñas del que tomar snapshot.
+  // Solo se usan en Alerta (comentarios y menciones). Resena y Snapshot nunca
+  // los llevan: no hay rating ni conteo de reseñas del que tomar snapshot.
   TIKTOK
+  INSTAGRAM
   // Huérfano a propósito: la fuente X/Twitter se eliminó del producto el
   // 2026-07-29 y ninguna fila usa este valor, pero el valor YA ESTÁ APLICADO en la
   // BD de producción. Borrarlo de un enum de Postgres no es un ALTER: obliga a

@@ -15,6 +15,7 @@ const tiktok = require('../../scrapers/tiktok.scraper');
 const { tokenTikTokVigente, estadoConexionTikTok } = require('../../lib/tiktokToken');
 const tiktokBiz = require('../../scrapers/tiktokBusiness.scraper');
 const { tokenTikTokBizVigente, estadoConexionTikTokBiz } = require('../../lib/tiktokBizToken');
+const instagram = require('../../scrapers/instagram.scraper');
 
 const router = express.Router();
 
@@ -257,40 +258,61 @@ router.post('/:id/responder', async (req, res, next) => {
       return res.status(409).json({ error: 'Este comentario ya fue respondido' });
     }
 
-    if (comentario.plataforma !== 'TIKTOK') {
+    // Cada red se responde distinto: TikTok exige el video_id además del
+    // comment_id y una conexión de tipo Accounts API; Instagram responde al
+    // comentario directamente con el token de la página. La comprobación de
+    // cada una vive en su rama, no antes, para no exigirle a una lo que solo
+    // necesita la otra.
+    let r;
+    if (comentario.plataforma === 'TIKTOK') {
+      // La API de TikTok exige el video_id además del comment_id. Los comentarios
+      // guardados sin publicacionId son de solo lectura — no se puede inventar.
+      if (!comentario.publicacionId) {
+        return res.status(422).json({
+          error: 'Este comentario no tiene el video de origen guardado, así que no se puede responder desde acá.',
+        });
+      }
+      // Renueva el token si venció. Si devuelve null la cuenta hay que reconectarla:
+      // mejor un 409 claro que un 502 con "access_token_invalid" de TikTok.
+      const conexion = await conexionTikTok(comentario.negocio);
+      if (!conexion.token) {
+        return res.status(409).json({
+          error: 'La conexión con TikTok expiró. Vuelve a conectar la cuenta desde Conexiones para poder responder.',
+        });
+      }
+      // Responder solo existe en la Accounts API. Si el negocio sigue con la
+      // conexión vieja de Display, la llamada fallaría con un 404 de TikTok; es
+      // más honesto pedirle que reconecte y decirle por qué.
+      if (conexion.modo !== 'biz') {
+        return res.status(409).json({
+          error: 'Para responder comentarios hay que reconectar TikTok desde Conexiones: la conexión actual es de solo lectura.',
+        });
+      }
+
+      r = await tiktokBiz.responderComentarioTikTokBiz(
+        conexion.businessId,
+        conexion.token,
+        comentario.publicacionId,
+        comentario.externalId,
+        respuesta,
+      );
+    } else if (comentario.plataforma === 'INSTAGRAM') {
+      // El token es el de la página de Facebook ligada a la cuenta de Instagram.
+      // Si el negocio desconectó, es un 409 con instrucción, no un 502 opaco.
+      if (!comentario.negocio.instagramAccessToken) {
+        return res.status(409).json({
+          error: 'La conexión con Instagram no está activa. Vuelve a conectar la cuenta desde Conexiones para poder responder.',
+        });
+      }
+      // El scraper quita solo el prefijo "ig_" con el que se guarda el id.
+      r = await instagram.responderComentarioInstagram(
+        comentario.externalId,
+        respuesta,
+        comentario.negocio.instagramAccessToken,
+      );
+    } else {
       return res.status(400).json({ error: `Responder en ${comentario.plataforma} todavía no está disponible` });
     }
-    // La API de TikTok exige el video_id además del comment_id. Los comentarios
-    // guardados sin publicacionId son de solo lectura — no se puede inventar.
-    if (!comentario.publicacionId) {
-      return res.status(422).json({
-        error: 'Este comentario no tiene el video de origen guardado, así que no se puede responder desde acá.',
-      });
-    }
-    // Renueva el token si venció. Si devuelve null la cuenta hay que reconectarla:
-    // mejor un 409 claro que un 502 con "access_token_invalid" de TikTok.
-    const conexion = await conexionTikTok(comentario.negocio);
-    if (!conexion.token) {
-      return res.status(409).json({
-        error: 'La conexión con TikTok expiró. Vuelve a conectar la cuenta desde Conexiones para poder responder.',
-      });
-    }
-    // Responder solo existe en la Accounts API. Si el negocio sigue con la
-    // conexión vieja de Display, la llamada fallaría con un 404 de TikTok; es
-    // más honesto pedirle que reconecte y decirle por qué.
-    if (conexion.modo !== 'biz') {
-      return res.status(409).json({
-        error: 'Para responder comentarios hay que reconectar TikTok desde Conexiones: la conexión actual es de solo lectura.',
-      });
-    }
-
-    const r = await tiktokBiz.responderComentarioTikTokBiz(
-      conexion.businessId,
-      conexion.token,
-      comentario.publicacionId,
-      comentario.externalId,
-      respuesta,
-    );
     // Solo se marca como respondida si la plataforma confirmó. Si guardáramos
     // igual, el panel diría "respondido" y en TikTok no habría nada.
     if (r.error) return res.status(502).json({ error: r.error });
@@ -334,18 +356,35 @@ router.delete('/:id/respuesta', async (req, res, next) => {
     // próximo escaneo — conviene decirlo en vez de dar un error opaco.
     if (!comentario.respuestaExternalId) {
       return res.status(422).json({
-        error: 'Esta respuesta se publicó antes de que guardáramos su identificador. Se podrá borrar tras el próximo escaneo, o puedes borrarla desde la app de TikTok.',
+        error: 'Esta respuesta se publicó antes de que guardáramos su identificador. Se podrá borrar tras el próximo escaneo, o puedes borrarla desde la app de la red social.',
       });
     }
 
-    const conexion = await conexionTikTok(comentario.negocio);
-    if (!conexion.token || conexion.modo !== 'biz') {
-      return res.status(409).json({ error: 'Para borrar respuestas hay que reconectar TikTok desde Conexiones.' });
+    // Igual que al responder: cada red tiene su propia forma de borrar y sus
+    // propias precondiciones. Sin esta rama, una respuesta de Instagram caía en
+    // el camino de TikTok y el usuario recibía "reconecta TikTok" hablando de
+    // Instagram.
+    let r;
+    if (comentario.plataforma === 'TIKTOK') {
+      const conexion = await conexionTikTok(comentario.negocio);
+      if (!conexion.token || conexion.modo !== 'biz') {
+        return res.status(409).json({ error: 'Para borrar respuestas hay que reconectar TikTok desde Conexiones.' });
+      }
+      r = await tiktokBiz.eliminarComentarioTikTokBiz(
+        conexion.businessId, conexion.token, comentario.respuestaExternalId,
+      );
+    } else if (comentario.plataforma === 'INSTAGRAM') {
+      if (!comentario.negocio.instagramAccessToken) {
+        return res.status(409).json({
+          error: 'La conexión con Instagram no está activa. Vuelve a conectar la cuenta desde Conexiones.',
+        });
+      }
+      r = await instagram.eliminarComentarioInstagram(
+        comentario.respuestaExternalId, comentario.negocio.instagramAccessToken,
+      );
+    } else {
+      return res.status(400).json({ error: `Borrar respuestas en ${comentario.plataforma} todavía no está disponible` });
     }
-
-    const r = await tiktokBiz.eliminarComentarioTikTokBiz(
-      conexion.businessId, conexion.token, comentario.respuestaExternalId,
-    );
     // Si TikTok no confirmó, no se limpia nada: el panel diría "sin responder"
     // mientras la respuesta sigue publicada.
     if (r.error) return res.status(502).json({ error: r.error });

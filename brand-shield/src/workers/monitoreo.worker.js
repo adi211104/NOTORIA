@@ -309,17 +309,20 @@ const tiktokComentarios = require('../scrapers/tiktok.scraper');
 const { tokenTikTokVigente } = require('../lib/tiktokToken');
 const tiktokBiz = require('../scrapers/tiktokBusiness.scraper');
 const { tokenTikTokBizVigente } = require('../lib/tiktokBizToken');
+const instagram = require('../scrapers/instagram.scraper');
 const { clasificar } = require('../nlp/sentimiento');
 
-// Una entrada por red. Instagram NO está acá a propósito: su API key sigue en
-// revisión de Meta (2026-07-29). Cuando la aprueben, sumar una línea con
-// instagram.scraper y su par de tokens — el resto del flujo no cambia.
-// ⚠️ Ojo al sumarlo: `Alerta.plataforma` es el enum Plataforma y hoy NO tiene
-// INSTAGRAM, así que hay que agregarlo al enum (+ db push) o la alerta falla.
+// Una entrada por red.
+//
+// `moderacionRemota` dice si la fuente informa el estado de ocultado/fijado tal
+// como está HOY en la plataforma. Solo TikTok lo hace. Sin esta distinción, una
+// fuente que no lo reporta pisaría esos campos en cada escaneo con valores que
+// no ha comprobado.
 const FUENTES_COMENTARIOS = [
   {
     id: 'TIKTOK',
     nombre: 'TikTok',
+    moderacionRemota: true,
     // Devuelve null si falta credencial o la cuenta no está conectada.
     // El token se renueva acá si venció (dura 24h): sin esto el escaneo llamaba
     // a TikTok con un token muerto y traía cero sin decir por qué.
@@ -359,6 +362,35 @@ const FUENTES_COMENTARIOS = [
       // la app y el panel tiene que reflejarlo.
       oculto: !!c.oculto,
       fijado: !!c.fijado,
+    }),
+  },
+  {
+    id: 'INSTAGRAM',
+    nombre: 'Instagram',
+    // La Graph API sí permite ocultar comentarios, pero el scraper no lee ese
+    // estado, así que Instagram no declara `moderacionRemota`: el panel tampoco
+    // ofrece moderar en esta red (comentario.routes.js lo corta con un 400).
+    obtener: async (negocio) => {
+      // null = cuenta sin conectar. El token es el de la PÁGINA de Facebook
+      // ligada a la cuenta de Instagram, que es lo que guarda el callback OAuth.
+      if (!negocio.instagramUserId || !negocio.instagramAccessToken) return null;
+      return instagram.obtenerComentariosInstagram(negocio.instagramUserId, negocio.instagramAccessToken);
+    },
+    // Instagram habla de publicacion/caption y TikTok de video/videoTitulo; el
+    // modelo usa un solo par de nombres.
+    aFila: (c) => ({
+      externalId: c.externalId,
+      texto: c.texto,
+      autorNombre: c.autorNombre,
+      publicacionId: c.publicacionId || null,
+      publicacionTitulo: c.publicacionCaption || null,
+      fechaComentario: c.fechaComentario || null,
+      // El scraper pide `comments{...}` de cada media, que no distingue si una
+      // respuesta es del dueño. Todo entra como pendiente; el día que se lean
+      // los hilos, esto se rellena igual que en TikTok.
+      respondida: false,
+      respuesta: null,
+      respuestaExternalId: null,
     }),
   },
 ];
@@ -406,10 +438,14 @@ const procesarComentariosSociales = async (negocio) => {
             cambios.respuestaExternalId = fila.respuestaExternalId;
           }
           // La moderación sí se sincroniza en AMBAS direcciones, al revés que
-          // `respondida`: acá TikTok es la fuente de verdad y desocultar en la
-          // app debe reflejarse en el panel. No hay nada del usuario que pisar.
-          if (fila.oculto !== existente.oculto) cambios.oculto = fila.oculto;
-          if (fila.fijado !== existente.fijado) cambios.fijado = fila.fijado;
+          // `respondida`: acá la plataforma es la fuente de verdad y desocultar
+          // en la app debe reflejarse en el panel. No hay nada del usuario que
+          // pisar. Solo para fuentes que informan ese estado: si no lo leen, no
+          // pueden desmentirlo.
+          if (fuente.moderacionRemota) {
+            if (fila.oculto !== existente.oculto) cambios.oculto = fila.oculto;
+            if (fila.fijado !== existente.fijado) cambios.fijado = fila.fijado;
+          }
 
           if (Object.keys(cambios).length) {
             await prisma.comentarioSocial.update({ where: { id: existente.id }, data: cambios });
@@ -822,4 +858,8 @@ module.exports = {
   iniciarRenovacionesCulqi, iniciarEscalacionUrgencias, revisarEscalacionesUrgentes,
   iniciarAvisoReclamaciones, revisarPlazosReclamaciones,
   procesarMenciones, procesarComentariosSociales,
+  // Se exporta para que las pruebas comprueben el contrato entre cada scraper y
+  // el worker: si un scraper renombra un campo, `aFila` deja de mapearlo y el
+  // comentario se guardaría a medias sin que nada falle.
+  FUENTES_COMENTARIOS,
 };

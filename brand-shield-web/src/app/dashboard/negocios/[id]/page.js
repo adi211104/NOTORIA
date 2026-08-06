@@ -1919,7 +1919,7 @@ export default function DetallePage() {
                           <span style={{ color:'var(--text)', fontSize:13.5, fontWeight:600 }}>{c.autorNombre || '—'}</span>
                           <span style={{ fontSize:11, color:'var(--text-3)', background:'var(--surface2)',
                                          border:'1px solid var(--border-c)', padding:'2px 8px', borderRadius:9 }}>
-                            {c.plataforma === 'TIKTOK' ? 'TikTok' : c.plataforma}
+                            {({ TIKTOK:'TikTok', INSTAGRAM:'Instagram' })[c.plataforma] || c.plataforma}
                           </span>
                           <span style={{ fontSize:11, color:tono.c, background:tono.bg,
                                          border:`1px solid ${tono.bd}`, padding:'2px 8px', borderRadius:9 }}>

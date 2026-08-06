@@ -62,4 +62,24 @@ const responderComentarioInstagram = async (comentarioId, mensaje, accessToken) 
   }
 };
 
-module.exports = { obtenerComentariosInstagram, responderComentarioInstagram, configurado };
+/**
+ * Borra un comentario por id. Solo se usa para retirar RESPUESTAS PROPIAS y
+ * poder reescribirlas — nunca para borrar el comentario de un cliente, que es
+ * irreversible y suele escalar el conflicto (misma regla que en TikTok).
+ */
+const eliminarComentarioInstagram = async (comentarioId, accessToken) => {
+  if (!configurado()) return { error: 'Instagram no está configurado.' };
+  try {
+    await axios.delete(`${GRAPH_URL}/${String(comentarioId).replace(/^ig_/, '')}`, {
+      params: { access_token: accessToken },
+    });
+    return { ok: true };
+  } catch (error) {
+    return { error: error.response?.data?.error?.message || error.message };
+  }
+};
+
+module.exports = {
+  obtenerComentariosInstagram, responderComentarioInstagram,
+  eliminarComentarioInstagram, configurado,
+};
