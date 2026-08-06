@@ -348,6 +348,11 @@ const FUENTES_COMENTARIOS = [
       publicacionId: c.videoId || null,
       publicacionTitulo: c.videoTitulo || null,
       fechaComentario: c.fechaComentario || null,
+      // El dueño puede haber respondido desde la app de TikTok, sin pasar por
+      // Notoria. Si es así entra ya marcado como respondido, en vez de quedarse
+      // eternamente en la cola de pendientes.
+      respondida: !!c.respuestaDueno,
+      respuesta: c.respuestaDueno || null,
     }),
   },
 ];
@@ -374,9 +379,24 @@ const procesarComentariosSociales = async (negocio) => {
         const existente = await prisma.comentarioSocial.findUnique({
           where: { externalId: fila.externalId },
         });
-        // No se toca lo ya guardado: pisar la fila borraría la respuesta que el
-        // usuario ya escribió y el flag de vista.
-        if (existente) continue;
+        // No se pisa lo ya guardado: sobrescribir la fila borraría la respuesta
+        // que el usuario ya escribió y el flag de vista.
+        //
+        // Única excepción: si el comentario figura como pendiente pero TikTok
+        // dice que el dueño YA respondió (lo hizo desde la app, no desde acá),
+        // se sincroniza ese hecho. Se tocan solo esos dos campos, y solo en esa
+        // dirección — nunca se desmarca algo ya respondido, porque una lectura
+        // fallida de TikTok reabriría comentarios cerrados.
+        if (existente) {
+          if (!existente.respondida && fila.respondida) {
+            await prisma.comentarioSocial.update({
+              where: { id: existente.id },
+              data: { respondida: true, respuesta: fila.respuesta },
+            });
+            console.log(`[Comentarios ${fuente.id}] ${negocio.nombre}: uno ya respondido en la app, sincronizado.`);
+          }
+          continue;
+        }
 
         const sentimiento = clasificar(fila.texto);
         const comentario = await prisma.comentarioSocial.create({
@@ -384,7 +404,12 @@ const procesarComentariosSociales = async (negocio) => {
         });
         nuevos++;
 
-        if (sentimiento === 'negativo') {
+        // Un comentario negativo que el dueño YA respondió por su cuenta no
+        // necesita alerta: la alerta existe para que reaccione, y ya reaccionó.
+        // Mandarla igual sería avisarle por correo y WhatsApp de algo que acaba
+        // de resolver, que es la clase de ruido que hace que la gente empiece a
+        // ignorar las notificaciones.
+        if (sentimiento === 'negativo' && !fila.respondida) {
           const alerta = await prisma.alerta.create({
             data: {
               tipo: 'COMENTARIO_NEGATIVO',

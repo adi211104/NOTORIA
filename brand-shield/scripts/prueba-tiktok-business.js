@@ -180,6 +180,47 @@ const COMENTARIOS = [
     assert.deepStrictEqual(c, [], 'un fallo por video no debe tumbar el lote entero');
   });
 
+  console.log('\nDetección de respuestas hechas fuera de Notoria');
+
+  await prueba('marca la respuesta del dueño hecha desde la app de TikTok', async () => {
+    respuestasFalsas = {
+      '/business/video/list/': { code: 0, data: { videos: [VIDEO] } },
+      '/business/comment/list/': { code: 0, data: { comments: [COMENTARIOS[0]] } },
+      '/business/comment/reply/list/': {
+        code: 0,
+        data: { comments: [{ comment_id: 'r1', text: '¡Gracias!', owner: true }] },
+      },
+    };
+    const [c] = await tk.obtenerComentariosTikTokBiz('biz1', 'tok');
+    assert.strictEqual(c.respuestaDueno, '¡Gracias!', 'sin esto el comentario queda pendiente para siempre');
+  });
+
+  await prueba('respuestas de OTROS usuarios no cuentan como respondido', async () => {
+    respuestasFalsas = {
+      '/business/video/list/': { code: 0, data: { videos: [VIDEO] } },
+      '/business/comment/list/': { code: 0, data: { comments: [COMENTARIOS[0]] } },
+      // `replies` cuenta las de cualquiera, así que el hilo puede tener
+      // respuestas sin que el negocio haya contestado.
+      '/business/comment/reply/list/': {
+        code: 0,
+        data: { comments: [{ comment_id: 'r1', text: 'yo opino igual', owner: false }] },
+      },
+    };
+    const [c] = await tk.obtenerComentariosTikTokBiz('biz1', 'tok');
+    assert.strictEqual(c.respuestaDueno, null, 'solo el dueño cierra el pendiente');
+  });
+
+  await prueba('sin respuestas no se pide el hilo', async () => {
+    respuestasFalsas = {
+      '/business/video/list/': { code: 0, data: { videos: [VIDEO] } },
+      '/business/comment/list/': { code: 0, data: { comments: [{ ...COMENTARIOS[1], replies: 0 }] } },
+    };
+    const [c] = await tk.obtenerComentariosTikTokBiz('biz1', 'tok');
+    assert.strictEqual(c.respuestaDueno, null);
+    assert.ok(!requests.some((r) => r.url.includes('/reply/list/')),
+      'una llamada extra por comentario sin respuestas sería puro desperdicio');
+  });
+
   console.log('\nRespuesta y moderación');
 
   await prueba('quita el prefijo ttb_ antes de hablar con TikTok', async () => {

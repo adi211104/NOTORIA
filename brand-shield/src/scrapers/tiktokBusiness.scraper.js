@@ -268,6 +268,13 @@ const obtenerComentariosTikTokBiz = async (businessId, accessToken, limiteVideos
       // respuestas. Guardarlos los metería en la cola de "por responder" y
       // dispararía alertas por lo que el dueño escribió él mismo.
       if (c.owner) continue;
+
+      // Solo se pide el hilo cuando hay respuestas: es una llamada extra por
+      // comentario y la inmensa mayoría no tiene ninguna.
+      const respuestaDueno = c.replies > 0
+        ? await obtenerRespuestaDelDueno(businessId, accessToken, video.id, c.comment_id)
+        : null;
+
       comentarios.push({
         // El prefijo evita colisiones de id entre plataformas en `externalId`,
         // que es único a nivel de tabla.
@@ -281,12 +288,43 @@ const obtenerComentariosTikTokBiz = async (businessId, accessToken, limiteVideos
         likes: c.likes ?? 0,
         fijado: !!c.pinned,
         respuestas: c.replies ?? 0,
+        // null = el dueño no ha respondido. String = ya respondió (desde acá o
+        // desde la app de TikTok), y el worker lo marca como respondido.
+        respuestaDueno,
       });
     }
   }
 
   if (fallos) console.warn(`[TikTok Biz] ${fallos} video(s) sin comentarios accesibles de ${videos.length}.`);
   return comentarios;
+};
+
+/**
+ * ¿El dueño de la cuenta ya respondió este comentario? Devuelve el texto de su
+ * respuesta, o null si no respondió (o no se pudo comprobar).
+ *
+ * Por qué importa: el dueño puede responder desde la app de TikTok, y sin esto
+ * Notoria seguiría mostrando el comentario como pendiente para siempre. Como la
+ * métrica que vende el producto es el tiempo de respuesta, un pendiente falso
+ * ensucia justo el dato que el cliente mira.
+ *
+ * `replies` cuenta TODAS las respuestas, vengan de quien vengan, así que no
+ * alcanza con mirar ese número: hay que pedir el hilo y buscar `owner: true`.
+ * Verificado contra la API real el 2026-08-06.
+ */
+const obtenerRespuestaDelDueno = async (businessId, accessToken, videoId, comentarioId) => {
+  const r = await llamar('get', '/business/comment/reply/list/', {
+    accessToken,
+    params: {
+      business_id: businessId,
+      video_id: videoId,
+      comment_id: String(comentarioId).replace(/^ttb_/, ''),
+      max_count: 30,
+    },
+  });
+  if (r.error) return null;
+  const propia = (r.datos?.comments || []).find((c) => c.owner);
+  return propia ? propia.text : null;
 };
 
 /**
@@ -334,6 +372,7 @@ module.exports = {
   obtenerPerfilTikTokBiz,
   obtenerVideosTikTokBiz,
   obtenerComentariosTikTokBiz,
+  obtenerRespuestaDelDueno,
   responderComentarioTikTokBiz,
   ocultarComentarioTikTokBiz,
   configurado,
