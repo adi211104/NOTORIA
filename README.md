@@ -228,15 +228,15 @@ scripts ya reintentan solos.
       soporte de `config_id` ya desplegado (Railway `4ebfdbc3`)
 - [ ] **Rotar `META_APP_SECRET`** (se compartió por chat) y volver a cargarlo en
       Railway — si se rota sin actualizar, el OAuth falla con un error genérico
-- [ ] Completar Configuración → Básica: dominios, privacidad, condiciones,
-      eliminación de datos e ícono. ⚠️ Meta deja `https://www.facebook.com/` de
-      relleno en dos campos y **el App Review rechaza con eso puesto**
-- [ ] Añadir el producto **Facebook Login for Business** + redirect URI
-      `https://api.usenotoria.app/api/redes/instagram/callback`, y crear la
-      Configuración con los 4 permisos → `META_LOGIN_CONFIG_ID` en Railway.
-      ⚠️ **No usar la pantalla "API con inicio de sesión de empresa de
-      Instagram"**: es el otro sabor de la API y el backend no sabe consumirlo
-      (detalle en `CLAUDE.md` §19)
+- [x] Configuración → Básica completa (dominios, privacidad, condiciones,
+      eliminación de datos, ícono) y formulario de tratamiento de datos
+- [x] Producto **Facebook Login for Business** con el redirect URI
+      `https://api.usenotoria.app/api/redes/instagram/callback`, `public_profile`
+      en acceso avanzado, y Configuración creada:
+      `META_LOGIN_CONFIG_ID=4655107931374707`, cargado en Railway y verificado
+      dentro del contenedor. El diálogo de Facebook responde 200 nombrando la app
+- [ ] **Probar "Conectar Instagram"** en `/dashboard/conexiones` con una cuenta
+      profesional ligada a una página de Facebook
 - [ ] Probar "Conectar Instagram" en `/dashboard/conexiones` con IG Business + página de FB
 - [ ] Crear cuenta de prueba del revisor (plan NEGOCIO vía `scripts/dar-plan.js`)
 - [ ] Grabar screencast y enviar el App Review (4 permisos: instagram_basic,
