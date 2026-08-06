@@ -102,6 +102,7 @@ CULQI_PUBLIC_KEY=                            # cargada (test) en local y Railway
 CULQI_SECRET_KEY=                            # cargada (test) en local y Railway — rotar a live tras la aprobación
 CULQI_WEBHOOK_SECRET=                        # opcional — protege /api/pagos/culqi/webhook
 EMAIL_RECLAMACIONES=                         # opcional — destino de los avisos del Libro de Reclamaciones (default hola@usenotoria.app)
+PROMO_HASH_SECRET=                           # opcional — HMAC de la huella de tarjeta de la promo (default: JWT_SECRET). NO rotar sin vaciar promo_tarjetas
 META_WHATSAPP_PHONE_NUMBER_ID=               # pendiente — WhatsApp Business Cloud API (mismo Meta App que Instagram)
 META_WHATSAPP_ACCESS_TOKEN=                  # pendiente — token permanente del System User de ese Meta App
 META_WHATSAPP_TEMPLATE=                      # nombre de la plantilla aprobada (default: notoria_alerta_urgente)
@@ -275,7 +276,15 @@ Flujo implementado:
   ```
   Detalles comprobados: `--stdin` **recorta el salto de línea** que agrega `echo`, así que la llave no queda con `\n` (probado con una variable desechable). Cada `variable set` dispara un redeploy salvo `--skip-deploys` — por eso solo el último va sin la bandera. **`variable delete` NO admite `--skip-deploys`**, siempre redespliega. Y agregar la variable en Vercel no basta: sin un `vercel --prod` nuevo el bundle sigue con el valor viejo.
 - ⚠️ Las llaves live cobran de verdad desde el primer intento: Culqi no tiene "modo prueba" dentro de las llaves live, el entorno lo decide el prefijo de la llave. El script aborta si detecta `sk_live_`.
-- **Promo de bienvenida (2026-07-06):** 50% de descuento los primeros 2 meses, solo facturación mensual, una vez por cuenta. Campos en `Usuario`: `periodoFacturacion` ("mensual"|"anual"), `promoBienvenidaUsada` (se marca en el primer cobro, no se puede reclamar de nuevo con la misma cuenta), `mesesPromoRestantes` (cuenta regresiva que consume el cron de renovación). Aplicado en `POST /api/pagos/culqi` y en `iniciarRenovacionesCulqi`; el frontend (`dashboard/planes/page.js`) replica el mismo cálculo solo para mostrar el monto correcto en el widget de Culqi antes de pagar — el monto real que se cobra siempre lo decide el backend.
+- **Promo de bienvenida (2026-07-06, reforzada y anunciada el 2026-08-05):** 50% de descuento los primeros 2 meses, solo facturación mensual, **una vez por cuenta y una vez por tarjeta**. Campos en `Usuario`: `periodoFacturacion` ("mensual"|"anual"), `promoBienvenidaUsada`, `mesesPromoRestantes` (cuenta regresiva que consume el cron de renovación). Aplicado en `POST /api/pagos/culqi` y en `iniciarRenovacionesCulqi`; el frontend replica el cálculo solo para mostrar el importe correcto antes de pagar — **el monto real siempre lo decide el backend**.
+  - **Límite por tarjeta (tabla `promo_tarjetas`, modelo `PromoTarjeta`).** El flag por cuenta solo impedía repetirla con el mismo correo: registrar otro bastaba para reclamar el descuento indefinidamente. Ahora se guarda `culqi.huellaTarjeta()` = **HMAC-SHA256 de `BIN|últimos4`** (nunca el número; son los únicos datos de tarjeta que Culqi devuelve y que se pueden almacenar). Secreto: `PROMO_HASH_SECRET`, con `JWT_SECRET` de reserva.
+  - ⚠️ **`PROMO_HASH_SECRET` no se puede rotar sin vaciar `promo_tarjetas`**: al cambiarlo ninguna huella anterior vuelve a coincidir y la promo se podría reclamar de nuevo con las mismas tarjetas.
+  - ⚠️ Colisión conocida: dos tarjetas distintas con el mismo BIN y los mismos 4 últimos dígitos comparten huella. Es poco probable y el efecto es un **falso negativo** (al segundo cliente no se le aplica el descuento), nunca un cobro incorrecto.
+  - **Orden que importa:** la decisión se toma **después de `crearTarjeta` y antes de `crearCargo`** — antes no se conoce la huella, y después ya no se puede cambiar el importe.
+  - **Si la cuenta puede pero la tarjeta ya la gastó → 409 `PROMO_NO_APLICA` y NO se cobra.** El widget ya le había mostrado al usuario el importe con descuento; cobrarle el precio de lista sería cobrarle algo distinto de lo que aceptó. El frontend avisa, apaga el descuento y reintenta con **`sinPromo: true`** en el body, que es lo que evita que esa tarjeta quede recibiendo 409 para siempre. **Si se toca esta ruta, no romper ese escape.**
+  - **Bug corregido el 2026-08-05:** el frontend redondeaba el 50% en **soles** (`Math.round(59/2)` = 30) y el backend en **céntimos** (`Math.round(5900/2)` = 2950): el widget decía **S/30.00** y se cobraba **S/29.50**. Centralizado en `montoEnCentimos()` (`brand-shield-web/src/lib/catalogo.js`), que ambas páginas usan. Regla: **cualquier importe que se muestre antes de pagar se calcula en céntimos con el mismo redondeo que el backend.**
+  - **Se anuncia** con `components/BannerPromo.js`, encima de los planes en `/precios` y en `dashboard/planes`. Se le muestra también al **visitante sin sesión** (es el público de la promo) y por eso `/precios` publica el precio con descuento a los anónimos; desaparece para quien ya la usó. Antes el descuento no se comunicaba en ningún sitio: el cliente se enteraba al abrir la ventana de pago.
+  - Pruebas: **`node scripts/prueba-promo.js`** — 5 casos con Culqi y Prisma simulados, incluido el de abuso. No cobra ni consume numeración de comprobantes (la serie es correlativa y no admite huecos), por eso esto **no** se prueba pagando de verdad en producción.
 - **Bug corregido (2026-07-06):** el cron de renovación cobraba precio mensual a *todos* los usuarios activos, incluso a quienes se habían suscrito anual, convirtiéndolos silenciosamente a facturación mensual en su primer aniversario. Ahora lee `usuario.periodoFacturacion` y cobra el monto y plazo correctos.
 
 #### 2-bis. "Tu página web ha sido observada" — subsanado el 2026-08-05
@@ -1099,6 +1108,7 @@ que devolvió "empty migration"). El cambio de default cosmético que figuraba a
 | `scripts/prueba-publico.js` | Endpoint público del widget contra la Places API real (~6 llamadas de cuota). Valida búsqueda, análisis, caché y validación de entrada |
 | `scripts/set-culqi-keys.js <pk_test> <sk_test>` | Escribe las llaves de test en `brand-shield/.env` y `brand-shield-web/.env.local` de una vez, sin editar a mano. Rechaza llaves `live` (esas van en Railway/Vercel, no en archivos locales) y detecta si se pasaron al revés |
 | `scripts/prueba-culqi.js` | Circuito de cobro completo contra la API real de Culqi con llaves de **test**: token → customer → tarjeta guardada → cargo. Verifica los campos de los que depende el resto del código llamando a `culqi.datosTarjeta()` (el mismo código que corre en producción), más `cargo.id` y `tarjeta.id` y que el monto cobrado sea el de `precios.js`. **Se niega a correr con llaves `sk_live_`** salvo `--vivo` |
+| `scripts/prueba-promo.js` | 5 pruebas de la promo de bienvenida con Culqi y Prisma simulados: aplica el descuento, lo bloquea si la tarjeta ya lo usó (409 `PROMO_NO_APLICA` sin cobrar), el reintento con `sinPromo`, y que el plan anual no la consuma. No cobra ni gasta numeración de comprobantes |
 | `scripts/prueba-drip.js` | 11 pruebas del drip con Prisma y Resend simulados: variantes por estado, avance de etapa, exclusiones, 1 etapa/día |
 | `scripts/prueba-whatsapp-meta.js` | 14 pruebas de `whatsappMeta.js` con axios interceptado, sin gastar credenciales |
 | `scripts/prueba-tiktok-comentarios.js` | 12 pruebas del circuito de comentarios de TikTok con axios interceptado: parseo, aislamiento del fallo de `comment.list`, `null` vs `[]`, sentimiento, dedupe y forma del request de respuesta. No llama a TikTok ni toca la BD |
@@ -1132,3 +1142,21 @@ páginas que faltaban. Detalle completo en §2, §2-bis y §2-ter.
    dejarla en plan Gratuito para que puedan recorrer el pago entero.
 3. **Rotar a llaves live apenas aprueben** — ver la advertencia de §2 sobre lo
    que implica tener llaves de test en producción.
+
+### Cierre 2026-08-05 (tarde) — promo anunciada y blindada
+
+El usuario notó que el widget de Culqi cobraba S/30 en vez de S/59 y preguntó
+por qué. Eran dos cosas: la promo de bienvenida (intencional, pero **no se
+anunciaba en ninguna parte** — se enteraba al abrir la ventana de pago) y un
+bug de redondeo real (mostraba S/30.00, cobraba S/29.50). Ver §2, "Promo de
+bienvenida", para el detalle completo.
+
+Decisión del usuario: **mantener la promo**, anunciarla con un cartel visible
+encima de los planes, y limitarla de forma que no se pueda explotar — de ahí el
+límite por tarjeta además del límite por cuenta.
+
+Desplegado y verificado: Railway "Deploy complete" + `/health` 200; Vercel
+`notoria-g9b7ox51o` READY. En https://usenotoria.app/precios se ve el cartel y
+los importes con descuento (S/29.50 y S/89.50). `prueba-promo.js` y
+`prueba-culqi.js` en verde. Tabla `promo_tarjetas` creada con `db push`
+(aditivo, verificado antes con `migrate diff`). Commits `5effd41` y `49718b4`.
