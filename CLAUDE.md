@@ -532,6 +532,30 @@ res.json(negociosPublicos(negocios));   // lista
 
 El patrón a replicar si algún día otra ruta devuelve un negocio: `comentario.routes.js` ya lo hacía bien — expone `conexiones.tiktok` con nombre/avatar/username y nunca el token.
 
+### ✅ El clasificador de sentimiento daba POSITIVO a quejas — RESUELTO el 2026-08-06
+
+Encontrado con el primer comentario real de TikTok. `"no me gusta"` salía
+**neutro** (no estaba en el diccionario) y, peor, **`"no me encanta"` salía
+POSITIVO**: el matcher busca subcadenas y `'me encanta'` está en las positivas.
+Un cliente molesto quedaba archivado como elogio y sin alerta — el peor error
+posible para este producto. Lo mismo con `"no recomiendo"`, porque la lista solo
+tenía `'no lo recomiendo'`.
+
+Arreglo en `src/nlp/sentimiento.js`: una palabra positiva solo cuenta si no hay
+un negador (`no`, `nunca`, `jamás`, `ni`, `tampoco`, `nada`) en las **3 palabras
+previas**, y si lo hay el texto pasa a **negativo**, no a neutro. La ventana de 3
+es a propósito: más amplia empieza a tragarse frases anteriores y convierte
+`"no había cola, el servicio es excelente"` en una queja.
+
+Se sumaron el disgusto llano sin tildes y las construcciones con el adjetivo
+separado del sustantivo (`"la atención fue mala"` no casaba con `'mala atención'`).
+**`'mala'` suelta NO se lista** a propósito: rompería `"no está mala"`, que en
+Perú es elogio. Los comentarios ya guardados se reclasificaron.
+
+**Lección aplicable al resto del diccionario:** cualquier lista por subcadenas
+tiene este problema con la negación. Si algún día se agregan más idiomas o más
+palabras, la negación hay que respetarla, no parchear frase por frase.
+
 ### 🔴 Bugs ABIERTOS en producción
 
 Ninguno conocido a la fecha (2026-07-29).
