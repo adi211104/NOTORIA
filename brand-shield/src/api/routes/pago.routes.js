@@ -200,8 +200,17 @@ router.post('/culqi', async (req, res) => {
       comprobante: comprobante ? { tipo: comprobante.tipo, numero: comprobante.numero } : null,
     });
   } catch (error) {
-    const msg = error.response?.data?.user_message || error.response?.data?.merchant_message || error.message;
-    console.error('[Culqi] Error al procesar el pago:', msg);
+    // Al usuario se le enseña `user_message` (redactado para él); al log va
+    // ADEMÁS `merchant_message` y el campo que falló, que es lo único que
+    // permite diagnosticar. Antes solo se registraba el mensaje de cara al
+    // usuario ("Hubo algunos problemas al intentar validar tu compra"), que no
+    // dice nada: hubo que reproducir el fallo contra la API para descubrir que
+    // Culqi rechazaba el `last_name`.
+    const datos = error.response?.data;
+    const msg = datos?.user_message || datos?.merchant_message || error.message;
+    console.error('[Culqi] Error al procesar el pago:', msg,
+      datos?.merchant_message ? `| motivo: ${datos.merchant_message}` : '',
+      datos?.param ? `| campo: ${datos.param}` : '');
     res.status(400).json({ error: msg || 'No se pudo procesar el pago' });
   }
 });

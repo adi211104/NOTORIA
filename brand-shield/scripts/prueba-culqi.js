@@ -107,6 +107,20 @@ const motivo = (e) =>
       mal('La segunda alta con el mismo correo falló:', e.response?.data?.merchant_message || e.message);
     }
 
+    // Nombres que Culqi rechazaba y dejaban al cliente sin poder pagar.
+    // Registrarse con una sola palabra es lo más normal del mundo y hacía
+    // fallar el alta entera con un mensaje genérico.
+    for (const nombre of ['giorrnell', 'Ana', '  Luis  ']) {
+      try {
+        const c = await culqi.crearCliente({ email: `n${Date.now()}${Math.floor(Math.random() * 1e6)}@notoria.test`, nombre });
+        if (!c.id) mal(`El alta con nombre "${nombre}" vino sin id`);
+        else ok(`Nombre sin apellido ("${nombre.trim()}") no rompe el alta`);
+      } catch (e) {
+        const d = e.response?.data;
+        mal(`El alta con nombre "${nombre.trim()}" falló [campo ${d?.param}]:`, d?.merchant_message || e.message);
+      }
+    }
+
     // ── 4. Tarjeta guardada ────────────────────────────────
     // Es la pieza de la que depende la renovación mensual: su id se guarda en
     // Usuario.suscripcionId y el cron la vuelve a cobrar cada periodo.

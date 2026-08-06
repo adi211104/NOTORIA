@@ -24,14 +24,25 @@ const cliente = () =>
 // y rechaza el cargo entero con parameter_error si no. El "-" que había acá antes
 // hacía fallar toda alta de suscripción. No pedimos dirección al suscribirse, así
 // que se usa la fiscal cuando el usuario ya la cargó y un texto válido si no.
+// Culqi valida TODOS estos campos y devuelve `parameter_error` si no le gustan.
+// Los "-" que había aquí como relleno hacían fallar el alta entera:
+//   • `address: '-'` → exige entre 5 y 100 caracteres.
+//   • `last_name: '-'` → lo rechaza por inválido. Le pasaba a cualquiera
+//     registrado con un nombre de UNA SOLA palabra ("giorrnell"), que es
+//     completamente normal: se quedaba sin poder pagar y con un mensaje
+//     genérico que no explicaba nada.
+// Regla: no mandar rellenos de un carácter. Si falta el dato, un texto legible.
 const DIRECCION_POR_DEFECTO = 'Direccion no especificada';
+const APELLIDO_POR_DEFECTO = 'No indicado';
 
 const crearCliente = async ({ email, nombre, telefono = '999999999', direccion, ciudad }) => {
-  const [first, ...resto] = nombre.split(' ');
+  const partes = (nombre || '').trim().split(/\s+/).filter(Boolean);
+  const first = partes[0] || 'Cliente';
+  const apellido = partes.slice(1).join(' ');
   const dir = (direccion || '').trim();
   const { data } = await cliente().post('/customers', {
-    first_name: first || nombre,
-    last_name: resto.join(' ') || '-',
+    first_name: first.slice(0, 50),
+    last_name: (apellido || APELLIDO_POR_DEFECTO).slice(0, 50),
     email,
     address: dir.length >= 5 ? dir.slice(0, 100) : DIRECCION_POR_DEFECTO,
     address_city: (ciudad || '').trim() || 'Lima',
