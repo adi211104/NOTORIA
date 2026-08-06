@@ -1108,6 +1108,7 @@ que devolvió "empty migration"). El cambio de default cosmético que figuraba a
 | `scripts/prueba-publico.js` | Endpoint público del widget contra la Places API real (~6 llamadas de cuota). Valida búsqueda, análisis, caché y validación de entrada |
 | `scripts/set-culqi-keys.js <pk_test> <sk_test>` | Escribe las llaves de test en `brand-shield/.env` y `brand-shield-web/.env.local` de una vez, sin editar a mano. Rechaza llaves `live` (esas van en Railway/Vercel, no en archivos locales) y detecta si se pasaron al revés |
 | `scripts/prueba-culqi.js` | Circuito de cobro completo contra la API real de Culqi con llaves de **test**: token → customer → tarjeta guardada → cargo. Verifica los campos de los que depende el resto del código llamando a `culqi.datosTarjeta()` (el mismo código que corre en producción), más `cargo.id` y `tarjeta.id` y que el monto cobrado sea el de `precios.js`. **Se niega a correr con llaves `sk_live_`** salvo `--vivo` |
+| `scripts/reclamaciones.js [todas\|ver <n>\|responder <n>]` | Gestión del Libro de Reclamaciones **desde la terminal** (`railway run --service api node scripts/reclamaciones.js`). Lista por urgencia con los días hábiles restantes, muestra la hoja completa y responde: manda la respuesta al consumidor y marca RESPONDIDO. Se niega a responder dos veces la misma hoja |
 | `scripts/limpiar-pagos-prueba.js <email> [--aplicar]` | Deja una cuenta como si nunca hubiera pagado, para repetir la prueba del cobro: borra sus pagos y comprobantes, **retrocede el correlativo de la serie** (es correlativa y no admite huecos), libera las tarjetas que gastaron la promo y devuelve la cuenta a Gratuito. Sin `--aplicar` solo previsualiza. **Se niega a tocar cargos que no sean `chr_test_`**: un cobro real se reembolsa en Culqi y se anula con nota de crédito, no se borra |
 | `scripts/prueba-promo.js` | 5 pruebas de la promo de bienvenida con Culqi y Prisma simulados: aplica el descuento, lo bloquea si la tarjeta ya lo usó (409 `PROMO_NO_APLICA` sin cobrar), el reintento con `sinPromo`, y que el plan anual no la consuma. No cobra ni gasta numeración de comprobantes |
 | `scripts/prueba-drip.js` | 11 pruebas del drip con Prisma y Resend simulados: variantes por estado, avance de etapa, exclusiones, 1 etapa/día |
@@ -1218,3 +1219,43 @@ base. Al probar de nuevo, limpiar lo nuestro no basta: hay que contar con que
 customers y tarjetas siguen existiendo del otro lado.
 
 Desplegado: Railway `b850f0a0` SUCCESS, `/health` 200.
+
+### Gestión del Libro de Reclamaciones — por terminal, SIN panel web (2026-08-05)
+
+La página pública recibía reclamos pero **no había forma de responderlos**, y el
+plazo legal (15 días hábiles, improrrogable) no puede depender de que alguien
+recuerde mirar un buzón.
+
+**Decisión del usuario, y es la correcta: no se gestiona desde una pantalla
+web.** La tabla `reclamaciones` guarda datos personales **de terceros** (DNI,
+domicilio, teléfono) protegidos por la Ley 29733; exponerlos tras el panel haría
+que robar una sesión también los comprometiera. Es una tarea de baja frecuencia
+y no compensa abrir superficie web para ella. Encaja además con cómo ya funciona
+el repo (`dar-plan.js`, `escanear.js`, … vía `railway run`).
+
+**Se descartó un rol de administrador.** Se llegó a escribir un middleware
+`soloAdmin` con `ADMIN_EMAILS` y se revirtió. Si en el futuro hace falta, la nota
+de por qué no existe está en `src/api/middlewares/auth.middleware.js`.
+
+Piezas:
+- `src/lib/reclamaciones.js` — plazo legal en un solo sitio (`plazoDe`,
+  `sumarDiasHabiles`, `diasHabilesEntre`). Lo usan el script y el cron; si cada
+  uno contara por su cuenta, el recordatorio acabaría discrepando del panel.
+  ⚠️ Cuenta de lunes a viernes y **no descuenta feriados**, así que el plazo
+  mostrado es más corto que el real. Es intencional: adelantarse no incumple.
+- `scripts/reclamaciones.js` — listar / ver / responder. Responder **manda
+  primero el correo y solo entonces marca RESPONDIDO**: si Resend falla, la hoja
+  sigue pendiente, porque el consumidor no recibió nada y el plazo corre.
+  Rechaza responder dos veces: la respuesta es el cargo formal ante INDECOPI.
+- `revisarPlazosReclamaciones` + `iniciarAvisoReclamaciones` en
+  `monitoreo.worker.js` — cron diario a las 9:00. Avisa a `EMAIL_RECLAMACIONES`
+  (default `hola@usenotoria.app`) de lo que vence en 5 días hábiles o menos, y
+  **sigue avisando cada día hasta que se responda**: un recordatorio que se manda
+  una sola vez se pierde.
+
+El rate-limit estricto (10/hora) quedó **solo en el POST público**, no en el
+router entero.
+
+Probado de punta a punta contra la base real (alta → listar → ver → responder →
+correo → aviso de plazo) y **los datos de prueba se borraron después**.
+Desplegado: Railway `a5b85cc4` SUCCESS, `/health` 200.

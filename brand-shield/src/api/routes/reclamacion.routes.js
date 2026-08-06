@@ -16,16 +16,19 @@ const { enviarCargoReclamacion, enviarAvisoReclamacionInterno } = require('../..
 
 const router = express.Router();
 
-// Más permisivo que el widget público (no gasta cuota de terceros) pero
-// suficiente para que no se use como buzón de spam.
-router.use(rateLimit({
+// Este router expone ÚNICAMENTE el alta pública. Listar y responder reclamos se
+// hace desde la terminal con `scripts/reclamaciones.js`, no por HTTP: la tabla
+// guarda datos personales de terceros y no hace falta exponerlos en la web para
+// gestionarlos. Ver la nota en auth.middleware.js.
+const limiteAlta = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Demasiadas solicitudes. Inténtalo de nuevo en una hora.' },
-}));
+});
 
+// Topes de longitud de cada campo de la hoja
 const LIMITES = { nombre: 120, documento: 20, domicilio: 200, email: 120, telefono: 30, descripcion: 500, detalle: 3000, pedido: 1000, apoderado: 120 };
 
 const texto = (v) => (typeof v === 'string' ? v.trim() : '');
@@ -52,7 +55,7 @@ const crearConNumero = async (datos, intento = 0) => {
 };
 
 // ── POST /api/reclamaciones ───────────────────────────────
-router.post('/', async (req, res, next) => {
+router.post('/', limiteAlta, async (req, res, next) => {
   try {
     const b = req.body || {};
     const datos = {

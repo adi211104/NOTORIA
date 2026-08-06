@@ -18,7 +18,7 @@ const comentarioRoutes = require('./api/routes/comentario.routes');
 const publicoRoutes = require('./api/routes/publico.routes');
 const reclamacionRoutes = require('./api/routes/reclamacion.routes');
 
-const { iniciarMonitoreo, iniciarReportesMensuales, iniciarResumenesAlertas, iniciarRenovacionesCulqi, iniciarEscalacionUrgencias } = require('./workers/monitoreo.worker');
+const { iniciarMonitoreo, iniciarReportesMensuales, iniciarResumenesAlertas, iniciarRenovacionesCulqi, iniciarEscalacionUrgencias, iniciarAvisoReclamaciones } = require('./workers/monitoreo.worker');
 const { iniciarResumenSemanal } = require('./workers/resumenSemanal.worker');
 const { iniciarDrip } = require('./workers/drip.worker');
 const { iniciarEnvioSunat } = require('./workers/envioSunat.worker');
@@ -147,6 +147,7 @@ app.listen(PORT, () => {
     iniciarRenovacionesCulqi();
     iniciarResumenSemanal();
     iniciarEscalacionUrgencias();
+    iniciarAvisoReclamaciones();
     // Solo arranca si SUNAT_EMISION_ACTIVA=true y hay certificado y credenciales;
     // si no, se registra en el log y no hace nada (ver envioSunat.worker.js)
     iniciarEnvioSunat();

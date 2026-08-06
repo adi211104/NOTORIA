@@ -427,4 +427,56 @@ const enviarAvisoReclamacionInterno = async (r) => {
   return res;
 };
 
-module.exports = { enviarBienvenida, enviarVerificacion, enviarConfirmacionContrasena, enviarRecuperacionContrasena, enviarAlertaCritica, enviarResumenAlertas, enviarResumenSemanal, enviarResumenSemanalConsolidado, enviarComprobante, enviarDrip, enviarCargoReclamacion, enviarAvisoReclamacionInterno, getResend, FROM, base, h1, p, btn, hr };
+// Respuesta formal al consumidor. Es la que cierra el plazo de 15 días hábiles,
+// así que repite el número de hoja y deja constancia de la fecha.
+const enviarRespuestaReclamacion = async (r) => {
+  const res = await getResend().emails.send({
+    from: FROM(), to: r.email,
+    subject: `Respuesta a tu ${r.tipo === 'QUEJA' ? 'queja' : 'reclamo'} ${r.numero} — Notoria`,
+    html: base(`
+      ${h1('Respuesta a tu reclamación')}
+      ${p(`Hola ${r.nombre.split(' ')[0]}, esta es nuestra respuesta formal a la hoja <strong>${r.numero}</strong>, presentada el ${new Date(r.creadoEn).toLocaleDateString('es-PE', { timeZone: 'America/Lima' })}.`)}
+      ${hr()}
+      <div style="background:#FAF9F5;border:1px solid #E8E6DC;border-radius:6px;padding:14px 16px;">
+        <p style="color:#141413;font-size:14px;line-height:1.75;margin:0;white-space:pre-wrap;">${r.respuesta}</p>
+      </div>
+      ${hr()}
+      ${p('Si no estás conforme con esta respuesta, puedes acudir a otras vías de solución de controversias o presentar una denuncia ante el INDECOPI. La respuesta a tu reclamo no limita ese derecho.')}
+      ${p('Para cualquier consulta, responde a este correo citando el número de hoja.')}
+    `),
+  });
+  console.log('[Reclamaciones] Respuesta enviada al consumidor:', r.numero);
+  return res;
+};
+
+// Aviso interno de plazos por vencer. Lo manda el cron diario: sin él, cumplir
+// los 15 días hábiles dependería de que alguien se acuerde de mirar el libro.
+const enviarAvisoPlazoReclamaciones = async (pendientes) => {
+  const destino = process.env.EMAIL_RECLAMACIONES || 'hola@usenotoria.app';
+  const fila = (x) => {
+    const estado = x.plazo.vencida
+      ? `<span style="color:#B91C1C;font-weight:700;">VENCIDA hace ${Math.abs(x.plazo.diasRestantes)} día(s) hábil(es)</span>`
+      : `<span style="color:#B45309;font-weight:700;">quedan ${x.plazo.diasRestantes} día(s) hábil(es)</span>`;
+    return `<div style="border-bottom:1px solid #E8E6DC;padding:10px 0;">
+      <p style="margin:0;color:#141413;font-size:13px;font-weight:700;">${x.numero} · ${x.tipo === 'QUEJA' ? 'Queja' : 'Reclamo'} · ${x.nombre}</p>
+      <p style="margin:3px 0 0;color:#5C5B57;font-size:12px;">${estado}</p>
+      <p style="margin:3px 0 0;color:#9C9B96;font-size:12px;">${x.detalle.slice(0, 160)}${x.detalle.length > 160 ? '…' : ''}</p>
+    </div>`;
+  };
+  const vencidas = pendientes.filter(x => x.plazo.vencida).length;
+  const res = await getResend().emails.send({
+    from: FROM(), to: destino,
+    subject: `[Libro de Reclamaciones] ${pendientes.length} sin responder${vencidas ? ` — ${vencidas} FUERA DE PLAZO` : ''}`,
+    html: base(`
+      ${h1('Reclamaciones pendientes de respuesta')}
+      ${p('El plazo legal es de <strong>15 días hábiles</strong> desde la recepción (Ley 29571) y es improrrogable.')}
+      ${pendientes.map(fila).join('')}
+      ${hr()}
+      ${p('Para responderlas: <code>railway run --service api node scripts/reclamaciones.js responder &lt;número&gt;</code>')}
+    `),
+  });
+  console.log(`[Reclamaciones] Aviso de plazos enviado a ${destino} — ${pendientes.length} pendiente(s)`);
+  return res;
+};
+
+module.exports = { enviarBienvenida, enviarVerificacion, enviarConfirmacionContrasena, enviarRecuperacionContrasena, enviarAlertaCritica, enviarResumenAlertas, enviarResumenSemanal, enviarResumenSemanalConsolidado, enviarComprobante, enviarDrip, enviarCargoReclamacion, enviarAvisoReclamacionInterno, enviarRespuestaReclamacion, enviarAvisoPlazoReclamaciones, getResend, FROM, base, h1, p, btn, hr };

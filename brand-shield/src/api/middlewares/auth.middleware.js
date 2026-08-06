@@ -54,4 +54,10 @@ const requiereSuscripcion = (req, res, next) => {
   next();
 };
 
+// Nota (2026-08-05): NO hay rol de administrador a propósito. El Libro de
+// Reclamaciones se gestiona desde la terminal con `scripts/reclamaciones.js`
+// (vía `railway run`), no desde una pantalla web. Guarda datos personales de
+// terceros —DNI, domicilio, teléfono— y exponerlos tras el panel haría que
+// robar una sesión también los comprometiera. Decisión del usuario, y la más
+// segura: no se añade superficie web para algo que se usa dos veces al mes.
 module.exports = { autenticar, requiereSuscripcion };

@@ -724,8 +724,42 @@ const iniciarEscalacionUrgencias = () => {
   console.log('[Escalación] Cron configurado: cada 4 horas');
 };
 
+// ── Libro de Reclamaciones: aviso de plazo por vencer ─────
+// El plazo de 15 días hábiles es improrrogable y no puede depender de que
+// alguien se acuerde de mirar el libro. Este cron avisa por correo mientras
+// queden reclamos sin responder, y sigue avisando cada día hasta que se
+// respondan: un recordatorio que se manda una sola vez se pierde.
+const { plazoDe } = require('../lib/reclamaciones');
+const { enviarAvisoPlazoReclamaciones } = require('../utils/emails');
+
+const revisarPlazosReclamaciones = async () => {
+  try {
+    const pendientes = await prisma.reclamacion.findMany({
+      where: { estado: 'PENDIENTE' },
+      orderBy: { creadoEn: 'asc' },
+    });
+    if (!pendientes.length) return;
+
+    // Solo molesta cuando hay algo que hacer: a 5 días hábiles o menos.
+    const conPlazo = pendientes
+      .map(r => ({ ...r, plazo: plazoDe(r) }))
+      .filter(r => r.plazo.vencida || r.plazo.diasRestantes <= 5);
+    if (!conPlazo.length) return;
+
+    await enviarAvisoPlazoReclamaciones(conPlazo);
+  } catch (e) {
+    console.error('[Reclamaciones] Falló la revisión de plazos:', e.message);
+  }
+};
+
+const iniciarAvisoReclamaciones = () => {
+  cron.schedule('0 9 * * *', revisarPlazosReclamaciones);
+  console.log('[Reclamaciones] Cron de plazos configurado: 9:00 AM diario');
+};
+
 module.exports = {
   iniciarMonitoreo, ejecutarAhora, iniciarReportesMensuales, iniciarResumenesAlertas,
   iniciarRenovacionesCulqi, iniciarEscalacionUrgencias, revisarEscalacionesUrgentes,
+  iniciarAvisoReclamaciones, revisarPlazosReclamaciones,
   procesarMenciones, procesarComentariosSociales,
 };
