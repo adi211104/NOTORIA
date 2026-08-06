@@ -370,7 +370,7 @@ const TEXTOS = {
       vacioDesc:'Se revisan cada 4 horas junto con el resto del monitoreo. También puedes forzar un escaneo desde el botón de arriba.',
       // La explicación honesta cuando la cuenta SÍ está conectada: el monitoreo
       // funciona, lo que no existe es la vía para leer comentarios.
-      vacioDescTikTok:'Tu cuenta está conectada y el monitoreo corre, pero la API pública de TikTok no permite leer los comentarios de tus videos: hay que responderlos en la app. El contador de arriba te dice cuáles tienen comentarios nuevos.',
+      vacioDescTikTok:'Tu cuenta está conectada y el monitoreo corre. Los comentarios nuevos aparecen acá en cuanto se detectan, y puedes responderlos sin salir de Notoria. Ten en cuenta que TikTok solo muestra los videos públicos: los publicados para "Amigos" o "Solo yo" quedan fuera.',
       vacioFiltro:'Ningún comentario coincide con este filtro.',
       enVideo:'En el video',
       responder:'Responder',
@@ -678,7 +678,7 @@ const TEXTOS = {
       videosVistas:(n) => `${n} views`,
       vacio:'No comments yet',
       vacioDesc:'They are checked every 4 hours along with the rest of the monitoring. You can also force a scan with the button above.',
-      vacioDescTikTok:'Your account is connected and monitoring is running, but TikTok’s public API does not allow reading comments on your videos: you have to reply in the app. The counter above tells you which ones have new comments.',
+      vacioDescTikTok:'Your account is connected and monitoring is running. New comments show up here as soon as they are detected, and you can reply without leaving Notoria. Note that TikTok only exposes public videos: anything posted to "Friends" or "Only me" stays out.',
       vacioFiltro:'No comment matches this filter.',
       enVideo:'On video',
       responder:'Reply',

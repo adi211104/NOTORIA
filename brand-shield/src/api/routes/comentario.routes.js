@@ -114,6 +114,30 @@ router.get('/:negocioId', async (req, res, next) => {
     // con los comentarios que ya estén guardados.
     const videos = await videosDelNegocio(negocio.id, conexion).catch(() => null);
 
+    // Respaldo del @usuario cuando el perfil no se pudo leer.
+    //
+    // `user.info.profile` es un permiso OPCIONAL: en la pantalla de
+    // consentimiento aparece como un interruptor que el dueño puede dejar
+    // apagado, y entonces /business/get/ responde 40130 y el panel muestra un
+    // "TikTok" genérico. Pero el `share_url` de cualquier video trae el handle
+    // (https://www.tiktok.com/@usuario/video/123), así que al menos el @ se
+    // recupera sin permiso alguno. El avatar sí requiere el scope: no hay de
+    // dónde sacarlo.
+    if (!perfilNegocio.tiktokUsername && videos?.length) {
+      const handle = videos.map((v) => v.url).find(Boolean)?.match(/tiktok\.com\/@([\w.-]+)/)?.[1];
+      if (handle) {
+        perfilNegocio = await prisma.negocio.update({
+          where: { id: negocio.id },
+          data: {
+            tiktokUsername: handle,
+            tiktokPerfilUrl: perfilNegocio.tiktokPerfilUrl || `https://www.tiktok.com/@${handle}`,
+            // El nombre visible se deja vacío a propósito si no lo tenemos: es
+            // preferible mostrar el @ solo que inventar un nombre a partir de él.
+          },
+        });
+      }
+    }
+
     const [comentarios, total, negativos, sinResponder] = await Promise.all([
       prisma.comentarioSocial.findMany({
         where,
