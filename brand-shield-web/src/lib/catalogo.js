@@ -30,6 +30,17 @@ export const montoEnCentimos = (precioEnSoles, aplicaPromo = false) => {
 // Para mostrarlo: "29.50", "59.00"
 export const formatearSoles = (centimos) => (centimos / 100).toFixed(2);
 
+// Desde S/700 el comprobante debe identificar al comprador (RS 007-99, art. 8),
+// así que esos datos se piden ANTES de cobrar. Hoy solo lo cruza Franquicia
+// anual (S/1716); Negocio anual son S/564 y se queda por debajo.
+//
+// Debe coincidir con UMBRAL_IDENTIFICACION en brand-shield/src/lib/tributario.js,
+// que es quien lo hace cumplir de verdad: esto solo decide qué se le avisa al
+// usuario. Si cambia allá, cambia acá.
+export const UMBRAL_IDENTIFICACION_SOLES = 700;
+
+export const requiereIdentificacion = (precioEnSoles) => precioEnSoles >= UMBRAL_IDENTIFICACION_SOLES;
+
 export const CATALOGO = [
   {
     id: 'gratuito',

@@ -1267,3 +1267,36 @@ invalida ninguna huella anterior. Hasta entonces caía en `JWT_SECRET`, así que
 rotar el JWT habría reseteado en silencio el límite de la promo por tarjeta.
 Requirió redespliegue (`--skip-deploys` no aplica la variable al contenedor en
 marcha). Railway `1c0fdb48` SUCCESS.
+
+### Identificación obligatoria desde S/700 (2026-08-05)
+
+Desde **S/700** el comprobante debe identificar al comprador (RS 007-99/SUNAT,
+art. 8). Comprobado con `tributario.requiereIdentificacion()`, **hoy solo lo
+cruza FRANQUICIA anual (S/1716)**. Negocio anual son S/564 y NO lo cruza — es
+fácil equivocarse aquí, así que preguntar a la función y no a la memoria: al
+tocar un precio la respuesta cambia sola.
+
+Como no se pide documento en ningún punto del alta, al activar la emisión esa
+boleta anual habría sido rechazada por SUNAT. Ahora:
+
+- **Backend (`POST /api/pagos/culqi`)**: si el importe cruza el umbral y faltan
+  los datos, responde **409 `DATOS_FISCALES_REQUERIDOS` y no crea nada en
+  Culqi**. Va antes del cliente y de la tarjeta a propósito: cobrar y descubrir
+  luego que no se puede emitir el comprobante deja al cliente pagado y sin
+  documento. Mira `precioBase`, no el importe con promo, porque la promo solo
+  aplica a la facturación mensual y ningún mensual llega al umbral.
+- **Frontend**: aviso **en la tarjeta del plan, antes de pagar**, y el
+  formulario (`components/DatosFiscales.js`) se abre antes del widget de Culqi.
+  Con DNI se emite boleta; con RUC, factura.
+- `GET /api/auth/perfil` devuelve ahora `docTipo`, `docNumero` y `razonSocial`:
+  sin ellos el frontend no puede saber si hace falta pedirlos.
+- ⚠️ Al volver del formulario se llama a `handleCTA(plan, true)`. Ese segundo
+  argumento **no es opcional**: tras `refrescarPerfil()` el estado `usuario`
+  todavía tiene el perfil viejo, y sin esa señal se volvería a pedir lo que el
+  usuario acaba de rellenar, en bucle.
+
+Este gate es independiente de `SUNAT_EMISION_ACTIVA`: los datos se piden siempre
+que el importe lo exija, para no tener que reclamarlos a posteriori el día que se
+active la emisión.
+
+Desplegado: Railway `a26b6ade` SUCCESS, Vercel `notoria-16c292tsn` READY.

@@ -8,7 +8,8 @@ import { useIdioma } from '../../../context/IdiomaContext';
 import { pagos } from '../../../lib/api';
 // Mismo redondeo a céntimos que usa el backend, para que el importe del widget
 // coincida exactamente con el que se cobra.
-import { montoEnCentimos } from '../../../lib/catalogo';
+import { montoEnCentimos, requiereIdentificacion, UMBRAL_IDENTIFICACION_SOLES } from '../../../lib/catalogo';
+import DatosFiscales from '../../../components/DatosFiscales';
 import BannerPromo from '../../../components/BannerPromo';
 import ResultadoPago from '../../../components/ResultadoPago';
 
@@ -275,6 +276,8 @@ export default function PlanesPage() {
   // confirmación a pantalla completa (components/ResultadoPago.js)
   const [resultado, setResultado] = useState(null);
   const [errorModal, setErrorModal] = useState('');
+  // Plan que espera los datos de facturación antes de poder cobrarse
+  const [pidiendoDatos, setPidiendoDatos] = useState(null);
   const puedeUsarPromo = !promoRechazada && !usuario?.promoBienvenidaUsada;
 
   // Callback global que exige el widget de Checkout de Culqi (window.culqi)
@@ -318,7 +321,10 @@ export default function PlanesPage() {
     return () => { delete window.culqi; };
   }, [refrescarPerfil, t]);
 
-  const handleCTA = (plan) => {
+  // `datosYaTomados` lo pasa el formulario de datos fiscales al volver: el
+  // estado `usuario` todavía tiene el perfil anterior en ese instante, así que
+  // sin esta señal se volvería a pedir lo que el usuario acaba de rellenar.
+  const handleCTA = (plan, datosYaTomados = false) => {
     if (!plan.ctaActivo) return;
 
     // Franquicia también se cobra con tarjeta: antes abría un mailto y no había
@@ -329,6 +335,14 @@ export default function PlanesPage() {
       const publicKey = process.env.NEXT_PUBLIC_CULQI_PUBLIC_KEY;
       if (!Culqi || !publicKey) {
         setErrorPago(t.errorPagosProximamente);
+        return;
+      }
+
+      // Desde S/700 el comprobante debe identificar al comprador: los datos se
+      // piden antes de abrir el pago. El backend lo vuelve a exigir.
+      const totalSoles = anual ? plan.precioAnual * 12 : plan.precio;
+      if (!datosYaTomados && requiereIdentificacion(totalSoles) && !usuario?.docNumero) {
+        setPidiendoDatos({ nombre: `Plan ${plan.nombre} anual`, precio: totalSoles, plan });
         return;
       }
 
@@ -358,6 +372,19 @@ export default function PlanesPage() {
           {errorPago}
         </div>
       )}
+      {pidiendoDatos && (
+        <DatosFiscales
+          item={pidiendoDatos}
+          onCancelar={() => setPidiendoDatos(null)}
+          onListo={async () => {
+            const plan = pidiendoDatos.plan;
+            setPidiendoDatos(null);
+            await refrescarPerfil();
+            handleCTA(plan, true);
+          }}
+        />
+      )}
+
       {/* Estado del cobro por encima de todo, sin depender del scroll */}
       {(procesando || resultado || errorModal) && (
         <ResultadoPago

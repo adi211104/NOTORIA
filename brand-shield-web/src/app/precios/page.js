@@ -18,7 +18,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { pagos } from '../../lib/api';
-import { CATALOGO, MONEDA, SIMBOLO, montoEnCentimos, formatearSoles } from '../../lib/catalogo';
+import { CATALOGO, MONEDA, SIMBOLO, montoEnCentimos, formatearSoles, requiereIdentificacion, UMBRAL_IDENTIFICACION_SOLES } from '../../lib/catalogo';
+import DatosFiscales from '../../components/DatosFiscales';
 import PieLegal from '../../components/PieLegal';
 import BannerPromo from '../../components/BannerPromo';
 import ResultadoPago from '../../components/ResultadoPago';
@@ -80,6 +81,9 @@ export default function PreciosPage() {
   // confirmación a pantalla completa (components/ResultadoPago.js)
   const [resultado, setResultado] = useState(null);
   const [errorPago, setErrorPago] = useState('');
+  // Ítem que espera a que el usuario complete sus datos de facturación antes de
+  // poder cobrarse (importes desde S/700 — ver requiereIdentificacion)
+  const [pidiendoDatos, setPidiendoDatos] = useState(null);
 
   // Un visitante sin sesión es, por definición, candidato a la promo: se le
   // muestra el descuento para que sepa que existe antes de registrarse. Solo se
@@ -153,6 +157,12 @@ export default function PreciosPage() {
           // El aviso vive arriba de la página y el botón de pagar está abajo:
           // sin esto el usuario no lo vería y creería que no pasó nada.
           window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else if (e.codigo === 'DATOS_FISCALES_REQUERIDOS') {
+          // Red de seguridad: el backend también lo exige. Se llega aquí solo si
+          // el perfil del navegador estaba desactualizado. No se cobró nada.
+          const item = CATALOGO.find(i => i.plan === window.__notoriaPlanPendiente
+            && i.periodo === (window.__notoriaAnualPendiente ? 'anual' : 'mensual'));
+          setPidiendoDatos(item || null);
         } else {
           // Un cobro fallido también necesita un aviso imposible de perderse
           setErrorPago(e.message || 'No se pudo procesar el pago. Intenta con otra tarjeta.');
@@ -186,6 +196,15 @@ export default function PreciosPage() {
       router.push(`/login?next=${encodeURIComponent('/precios')}`);
       return;
     }
+
+    // Desde S/700 el comprobante debe identificar al comprador, así que los
+    // datos se piden ANTES de abrir el pago. El backend lo vuelve a exigir, de
+    // modo que esto es comodidad para el usuario, no la barrera real.
+    if (requiereIdentificacion(item.precio) && !usuario.docNumero) {
+      setPidiendoDatos(item);
+      return;
+    }
+
     abrirCheckout(item);
   };
 
@@ -202,6 +221,19 @@ export default function PreciosPage() {
           error={errorPago}
           onCerrar={() => setErrorPago('')}
           onIrAlPanel={() => router.push('/dashboard')}
+        />
+      )}
+
+      {pidiendoDatos && (
+        <DatosFiscales
+          item={pidiendoDatos}
+          onCancelar={() => setPidiendoDatos(null)}
+          onListo={async () => {
+            const item = pidiendoDatos;
+            setPidiendoDatos(null);
+            await refrescarPerfil();
+            abrirCheckout(item);
+          }}
         />
       )}
 
@@ -272,6 +304,16 @@ export default function PreciosPage() {
                 )}
 
                 <p style={{ fontSize: 13, color: '#5C5B57', lineHeight: 1.7, margin: '8px 0 14px' }}>{item.descripcion}</p>
+
+                {/* Aviso ANTES de pagar, no al fallar el cobro: por norma de
+                    SUNAT, desde S/700 el comprobante debe identificar al comprador */}
+                {requiereIdentificacion(item.precio) && (
+                  <p style={{ fontSize: 12, color: '#5C5B57', background: '#FAF9F5', border: '1px solid #E8E6DC', borderRadius: 6, padding: '9px 11px', margin: '0 0 14px', lineHeight: 1.6 }}>
+                    <strong>Requisito:</strong> al superar los {SIMBOLO}{UMBRAL_IDENTIFICACION_SOLES}, SUNAT exige
+                    identificar al comprador. Te pediremos tu DNI o RUC antes del pago
+                    para emitir tu boleta o factura.
+                  </p>
+                )}
 
                 <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 18px', display: 'flex', flexDirection: 'column', gap: 7, flex: 1 }}>
                   {item.incluye.map((f) => (

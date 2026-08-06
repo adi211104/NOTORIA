@@ -100,6 +100,28 @@ router.post('/culqi', async (req, res) => {
 
     // obtenerOCrearCliente, NO crearCliente: Culqi rechaza un segundo customer
     // con el mismo correo, así que reintentar una suscripción fallaría siempre.
+    // Identificación obligatoria por importe (RS 007-99, art. 8): desde S/700
+    // el comprobante debe identificar al comprador. Hoy solo lo cruza el plan
+    // Franquicia anual.
+    //
+    // Se comprueba ANTES de crear nada en Culqi: cobrar y descubrir después que
+    // no se puede emitir el comprobante deja al cliente pagado y sin documento,
+    // que es la peor de las salidas. Se mira `precioBase` y no el importe con
+    // promo porque la promo solo aplica a la facturación mensual, y ningún
+    // importe mensual llega al umbral.
+    if (tributario.requiereIdentificacion(precioBase)) {
+      const receptor = tributario.receptorDesdeUsuario(usuario);
+      const tipoFiscal = tributario.tipoFiscalPara({ docTipo: receptor.tipoDoc, paisFiscal: receptor.pais });
+      const falta = tributario.validarReceptorParaSunat({ receptor, tipoFiscal, total: precioBase });
+      if (falta) {
+        return res.status(409).json({
+          error: `Para este plan necesitamos tus datos de facturación: ${falta}.`,
+          codigo: 'DATOS_FISCALES_REQUERIDOS',
+          motivo: falta,
+        });
+      }
+    }
+
     const cuentaCulqi = await culqi.obtenerOCrearCliente({
       email: usuario.email,
       nombre: usuario.nombre,

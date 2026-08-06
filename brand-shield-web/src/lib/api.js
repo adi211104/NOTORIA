@@ -105,6 +105,10 @@ export const alertas = {
 export const pagos = {
   suscribir: (d) => api('/api/pagos/culqi',  { method:'POST', body:JSON.stringify(d) }),
   estado:    ()  => api('/api/pagos/estado'),
+  // Datos con los que se emite el comprobante. Obligatorios antes de pagar
+  // cuando el importe llega al umbral que exige identificar al comprador.
+  datosFiscales:       ()  => api('/api/pagos/datos-fiscales'),
+  guardarDatosFiscales:(d) => api('/api/pagos/datos-fiscales', { method:'PUT', body:JSON.stringify(d) }),
 };
 
 // Libro de Reclamaciones — endpoint público: la ley no permite exigir registro

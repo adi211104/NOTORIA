@@ -164,6 +164,11 @@ router.get('/perfil', autenticar, async (req, res, next) => {
         promoBienvenidaUsada: true,
         telegramChatId: true,
         prefsAlertas: true,
+        // Datos de facturación: el checkout los necesita para saber si tiene que
+        // pedirlos antes de cobrar (obligatorios desde S/700, ver tributario.js)
+        docTipo: true,
+        docNumero: true,
+        razonSocial: true,
         negocios: {
           where: { activo: true },
           select: { id: true, nombre: true, tipo: true },

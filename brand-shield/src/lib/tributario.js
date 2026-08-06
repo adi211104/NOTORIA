@@ -134,6 +134,12 @@ const validarDatosFiscales = ({ docTipo, docNumero, razonSocial, paisFiscal }) =
 // boleta anual sin DNI sería rechazada por SUNAT.
 const UMBRAL_IDENTIFICACION = 70000; // S/700.00 en céntimos
 
+// ¿Este importe obliga a identificar al comprador antes de cobrarle?
+// Hoy solo lo cruza el plan Franquicia anual (S/1716). Negocio anual son S/564,
+// por debajo del umbral — conviene comprobarlo con esta función y no de memoria,
+// porque al cambiar un precio la respuesta cambia sola.
+const requiereIdentificacion = (total) => total >= UMBRAL_IDENTIFICACION;
+
 // ¿Están los datos del receptor que SUNAT va a exigir para este comprobante?
 // Devuelve null si todo está en orden, o el motivo si falta algo.
 //
@@ -229,6 +235,6 @@ const totalEnLetras = (centimos, moneda) => {
 module.exports = {
   IGV_TASA, EMISOR, TIPO_OPERACION, DOC, PLAZO_ENVIO_DIAS, UMBRAL_IDENTIFICACION,
   esDomestico, desglosar, tipoFiscalPara, receptorDesdeUsuario, validarDatosFiscales,
-  validarReceptorParaSunat,
+  validarReceptorParaSunat, requiereIdentificacion,
   calcularFechaLimiteEnvio, formatearImporte, totalEnLetras, numeroEnLetras,
 };
