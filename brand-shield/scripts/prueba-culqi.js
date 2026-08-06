@@ -90,9 +90,22 @@ const motivo = (e) =>
     ok('TOKEN:', token.id, '|', token.iin?.card_brand || '(sin marca)');
 
     // ── 3. Customer ────────────────────────────────────────
-    const cliente = await culqi.crearCliente({ email, nombre: 'Prueba Notoria' });
+    // Se usa obtenerOCrearCliente porque es lo que corre en producción.
+    const cliente = await culqi.obtenerOCrearCliente({ email, nombre: 'Prueba Notoria' });
     if (!cliente.id) return mal('El customer vino sin id:', JSON.stringify(cliente));
     ok('CLIENTE:', cliente.id);
+
+    // Segunda alta con el MISMO correo: Culqi rechaza crear un customer
+    // duplicado, así que si esto no reutiliza el existente, cualquier cliente
+    // que intente suscribirse dos veces (tras cancelar, tras un cobro fallido o
+    // al cambiar de plan) queda sin poder pagar nunca más. Pasó de verdad.
+    try {
+      const repetido = await culqi.obtenerOCrearCliente({ email, nombre: 'Prueba Notoria' });
+      if (repetido.id !== cliente.id) mal(`La segunda alta devolvió otro customer (${repetido.id} ≠ ${cliente.id})`);
+      else ok('Suscribirse dos veces con el mismo correo reutiliza el customer');
+    } catch (e) {
+      mal('La segunda alta con el mismo correo falló:', e.response?.data?.merchant_message || e.message);
+    }
 
     // ── 4. Tarjeta guardada ────────────────────────────────
     // Es la pieza de la que depende la renovación mensual: su id se guarda en

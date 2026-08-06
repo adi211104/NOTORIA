@@ -41,6 +41,8 @@ const prismaFalso = {
 const culqiFalso = {
   configurado: () => true,
   crearCliente: async () => ({ id: 'cus_test_1' }),
+  // Lo que usa la ruta: reutiliza el customer si Culqi ya lo tiene
+  obtenerOCrearCliente: async () => ({ id: 'cus_test_1' }),
   // Devuelve la forma real de una tarjeta guardada de Culqi
   crearTarjeta: async () => ({
     id: 'crd_test_1',

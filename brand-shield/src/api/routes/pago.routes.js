@@ -98,7 +98,9 @@ router.post('/culqi', async (req, res) => {
     const usuario = await prisma.usuario.findUnique({ where: { id: req.usuario.id } });
     const precioBase = anual ? PRECIOS[plan].anual : PRECIOS[plan].mensual;
 
-    const cuentaCulqi = await culqi.crearCliente({
+    // obtenerOCrearCliente, NO crearCliente: Culqi rechaza un segundo customer
+    // con el mismo correo, así que reintentar una suscripción fallaría siempre.
+    const cuentaCulqi = await culqi.obtenerOCrearCliente({
       email: usuario.email,
       nombre: usuario.nombre,
       direccion: usuario.direccionFiscal,

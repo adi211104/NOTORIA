@@ -41,6 +41,36 @@ const crearCliente = async ({ email, nombre, telefono = '999999999', direccion, 
   return data;
 };
 
+// Busca un customer ya existente por correo. Culqi devuelve { data: [...] }.
+const buscarClientePorEmail = async (email) => {
+  const { data } = await cliente().get('/customers', { params: { email } });
+  const lista = data?.data || [];
+  return lista.find(c => (c.email || '').toLowerCase() === email.toLowerCase()) || null;
+};
+
+// Lo que debe usarse al suscribir: Culqi RECHAZA crear dos customers con el
+// mismo correo ("Un cliente está registrado actualmente con este email").
+//
+// Como el customer vive en Culqi y no en nuestra base, basta con que alguien
+// intente suscribirse una segunda vez —tras cancelar, tras un cobro fallido, o
+// al cambiar de plan— para que el alta reviente y esa persona no pueda volver a
+// pagar nunca. Por eso se reutiliza el existente en vez de insistir en crearlo.
+//
+// La búsqueda se intenta ante CUALQUIER fallo del create, no solo el de correo
+// duplicado: si no aparece ningún customer se relanza el error original, así
+// que no depende de que Culqi mantenga el texto del mensaje ni el nombre del
+// campo para seguir funcionando.
+const obtenerOCrearCliente = async (datos) => {
+  try {
+    return await crearCliente(datos);
+  } catch (error) {
+    let existente = null;
+    try { existente = await buscarClientePorEmail(datos.email); } catch { /* sin rescate */ }
+    if (!existente) throw error;
+    return existente;
+  }
+};
+
 // Convierte el token de un solo uso (del widget de Checkout) en una tarjeta guardada
 const crearTarjeta = async ({ customerId, tokenId }) => {
   const { data } = await cliente().post('/cards', {
@@ -115,4 +145,7 @@ const huellaTarjeta = (objeto) => {
   return crypto.createHmac('sha256', secreto).update(`${bin}|${last4}`).digest('hex');
 };
 
-module.exports = { configurado, crearCliente, crearTarjeta, crearCargo, datosTarjeta, huellaTarjeta };
+module.exports = {
+  configurado, crearCliente, obtenerOCrearCliente, buscarClientePorEmail,
+  crearTarjeta, crearCargo, datosTarjeta, huellaTarjeta,
+};
