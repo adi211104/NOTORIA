@@ -184,6 +184,29 @@ const calcularFechaLimiteEnvio = (fechaEmision) => {
   return limite;
 };
 
+// Fecha y hora en la zona horaria de Perú, que es la que usa SUNAT.
+//
+// NO usar `toISOString()` para esto: devuelve UTC, y Perú va en UTC-5. Entre las
+// 19:00 y la medianoche de Lima, UTC ya está en el día siguiente, así que un
+// comprobante emitido de noche viajaba con la fecha de mañana y SUNAT lo
+// rechazaba con el error **2236 "La fecha del IssueDate no debe ser mayor a la
+// fecha de recepción"**. Apareció al validar el resumen diario contra el beta a
+// las 21:49 de Lima; el mismo fallo estaba en las facturas y no se había visto
+// porque las pruebas anteriores se corrieron de día.
+const ZONA_PERU = 'America/Lima';
+
+// "2026-08-05" — en-CA da directamente el formato ISO de fecha
+const fechaPeru = (d) =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: ZONA_PERU, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date(d));
+
+// "21:49:29"
+const horaPeru = (d) =>
+  new Intl.DateTimeFormat('en-GB', {
+    timeZone: ZONA_PERU, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).format(new Date(d));
+
 // Importe en céntimos → texto para imprimir. "USD 20.00"
 const formatearImporte = (centimos, moneda) =>
   `${moneda === 'USD' ? 'USD' : 'S/'} ${(centimos / 100).toFixed(2)}`;
@@ -237,4 +260,5 @@ module.exports = {
   esDomestico, desglosar, tipoFiscalPara, receptorDesdeUsuario, validarDatosFiscales,
   validarReceptorParaSunat, requiereIdentificacion,
   calcularFechaLimiteEnvio, formatearImporte, totalEnLetras, numeroEnLetras,
+  ZONA_PERU, fechaPeru, horaPeru,
 };

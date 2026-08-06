@@ -1300,3 +1300,54 @@ que el importe lo exija, para no tener que reclamarlos a posteriori el día que 
 active la emisión.
 
 Desplegado: Railway `a26b6ade` SUCCESS, Vercel `notoria-16c292tsn` READY.
+
+### Resumen diario de boletas (RC) — EN CURSO (2026-08-05)
+
+**Estado: el XML ya pasa la validación de esquema de SUNAT, pero el resumen
+todavía NO es aceptado.** Último error del beta:
+
+```
+2522 "No existe información del documento del anticipo" (nodo "/" valor "")
+```
+
+Es un error de regla de negocio, no de esquema. **Ya se descartó que lo cause
+`sac:BillingPayment`**: quitándolo del todo, el 2522 se mantiene igual. Tampoco
+es el identificador de la firma (se alineó con `firma.ID_FIRMA`, como en
+`ublInvoice.js`). Queda pendiente encontrar la causa — probablemente falte algún
+bloque obligatorio a nivel de documento.
+
+Piezas ya hechas y utilizables:
+- `billService.enviarResumen()` y `billService.consultarTicket()` — el flujo
+  **asíncrono**: `sendSummary` NO devuelve el CDR, devuelve un **ticket**, y el
+  veredicto se pide con `getStatus`. `statusCode` 98 = sigue procesando.
+  ⚠️ **Un ticket entregado no significa aceptado.** El ticket hay que
+  persistirlo: si el proceso se cae entre el envío y la consulta, sin él no hay
+  forma de saber si SUNAT aceptó, y reenviar produciría un duplicado.
+- `src/sunat/ublResumenBoletas.js` — construye el RC 1.1. Correcciones ya
+  ganadas contra el validador de SUNAT, **no revertirlas**:
+  1. En `sac:SummaryDocumentsLine` el orden es `TotalAmount` → `BillingPayment`;
+     `sac:Status` **no pertenece a este esquema** (lo rechaza en cualquier
+     posición) y se quitó.
+  2. El bloque del receptor solo va si la boleta lo identifica.
+  3. `cac:Signature/cbc:ID` debe ser `SignatureSP`, el mismo Id con el que
+     firmaXades crea la firma.
+- `scripts/prueba-resumen-beta.js` — construye, firma, envía a beta y **sondea
+  el ticket**. Es el único modo de saber si el XML sirve.
+
+#### ⚠️ Bug de zona horaria corregido — afectaba también a las FACTURAS
+
+`ublInvoice.js` y `ublResumenBoletas.js` formateaban las fechas con
+`toISOString()`, que devuelve **UTC**. Perú va en UTC-5, así que **entre las
+19:00 y la medianoche de Lima el comprobante viajaba con la fecha de mañana** y
+SUNAT lo rechazaba con **2236 "La fecha del IssueDate no debe ser mayor a la
+fecha de recepción"**.
+
+Estaba en el camino de las facturas desde el principio y no se había visto
+porque las pruebas anteriores se corrieron de día; apareció al probar el resumen
+a las 21:49 de Lima. Ahora ambos usan `tributario.fechaPeru()` /
+`tributario.horaPeru()`, que formatean en `America/Lima`.
+
+**Regla: ninguna fecha que vaya a SUNAT se formatea con `toISOString()`.**
+
+Verificado tras el cambio: `prueba-sunat-beta.js` sigue con las tres
+**ACEPTADAS sin observaciones**.

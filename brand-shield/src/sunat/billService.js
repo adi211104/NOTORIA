@@ -155,4 +155,111 @@ const enviar = async ({ xmlFirmado, nombreArchivo, timeoutMs = 30000 }) => {
   };
 };
 
-module.exports = { enviar, empaquetar, leerCdr, configurado, endpoint, entorno, ENDPOINTS };
+// ── Envío asíncrono: resúmenes y bajas ────────────────────
+//
+// Los resúmenes diarios de boletas y las comunicaciones de baja NO se envían
+// como un comprobante suelto. `sendSummary` no devuelve el CDR: devuelve un
+// TICKET, y hay que volver a preguntar por él con `getStatus` hasta que SUNAT
+// termine de procesarlo. Por eso el ticket se persiste — si el proceso se cae
+// entre el envío y la consulta, sin el ticket no hay forma de saber si SUNAT
+// aceptó el resumen, y reenviarlo daría un duplicado.
+const sobreSoapOperacion = (operacion, cuerpo) => {
+  const { username, password } = credenciales();
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ser="http://service.sunat.gob.pe" xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd">
+  <soapenv:Header>
+    <wsse:Security>
+      <wsse:UsernameToken>
+        <wsse:Username>${username}</wsse:Username>
+        <wsse:Password>${password}</wsse:Password>
+      </wsse:UsernameToken>
+    </wsse:Security>
+  </soapenv:Header>
+  <soapenv:Body>
+    <ser:${operacion}>${cuerpo}</ser:${operacion}>
+  </soapenv:Body>
+</soapenv:Envelope>`;
+};
+
+const pedir = async (envelope, timeoutMs) => {
+  try {
+    const r = await axios.post(endpoint(), envelope, {
+      headers: { 'Content-Type': 'text/xml; charset=utf-8', SOAPAction: '' },
+      timeout: timeoutMs,
+      validateStatus: (s) => s === 200 || s === 500,
+    });
+    return { ok: true, cuerpo: String(r.data) };
+  } catch (error) {
+    const status = error.response?.status;
+    let mensaje = error.message;
+    if (error.code === 'ECONNABORTED') mensaje = `SUNAT no respondió en ${timeoutMs / 1000}s`;
+    else if (status === 401) mensaje = 'SUNAT devolvió 401: credenciales rechazadas o servicio saturado';
+    else if (status) mensaje = `SUNAT devolvió HTTP ${status}`;
+    return { ok: false, mensaje, httpStatus: status || null };
+  }
+};
+
+// Envía un resumen (RC) o una baja (RA). Devuelve el ticket con el que después
+// se consulta el resultado.
+const enviarResumen = async ({ xmlFirmado, nombreArchivo, timeoutMs = 30000 }) => {
+  const zip = await empaquetar(xmlFirmado, nombreArchivo);
+  const envelope = sobreSoapOperacion('sendSummary',
+    `<fileName>${nombreArchivo}.zip</fileName><contentFile>${zip.toString('base64')}</contentFile>`);
+
+  const r = await pedir(envelope, timeoutMs);
+  if (!r.ok) return { estado: 'ERROR_TRANSPORTE', mensaje: r.mensaje, httpStatus: r.httpStatus };
+
+  if (r.cuerpo.includes('Fault')) {
+    return {
+      estado: 'RECHAZADO',
+      codigo: (entre(r.cuerpo, 'faultcode') || '').replace(/^\w+:/, '') || null,
+      mensaje: entre(r.cuerpo, 'faultstring') || 'SUNAT devolvió un fault sin descripción',
+    };
+  }
+
+  const ticket = entre(r.cuerpo, 'ticket');
+  if (!ticket) return { estado: 'ERROR_TRANSPORTE', mensaje: 'SUNAT no devolvió ticket' };
+  return { estado: 'EN_PROCESO', ticket };
+};
+
+// Consulta el resultado de un ticket.
+//
+// statusCode: "0" procesado y aceptado · "98" en proceso (hay que reintentar)
+// · "99" procesado con errores. El CDR viene en `content` solo cuando ya
+// terminó, y es la prueba que hay que conservar.
+const consultarTicket = async ({ ticket, timeoutMs = 30000 }) => {
+  const envelope = sobreSoapOperacion('getStatus', `<ticket>${ticket}</ticket>`);
+  const r = await pedir(envelope, timeoutMs);
+  if (!r.ok) return { estado: 'ERROR_TRANSPORTE', mensaje: r.mensaje, httpStatus: r.httpStatus };
+
+  if (r.cuerpo.includes('Fault')) {
+    return {
+      estado: 'RECHAZADO',
+      codigo: (entre(r.cuerpo, 'faultcode') || '').replace(/^\w+:/, '') || null,
+      mensaje: entre(r.cuerpo, 'faultstring') || 'SUNAT devolvió un fault sin descripción',
+    };
+  }
+
+  const statusCode = entre(r.cuerpo, 'statusCode');
+  if (statusCode === '98') return { estado: 'EN_PROCESO', statusCode };
+
+  const contenido = entre(r.cuerpo, 'content');
+  if (!contenido) {
+    return { estado: 'ERROR_TRANSPORTE', statusCode, mensaje: `SUNAT devolvió statusCode ${statusCode} sin CDR` };
+  }
+
+  const cdr = await leerCdr(Buffer.from(contenido, 'base64'));
+  return {
+    estado: cdr.aceptado ? 'ACEPTADO' : 'RECHAZADO',
+    statusCode,
+    codigo: cdr.codigo,
+    mensaje: cdr.descripcion,
+    notas: cdr.notas,
+    cdrXml: cdr.xml,
+  };
+};
+
+module.exports = {
+  enviar, enviarResumen, consultarTicket,
+  empaquetar, leerCdr, configurado, endpoint, entorno, ENDPOINTS,
+};

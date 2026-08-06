@@ -36,8 +36,9 @@ const URN = (catalogo) => `urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo${cata
 // Céntimos → string decimal. 1695 → "16.95"
 const dec = (centimos) => (centimos / 100).toFixed(2);
 
-const soloFecha = (d) => new Date(d).toISOString().slice(0, 10);
-const soloHora = (d) => new Date(d).toISOString().slice(11, 19);
+// Zona horaria de Perú, no UTC — ver tributario.fechaPeru (error 2236)
+const soloFecha = (d) => tributario.fechaPeru(d);
+const soloHora = (d) => tributario.horaPeru(d);
 
 // Bloque de identificación de una parte (emisor o receptor).
 // `direccion` es opcional: SUNAT no la exige para el receptor. Para el emisor
