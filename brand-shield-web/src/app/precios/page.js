@@ -18,7 +18,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { pagos } from '../../lib/api';
-import { CATALOGO, MONEDA, SIMBOLO } from '../../lib/catalogo';
+import { CATALOGO, MONEDA, SIMBOLO, montoEnCentimos, formatearSoles } from '../../lib/catalogo';
 import PieLegal from '../../components/PieLegal';
 
 const GEO = "Georgia,'Times New Roman',serif";
@@ -89,13 +89,13 @@ export default function PreciosPage() {
     }
 
     const aplicaPromo = item.periodo === 'mensual' && puedeUsarPromo;
-    const monto = aplicaPromo ? Math.round(item.precio / 2) : item.precio;
 
     window.__notoriaPlanPendiente = item.plan;
     window.__notoriaAnualPendiente = item.periodo === 'anual';
 
     Culqi.publicKey = publicKey;
-    Culqi.settings({ title: 'Notoria', currency: MONEDA, amount: monto * 100 });
+    // En céntimos y con el mismo redondeo que el backend — ver montoEnCentimos()
+    Culqi.settings({ title: 'Notoria', currency: MONEDA, amount: montoEnCentimos(item.precio, aplicaPromo) });
     Culqi.options({
       lang: 'auto',
       paymentMethods: { tarjeta: true, yape: false, billetera: false, bancaMovil: false, agente: false, cuotealo: false },
@@ -220,7 +220,7 @@ export default function PreciosPage() {
                 </div>
                 {promo && (
                   <span style={{ display: 'inline-block', alignSelf: 'flex-start', fontSize: 10.5, fontWeight: 700, color: G, background: 'rgba(11,115,36,0.12)', border: '1px solid rgba(11,115,36,0.35)', borderRadius: 4, padding: '2px 8px', marginBottom: 6 }}>
-                    50% OFF tus primeros 2 meses — pagas {SIMBOLO}{Math.round(item.precio / 2)}
+                    50% OFF tus primeros 2 meses — pagas {SIMBOLO}{formatearSoles(montoEnCentimos(item.precio, true))}
                   </span>
                 )}
 
@@ -247,7 +247,7 @@ export default function PreciosPage() {
                     }}
                     onMouseEnter={e => { if (!procesando && !esActual) e.currentTarget.style.background = GH; }}
                     onMouseLeave={e => { if (!procesando && !esActual) e.currentTarget.style.background = G; }}>
-                    {esActual ? 'Es tu plan actual' : `Pagar ${SIMBOLO}${promo ? Math.round(item.precio / 2) : item.precio}`}
+                    {esActual ? 'Es tu plan actual' : `Pagar ${SIMBOLO}${formatearSoles(montoEnCentimos(item.precio, promo))}`}
                   </button>
                 ) : (
                   <Link href="/registro" style={{ display: 'block', textAlign: 'center', width: '100%', padding: '12px', borderRadius: 5, fontSize: 14.5, fontWeight: 700, background: '#fff', color: G, border: `1px solid ${G}`, textDecoration: 'none', boxSizing: 'border-box' }}>

@@ -5,6 +5,9 @@ import Link from 'next/link';
 import { useAuth } from '../../../context/AuthContext';
 import { useIdioma } from '../../../context/IdiomaContext';
 import { pagos } from '../../../lib/api';
+// Mismo redondeo a céntimos que usa el backend, para que el importe del widget
+// coincida exactamente con el que se cobra.
+import { montoEnCentimos } from '../../../lib/catalogo';
 
 const GEO = "Georgia,'Times New Roman',serif";
 const G = '#0B7324';
@@ -298,12 +301,14 @@ export default function PlanesPage() {
 
       const precioBase = anual ? plan.precioAnual * 12 : plan.precio;
       const aplicaPromo = !anual && puedeUsarPromo;
-      const monto = aplicaPromo ? Math.round(precioBase / 2) : precioBase;
       window.__notoriaPlanPendiente = plan.id;
       window.__notoriaAnualPendiente = anual;
 
       Culqi.publicKey = publicKey;
-      Culqi.settings({ title: 'Notoria', currency: MONEDA, amount: monto * 100 });
+      // En céntimos y con el mismo redondeo que el backend. Redondeando en
+      // soles el widget mostraba S/30.00 con la promo mientras el backend
+      // cobraba S/29.50 — ver montoEnCentimos() en lib/catalogo.js.
+      Culqi.settings({ title: 'Notoria', currency: MONEDA, amount: montoEnCentimos(precioBase, aplicaPromo) });
       Culqi.options({ lang: 'auto', paymentMethods: { tarjeta: true, yape: false, billetera: false, bancaMovil: false, agente: false, cuotealo: false } });
       Culqi.open();
     }

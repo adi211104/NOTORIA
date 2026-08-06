@@ -12,6 +12,24 @@
 export const MONEDA = 'PEN';
 export const SIMBOLO = 'S/';
 
+// Monto a cobrar, en CÉNTIMOS, que es lo que espera Culqi en `amount`.
+//
+// Tiene que redondear igual que el backend (`Math.round(precioBase / 2)` sobre
+// céntimos en pago.routes.js y en el cron de renovación), o el widget le
+// enseña al usuario un importe distinto del que se le cobra. Pasaba con la
+// promo de bienvenida: redondeando en SOLES, S/59 / 2 = 29.5 → 30, y el widget
+// decía S/30.00 mientras el backend cobraba S/29.50. Medio sol de diferencia,
+// pero el importe mostrado antes de pagar debe ser exactamente el cobrado.
+//
+// El monto real lo decide siempre el backend; esto solo controla lo que se ve.
+export const montoEnCentimos = (precioEnSoles, aplicaPromo = false) => {
+  const centimos = Math.round(precioEnSoles * 100);
+  return aplicaPromo ? Math.round(centimos / 2) : centimos;
+};
+
+// Para mostrarlo: "29.50", "59.00"
+export const formatearSoles = (centimos) => (centimos / 100).toFixed(2);
+
 export const CATALOGO = [
   {
     id: 'gratuito',
