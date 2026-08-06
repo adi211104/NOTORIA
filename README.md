@@ -266,12 +266,13 @@ scripts ya reintentan solos.
       facturas siguen yendo una a una por `envioSunat.worker.js`, que ahora
       filtra por `tipo: 'FACTURA'`. Cada cola vigila su plazo: 3 días la
       factura, 7 el resumen. 20 comprobaciones en `prueba-resumen-cola.js`
-- [ ] **Aplicar la migración en producción** (la corre el usuario):
-      `railway ssh --service api "npx prisma db push --skip-generate"`.
-      Añade la tabla `resumenes_sunat` y la columna `comprobantes.resumenId`.
-      Es puramente aditiva — tabla nueva, columna nullable, índices y FK — así
-      que no pide `--accept-data-loss`. **Sin esto el backend arranca pero el
-      worker del resumen falla al primer tick**
+- [x] **Migración aplicada en producción** (06/08/2026): tabla `resumenes_sunat`
+      y columna `comprobantes.resumenId`. Desplegado primero (Railway
+      `d20b9987` SUCCESS) y migrado después — en ese orden, porque
+      `prisma db push` corre dentro del contenedor y lee el schema del código
+      desplegado. Verificado con `prisma migrate diff` contra prod: *empty
+      migration*. `/health` 200 y los dos workers arrancan y se declaran
+      inactivos a la espera de `SUNAT_EMISION_ACTIVA`
 
 **Culqi** — operativo con llaves de **TEST** desde el 05/08/2026
 - [x] Llaves de test en `.env` / `.env.local` **y en Railway y Vercel**

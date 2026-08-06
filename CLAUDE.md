@@ -406,6 +406,21 @@ cd brand-shield-web && vercel --prod --yes         # frontend → https://usenot
 ```
 `railway status` / `vercel ls` confirman a qué proyecto está linkeada cada carpeta antes de desplegar.
 
+⚠️ **`git push` a GitHub NO despliega nada.** Railway no está conectado al repo: los deploys son manuales con `railway up`. Un commit pusheado y sin desplegar sigue sin existir en producción.
+
+⚠️⚠️ **ORDEN OBLIGATORIO: desplegar PRIMERO, migrar DESPUÉS.** `railway ssh --service api "npx prisma db push"` se ejecuta **dentro del contenedor**, así que lee el `schema.prisma` del código **desplegado**, no el local. Si se corre antes de desplegar, Prisma compara el schema viejo contra la BD, responde **"The database is already in sync with the Prisma schema"** y no crea nada. Es la respuesta más engañosa posible: parece éxito y es un no-op. Pasó el 2026-08-06 con `resumenes_sunat`, y es la misma familia del incidente de la Fase A, que estuvo desplegada sin sus tablas sin que nadie lo notara.
+
+```bash
+cd brand-shield
+railway up --service api                                    # 1. desplegar
+railway ssh --service api "grep -c ModeloNuevo prisma/schema.prisma"   # 2. confirmar que el contenedor YA lo trae
+railway ssh --service api "npx prisma db push --skip-generate"         # 3. recién ahora migrar
+```
+
+El paso 2 es el que evita el falso positivo: si devuelve `0`, el deploy no ha entrado todavía y el `db push` mentiría.
+
+⚠️ Los comandos `!` del usuario corren en **Git Bash**, no en PowerShell: rutas con barras normales y `&&`, no `;` ni barras invertidas. Y `railway` se enlaza **por carpeta** — desde `C:\Windows\System32` responde "No linked project found"; hay que estar en `brand-shield/`.
+
 ✅ **Git YA FUNCIONA (2026-08-03).** Rama `main` con historial, remoto `origin` = **https://github.com/adi211104/NOTORIA** (privacidad del repo: decidirla el usuario). `gh` está instalado en `C:\Program Files\GitHub CLI\gh.exe` (usar ruta completa en Git Bash), autenticado como `adi211104`, y git tiene a gh como credential helper global — **`git push` funciona directo desde el agente**. Commitear y pushear al cerrar cada bloque de trabajo. `git status`/`git log` ahora SÍ dicen qué falta desplegar, pero la hora de los deploys sigue saliendo de estas fuentes:
 
 ```bash
@@ -1660,11 +1675,17 @@ Pruebas: `prueba-resumen-cola.js`, 20 comprobaciones con Prisma en memoria pero
 que ya tiene ticket, veredicto propagado a cada boleta y vencimiento que arrastra
 a las boletas que agrupaba.
 
-⚠️ **Falta aplicar la migración en producción**: `resumenes_sunat` y
-`comprobantes.resumenId` no existen aún en la BD de prod. Es aditiva (tabla
-nueva, columna nullable, índices y FK), así que no pide `--accept-data-loss`.
-Hasta aplicarla el backend arranca, pero el worker del resumen falla al primer
-tick.
+✅ **Desplegado y migrado (2026-08-06).** Railway `d20b9987` SUCCESS y después
+`prisma db push` dentro del contenedor: `resumenes_sunat` y
+`comprobantes.resumenId` ya existen en prod. Verificado con
+`prisma migrate diff` contra la BD real → *empty migration*. `/health` 200,
+landing 200, y en los logs los dos workers arrancan y se declaran inactivos a la
+espera de `SUNAT_EMISION_ACTIVA`, que es exactamente lo que debía pasar.
+
+**El orden importó y casi cuesta un fallo silencioso:** el primer intento de
+migrar se hizo antes de desplegar y Prisma contestó *"The database is already in
+sync"* sin crear nada, porque leyó el schema viejo del contenedor. Ver el aviso
+de la sección 4.
 
 **Lo que sigue sin cablear, y es a propósito:** la comunicación de baja (RA) y la
 anulación de boletas no tienen disparador — no hay ninguna acción en el producto
