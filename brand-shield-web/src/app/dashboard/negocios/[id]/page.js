@@ -551,6 +551,8 @@ const TEXTOS = {
       },
       igErrorGenerico:'Instagram rechazó la conexión.',
       igComoVincular:'Cómo vincularla',
+      igEntendido:'Entendido',
+      igReintentar:'Ir a Conexiones',
       igPasos:[
         'En Instagram: Configuración → Tipo de cuenta y herramientas → Cambiar a cuenta profesional.',
         'Después, Configuración → Compartir en otras apps → Facebook, y elige la página de tu negocio.',
@@ -881,6 +883,8 @@ const TEXTOS = {
       },
       igErrorGenerico:'Instagram rejected the connection.',
       igComoVincular:'How to link it',
+      igEntendido:'Got it',
+      igReintentar:'Go to Connections',
       igPasos:[
         'In Instagram: Settings → Account type and tools → Switch to professional account.',
         'Then Settings → Sharing to other apps → Facebook, and pick your business Page.',
@@ -2521,22 +2525,10 @@ export default function DetallePage() {
               <p style={{ color:'#22c55e', fontSize:13, fontWeight:500, margin:0, display:'flex', alignItems:'center', gap:8 }}><Icon name="checkCirc" size={15} /> {t.config.igExito}</p>
             </div>
           )}
-          {igError && (
-            <div style={{ background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:10, padding:'12px 16px' }}>
-              <p style={{ color:'#f87171', fontSize:13, margin:'0 0 4px', fontWeight:600 }}>{t.config.igErrorTitulo}</p>
-              <p style={{ color:'var(--text-2)', fontSize:12.5, margin:0, lineHeight:1.5 }}>
-                {t.config.igError[igError] || t.config.igErrorGenerico}
-              </p>
-              {igError === 'sin_cuenta_business' && (
-                <>
-                  <p style={{ color:'var(--text-3)', fontSize:11, fontWeight:600, textTransform:'uppercase', letterSpacing:0.5, margin:'12px 0 6px' }}>{t.config.igComoVincular}</p>
-                  <ol style={{ color:'var(--text-2)', fontSize:12.5, margin:0, paddingLeft:18, lineHeight:1.6 }}>
-                    {t.config.igPasos.map((paso, i) => <li key={i}>{paso}</li>)}
-                  </ol>
-                </>
-              )}
-            </div>
-          )}
+          {/* El error NO va aquí: es un modal a nivel de página (abajo del todo).
+              Metido en la pestaña obligaba al usuario a estar mirándola, y el
+              fallo de conexión merece interrumpir — trae pasos que hay que
+              seguir fuera de Notoria. */}
           <Card style={{ border:'1px solid rgba(239,68,68,0.3)' }}>
             <ST>{t.config.zonaPeligro}</ST>
             <p style={{ color:'var(--text-2)', fontSize:13, margin:'0 0 14px', lineHeight:1.5 }}>{t.config.zonaPeligroDesc}</p>
@@ -2710,6 +2702,54 @@ export default function DetallePage() {
       )}
 
       {/* Popup único: recomendación de escaneo al agregar el negocio */}
+      {/* Fallo al conectar Instagram — modal, no recuadro dentro de una pestaña.
+          Es el resultado de una acción que el usuario acaba de hacer y que se
+          resuelve fuera de Notoria (en Instagram y Facebook), así que tiene que
+          interrumpir y quedarse hasta que lo cierre. */}
+      {igError && (
+        <div
+          onClick={() => setIgError(null)}
+          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:60, padding:16 }}
+        >
+          {/* Frena el clic para que no cierre al pulsar dentro de la tarjeta */}
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ background:'var(--surface)', border:'1px solid rgba(239,68,68,0.35)', borderRadius:16, padding:24, maxWidth:460, width:'100%', maxHeight:'85vh', overflowY:'auto' }}>
+            <div style={{ display:'flex', alignItems:'flex-start', gap:10, marginBottom:10 }}>
+              <span style={{ flexShrink:0, marginTop:1 }}><Icon name="alerta" size={20} color="#f87171" /></span>
+              <h3 style={{ color:'var(--text)', fontSize:16, fontWeight:700, margin:0, flex:1 }}>{t.config.igErrorTitulo}</h3>
+              <button onClick={() => setIgError(null)} aria-label={t.config.cancelar}
+                style={{ flexShrink:0, background:'none', border:'none', color:'var(--text-3)', cursor:'pointer', padding:2, lineHeight:0 }}>
+                <Icon name="cerrar" size={16} />
+              </button>
+            </div>
+            <p style={{ color:'var(--text-2)', fontSize:13.5, margin:'0 0 4px', lineHeight:1.6 }}>
+              {t.config.igError[igError] || t.config.igErrorGenerico}
+            </p>
+            {igError === 'sin_cuenta_business' && (
+              <>
+                <p style={{ color:'var(--text-3)', fontSize:11, fontWeight:600, textTransform:'uppercase', letterSpacing:0.5, margin:'18px 0 8px' }}>{t.config.igComoVincular}</p>
+                <ol style={{ color:'var(--text-2)', fontSize:13, margin:0, paddingLeft:20, lineHeight:1.7 }}>
+                  {t.config.igPasos.map((paso, i) => <li key={i} style={{ marginBottom:6 }}>{paso}</li>)}
+                </ol>
+              </>
+            )}
+            {/* El último paso es "vuelve y pulsa Conectar otra vez", y ese botón
+                vive en Conexiones. Sin este enlace el usuario tendría que ir a
+                buscarlo justo cuando acaba de arreglar lo suyo en Instagram. */}
+            <div style={{ display:'flex', gap:10, marginTop:22 }}>
+              <button onClick={() => setIgError(null)}
+                style={{ flex:1, background:'var(--surface2)', border:'1px solid var(--border-c)', color:'var(--text)', borderRadius:10, padding:11, fontSize:14, fontWeight:600, cursor:'pointer' }}>
+                {t.config.igEntendido}
+              </button>
+              <Link href="/dashboard/conexiones" onClick={() => setIgError(null)}
+                style={{ flex:1, background:'#0B7324', color:'#fff', borderRadius:10, padding:11, fontSize:14, fontWeight:600, textAlign:'center', textDecoration:'none' }}>
+                {t.config.igReintentar}
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
       {modalBienvenida && negocio && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:60, padding:16 }}>
           <div style={{ background:'var(--surface)', border:'1px solid var(--border-c)', borderRadius:16, padding:24, maxWidth:380, width:'100%' }}>
