@@ -75,8 +75,22 @@ const RESPUESTA_MEDIA = {
 
   const peticion = llamadas[0];
   check('pide media con comments anidados', /\/178\/media$/.test(peticion.url) &&
-    /comments\{/.test(peticion.params.fields), peticion.params?.fields);
+    /comments\.limit\(\d+\)\{/.test(peticion.params.fields), peticion.params?.fields);
   check('manda el token como parámetro', peticion.params.access_token === 'TOKEN_PAGINA');
+
+  // Los dos límites son decisión nuestra. El de comentarios es el que importa:
+  // sin `.limit(N)` mandaba el valor por defecto de Meta, que no controlamos.
+  check('acota las publicaciones al límite propio',
+    peticion.params.limit === instagram.LIMITE_PUBLICACIONES, `limit=${peticion.params.limit}`);
+  check('acota los comentarios explícitamente',
+    peticion.params.fields.includes(`comments.limit(${instagram.LIMITE_COMENTARIOS})`), peticion.params.fields);
+
+  // Se pueden estrechar por llamada sin tocar el scraper
+  llamadas.length = 0;
+  await instagram.obtenerComentariosInstagram('178', 'TOKEN', { publicaciones: 5, comentariosPorPublicacion: 7 });
+  check('los límites se pueden ajustar por llamada',
+    llamadas[0].params.limit === 5 && llamadas[0].params.fields.includes('comments.limit(7)'),
+    llamadas[0]?.params?.fields);
 
   // ── 2. Sin cuenta conectada ────────────────────────────
   check('sin instagramUserId devuelve null', await instagram.obtenerComentariosInstagram(null, 'TOKEN') === null);

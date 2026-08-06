@@ -15,17 +15,46 @@ const axios = require('axios');
 
 const GRAPH_URL = 'https://graph.facebook.com/v21.0';
 
+// Ventana de lectura. Los dos límites son decisión nuestra, no de la API, y por
+// eso van explícitos: sin fijar el de comentarios se aplicaba el valor por
+// defecto de Meta, que no controlamos y puede cambiar sin avisar.
+//
+// Instagram admite una ventana más ancha que TikTok (que usa 10) porque aquí los
+// comentarios vienen ANIDADOS en la misma llamada: 25 publicaciones cuestan una
+// petición, mientras que en TikTok cada video suma la suya.
+//
+// ⚠️ Sigue siendo una ventana: un comentario en una publicación más antigua que
+// las 25 últimas no se ve. El arreglo de fondo son los webhooks de Instagram
+// (campo `comments`), que avisan de cualquier publicación sin ventana ninguna;
+// usan este mismo permiso `instagram_manage_comments`. Los webhooks solo
+// notifican desde que se configuran, así que este barrido seguiría haciendo
+// falta para el histórico al conectar una cuenta nueva.
+const LIMITE_PUBLICACIONES = 25;
+const LIMITE_COMENTARIOS = 30;
+
 const configurado = () => !!(process.env.META_APP_ID && process.env.META_APP_SECRET);
 
 /**
  * Últimas publicaciones con sus comentarios.
  * Devuelve [{ externalId, texto, autorNombre, fechaComentario, publicacionId, publicacionCaption }]
  */
-const obtenerComentariosInstagram = async (instagramUserId, accessToken) => {
+const obtenerComentariosInstagram = async (
+  instagramUserId,
+  accessToken,
+  // `comentariosPorPublicacion` y no `comentarios`: dentro de la función ya hay
+  // un acumulador con ese nombre y el choque rompe la inicialización.
+  { publicaciones = LIMITE_PUBLICACIONES, comentariosPorPublicacion = LIMITE_COMENTARIOS } = {},
+) => {
   if (!configurado() || !instagramUserId || !accessToken) return null;
   try {
     const { data } = await axios.get(`${GRAPH_URL}/${instagramUserId}/media`, {
-      params: { fields: 'id,caption,comments{id,text,username,timestamp}', limit: 10, access_token: accessToken },
+      params: {
+        // `comments.limit(N){...}` es la sintaxis de la Graph API para acotar un
+        // campo anidado. Sin el `.limit(N)` manda Meta, no nosotros.
+        fields: `id,caption,comments.limit(${comentariosPorPublicacion}){id,text,username,timestamp}`,
+        limit: publicaciones,
+        access_token: accessToken,
+      },
     });
     const comentarios = [];
     for (const media of data.data || []) {
@@ -82,4 +111,5 @@ const eliminarComentarioInstagram = async (comentarioId, accessToken) => {
 module.exports = {
   obtenerComentariosInstagram, responderComentarioInstagram,
   eliminarComentarioInstagram, configurado,
+  LIMITE_PUBLICACIONES, LIMITE_COMENTARIOS,
 };

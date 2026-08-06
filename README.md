@@ -253,6 +253,13 @@ scripts ya reintentan solos.
 - [x] **Comentarios de Instagram cableados** (leer, responder y borrar la
       respuesta propia). Sin esto el revisor habría conectado la cuenta y visto
       la pestaña vacía: rechazo seguro
+- [x] Ventana de lectura explícita: **25 publicaciones × 30 comentarios**. Antes
+      el límite de comentarios no se fijaba y mandaba el valor por defecto de
+      Meta, que no controlamos
+- [ ] *(mejora de fondo, tras el App Review)* **Webhooks de Instagram** para
+      recibir comentarios de **cualquier** publicación, sin ventana. Usan el
+      mismo permiso ya solicitado. No sustituyen al barrido: los webhooks solo
+      notifican desde que se configuran, así que el histórico sigue leyéndose
 - [x] **Migración del enum aplicada en producción** (06/08/2026): backend
       desplegado primero (`02a27eaa`) y después el `db push`. Verificado con
       `prisma migrate diff` en ambos sentidos → *empty migration*
