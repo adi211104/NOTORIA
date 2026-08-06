@@ -1189,3 +1189,32 @@ Para poder detallarlo, `POST /api/pagos/culqi` devuelve además `monto`, `moneda
 **Lección para el resto del producto:** un aviso en el flujo de pago no puede
 depender de dónde esté el scroll ni durar menos de lo que tarda el usuario en
 mirar. Desplegado: Railway `ceda499d` SUCCESS, Vercel `notoria-fz01z27vi` READY.
+
+### Bug: el customer de Culqi no se puede crear dos veces (2026-08-05)
+
+Al repetir la prueba de cobro, el pago falló con **"Un cliente está registrado
+actualmente con este email"**. Apareció después de limpiar la base, pero **no
+era un artefacto de la limpieza**: el `customer` vive en Culqi, no en nuestra
+base, así que borrar nuestras filas no lo elimina.
+
+**Era un bug de producción.** `POST /api/pagos/culqi` llamaba a
+`culqi.crearCliente()` en cada alta, y Culqi **rechaza un segundo customer con
+el mismo correo**. Cualquier cliente real que intentara suscribirse una segunda
+vez —tras cancelar y volver, tras un cobro fallido, o al cambiar de plan— se
+quedaba sin poder pagar **nunca más**, con un mensaje que además no explica nada.
+
+Arreglado con **`culqi.obtenerOCrearCliente()`**, que es lo que debe usarse al
+suscribir: intenta crear y, si falla, busca el customer por correo
+(`GET /customers?email=`) y lo reutiliza. El rescate se intenta ante *cualquier*
+fallo del create y relanza el error original si no encuentra nada, para no
+depender de que Culqi conserve el texto del mensaje ni el nombre del campo.
+**`crearCliente` sigue exportada, pero no debe usarse directamente en el alta.**
+
+`prueba-culqi.js` da de alta dos veces con el mismo correo y exige el mismo
+customer — el script no cubría este camino y por eso el bug llegó hasta acá.
+
+**Lección:** el circuito de pago tiene estado **en Culqi**, no solo en nuestra
+base. Al probar de nuevo, limpiar lo nuestro no basta: hay que contar con que
+customers y tarjetas siguen existiendo del otro lado.
+
+Desplegado: Railway `b850f0a0` SUCCESS, `/health` 200.
