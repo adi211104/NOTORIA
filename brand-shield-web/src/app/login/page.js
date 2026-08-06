@@ -15,6 +15,16 @@ export default function LoginPage() {
   const googleBtnRef = useRef(null);
   const googleInitialized = useRef(false);
 
+  // ?next=/ruta — a dónde volver tras iniciar sesión. Lo usa la compra desde
+  // /precios, que manda al login y necesita retomar el pago al volver.
+  //
+  // Se lee de window en el momento de usarlo, no en un estado: el botón de
+  // Google se inicializa una sola vez al montar (googleInitialized) y con un
+  // estado su callback se quedaría con el valor viejo. Tampoco se usa
+  // useSearchParams para no tener que envolver la página en un <Suspense>.
+  // AuthContext valida que sea una ruta interna antes de navegar.
+  const destinoActual = () => new URLSearchParams(window.location.search).get('next');
+
   const handleGoogleResponse = useCallback(async (response) => {
     setError('');
     try {
@@ -24,7 +34,7 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error con Google');
-      await loginConGoogle(data.token, data.esNuevo);
+      await loginConGoogle(data.token, data.esNuevo, destinoActual());
     } catch (e) { setError(e.message); }
   }, []);
 
@@ -46,7 +56,7 @@ export default function LoginPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault(); setError(''); setCargando(true);
-    try { await login(form.email, form.password); }
+    try { await login(form.email, form.password, destinoActual()); }
     catch (err) {
       if (err.type === 'NETWORK_ERROR') {
         setError('No se puede conectar al servidor. Verifica que el backend esté en ejecución.');

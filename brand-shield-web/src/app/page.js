@@ -11,6 +11,8 @@ const PixelBlast = dynamic(() => import('../components/PixelBlast'), { ssr: fals
 import LogoNotoria from '../components/LogoNotoria';
 import BotonWhatsApp from '../components/BotonWhatsApp';
 import AnalisisGratis from '../components/AnalisisGratis';
+// Fuente única de los datos de contacto públicos (ver components/PieLegal.js)
+import { CONTACTO } from '../components/PieLegal';
 
 // Símbolo de la moneda de cobro. Los precios se cobran en soles; ver MONEDA en
 // brand-shield/src/lib/precios.js, que es lo que manda en el cargo real.
@@ -248,7 +250,8 @@ const TEXTOS = {
         { titulo:'Recursos', links:[
           { l:'Blog', h:'/blog' },
           { l:'Preguntas frecuentes', h:'#faq' },
-          { l:'Contacto', h:'mailto:hola@usenotoria.app' },
+          { l:'Precios y contratación', h:'/precios' },
+          { l:'Contacto', h:'/contacto' },
         ]},
         { titulo:'Cuenta', links:[
           { l:'Iniciar sesión', h:'/login' },
@@ -258,6 +261,8 @@ const TEXTOS = {
         { titulo:'Legal', links:[
           { l:'Términos de servicio', h:'/terminos' },
           { l:'Política de privacidad', h:'/privacidad' },
+          { l:'Cambios y devoluciones', h:'/devoluciones' },
+          { l:'Libro de Reclamaciones', h:'/libro-reclamaciones' },
           { l:'Eliminación de datos', h:'/eliminar-datos' },
         ]},
       ],
@@ -435,7 +440,8 @@ const TEXTOS = {
         { titulo:'Resources', links:[
           { l:'Blog', h:'/blog' },
           { l:'FAQ', h:'#faq' },
-          { l:'Contact', h:'mailto:hola@usenotoria.app' },
+          { l:'Pricing and checkout', h:'/precios' },
+          { l:'Contact', h:'/contacto' },
         ]},
         { titulo:'Account', links:[
           { l:'Sign in', h:'/login' },
@@ -445,6 +451,8 @@ const TEXTOS = {
         { titulo:'Legal', links:[
           { l:'Terms of service', h:'/terminos' },
           { l:'Privacy policy', h:'/privacidad' },
+          { l:'Returns and refunds', h:'/devoluciones' },
+          { l:'Complaints book (Peru)', h:'/libro-reclamaciones' },
           { l:'Data deletion', h:'/eliminar-datos' },
         ]},
       ],
@@ -1018,7 +1026,10 @@ export default function LandingPage() {
                         </>
                       )}
                     </div>
-                    <Link href={loggedIn?'/dashboard/planes':'/registro'}
+                    {/* Los planes de pago llevan al catálogo público /precios, que
+                        tiene el botón de pago a la vista sin necesidad de sesión.
+                        El plan Gratuito sigue llevando al registro, que es su flujo. */}
+                    <Link href={gratis ? (loggedIn ? '/dashboard' : '/registro') : '/precios'}
                       style={{ display:'block', textAlign:'center', padding:'11px', borderRadius:5, fontWeight:700, fontSize:14, textDecoration:'none', transition:'all 0.15s', background:featured?C.green:'transparent', color:featured?'#fff':C.text2, border:featured?'none':`1px solid ${C.border}` }}>
                       {loggedIn?(i===0?t.precios.ctaActual:t.precios.ctaUpgrade):(gratis?t.precios.ctaGratis:t.precios.ctaPago)}
                     </Link>
@@ -1163,6 +1174,29 @@ export default function LandingPage() {
                   </div>
                 </div>
               ))}
+            </div>
+            {/* Datos de contacto e identificación del comercio, más el acceso al
+                Libro de Reclamaciones. Culqi exige que número, correo y dirección
+                estén visibles en la web, y que el libro esté dentro del sitio. */}
+            <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:24, marginBottom:20, display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))', gap:24, alignItems:'start' }}>
+              <div style={{ fontSize:12.5, color:C.text3, lineHeight:1.9 }}>
+                <div style={{ fontWeight:700, color:C.text2, marginBottom:4 }}>{CONTACTO.razonSocial} · RUC {CONTACTO.ruc}</div>
+                <div>{CONTACTO.direccion}</div>
+                <div>
+                  <a href={`tel:${CONTACTO.telefonoLink}`} style={{ color:C.green, textDecoration:'none' }}>{CONTACTO.telefono}</a>
+                  {' · '}
+                  <a href={`mailto:${CONTACTO.email}`} style={{ color:C.green, textDecoration:'none' }}>{CONTACTO.email}</a>
+                </div>
+                <div>{CONTACTO.horario}</div>
+              </div>
+              <a href="/libro-reclamaciones" style={{ textDecoration:'none', justifySelf:'start' }}>
+                <div style={{ border:`2px solid ${C.text2}`, borderRadius:6, padding:'10px 13px', maxWidth:230, display:'flex', alignItems:'center', gap:10 }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={C.text2} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                  </svg>
+                  <span style={{ fontSize:11.5, fontWeight:800, color:C.text2, lineHeight:1.3 }}>LIBRO DE<br/>RECLAMACIONES</span>
+                </div>
+              </a>
             </div>
             <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:20, display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:10 }}>
               <span style={{ color:C.text3, fontSize:12.5 }}>{t.footer.copyright(new Date().getFullYear())}</span>

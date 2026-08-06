@@ -484,3 +484,56 @@ model Mencion {
   @@index([negocioId, archivada, detectadaEn])
   @@map("menciones")
 }
+
+// Libro de Reclamaciones virtual (Ley 29571, D.S. 101-2022-PCM).
+//
+// INDECOPI exige que viva DENTRO de la web, no en un formulario externo tipo
+// Google Forms — Culqi observó la web justamente por eso. De ahí que esto sea
+// una tabla propia y no un correo suelto: la norma obliga a conservar cada hoja
+// por 2 años, a numerarlas de forma correlativa y a poder mostrarlas ante una
+// fiscalización.
+//
+// No tiene relación con Usuario a propósito: cualquier consumidor puede
+// reclamar, esté registrado o no.
+model Reclamacion {
+  id     String @id @default(cuid())
+  // Correlativo visible que se le entrega al consumidor (ej. "2026-000123").
+  // Único porque es el cargo de recepción: dos hojas con el mismo número
+  // invalidarían el libro.
+  numero String @unique
+
+  // ── Consumidor ──
+  nombre     String
+  documento  String  // DNI / CE / pasaporte
+  docTipo    String  @default("DNI")
+  domicilio  String
+  email      String
+  telefono   String
+  // La norma obliga a identificar al apoderado cuando el consumidor es menor
+  esMenor    Boolean @default(false)
+  apoderado  String?
+
+  // ── Bien contratado ──
+  tipoBien    String  @default("SERVICIO") // PRODUCTO | SERVICIO
+  descripcion String  // qué se contrató
+  montoS      Int?    // monto reclamado en céntimos, opcional
+
+  // ── Detalle ──
+  // RECLAMO = disconformidad con el servicio · QUEJA = malestar con la atención.
+  // Son figuras distintas en la ley y los plazos difieren, por eso se guarda.
+  tipo    String @default("RECLAMO")
+  detalle String
+  pedido  String
+
+  // ── Respuesta del proveedor ──
+  // El plazo legal de respuesta es de 15 días hábiles desde la recepción.
+  estado      String    @default("PENDIENTE") // PENDIENTE | RESPONDIDO
+  respuesta   String?
+  respondidoEn DateTime?
+
+  creadoEn DateTime @default(now())
+  ip       String?
+
+  @@index([estado, creadoEn])
+  @@map("reclamaciones")
+}

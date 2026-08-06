@@ -21,13 +21,13 @@ const { MONEDA, PRECIOS } = require('../../lib/precios');
 // número completo. Si el charge no trae `source` (no debería pasar en un
 // cargo real) el registro queda sin datos de tarjeta en vez de fallar.
 const registrarPago = async ({ usuarioId, plan, periodo, tipo, monto, titular, cargo }) => {
-  const source = cargo?.source;
+  const tarjeta = culqi.datosTarjeta(cargo);
   try {
     return await prisma.pago.create({
       data: {
         usuarioId, plan, periodo, tipo, estado: 'EXITOSO', monto, moneda: MONEDA, titular,
-        tarjetaInicio: source?.card_number ? source.card_number.slice(0, 4) : null,
-        tarjetaMarca: source?.iin?.card_brand || null,
+        tarjetaInicio: tarjeta.inicio,
+        tarjetaMarca: tarjeta.marca,
         culqiCargoId: cargo?.id || null,
       },
     });
@@ -102,7 +102,11 @@ router.post('/culqi', async (req, res) => {
     const aplicaPromo = !anual && !usuario.promoBienvenidaUsada;
     const monto = aplicaPromo ? Math.round(precioBase / 2) : precioBase;
 
-    const cuentaCulqi = await culqi.crearCliente({ email: usuario.email, nombre: usuario.nombre });
+    const cuentaCulqi = await culqi.crearCliente({
+      email: usuario.email,
+      nombre: usuario.nombre,
+      direccion: usuario.direccionFiscal,
+    });
     const tarjeta = await culqi.crearTarjeta({ customerId: cuentaCulqi.id, tokenId: token });
     const cargo = await culqi.crearCargo({
       monto,

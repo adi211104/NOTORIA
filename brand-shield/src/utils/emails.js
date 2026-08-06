@@ -370,4 +370,61 @@ const enviarDrip = async (usuario, tipo, datos) => {
   });
 };
 
-module.exports = { enviarBienvenida, enviarVerificacion, enviarConfirmacionContrasena, enviarRecuperacionContrasena, enviarAlertaCritica, enviarResumenAlertas, enviarResumenSemanal, enviarResumenSemanalConsolidado, enviarComprobante, enviarDrip, getResend, FROM, base, h1, p, btn, hr };
+// ── Libro de Reclamaciones ────────────────────────────────
+// El D.S. 101-2022-PCM obliga a entregar al consumidor una copia de su hoja de
+// reclamación de forma inmediata. Como el libro es virtual, esa copia es este
+// correo: por eso repite todos los datos declarados y no solo el número.
+const filaHoja = (etiqueta, valor) =>
+  `<tr><td style="padding:5px 10px 5px 0;color:#9C9B96;font-size:12px;vertical-align:top;white-space:nowrap;">${etiqueta}</td><td style="padding:5px 0;color:#141413;font-size:12px;">${valor}</td></tr>`;
+
+const hojaHtml = (r) => `<table style="width:100%;border-collapse:collapse;">
+  ${filaHoja('N° de hoja', `<strong>${r.numero}</strong>`)}
+  ${filaHoja('Fecha', new Date(r.creadoEn).toLocaleString('es-PE', { timeZone: 'America/Lima' }))}
+  ${filaHoja('Tipo', r.tipo === 'QUEJA' ? 'Queja' : 'Reclamo')}
+  ${filaHoja('Consumidor', `${r.nombre} · ${r.docTipo} ${r.documento}`)}
+  ${filaHoja('Domicilio', r.domicilio)}
+  ${filaHoja('Contacto', `${r.email} · ${r.telefono}`)}
+  ${r.esMenor ? filaHoja('Apoderado', r.apoderado) : ''}
+  ${filaHoja('Bien contratado', `${r.tipoBien === 'PRODUCTO' ? 'Producto' : 'Servicio'} — ${r.descripcion}`)}
+  ${r.montoS ? filaHoja('Monto reclamado', `S/ ${(r.montoS / 100).toFixed(2)}`) : ''}
+  ${filaHoja('Detalle', r.detalle)}
+  ${filaHoja('Pedido', r.pedido)}
+</table>`;
+
+const enviarCargoReclamacion = async (r) => {
+  const res = await getResend().emails.send({
+    from: FROM(), to: r.email,
+    subject: `Constancia de tu ${r.tipo === 'QUEJA' ? 'queja' : 'reclamo'} ${r.numero} — Notoria`,
+    html: base(`
+      ${h1('Recibimos tu reclamación')}
+      ${p(`Registramos tu ${r.tipo === 'QUEJA' ? 'queja' : 'reclamo'} con el número <strong>${r.numero}</strong>. Guarda este correo: es tu constancia de presentación ante el Libro de Reclamaciones de Notoria.`)}
+      ${p('Tenemos un plazo máximo de <strong>15 días hábiles</strong> para darte una respuesta, según el Código de Protección y Defensa del Consumidor (Ley 29571).')}
+      ${hr()}
+      ${hojaHtml(r)}
+      ${hr()}
+      ${p('Si necesitas agregar algo a tu reclamación, responde a este correo citando el número de hoja.')}
+    `),
+  });
+  console.log('[Reclamaciones] Cargo enviado al consumidor:', r.numero);
+  return res;
+};
+
+// Aviso al comercio. Va al correo de atención; sin él la reclamación queda
+// igual guardada en la tabla y visible en base de datos.
+const enviarAvisoReclamacionInterno = async (r) => {
+  const destino = process.env.EMAIL_RECLAMACIONES || 'hola@usenotoria.app';
+  const res = await getResend().emails.send({
+    from: FROM(), to: destino,
+    subject: `[Libro de Reclamaciones] ${r.numero} — ${r.tipo}`,
+    html: base(`
+      ${h1(`Nueva ${r.tipo === 'QUEJA' ? 'queja' : 'reclamación'}: ${r.numero}`)}
+      ${p('Plazo legal de respuesta: <strong>15 días hábiles</strong> desde hoy.')}
+      ${hr()}
+      ${hojaHtml(r)}
+    `),
+  });
+  console.log('[Reclamaciones] Aviso interno enviado a', destino, '—', r.numero);
+  return res;
+};
+
+module.exports = { enviarBienvenida, enviarVerificacion, enviarConfirmacionContrasena, enviarRecuperacionContrasena, enviarAlertaCritica, enviarResumenAlertas, enviarResumenSemanal, enviarResumenSemanalConsolidado, enviarComprobante, enviarDrip, enviarCargoReclamacion, enviarAvisoReclamacionInterno, getResend, FROM, base, h1, p, btn, hr };

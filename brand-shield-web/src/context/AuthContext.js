@@ -65,29 +65,37 @@ export const AuthProvider = ({ children }) => {
     return () => window.removeEventListener('focus', onFocus);
   }, [usuario]);
 
-  const login = async (email, password) => {
+  // `destino` permite volver a la página desde la que se pidió la sesión en vez
+  // de caer siempre en /dashboard. Lo usa la compra desde /precios: quien no
+  // tiene sesión inicia sesión y retoma el pago donde lo dejó. Solo se aceptan
+  // rutas internas ("/algo") para que nadie pueda usar ?next= como redirección
+  // abierta hacia un dominio externo.
+  const rutaSegura = (destino) =>
+    typeof destino === 'string' && /^\/(?!\/)/.test(destino) ? destino : null;
+
+  const login = async (email, password, destino) => {
     const data = await auth.login({ email, password });
     localStorage.setItem('bs_token', data.token);
     setUsuario(data.usuario);
-    router.push('/dashboard');
+    router.push(rutaSegura(destino) || '/dashboard');
   };
 
-  const registro = async (nombre, email, password) => {
+  const registro = async (nombre, email, password, destino) => {
     const data = await auth.registro({ nombre, email, password });
     localStorage.setItem('bs_token', data.token);
     localStorage.removeItem('bs_onboarding');
     setUsuario(data.usuario);
-    router.push('/onboarding');
+    router.push(rutaSegura(destino) || '/onboarding');
   };
 
-  const loginConGoogle = async (token, esNuevo) => {
+  const loginConGoogle = async (token, esNuevo, destino) => {
     localStorage.setItem('bs_token', token);
     if (esNuevo) localStorage.removeItem('bs_onboarding');
     try {
       const perfil = await auth.perfil();
       setUsuario(perfil);
     } catch {}
-    router.push(esNuevo ? '/onboarding' : '/dashboard');
+    router.push(rutaSegura(destino) || (esNuevo ? '/onboarding' : '/dashboard'));
   };
 
   const logout = () => {

@@ -122,15 +122,19 @@ const motivo = (e) =>
     if (cargo.currency_code !== MONEDA) mal(`Moneda devuelta ${cargo.currency_code}, esperada ${MONEDA}`);
 
     // ── 6. Campos que consume registrarPago() ──────────────
-    const src = cargo.source;
-    if (!src) {
+    // Se comprueba a través de culqi.datosTarjeta(), que es exactamente lo que
+    // corre en producción. Antes esto releía `cargo.source.card_number` por su
+    // cuenta y por eso no detectaba que, al cobrar con tarjeta guardada, Culqi
+    // anida esos campos un nivel más abajo (cargo.source.source).
+    const datos = culqi.datosTarjeta(cargo);
+    if (!cargo.source) {
       mal('El cargo no trae `source` — Pago.tarjetaInicio y tarjetaMarca quedarían en null');
     } else {
-      if (src.card_number) ok('source.card_number:', src.card_number, '→ se guardan los 4 primeros:', src.card_number.slice(0, 4));
-      else mal('Falta source.card_number — Pago.tarjetaInicio quedaría null');
+      if (datos.inicio) ok('Pago.tarjetaInicio:', datos.inicio);
+      else mal('datosTarjeta() no encontró el número — Pago.tarjetaInicio quedaría null');
 
-      if (src.iin?.card_brand) ok('source.iin.card_brand:', src.iin.card_brand);
-      else mal('Falta source.iin.card_brand — Pago.tarjetaMarca quedaría null');
+      if (datos.marca) ok('Pago.tarjetaMarca:', datos.marca);
+      else mal('datosTarjeta() no encontró la marca — Pago.tarjetaMarca quedaría null');
     }
     if (!cargo.id) mal('El cargo no trae id — el webhook no podría marcar reembolsos');
 

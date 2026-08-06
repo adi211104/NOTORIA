@@ -98,6 +98,12 @@ export const pagos = {
   estado:    ()  => api('/api/pagos/estado'),
 };
 
+// Libro de Reclamaciones — endpoint público: la ley no permite exigir registro
+// previo para dejar un reclamo, así que no manda sesión.
+export const reclamaciones = {
+  crear: (d) => api('/api/reclamaciones', { method:'POST', body:JSON.stringify(d) }),
+};
+
 export const redes = {
   estado:            (negocioId) => api(`/api/redes/${negocioId}/estado`),
   conectarInstagram: (negocioId) => api(`/api/redes/${negocioId}/instagram/conectar`, { method:'POST' }),

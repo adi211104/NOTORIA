@@ -634,13 +634,13 @@ const iniciarRenovacionesCulqi = () => {
           },
         });
 
-        const source = cargo?.source;
+        const tarjeta = culqi.datosTarjeta(cargo);
         const pago = await prisma.pago.create({
           data: {
             usuarioId: usuario.id, plan: usuario.plan, periodo, tipo: 'RENOVACION',
             estado: 'EXITOSO', monto, moneda: MONEDA, titular: usuario.nombre,
-            tarjetaInicio: source?.card_number ? source.card_number.slice(0, 4) : null,
-            tarjetaMarca: source?.iin?.card_brand || null,
+            tarjetaInicio: tarjeta.inicio,
+            tarjetaMarca: tarjeta.marca,
             culqiCargoId: cargo?.id || null,
           },
         }).catch(e => {

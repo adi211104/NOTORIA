@@ -94,7 +94,7 @@ const PLANES = {
         { texto: 'Soporte prioritario por WhatsApp', ok: true },
         { texto: 'Todo lo del plan Negocio', ok: true },
       ],
-      cta: 'Contactar para demo',
+      cta: 'Contratar plan Franquicia',
       ctaActivo: true,
     },
   ],
@@ -176,7 +176,7 @@ const PLANES = {
         { texto: 'Priority WhatsApp support', ok: true },
         { texto: 'Everything in the Business plan', ok: true },
       ],
-      cta: 'Contact us for a demo',
+      cta: 'Get the Franchise plan',
       ctaActivo: true,
     },
   ],
@@ -285,12 +285,10 @@ export default function PlanesPage() {
   const handleCTA = (plan) => {
     if (!plan.ctaActivo) return;
 
-    if (plan.id === 'FRANQUICIA') {
-      window.open('mailto:hola@usenotoria.app?subject=Demo Franquicia', '_blank');
-      return;
-    }
-
-    if (plan.id === 'NEGOCIO') {
+    // Franquicia también se cobra con tarjeta: antes abría un mailto y no había
+    // forma de contratarlo online, que es parte de lo que Culqi observó. El
+    // backend ya aceptaba el plan (ver PRECIOS en lib/precios.js).
+    if (plan.id === 'NEGOCIO' || plan.id === 'FRANQUICIA') {
       const Culqi = typeof window !== 'undefined' ? window.Culqi : null;
       const publicKey = process.env.NEXT_PUBLIC_CULQI_PUBLIC_KEY;
       if (!Culqi || !publicKey) {
