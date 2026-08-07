@@ -1371,6 +1371,8 @@ que devolvió "empty migration"). El cambio de default cosmético que figuraba a
 
    ⚠️⚠️ **Y el aviso más peligroso de todo esto: Meta mostró "Se probó correctamente el campo del webhook comments v26.0" MIENTRAS nuestro servidor devolvía 403.** Ese cartel verde solo dice que Meta **envió** la muestra, no que el servidor la aceptara. **Nunca dar por buena una integración de webhooks por el mensaje de la consola: la verdad está en los logs del servidor.** Es exactamente la misma familia de error que el truco 401/404 de las rutas.
 
+   ✅ **Cerrado el 2026-08-06:** cargado `META_IG_APP_SECRET` y desplegado el arreglo, la misma prueba devolvió `[Webhook IG] Evento de una cuenta sin negocio: 0`. O sea: firma validada, cuerpo parseado, objeto y campo reconocidos, filtro de eco pasado y búsqueda del negocio hecha — la muestra de Meta trae `entry.id = "0"`, que no es ninguna cuenta real, así que muere ahí. **Lo único que esa muestra no ejercita es el último tramo** (guardar, clasificar y alertar), porque no hay negocio al que asociarla; eso lo cubren las 38 pruebas locales. Para ejercitarlo con datos reales hace falta un comentario **desde otra cuenta**: los de la cuenta propia se descartan como eco.
+
    💡 **Cómo se lee el resultado de una prueba** (`railway logs --service api | grep Webhook`):
    - `Evento de una cuenta sin negocio: <id>` → **bien**: la firma validó y el evento entró. El id de ejemplo de Meta no corresponde a ningún negocio, por eso muere ahí.
    - `Firma inválida — evento descartado. Secretos probados: ...` → falta el secreto que indique el propio mensaje.

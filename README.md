@@ -300,7 +300,14 @@ scripts ya reintentan solos.
 - [x] ✅ **`META_WEBHOOK_VERIFY_TOKEN` cargado en Railway y webhook registrado en
       Meta** (06/08/2026). Handshake verificado en prod: con el token correcto
       devuelve el challenge en `text/plain` (200) y con uno falso sigue en 403
-- [ ] **Dejar suscrito solo el campo `comments`** en Meta → Instagram →
+- [x] ✅ **Webhook verificado extremo a extremo en producción** (06/08/2026): el
+      botón *Probar* de Meta entregó el evento y el log dio
+      `Evento de una cuenta sin negocio: 0` — firma validada, cuerpo parseado,
+      filtro de eco pasado y búsqueda del negocio hecha. ⚠️ **Meta había dicho
+      "Se probó correctamente" en el intento anterior mientras el servidor
+      devolvía 403**: ese cartel solo dice que Meta envió la muestra. Verificar
+      siempre en los logs del servidor
+- [x] **Dejar suscrito solo el campo `comments`** en Meta → Instagram →
       Configuración de la API → *2. Configurar webhooks*. Vienen activados de
       fábrica `live_comments`, `messages`, `message_edit`, `message_reactions`,
       `messaging_postbacks`, `messaging_referral` y `messaging_seen`: el código
