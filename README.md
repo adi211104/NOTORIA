@@ -228,8 +228,10 @@ scripts ya reintentan solos.
       (1709333600393009) era tipo Consumidor y no servía
 - [x] Llaves de la app nueva en Railway, verificadas dentro del contenedor, y el
       soporte de `config_id` ya desplegado (Railway `4ebfdbc3`)
-- [ ] **Rotar `META_APP_SECRET`** (se compartió por chat) y volver a cargarlo en
-      Railway — si se rota sin actualizar, el OAuth falla con un error genérico
+- [ ] **Rotar `META_APP_SECRET` y `META_IG_APP_SECRET`** (los dos se compartieron
+      por chat) y volver a cargarlos en Railway — si se rota sin actualizar, el
+      OAuth falla con un error genérico y el webhook empieza a rechazar eventos
+      legítimos con 403
 - [x] Configuración → Básica completa (dominios, privacidad, condiciones,
       eliminación de datos, ícono) y formulario de tratamiento de datos
 - [x] Producto **Facebook Login for Business** con el redirect URI
@@ -304,11 +306,11 @@ scripts ya reintentan solos.
       `messaging_postbacks`, `messaging_referral` y `messaging_seen`: el código
       los ignora, pero son webhooks de mensajería privada en una app que no pide
       permisos de mensajería, y eso lo pregunta el revisor
-- [ ] *(recomendado)* Cargar `META_IG_APP_SECRET` en Railway con la **clave
+- [x] ✅ `META_IG_APP_SECRET` cargado en Railway (06/08/2026) con la **clave
       secreta de la app de Instagram** (`1305555994987658`, distinta de
-      `META_APP_SECRET`). El webhook ya acepta cualquiera de los dos secretos;
-      sin esta variable, si Meta firma con el de Instagram, cada evento se
-      rechazaría con 403 y Meta acabaría desactivando la suscripción
+      `META_APP_SECRET`). El webhook acepta cualquiera de los dos secretos; sin
+      esto, si Meta firmara con el de Instagram, cada evento se rechazaría con
+      403 y Meta acabaría desactivando la suscripción
 - [ ] ⚠️ **Los webhooks de `comments` exigen Acceso avanzado**, o sea que no
       llega ningún evento hasta que el App Review apruebe. El código puede
       configurarse y verificarse antes; los eventos empiezan después

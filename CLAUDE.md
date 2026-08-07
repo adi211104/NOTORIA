@@ -1366,6 +1366,15 @@ que devolvió "empty migration"). El cambio de default cosmético que figuraba a
 
     Validar solo con el de Facebook era arriesgar el peor fallo posible aquí: **cada evento legítimo rechazado con 403**, Meta dejando de reintentar y **desactivando la suscripción**, con el panel de Meta mostrando todo en verde. Por eso `firmaValida` prueba `META_APP_SECRET` y `META_IG_APP_SECRET` y acepta si coincide con cualquiera; no debilita nada, siguen siendo dos secretos que solo Meta y nosotros conocemos. El `warn` del 403 dice cuáles había configurados, para no diagnosticar a ciegas.
 
+10-bis. 🔴🔴 **CONFIRMADO EN VIVO (2026-08-06, 20:59): Meta firma estos eventos con el secreto de la app de INSTAGRAM.** Con el botón *Probar* de la fila `comments` se mandó una muestra real al endpoint en producción. El log de Railway devolvió `[Webhook IG] Firma inválida — evento descartado.` — o sea que la sospecha del punto 10 no era teórica: **con solo `META_APP_SECRET` cargado, todos los comentarios reales se habrían descartado en silencio.** Se cargó `META_IG_APP_SECRET` en Railway y se desplegó el arreglo.
+
+   ⚠️⚠️ **Y el aviso más peligroso de todo esto: Meta mostró "Se probó correctamente el campo del webhook comments v26.0" MIENTRAS nuestro servidor devolvía 403.** Ese cartel verde solo dice que Meta **envió** la muestra, no que el servidor la aceptara. **Nunca dar por buena una integración de webhooks por el mensaje de la consola: la verdad está en los logs del servidor.** Es exactamente la misma familia de error que el truco 401/404 de las rutas.
+
+   💡 **Cómo se lee el resultado de una prueba** (`railway logs --service api | grep Webhook`):
+   - `Evento de una cuenta sin negocio: <id>` → **bien**: la firma validó y el evento entró. El id de ejemplo de Meta no corresponde a ningún negocio, por eso muere ahí.
+   - `Firma inválida — evento descartado. Secretos probados: ...` → falta el secreto que indique el propio mensaje.
+   - **Nada en el log** → no llegó: mirar URL, suscripción del campo o modo de la app.
+
 11. **Dónde está el webhook en la consola, porque no es donde uno busca.** No está en *Inicio de sesión con Facebook → Configurar* (eso es OAuth: redirect URIs, deauthorize callback, eliminación de datos). Está en **Instagram → Configuración de la API…**, paso **2. Configurar webhooks**. ⚠️ Esa misma página tiene un paso **3. Configurar el inicio de sesión de empresa de Instagram**: **no tocarlo**, es el sabor Instagram Login (§19.4). Se entra ahí solo por la parte de webhooks.
 
     ⚠️ **Los campos vienen suscritos de fábrica de más**: `live_comments`, `messages`, `message_edit`, `message_reactions`, `messaging_postbacks`, `messaging_referral` y `messaging_seen`. Hay que dejar **solo `comments`**. El código ignora el resto, así que no rompen nada, pero son webhooks de **mensajería privada** en una app que no pide ningún permiso de mensajería — exactamente el detalle que un revisor pregunta.
