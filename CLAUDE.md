@@ -1334,7 +1334,7 @@ que devolvió "empty migration"). El cambio de default cosmético que figuraba a
 
 ### 20. Webhook de comentarios de Instagram (2026-08-06)
 
-**Qué resuelve.** El escaneo lee una **ventana**: las 25 últimas publicaciones × 30 comentarios, cada 4 horas. Un comentario en una foto más antigua no se ve **nunca**, y ese es justo el sitio donde puede vivir una crisis: una publicación viral de hace meses con una queja nueva. El webhook avisa de **cualquier** publicación, sin ventana, en segundos.
+**Qué resuelve.** El escaneo lee una **ventana**: las 25 últimas publicaciones, cada 4 horas. Un comentario en una foto más antigua no se ve **nunca**, y ese es justo el sitio donde puede vivir una crisis: una publicación viral de hace meses con una queja nueva. El webhook avisa de **cualquier** publicación, sin ventana, en segundos.
 
 **No sustituye al barrido, convive con él.** Los webhooks solo notifican desde que se configuran: al conectar una cuenta nueva, todo el histórico sigue llegando por el escaneo. Borrar el escaneo dejaría a cada cliente nuevo con la bandeja vacía hasta que alguien comentara.
 
@@ -1365,6 +1365,28 @@ que devolvió "empty migration"). El cambio de default cosmético que figuraba a
 - ⚠️ **`pages_manage_metadata`.** Es el permiso que permite suscribir la página. No estaba en los 4 que se pidieron. Ya está en el `scope` de respaldo de `redes.routes.js`, pero **cuando se usa `config_id` manda la Configuración de la consola**: si el permiso no está también ahí, el token no lo trae y la suscripción falla en silencio (la conexión funciona, los webhooks no llegan nunca). **Añadirlo a la Configuración y al App Review ANTES de enviar la revisión** — después cuesta una revisión entera aparte.
 - ⚠️ **Acceso avanzado.** La documentación es explícita: *"Advanced Access is required to receive `comments` and `live_comments` webhook notifications"* y *"Apps must be set to Live"*. Lo segundo ya está (§19.1-bis); lo primero llega con el App Review. O sea que **el webhook se puede configurar y verificar hoy, pero no llegará ningún evento hasta que aprueben la revisión**. No es un bug: si tras la aprobación no llega nada, mirar primero `pages_manage_metadata` y la suscripción de la página, no el código.
 
+### 20-bis. Publicaciones con muchos comentarios: paginación (2026-08-06)
+
+El techo de 30 comentarios por publicación se cambió por **paginación con dos topes**. Las constantes viven en `instagram.scraper.js`:
+
+| Constante | Valor | Qué es |
+|-----------|-------|--------|
+| `LIMITE_PUBLICACIONES` | 25 | Publicaciones que se leen. **No cambia** |
+| `LIMITE_COMENTARIOS` | 50 | Comentarios por **página**, ya no por publicación: el tamaño del bocado |
+| `MAX_COMENTARIOS_POR_PUBLICACION` | 300 | Techo real por publicación |
+| `MAX_PETICIONES_EXTRA` | 40 | Presupuesto de peticiones extra por escaneo, **compartido** entre las 25 publicaciones |
+
+**Por qué importaba más de lo que parece.** Meta **no documenta el orden** en que devuelve los comentarios de una publicación, y lo que se observa es el más antiguo primero. Si eso es así, quedarse con la primera página no era "leer 30 de 200": era leer **los 30 más viejos** y no ver nunca los nuevos. Justo al revés de lo que hace falta. Por eso el corte por número se sustituyó por paginar hasta agotar, y la paginación es la que arregla el caso "esta publicación recibió más comentarios de lo normal".
+
+**Cómo se comporta:**
+- Solo se pagina la publicación cuya **primera página vino llena**. Las tranquilas —la mayoría— no cuestan ni una petición extra (hay prueba de eso).
+- El corte se decide con el **cursor `after` y con el tamaño de la página**: página incompleta = no hay más. ⚠️ Esta arista **no devuelve `paging.next` de forma fiable**, solo los cursores; un `while (data.paging.next)` habría cortado en la primera vuelta.
+- El presupuesto de peticiones es **global al escaneo, no por publicación**: la cuota de la Graph API es por app y por hora, y la comparten todos los clientes. 25 publicaciones virales a la vez podrían disparar 150 peticiones en un ciclo.
+- **Nada de esto aborta el escaneo.** Un fallo paginando conserva los comentarios ya leídos de esa publicación y sigue con las demás.
+- Lo que quede por encima de los topes **llega por el webhook**, que no tiene ventana. Los dos mecanismos se cubren mutuamente: el webhook cubre lo que la ventana no alcanza, y el escaneo cubre lo anterior a configurar el webhook.
+
+Cubierto por 12 pruebas nuevas en `scripts/prueba-instagram-comentarios.js` (37 en total): paginación completa, parada en página incompleta, publicación tranquila sin coste, techo por publicación, presupuesto global y fallo a mitad de paginación.
+
 **Para dejarlo activo (pasos en la consola, del usuario):**
 1. Elegir una cadena al azar (`openssl rand -hex 16`) y ponerla en Railway como `META_WEBHOOK_VERIFY_TOKEN`. Desplegar **antes** de continuar: el handshake se hace contra el servidor vivo.
 2. Meta → la app → **Webhooks** → objeto **Instagram** → *URL de devolución de llamada* `https://api.usenotoria.app/api/webhooks/instagram`, *Token de verificación* la misma cadena → Verificar y guardar.
@@ -1389,7 +1411,7 @@ que devolvió "empty migration"). El cambio de default cosmético que figuraba a
    - **Cada red comprueba lo suyo DENTRO de su rama.** TikTok exige el id del video y una conexión de tipo Accounts API; Instagram no necesita ninguna de las dos. Antes esas comprobaciones eran comunes, así que una respuesta de Instagram habría recibido un *"reconecta TikTok"* — un error que habla de otra red.
    - **`moderacionRemota` en las fuentes.** TikTok informa el estado de ocultado/fijado tal como está en la plataforma; Instagram no lo lee. Sin esa distinción el escaneo habría pisado esos campos en cada pasada con valores que nunca comprobó. Moderar sigue cortado a TikTok en `comentario.routes.js` (400) y el frontend ya ocultaba esos botones para otras redes.
    - **Moderar en Instagram NO está hecho a propósito**: la Graph API lo permite, pero el scraper no lee ese estado. Al implementarlo hay que añadir la lectura *y* declarar `moderacionRemota`, o el panel y la plataforma se desincronizan.
-   - **Ventana de lectura: 25 publicaciones × 30 comentarios**, ambos explícitos en `LIMITE_PUBLICACIONES` / `LIMITE_COMENTARIOS`. Son decisión nuestra, no de la API. ⚠️ Antes el de comentarios **no se fijaba**, así que mandaba el valor por defecto de Meta — un techo que no controlábamos y que puede cambiar sin avisar. La sintaxis para acotar un campo anidado es `comments.limit(N){...}`; sin el `.limit(N)` decide Meta. Instagram admite ventana más ancha que TikTok (10) porque aquí los comentarios vienen **anidados en la misma llamada**: 25 publicaciones cuestan una petición, mientras que en TikTok cada video suma la suya.
+   - **Ventana de lectura: 25 publicaciones**, explícito en `LIMITE_PUBLICACIONES`. Es decisión nuestra, no de la API. ⚠️ El límite de comentarios antes **no se fijaba**, así que mandaba el valor por defecto de Meta — un techo que no controlábamos y que puede cambiar sin avisar. La sintaxis para acotar un campo anidado es `comments.limit(N){...}`; sin el `.limit(N)` decide Meta. Instagram admite ventana más ancha que TikTok (10) porque aquí los comentarios vienen **anidados en la misma llamada**: 25 publicaciones cuestan una petición, mientras que en TikTok cada video suma la suya. **Desde el 2026-08-06 los comentarios ya NO tienen techo de 30 por publicación: se paginan — ver §20-bis.**
    - ⚠️ **Sigue siendo una ventana.** Un comentario en una publicación más antigua que las 25 últimas no se ve, y ese es justo el sitio donde puede vivir una crisis (una foto viral de hace meses con una queja nueva). **El arreglo de fondo son los webhooks de Instagram** (campo `comments`): avisan de cualquier publicación, sin ventana. ✅ **IMPLEMENTADOS el 2026-08-06 — ver §20.** Los webhooks solo notifican **desde que se configuran**, así que este barrido sigue haciendo falta para el histórico al conectar una cuenta nueva: conviven, no se sustituyen. Corrección de lo que decía aquí antes: **no usan solo `instagram_manage_comments`**, hace falta además `pages_manage_metadata` para suscribir la página, y no llega ningún evento sin Acceso avanzado (§20).
    - `scripts/prueba-instagram-comentarios.js` — 25 pruebas con axios interceptado, sin tocar la BD. Cubren el parseo anidado (media → comments), el prefijo `ig_`, la forma de las peticiones, que un error de la API devuelva `null` y no `[]` (el worker lee `[]` como "sin novedades"), y **el contrato entre scraper y worker**: si alguien renombra un campo del scraper, `aFila` deja de mapearlo y el comentario se guardaría a medias sin que nada falle. Por eso `FUENTES_COMENTARIOS` se exporta.
 3. **Decisión del usuario pendiente: Facebook Reviews.** El scraper es un "stub funcional" — si no trae datos reales, por la regla §18 hay que sacarlo de la tabla comparativa, las tarjetas del landing y dashboard/planes hasta que funcione. PREGUNTADO, sin respuesta aún.

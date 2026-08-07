@@ -30,9 +30,72 @@ const GRAPH_URL = 'https://graph.facebook.com/v21.0';
 // desde que se configuran, así que el histórico de una cuenta recién conectada
 // sigue llegando por aquí.
 const LIMITE_PUBLICACIONES = 25;
-const LIMITE_COMENTARIOS = 30;
+
+// Comentarios por PÁGINA de resultados, no por publicación: lo que llega en una
+// sola respuesta. Las publicaciones que traen más se siguen leyendo paginando
+// (ver `paginarComentarios`), así que este número ya no es un techo, solo el
+// tamaño del bocado. 50 es el valor que la propia documentación usa en sus
+// ejemplos para esta arista.
+const LIMITE_COMENTARIOS = 50;
+
+// Techo REAL por publicación. Existe para acotar el gasto: una foto viral con
+// 5.000 comentarios costaría 100 peticiones ella sola y se comería la cuota de
+// la cuenta entera (el límite de la Graph API es por app y por hora, y la
+// paginación cuenta como peticiones separadas).
+//
+// 300 cubre de sobra lo que publica un restaurante u hotel; lo que quede por
+// encima llega igual por el webhook, que no tiene ventana ninguna.
+const MAX_COMENTARIOS_POR_PUBLICACION = 300;
+
+// Presupuesto de peticiones EXTRA por escaneo de una cuenta, repartido entre
+// todas las publicaciones. Sin él, 25 publicaciones muy comentadas podrían
+// disparar 150 peticiones en un solo ciclo y agotar la cuota para el resto de
+// clientes, que comparten la misma app de Meta.
+const MAX_PETICIONES_EXTRA = 40;
 
 const configurado = () => !!(process.env.META_APP_ID && process.env.META_APP_SECRET);
+
+/**
+ * Sigue paginando los comentarios de UNA publicación desde un cursor.
+ *
+ * ⚠️ Dos cosas de esta arista que obligan a escribirlo así:
+ *  - La respuesta **no trae `paging.next`** de forma fiable, solo los cursores.
+ *    Por eso el corte se decide con el cursor `after` y con el tamaño de la
+ *    página: una página incompleta significa que ya no hay más.
+ *  - Meta **no documenta el orden** en que devuelve los comentarios. Por eso no
+ *    se asume que "los primeros son los nuevos" ni al revés: se pagina hasta
+ *    agotar o hasta el techo. Si el orden fuera el más antiguo primero —que es
+ *    lo que se observa— quedarse con la primera página significaría que en una
+ *    publicación muy comentada los comentarios NUEVOS no se leen nunca.
+ */
+const paginarComentarios = async (mediaId, accessToken, cursorInicial, yaLeidos, presupuesto, porPagina) => {
+  const extra = [];
+  let cursor = cursorInicial;
+  let total = yaLeidos;
+
+  while (cursor && total < MAX_COMENTARIOS_POR_PUBLICACION && presupuesto.restante > 0) {
+    presupuesto.restante--;
+    const { data } = await axios.get(`${GRAPH_URL}/${mediaId}/comments`, {
+      params: {
+        fields: 'id,text,username,timestamp',
+        limit: porPagina,
+        after: cursor,
+        access_token: accessToken,
+      },
+    });
+    const pagina = data.data || [];
+    extra.push(...pagina);
+    total += pagina.length;
+
+    // Página incompleta = no hay más. Y sin cursor no hay por dónde seguir.
+    cursor = pagina.length === porPagina ? data.paging?.cursors?.after : null;
+  }
+
+  if (total >= MAX_COMENTARIOS_POR_PUBLICACION) {
+    console.warn(`[Instagram] Publicación ${mediaId}: se alcanzó el techo de ${MAX_COMENTARIOS_POR_PUBLICACION} comentarios; el resto llega por webhook.`);
+  }
+  return extra;
+};
 
 /**
  * Últimas publicaciones con sus comentarios.
@@ -56,9 +119,33 @@ const obtenerComentariosInstagram = async (
         access_token: accessToken,
       },
     });
+
+    // Presupuesto compartido por todas las publicaciones de este escaneo: se va
+    // gastando en las que lo necesitan, en vez de dar un cupo fijo a cada una.
+    const presupuesto = { restante: MAX_PETICIONES_EXTRA };
     const comentarios = [];
+
     for (const media of data.data || []) {
-      for (const c of media.comments?.data || []) {
+      const propios = media.comments?.data || [];
+
+      // Solo se pagina si la primera página vino LLENA. Las publicaciones
+      // tranquilas —la mayoría— no cuestan ni una petición extra.
+      let extra = [];
+      if (propios.length === comentariosPorPublicacion) {
+        try {
+          extra = await paginarComentarios(
+            media.id, accessToken,
+            media.comments?.paging?.cursors?.after,
+            propios.length, presupuesto, comentariosPorPublicacion,
+          );
+        } catch (e) {
+          // Un fallo paginando no puede costar los comentarios que YA se leyeron
+          // de esta publicación ni los de las demás: se registra y se sigue.
+          console.error(`[Instagram] Paginando ${media.id}: ${e.response?.data?.error?.message || e.message}`);
+        }
+      }
+
+      for (const c of [...propios, ...extra]) {
         comentarios.push({
           externalId: `ig_${c.id}`,
           texto: c.text,
@@ -68,6 +155,10 @@ const obtenerComentariosInstagram = async (
           publicacionCaption: (media.caption || '').slice(0, 120),
         });
       }
+    }
+
+    if (presupuesto.restante === 0) {
+      console.warn('[Instagram] Se agotó el presupuesto de peticiones extra en este escaneo; quedan comentarios sin leer (llegan por webhook o en el siguiente ciclo).');
     }
     return comentarios;
   } catch (error) {
@@ -176,4 +267,5 @@ module.exports = {
   eliminarComentarioInstagram, configurado,
   obtenerCaptionPublicacion, suscribirWebhookInstagram, desuscribirWebhookInstagram,
   LIMITE_PUBLICACIONES, LIMITE_COMENTARIOS,
+  MAX_COMENTARIOS_POR_PUBLICACION, MAX_PETICIONES_EXTRA,
 };

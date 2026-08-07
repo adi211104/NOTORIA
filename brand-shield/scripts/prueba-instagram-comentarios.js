@@ -124,6 +124,86 @@ const RESPUESTA_MEDIA = {
   check('borra la respuesta propia', d.ok === true, JSON.stringify(d));
   check('borra por id, sin prefijo', llamadas[0].metodo === 'DELETE' && /\/900099$/.test(llamadas[0].url), llamadas[0]?.url);
 
+  // ── 6-bis. Publicaciones con MÁS comentarios que una página ──
+  // El caso que motivó la paginación: una publicación que se llena de
+  // comentarios (una promo, una crisis, una foto viral). Quedarse con la
+  // primera página significaría no leer el resto — y como Meta no documenta el
+  // orden en que los devuelve, "el resto" puede ser justamente lo más nuevo.
+  const generar = (cuantos, desde) => Array.from({ length: cuantos }, (_, i) => ({
+    id: String(desde + i), text: `comentario ${desde + i}`,
+    username: 'cliente', timestamp: '2026-08-05T14:03:00+0000',
+  }));
+  const POR_PAGINA = instagram.LIMITE_COMENTARIOS;
+
+  // Escenario: 120 comentarios en una sola publicación (50 + 50 + 20)
+  const mediaConCursor = (n = 1) => ({
+    data: {
+      data: Array.from({ length: n }, (_, i) => ({
+        id: `viral_${i}`, caption: 'Promo de aniversario',
+        comments: { data: generar(POR_PAGINA, 1000), paging: { cursors: { after: 'CURSOR_1' } } },
+      })),
+    },
+  });
+
+  llamadas.length = 0;
+  responder = (metodo, url, cfg) => {
+    if (/\/media$/.test(url)) return mediaConCursor();
+    const despues = cfg?.params?.after;
+    if (despues === 'CURSOR_1') return { data: { data: generar(POR_PAGINA, 2000), paging: { cursors: { after: 'CURSOR_2' } } } };
+    return { data: { data: generar(20, 3000) } }; // página incompleta = última
+  };
+  const muchos = await instagram.obtenerComentariosInstagram('178', 'TOKEN');
+  const extras = llamadas.filter((l) => /\/comments$/.test(l.url));
+  check('una publicación con más comentarios que una página se pagina entera',
+    muchos.length === POR_PAGINA * 2 + 20, `${muchos.length} comentarios`);
+  check('sigue paginando hasta la página incompleta y para ahí',
+    extras.length === 2, `${extras.length} peticiones extra`);
+  check('la petición de paginación manda after, limit y los mismos campos',
+    extras[0].params.after === 'CURSOR_1' && extras[0].params.limit === POR_PAGINA &&
+    extras[0].params.fields === 'id,text,username,timestamp', JSON.stringify(extras[0].params));
+  check('los comentarios paginados salen con el mismo formato que los anidados',
+    muchos[POR_PAGINA].externalId === 'ig_2000' && muchos[POR_PAGINA].publicacionId === 'viral_0' &&
+    muchos[POR_PAGINA].fechaComentario instanceof Date);
+
+  // Una publicación tranquila (primera página incompleta) no debe costar ni una
+  // petición extra: es la mayoría de los casos y el gasto se nota en la cuota.
+  llamadas.length = 0;
+  responder = () => ({ data: { data: [{ id: 'tranquila', caption: 'Menú', comments: { data: generar(3, 1) } }] } });
+  await instagram.obtenerComentariosInstagram('178', 'TOKEN');
+  check('una publicación con pocos comentarios no genera peticiones extra',
+    llamadas.filter((l) => /\/comments$/.test(l.url)).length === 0);
+
+  // Foto viral sin fin: tiene que cortar en el techo por publicación.
+  llamadas.length = 0;
+  responder = (metodo, url) => {
+    if (/\/media$/.test(url)) return mediaConCursor();
+    return { data: { data: generar(POR_PAGINA, 5000), paging: { cursors: { after: 'OTRO' } } } };
+  };
+  const viral = await instagram.obtenerComentariosInstagram('178', 'TOKEN');
+  check('corta en el techo por publicación y no sigue indefinidamente',
+    viral.length === instagram.MAX_COMENTARIOS_POR_PUBLICACION, `${viral.length} comentarios`);
+
+  // 25 publicaciones virales a la vez: el presupuesto global protege la cuota
+  // de la app, que es compartida por TODOS los clientes.
+  llamadas.length = 0;
+  responder = (metodo, url) => {
+    if (/\/media$/.test(url)) return mediaConCursor(25);
+    return { data: { data: generar(POR_PAGINA, 5000), paging: { cursors: { after: 'OTRO' } } } };
+  };
+  await instagram.obtenerComentariosInstagram('178', 'TOKEN');
+  check('el presupuesto de peticiones extra es global al escaneo, no por publicación',
+    llamadas.filter((l) => /\/comments$/.test(l.url)).length === instagram.MAX_PETICIONES_EXTRA,
+    `${llamadas.filter((l) => /\/comments$/.test(l.url)).length} peticiones extra`);
+
+  // Si Meta falla a mitad de la paginación, lo ya leído no se pierde.
+  responder = (metodo, url) => {
+    if (/\/media$/.test(url)) return mediaConCursor();
+    const e = new Error('x'); e.response = { data: { error: { message: 'Rate limit' } } }; throw e;
+  };
+  const parcial = await instagram.obtenerComentariosInstagram('178', 'TOKEN');
+  check('un fallo paginando conserva los comentarios ya leídos',
+    parcial.length === POR_PAGINA, `${parcial?.length} comentarios`);
+
   // ── 7. Normalización del worker ────────────────────────
   // Se replica el `aFila` de FUENTES_COMENTARIOS para detectar si alguien
   // cambia los nombres de campo del scraper sin tocar el worker.

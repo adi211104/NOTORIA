@@ -261,9 +261,16 @@ scripts ya reintentan solos.
 - [x] **Comentarios de Instagram cableados** (leer, responder y borrar la
       respuesta propia). Sin esto el revisor habría conectado la cuenta y visto
       la pestaña vacía: rechazo seguro
-- [x] Ventana de lectura explícita: **25 publicaciones × 30 comentarios**. Antes
-      el límite de comentarios no se fijaba y mandaba el valor por defecto de
-      Meta, que no controlamos
+- [x] Ventana de lectura explícita: **25 publicaciones** (antes el límite de
+      comentarios no se fijaba y mandaba el valor por defecto de Meta, que no
+      controlamos)
+- [x] ✅ **Comentarios paginados** (06/08/2026): se acabó el techo de 30 por
+      publicación. Se leen de 50 en 50 hasta agotar, con dos topes —300 por
+      publicación y 40 peticiones extra por escaneo, compartidas entre las 25.
+      Importaba porque Meta no documenta el orden y lo observado es *el más
+      antiguo primero*: quedarse con la primera página era leer los 30 **más
+      viejos** de una publicación muy comentada y no ver nunca los nuevos.
+      Ver `CLAUDE.md` §20-bis
 - [x] **Menciones de Instagram cableadas** (06/08/2026): publicaciones de
       terceros que etiquetan o arroban a la cuenta, vía `/{ig-user-id}/tags`.
       Sin permisos nuevos. ⚠️ **Esto hace visible la sección Menciones** para
