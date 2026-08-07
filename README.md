@@ -295,10 +295,20 @@ scripts ya reintentan solos.
       la ruta está viva, no es un rechazo genérico
 - [x] ✅ `pages_manage_metadata` añadido a la Configuración de Facebook Login
       (06/08/2026, por el usuario)
-- [ ] **Poner `META_WEBHOOK_VERIFY_TOKEN` en Railway** (cadena al azar, la elige
-      el usuario) y pegar la misma en Meta → Webhooks. Sin ella el endpoint
-      responde 403 al handshake **a propósito**, y Meta no guarda la URL.
-      Basta con añadir la variable: Railway reinicia solo, no hay que redesplegar
+- [x] ✅ **`META_WEBHOOK_VERIFY_TOKEN` cargado en Railway y webhook registrado en
+      Meta** (06/08/2026). Handshake verificado en prod: con el token correcto
+      devuelve el challenge en `text/plain` (200) y con uno falso sigue en 403
+- [ ] **Dejar suscrito solo el campo `comments`** en Meta → Instagram →
+      Configuración de la API → *2. Configurar webhooks*. Vienen activados de
+      fábrica `live_comments`, `messages`, `message_edit`, `message_reactions`,
+      `messaging_postbacks`, `messaging_referral` y `messaging_seen`: el código
+      los ignora, pero son webhooks de mensajería privada en una app que no pide
+      permisos de mensajería, y eso lo pregunta el revisor
+- [ ] *(recomendado)* Cargar `META_IG_APP_SECRET` en Railway con la **clave
+      secreta de la app de Instagram** (`1305555994987658`, distinta de
+      `META_APP_SECRET`). El webhook ya acepta cualquiera de los dos secretos;
+      sin esta variable, si Meta firma con el de Instagram, cada evento se
+      rechazaría con 403 y Meta acabaría desactivando la suscripción
 - [ ] ⚠️ **Los webhooks de `comments` exigen Acceso avanzado**, o sea que no
       llega ningún evento hasta que el App Review apruebe. El código puede
       configurarse y verificarse antes; los eventos empiezan después

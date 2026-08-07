@@ -91,7 +91,8 @@ META_APP_ID=                                 # 2232447584255257 (app tipo NEGOCI
 META_APP_SECRET=                             # cargado en Railway. PENDIENTE ROTARLO (se compartió por chat). Firma además los webhooks: al rotarlo, Meta empieza a firmar con el nuevo de inmediato
 META_REDIRECT_URI=                           # opcional — por defecto BACKEND_URL + /api/redes/instagram/callback
 META_LOGIN_CONFIG_ID=                        # 4655107931374707 — apps Negocio con Facebook Login for Business: ID de la "Configuración" de permisos; si está seteado, el OAuth manda config_id en vez de scope (§19)
-META_WEBHOOK_VERIFY_TOKEN=                   # PENDIENTE — cadena al azar que se elige una vez y se pega igual en Railway y en Meta → Webhooks. Sin ella el handshake responde 403 y Meta no guarda la URL (§20)
+META_WEBHOOK_VERIFY_TOKEN=                   # ✅ CARGADA en Railway (2026-08-06) y pegada en Meta. Handshake verificado en prod. Sin ella el endpoint responde 403 a propósito (§20)
+META_IG_APP_SECRET=                          # opcional pero recomendado — "Clave secreta de la app de Instagram" (app de IG 1305555994987658, distinta de META_APP_SECRET). El webhook acepta cualquiera de los dos secretos: ver §20.10
 TIKTOK_CLIENT_KEY=                           # Sandbox cargado en Railway (2026-07-29)
 TIKTOK_CLIENT_SECRET=                        # Sandbox cargado en Railway
 TIKTOK_SCOPES=                               # opcional — default "user.info.basic,video.list". Ver §15
@@ -1360,6 +1361,14 @@ que devolvió "empty migration"). El cambio de default cosmético que figuraba a
 7. **Un fallo de suscripción no aborta la conexión.** Se registra un `warn` y el negocio queda conectado: sin webhook los comentarios siguen llegando por el escaneo, con retraso. Conectar a medias es mejor que no conectar.
 8. **Al desconectar se desuscribe**, y solo si ningún otro negocio del usuario usa esa misma cuenta (mismo cuidado que con los tokens de TikTok: la suscripción es de la página, no del negocio). Sin esto seguiríamos recibiendo datos personales de alguien que **retiró su consentimiento** — que es exactamente lo que mira un revisor de permisos.
 9. **El caption se pide aparte.** El evento trae el id de la publicación pero no su texto, y el panel lo muestra como contexto. `obtenerCaptionPublicacion` lo trae; si falla, el comentario se guarda igual sin título: perder el título es molesto, perder el comentario sería grave.
+
+10. 🔴 **Hay DOS secretos y el webhook acepta los dos (2026-08-06).** La pantalla donde se configura el webhook —*Instagram → Configuración de la API…*— muestra su **propio identificador de app de Instagram (`1305555994987658`) y su propia clave secreta**, distintos de `META_APP_ID`/`META_APP_SECRET` de la app de Facebook. La documentación de cada sabor manda validar `X-Hub-Signature-256` con el suyo, y desde fuera no hay forma de saber cuál usará Meta para un evento concreto.
+
+    Validar solo con el de Facebook era arriesgar el peor fallo posible aquí: **cada evento legítimo rechazado con 403**, Meta dejando de reintentar y **desactivando la suscripción**, con el panel de Meta mostrando todo en verde. Por eso `firmaValida` prueba `META_APP_SECRET` y `META_IG_APP_SECRET` y acepta si coincide con cualquiera; no debilita nada, siguen siendo dos secretos que solo Meta y nosotros conocemos. El `warn` del 403 dice cuáles había configurados, para no diagnosticar a ciegas.
+
+11. **Dónde está el webhook en la consola, porque no es donde uno busca.** No está en *Inicio de sesión con Facebook → Configurar* (eso es OAuth: redirect URIs, deauthorize callback, eliminación de datos). Está en **Instagram → Configuración de la API…**, paso **2. Configurar webhooks**. ⚠️ Esa misma página tiene un paso **3. Configurar el inicio de sesión de empresa de Instagram**: **no tocarlo**, es el sabor Instagram Login (§19.4). Se entra ahí solo por la parte de webhooks.
+
+    ⚠️ **Los campos vienen suscritos de fábrica de más**: `live_comments`, `messages`, `message_edit`, `message_reactions`, `messaging_postbacks`, `messaging_referral` y `messaging_seen`. Hay que dejar **solo `comments`**. El código ignora el resto, así que no rompen nada, pero son webhooks de **mensajería privada** en una app que no pide ningún permiso de mensajería — exactamente el detalle que un revisor pregunta.
 
 **Dos bloqueos que NO son código:**
 

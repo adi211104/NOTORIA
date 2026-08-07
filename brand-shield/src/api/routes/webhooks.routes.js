@@ -46,7 +46,12 @@ router.get('/instagram', (req, res) => {
 // ── POST /api/webhooks/instagram ──────────────────────────
 router.post('/instagram', cuerpoCrudo, (req, res) => {
   if (!firmaValida(req.body, req.get('x-hub-signature-256'))) {
-    console.warn('[Webhook IG] Firma inválida — evento descartado.');
+    // El log dice CON QUÉ se intentó validar: el fallo más probable no es un
+    // atacante, es que Meta haya firmado con el secreto de la app de Instagram
+    // (el de la pantalla de webhooks) en vez del de la app de Facebook. Sin
+    // este dato, el 403 se lee como "los webhooks no funcionan" y no hay por
+    // dónde empezar a mirar.
+    console.warn(`[Webhook IG] Firma inválida — evento descartado. Secretos probados: META_APP_SECRET=${process.env.META_APP_SECRET ? 'sí' : 'no'}, META_IG_APP_SECRET=${process.env.META_IG_APP_SECRET ? 'sí' : 'no'}.`);
     return res.sendStatus(403);
   }
 

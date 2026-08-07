@@ -16,11 +16,7 @@ const crypto = require('crypto');
  * Sin esta comprobación, cualquiera que conozca la URL —que es pública— podría
  * inyectar comentarios falsos en el panel de un cliente y disparar alertas.
  */
-const firmaValida = (cuerpoCrudo, cabecera, secreto = process.env.META_APP_SECRET) => {
-  if (!secreto || !cabecera || !cuerpoCrudo) return false;
-  const [algoritmo, recibida] = String(cabecera).split('=');
-  if (algoritmo !== 'sha256' || !recibida) return false;
-
+const coincide = (secreto, cuerpoCrudo, recibida) => {
   const esperada = crypto.createHmac('sha256', secreto).update(cuerpoCrudo).digest('hex');
   const a = Buffer.from(esperada, 'utf8');
   const b = Buffer.from(recibida, 'utf8');
@@ -29,6 +25,31 @@ const firmaValida = (cuerpoCrudo, cabecera, secreto = process.env.META_APP_SECRE
   // correcto byte a byte a quien pruebe firmas al azar.
   if (a.length !== b.length) return false;
   return crypto.timingSafeEqual(a, b);
+};
+
+const firmaValida = (cuerpoCrudo, cabecera, secreto) => {
+  // ⚠️ DOS secretos posibles, y no es paranoia: la app tiene el secreto de la
+  // app de Facebook (`META_APP_SECRET`) y, en la pantalla donde se configura el
+  // webhook de Instagram, un **identificador y una clave secreta de app de
+  // Instagram** distintos. La documentación de cada sabor manda firmar con el
+  // suyo, y desde fuera no se puede saber cuál usará Meta para un evento dado.
+  //
+  // Rechazar por el secreto equivocado sería el peor fallo posible aquí: Meta
+  // recibe un 403, deja de reintentar y acaba desactivando la suscripción, y
+  // desde el panel todo parece correctamente configurado. Aceptar cualquiera de
+  // los dos no debilita nada — siguen siendo secretos que solo Meta y nosotros
+  // conocemos.
+  const candidatos = secreto !== undefined
+    ? [secreto]
+    : [process.env.META_APP_SECRET, process.env.META_IG_APP_SECRET];
+
+  const usables = candidatos.filter(Boolean);
+  if (!usables.length || !cabecera || !cuerpoCrudo) return false;
+
+  const [algoritmo, recibida] = String(cabecera).split('=');
+  if (algoritmo !== 'sha256' || !recibida) return false;
+
+  return usables.some((s) => coincide(s, cuerpoCrudo, recibida));
 };
 
 /**

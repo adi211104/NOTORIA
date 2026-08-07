@@ -138,6 +138,23 @@ const firmar = (cuerpo) =>
   check('11. Firma de longitud distinta no revienta (timingSafeEqual)', firmaValida(cuerpo, 'sha256=abc') === false);
   check('12. Sin secreto de app se rechaza todo', firmaValida(cuerpo, firmar(cuerpo), '') === false);
 
+  // La app tiene DOS secretos posibles: el de la app de Facebook y el de la app
+  // de Instagram que aparece en la propia pantalla de webhooks. Meta puede
+  // firmar con cualquiera de los dos según el sabor, y rechazar por el
+  // equivocado haría que Meta desactive la suscripción con todo el panel
+  // aparentando estar bien configurado.
+  process.env.META_IG_APP_SECRET = 'secreto-de-instagram';
+  const firmadoConIG = 'sha256=' + crypto.createHmac('sha256', 'secreto-de-instagram').update(cuerpo).digest('hex');
+  check('12-bis. Un evento firmado con el secreto de la app de INSTAGRAM se acepta',
+    firmaValida(cuerpo, firmadoConIG) === true);
+  check('12-ter. El secreto de Facebook sigue valiendo con los dos configurados',
+    firmaValida(cuerpo, firmar(cuerpo)) === true);
+  check('12-quater. Una firma que no es de NINGUNO de los dos se rechaza',
+    firmaValida(cuerpo, 'sha256=' + crypto.createHmac('sha256', 'inventado').update(cuerpo).digest('hex')) === false);
+  delete process.env.META_IG_APP_SECRET;
+  check('12-quinquies. Sin el secreto de Instagram, una firma suya se rechaza',
+    firmaValida(cuerpo, firmadoConIG) === false);
+
   // ── 3. Normalización del evento ─────────────────────────
   const [ev] = comentariosDelEvento(evento());
   check('13. Se extrae el comentario con el id de la cuenta', ev && ev.igUserId === IG_USER_ID);
