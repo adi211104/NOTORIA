@@ -289,9 +289,16 @@ scripts ya reintentan solos.
       él la conexión funciona igual y los comentarios siguen llegando por el
       escaneo, pero **no llega ni un webhook**. Añadirlo AHORA sale gratis;
       después del App Review cuesta una revisión entera aparte
+- [x] ✅ **Webhook desplegado en producción** (06/08/2026, Railway `ca78e61e`):
+      `/api/webhooks/instagram` responde 403 al handshake sin token y 403 a una
+      firma falsa, y una ruta inventada bajo `/api/webhooks/` da 404 — o sea que
+      la ruta está viva, no es un rechazo genérico
+- [x] ✅ `pages_manage_metadata` añadido a la Configuración de Facebook Login
+      (06/08/2026, por el usuario)
 - [ ] **Poner `META_WEBHOOK_VERIFY_TOKEN` en Railway** (cadena al azar, la elige
       el usuario) y pegar la misma en Meta → Webhooks. Sin ella el endpoint
-      responde 403 al handshake **a propósito**, y Meta no guarda la URL
+      responde 403 al handshake **a propósito**, y Meta no guarda la URL.
+      Basta con añadir la variable: Railway reinicia solo, no hay que redesplegar
 - [ ] ⚠️ **Los webhooks de `comments` exigen Acceso avanzado**, o sea que no
       llega ningún evento hasta que el App Review apruebe. El código puede
       configurarse y verificarse antes; los eventos empiezan después
