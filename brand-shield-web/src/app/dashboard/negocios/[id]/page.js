@@ -545,6 +545,10 @@ const TEXTOS = {
         // Es el caso más frecuente y tiene solución: casi siempre la cuenta sí
         // es profesional, pero nunca se vinculó a una página de Facebook.
         sin_cuenta_business:'Tu cuenta de Instagram no aparece vinculada a ninguna página de Facebook que administres. No hace falta que tu Facebook y tu Instagram sean la misma cuenta: lo que falta es la página en medio. Es gratis y toma un par de minutos.',
+        // No es lo mismo que el anterior: aquí la autorización no incluyó
+        // NINGUNA página, casi siempre por reutilizar el permiso de un intento
+        // previo. La vinculación puede estar perfecta y aun así fallar.
+        sin_paginas:'Facebook no nos compartió ninguna página. Suele pasar cuando aceptas la pantalla que dice "¿continuar con tu configuración anterior?": ahí se reutiliza el permiso de un intento anterior y no se incluye tu página. Vuelve a intentarlo y pulsa "Editar configuración" en vez de "Continuar".',
         callback_failed:'Instagram aceptó el permiso pero falló el último paso de la conexión. Vuelve a intentarlo; si sigue igual, escríbenos.',
         access_denied:'Cancelaste la autorización en Facebook. Puedes volver a intentarlo cuando quieras.',
         missing_params:'Facebook no devolvió el código de autorización. Vuelve a intentarlo.',
@@ -562,6 +566,12 @@ const TEXTOS = {
         'Alternativa desde el celular: Instagram → Editar perfil → Página → Conectar una página existente.',
         'Tu cuenta de Instagram debe ser profesional (Configuración → Tipo de cuenta y herramientas). Si ya lo es, sáltate este paso.',
         'Vuelve aquí y pulsa Conectar Instagram otra vez.',
+      ],
+      igPasosPermiso:[
+        'Pulsa Conectar Instagram otra vez.',
+        'En la pantalla de Facebook elige «Editar configuración», NO «Continuar».',
+        'Marca la página de Facebook que tiene tu Instagram vinculado y acepta todos los permisos.',
+        'Si en esa lista no aparece ninguna página, entonces sí falta crearla y vincularla.',
       ],
       zonaPeligro:'Zona de peligro',
       zonaPeligroDesc:'Eliminar este negocio detendrá el monitoreo permanentemente y borrará todas sus alertas, reseñas y snapshots.',
@@ -881,6 +891,7 @@ const TEXTOS = {
       igErrorTitulo:'Could not connect Instagram',
       igError:{
         sin_cuenta_business:'Your Instagram account is not linked to any Facebook Page you manage. Your Facebook and Instagram do not need to be the same account: what is missing is the Page in between. It is free and takes a couple of minutes.',
+        sin_paginas:'Facebook did not share any Page with us. This usually happens when you accept the screen that says "continue with your previous settings": it reuses the grant from an earlier attempt and leaves your Page out. Try again and click "Edit settings" instead of "Continue".',
         callback_failed:'Instagram granted the permission but the last step failed. Try again; if it keeps failing, get in touch.',
         access_denied:'You cancelled the authorization on Facebook. You can try again any time.',
         missing_params:'Facebook did not return the authorization code. Please try again.',
@@ -895,6 +906,12 @@ const TEXTOS = {
         'From the phone instead: Instagram → Edit profile → Page → Connect an existing Page.',
         'Your Instagram account must be professional (Settings → Account type and tools). Skip this step if it already is.',
         'Come back here and hit Connect Instagram again.',
+      ],
+      igPasosPermiso:[
+        'Hit Connect Instagram again.',
+        'On the Facebook screen choose "Edit settings", NOT "Continue".',
+        'Tick the Facebook Page that has your Instagram linked and accept all the permissions.',
+        'If no Page shows up in that list, then it really is missing and needs to be created and linked.',
       ],
       zonaPeligro:'Danger zone',
       zonaPeligroDesc:'Deleting this business will permanently stop monitoring and erase all its alerts, reviews and snapshots.',
@@ -2730,11 +2747,16 @@ export default function DetallePage() {
             <p style={{ color:'var(--text-2)', fontSize:13.5, margin:'0 0 4px', lineHeight:1.6 }}>
               {t.config.igError[igError] || t.config.igErrorGenerico}
             </p>
-            {igError === 'sin_cuenta_business' && (
+            {/* Cada fallo lleva SUS pasos: a quien ya tiene la página vinculada
+                y solo reutilizó un permiso viejo, la lista de "cómo vincular una
+                página" le dice que arregle algo que ya está bien — que es
+                exactamente donde se atascó el primer usuario que lo vivió. */}
+            {(igError === 'sin_cuenta_business' || igError === 'sin_paginas') && (
               <>
                 <p style={{ color:'var(--text-3)', fontSize:11, fontWeight:600, textTransform:'uppercase', letterSpacing:0.5, margin:'18px 0 8px' }}>{t.config.igComoVincular}</p>
                 <ol style={{ color:'var(--text-2)', fontSize:13, margin:0, paddingLeft:20, lineHeight:1.7 }}>
-                  {t.config.igPasos.map((paso, i) => <li key={i} style={{ marginBottom:6 }}>{paso}</li>)}
+                  {(igError === 'sin_paginas' ? t.config.igPasosPermiso : t.config.igPasos)
+                    .map((paso, i) => <li key={i} style={{ marginBottom:6 }}>{paso}</li>)}
                 </ol>
               </>
             )}

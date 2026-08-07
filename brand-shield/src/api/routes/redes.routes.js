@@ -92,9 +92,22 @@ router.get('/instagram/callback', async (req, res) => {
     // El caso frecuente: la cuenta es profesional pero nunca se vinculó a una
     // página de Facebook, así que `me/accounts` viene vacío. Tiene arreglo, y el
     // panel muestra los pasos — ver el aviso de `ig_error` en negocios/[id].
-    const pagina = (paginas.data || []).find((p) => p.instagram_business_account);
+    // Dos fallos DISTINTOS que antes se contaban como uno solo, y confundirlos
+    // manda al usuario a arreglar algo que ya está bien:
+    //
+    //  · lista VACÍA → la autorización no incluyó ninguna página. El caso real:
+    //    Facebook ofrece "¿continuar con tu configuración anterior?" y, al
+    //    aceptar, REUTILIZA el permiso viejo — el de antes de que existiera la
+    //    página. Hay que pulsar "Editar configuración" y marcarla. Pasa igual
+    //    cuando se añade un permiso nuevo (`pages_manage_metadata`): el token
+    //    reutilizado no lo trae.
+    //
+    //  · hay páginas pero NINGUNA con Instagram → ahí sí falta vincular.
+    const listaPaginas = paginas.data || [];
+    const pagina = listaPaginas.find((p) => p.instagram_business_account);
     if (!pagina) {
-      return volverA('ig_error=sin_cuenta_business');
+      console.warn(`[Instagram OAuth] Sin cuenta utilizable: ${listaPaginas.length} página(s) autorizada(s), ninguna con Instagram vinculado.`);
+      return volverA(`ig_error=${listaPaginas.length ? 'sin_cuenta_business' : 'sin_paginas'}`);
     }
 
     await prisma.negocio.update({
