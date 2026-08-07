@@ -1336,6 +1336,26 @@ que devolvió "empty migration"). El cambio de default cosmético que figuraba a
 5. Lección aprendida hoy: la URL del callback NO va en "Administrador de dominios" (eso es para contenido compartido); el error "dominio no incluido" se arregla con el campo **Dominios de la app** de Configuración Básica + el redirect URI en el producto de login.
 6. **Formulario App Review**: los textos en inglés (instrucciones de prueba, APIs usadas, sin pagos, sin geobloqueo) ya están redactados — buscarlos en la conversación del 2026-08-03 o pedirlos de nuevo. Falta: crear cuenta de prueba del revisor (registrar email controlado, verificar, `railway run --service api node scripts/dar-plan.js <email> NEGOCIO`) y grabar el screencast (login → Conexiones → Conectar Instagram → autorizar → comentarios → tuerca → Eliminar conexión).
 
+### 19-bis. `me/accounts` devuelve VACÍO si la página está en un portfolio comercial (2026-08-06)
+
+**Síntoma:** el usuario otorga todo correctamente —página, cuenta de Instagram y los cinco permisos— Facebook dice *"Pri Ad se conectó a Notoria"*, y el callback recibe **0 páginas**.
+
+**Cómo se diagnosticó, que es la parte reutilizable.** El log del camino de fallo (añadido ese día) imprime quién es `me` y qué permisos trae el token:
+
+```
+Sin cuenta utilizable: 0 página(s) autorizada(s) | me = Pri Ad [1221156683...]
+  | permisos concedidos: pages_show_list, instagram_basic, instagram_manage_comments,
+    pages_manage_metadata, pages_read_engagement, public_profile
+```
+
+Eso descartó de un plumazo **dos hipótesis** que sin el log habrían costado horas: no era un token de *system user* (`me` es una persona) ni faltaba ningún permiso (están los cinco). **Regla: ante un fallo de OAuth, lo primero es imprimir la identidad del token y sus scopes; sin eso se depura por eliminación y contra la interfaz de otro.**
+
+**La causa:** `/me/accounts` lista las páginas que la persona administra **a título personal**. Si la página pertenece a un **portfolio comercial**, el rol del usuario es "a través del portfolio" y esa página **no aparece** salvo que la app tenga `business_management`. En este caso la página se había creado dentro del portfolio Notoria sola, porque la cuenta del usuario lo administra.
+
+**Salida inmediata (sin código):** sacar la página y la cuenta de Instagram del portfolio (*Configuración del portfolio → Cuentas → Páginas / Cuentas de Instagram → Eliminar del portfolio comercial*). No afecta la verificación del negocio: lo verificado es el portfolio, y la app sigue dentro.
+
+⚠️ **Consecuencia de producto, sin decidir:** un cliente con su página dentro de un portfolio comercial —cualquiera que trabaje con agencia— **no puede conectarse** por esta vía. Las opciones son pedir `business_management` en el App Review (permiso pesado, escrutinio alto) o replantear el sabor de login. **Es la SEGUNDA evidencia real del mismo problema en un día**: la primera fue el negocio sin cuenta de Facebook (§19.8). Cuando el App Review esté aprobado, revisar si *Instagram Login* debe pasar de alternativa a camino principal. Ver también §19.7, que es de la misma familia (rol vía Business Manager ⇒ Meta pide `ads_management`/`ads_read`).
+
 ### 20. Webhook de comentarios de Instagram (2026-08-06)
 
 **Qué resuelve.** El escaneo lee una **ventana**: las 25 últimas publicaciones, cada 4 horas. Un comentario en una foto más antigua no se ve **nunca**, y ese es justo el sitio donde puede vivir una crisis: una publicación viral de hace meses con una queja nueva. El webhook avisa de **cualquier** publicación, sin ventana, en segundos.
