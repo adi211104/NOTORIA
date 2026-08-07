@@ -106,7 +106,30 @@ router.get('/instagram/callback', async (req, res) => {
     const listaPaginas = paginas.data || [];
     const pagina = listaPaginas.find((p) => p.instagram_business_account);
     if (!pagina) {
-      console.warn(`[Instagram OAuth] Sin cuenta utilizable: ${listaPaginas.length} página(s) autorizada(s), ninguna con Instagram vinculado.`);
+      // Diagnóstico SOLO en el camino de fallo (no cuesta nada en el normal).
+      // Sin esto, "0 páginas" no distingue entre el usuario que no otorgó nada
+      // y una configuración que devuelve un token de OTRO tipo del que el
+      // código espera: `me/accounts` lista las páginas de una PERSONA, así que
+      // con un token de system user devuelve vacío aunque el consentimiento
+      // haya sido correcto. Saber quién es `me` y qué permisos trae el token
+      // separa esos dos casos en una sola lectura del log.
+      let diagnostico = '';
+      try {
+        const [yo, permisos] = await Promise.all([
+          axios.get('https://graph.facebook.com/v21.0/me', {
+            params: { fields: 'id,name', access_token: tokenLargo.access_token },
+          }),
+          axios.get('https://graph.facebook.com/v21.0/me/permissions', {
+            params: { access_token: tokenLargo.access_token },
+          }),
+        ]);
+        const concedidos = (permisos.data.data || [])
+          .filter((p) => p.status === 'granted').map((p) => p.permission).join(', ');
+        diagnostico = ` | me = ${yo.data.name || '(sin nombre)'} [${yo.data.id}] | permisos concedidos: ${concedidos || 'NINGUNO'}`;
+      } catch (e) {
+        diagnostico = ` | diagnóstico no disponible: ${e.response?.data?.error?.message || e.message}`;
+      }
+      console.warn(`[Instagram OAuth] Sin cuenta utilizable: ${listaPaginas.length} página(s) autorizada(s), ninguna con Instagram vinculado.${diagnostico}`);
       return volverA(`ig_error=${listaPaginas.length ? 'sin_cuenta_business' : 'sin_paginas'}`);
     }
 
