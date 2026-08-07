@@ -544,7 +544,7 @@ const TEXTOS = {
       igError:{
         // Es el caso más frecuente y tiene solución: casi siempre la cuenta sí
         // es profesional, pero nunca se vinculó a una página de Facebook.
-        sin_cuenta_business:'Tu cuenta de Instagram debe ser profesional (Empresa o Creador) y estar vinculada a una página de Facebook que administres. Es gratis y toma un par de minutos.',
+        sin_cuenta_business:'Tu cuenta de Instagram no aparece vinculada a ninguna página de Facebook que administres. No hace falta que tu Facebook y tu Instagram sean la misma cuenta: lo que falta es la página en medio. Es gratis y toma un par de minutos.',
         callback_failed:'Instagram aceptó el permiso pero falló el último paso de la conexión. Vuelve a intentarlo; si sigue igual, escríbenos.',
         access_denied:'Cancelaste la autorización en Facebook. Puedes volver a intentarlo cuando quieras.',
         missing_params:'Facebook no devolvió el código de autorización. Vuelve a intentarlo.',
@@ -553,10 +553,14 @@ const TEXTOS = {
       igComoVincular:'Cómo vincularla',
       igEntendido:'Entendido',
       igReintentar:'Ir a Conexiones',
+      // El orden importa: la causa casi siempre es la página que falta, no el
+      // tipo de cuenta. Empezar por "cambia a cuenta profesional" hace que quien
+      // YA es profesional crea que el mensaje no va con él y abandone.
       igPasos:[
-        'En Instagram: Configuración → Tipo de cuenta y herramientas → Cambiar a cuenta profesional.',
-        'Después, Configuración → Compartir en otras apps → Facebook, y elige la página de tu negocio.',
-        'Si no tienes página de Facebook, créala desde facebook.com/pages/create (gratis).',
+        'Si no tienes página de Facebook, créala en facebook.com/pages/create (gratis, solo nombre y categoría).',
+        'Desde una computadora, en tu página: Configuración → Cuentas vinculadas → Instagram → Conectar cuenta. Es más fiable que hacerlo desde el celular.',
+        'Alternativa desde el celular: Instagram → Editar perfil → Página → Conectar una página existente.',
+        'Tu cuenta de Instagram debe ser profesional (Configuración → Tipo de cuenta y herramientas). Si ya lo es, sáltate este paso.',
         'Vuelve aquí y pulsa Conectar Instagram otra vez.',
       ],
       zonaPeligro:'Zona de peligro',
@@ -876,7 +880,7 @@ const TEXTOS = {
       igExito:'Instagram connected. Comments will be picked up on the next scan.',
       igErrorTitulo:'Could not connect Instagram',
       igError:{
-        sin_cuenta_business:'Your Instagram account must be professional (Business or Creator) and linked to a Facebook Page you manage. It is free and takes a couple of minutes.',
+        sin_cuenta_business:'Your Instagram account is not linked to any Facebook Page you manage. Your Facebook and Instagram do not need to be the same account: what is missing is the Page in between. It is free and takes a couple of minutes.',
         callback_failed:'Instagram granted the permission but the last step failed. Try again; if it keeps failing, get in touch.',
         access_denied:'You cancelled the authorization on Facebook. You can try again any time.',
         missing_params:'Facebook did not return the authorization code. Please try again.',
@@ -886,9 +890,10 @@ const TEXTOS = {
       igEntendido:'Got it',
       igReintentar:'Go to Connections',
       igPasos:[
-        'In Instagram: Settings → Account type and tools → Switch to professional account.',
-        'Then Settings → Sharing to other apps → Facebook, and pick your business Page.',
-        'If you do not have a Facebook Page, create one at facebook.com/pages/create (free).',
+        'If you do not have a Facebook Page, create one at facebook.com/pages/create (free, just a name and a category).',
+        'From a computer, on your Page: Settings → Linked accounts → Instagram → Connect account. This is more reliable than doing it from the phone.',
+        'From the phone instead: Instagram → Edit profile → Page → Connect an existing Page.',
+        'Your Instagram account must be professional (Settings → Account type and tools). Skip this step if it already is.',
         'Come back here and hit Connect Instagram again.',
       ],
       zonaPeligro:'Danger zone',
