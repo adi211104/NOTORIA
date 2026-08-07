@@ -324,9 +324,33 @@ scripts ya reintentan solos.
 - [x] **Migración del enum aplicada en producción** (06/08/2026): backend
       desplegado primero (`02a27eaa`) y después el `db push`. Verificado con
       `prisma migrate diff` en ambos sentidos → *empty migration*
+- [ ] 🔴 **BLOQUEO ACTUAL: la cuenta del usuario no puede conectarse.** Su página
+      de Facebook es *propiedad del portfolio comercial* Notoria, y `me/accounts`
+      no lista esas páginas sin `business_management` (`CLAUDE.md` §19-bis).
+      Sacarla del portfolio es imposible en bucle: Meta exige desconectarla de
+      Instagram primero, y para quitar la cuenta de Instagram exige lo mismo
+- [ ] **Camino acordado: cuenta demo, creada limpia** (15 min). Lo que cambia y
+      lo que NO:
+      · **Misma cuenta de Facebook** (Pri Ad) — tiene rol en la app, y con los
+        permisos en acceso estándar SOLO quien tiene rol puede concederlos
+      · **Mismo portfolio**, y no se toca (está verificado y la app vive dentro)
+      · **Instagram NUEVO** profesional — `@notoriaapp` y `@priad111` ya son
+        activos del portfolio, reutilizarlos repite el bucle
+      · **Página NUEVA**, creada desde el perfil personal, **sin añadirla a
+        ningún portfolio**
+      · 🔍 Comprobar ANTES de conectar: la página nueva **no** debe aparecer en
+        *portfolio → Cuentas → Páginas*. Si aparece, parar y replantear
 - [ ] Crear cuenta de prueba del revisor (plan NEGOCIO vía `scripts/dar-plan.js`)
       con un negocio y su Instagram ya conectado — si el revisor entra y no ve
-      comentarios, no puede verificar `instagram_manage_comments`
+      comentarios, no puede verificar `instagram_manage_comments`. Es un usuario
+      de Notoria (email controlado), nada que ver con Facebook
+- [ ] ⏳ **DECIDIR ANTES DE ENVIAR LA REVISIÓN:** ¿se piden también
+      `business_management` (+ probablemente `ads_read`) para poder atender a
+      clientes con la página dentro de un portfolio comercial? Añadirlos después
+      cuesta **otra revisión entera**. Propuesta sobre la mesa: enviar con los 5
+      actuales y resolverlo en una segunda pasada junto con la decisión del
+      sabor *Instagram Login*, porque ambas atacan el mismo problema — clientes
+      que hoy no podemos atender (`CLAUDE.md` §19-bis y §19.8)
 - [ ] Grabar screencast y enviar el App Review (**5** permisos: instagram_basic,
       instagram_manage_comments, pages_show_list, pages_read_engagement y
       **pages_manage_metadata** por los webhooks).

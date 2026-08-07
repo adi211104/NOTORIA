@@ -1360,6 +1360,26 @@ Desenredarlo exige cuatro pasos encadenados (romper vínculo → sacar página �
 
 **Propuesta sobre la mesa (2026-08-06, sin resolver):** enviar la revisión con los 5 permisos actuales y tratar esto como limitación conocida, para resolverlo en una segunda pasada **junto con** la decisión del sabor *Instagram Login*, porque ambas atacan el mismo problema —clientes que hoy no podemos atender— y merecen un diseño conjunto. **Es la SEGUNDA evidencia real del mismo problema en un día**: la primera fue el negocio sin cuenta de Facebook (§19.8). Cuando el App Review esté aprobado, revisar si *Instagram Login* debe pasar de alternativa a camino principal. Ver también §19.7, que es de la misma familia (rol vía Business Manager ⇒ Meta pide `ads_management`/`ads_read`).
 
+### 19-ter. Modo Activo ≠ permisos abiertos, y por dónde seguir (cierre 2026-08-06/07)
+
+**La confusión que hay que tener clara** (se preguntó literalmente: *"si mi app ya está activa, ¿por qué esperamos revisión?"*). Son dos cosas independientes:
+
+| | Qué controla | Estado |
+|---|---|---|
+| **Modo de la app** (Desarrollo / Activo) | Si la app existe para el mundo | ✅ Activo |
+| **Nivel de acceso de cada permiso** (Estándar / Avanzado) | **Quién** puede concederlo | ⏳ Estándar en los de Instagram |
+
+Con acceso **estándar**, un permiso solo lo puede conceder alguien con **rol en la app** (administrador, desarrollador o tester). Por eso todo funciona para el dueño y fallará para el primer cliente real. Se comprueba en *Revisión de la app → Permisos y funciones*. Corolario práctico: **las pruebas hay que hacerlas siempre con la cuenta de Facebook que tiene rol en la app** — una cuenta nueva no serviría, tendría que invitarse como tester primero.
+
+**Estado real al cierre:**
+- ✅ Webhook completo, desplegado y verificado extremo a extremo en producción (§20), con la paginación de comentarios (§20-bis) y el doble secreto de firma (§20.10).
+- ✅ Los cinco permisos se conceden correctamente: el log lo confirma con el token del usuario.
+- 🔴 La cuenta del dueño **no puede conectarse** por el bucle del portfolio (§19-bis). No es un fallo del producto ni de la configuración.
+
+**Plan acordado para retomar — cuenta demo limpia (~15 min).** Lo que NO cambia: la cuenta de Facebook (tiene el rol en la app) y el portfolio (verificado, con la app dentro; no se toca). Lo que sí es nuevo: **cuenta de Instagram profesional nueva** —`@notoriaapp` y `@priad111` ya son activos del portfolio y repetirían el bucle— y **página nueva creada desde el perfil personal**, sin añadirla a ningún portfolio. La vinculación, desde la página (*Configuración → Cuentas vinculadas → Instagram*).
+
+🔍 **Checkpoint que ahorra otra noche:** antes de pulsar Conectar, mirar *portfolio → Cuentas → Páginas*. Si la página nueva aparece ahí, **parar**: significa que volvió a caer dentro y hay que replantear en vez de seguir adelante.
+
 ### 20. Webhook de comentarios de Instagram (2026-08-06)
 
 **Qué resuelve.** El escaneo lee una **ventana**: las 25 últimas publicaciones, cada 4 horas. Un comentario en una foto más antigua no se ve **nunca**, y ese es justo el sitio donde puede vivir una crisis: una publicación viral de hace meses con una queja nueva. El webhook avisa de **cualquier** publicación, sin ventana, en segundos.
