@@ -191,11 +191,17 @@ El flujo que enviamos funciona sobre páginas administradas a título personal.
 
 ## 6. Checklist antes de darle a Enviar
 
-- [ ] **Cuenta demo limpia creada** (es lo único que falta y solo puede hacerlo
-      el usuario): Instagram profesional **nuevo** + página **nueva** creada
-      desde el perfil personal, vinculados entre sí y **fuera de todo
-      portfolio**. `@notoriaapp` y `@priad111` NO sirven: ya son activos del
-      portfolio y repiten el bucle.
+- [ ] **Cuenta demo lista** (es lo único que falta y solo puede hacerlo el
+      usuario). ⚠️ **El Instagram del Hotmail ya existe y está en modo negocio,
+      pero se enlazó por el «Centro de cuentas», que NO es el vínculo que la API
+      necesita** (§19-quater). No hay que crear otra cuenta de Instagram: hay
+      que **crear una página** y vincularle esa cuenta.
+  - [ ] Página **nueva** desde el perfil personal en `facebook.com/pages/create`
+        — nunca desde Business Suite, que la crea como activo del portfolio.
+  - [ ] Vincular el Instagram del Hotmail **a esa página**, desde una
+        computadora: página → *Configuración → Cuentas vinculadas → Instagram →
+        Conectar cuenta*.
+  - [ ] `@notoriaapp` y `@priad111` NO se usan: ya son activos del portfolio.
 - [ ] 🔍 **Checkpoint que ahorra una noche:** antes de pulsar Conectar, mirar
       *portfolio → Cuentas → Páginas*. Si la página nueva aparece ahí, **parar**.
 - [ ] Conectar esa cuenta desde Notoria y comprobar que llegan comentarios.

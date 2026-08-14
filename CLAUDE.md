@@ -1364,6 +1364,45 @@ Desenredarlo exige cuatro pasos encadenados (romper vínculo → sacar página �
 
 ✅ **RESUELTA el 2026-08-14: se envía con los 5 permisos actuales.** El argumento que decidió: **Meta exige demostrar cada permiso en el screencast**, y `business_management`/`ads_read` no se pueden enseñar funcionando sin un cliente que tenga la página en un portfolio — pedir un permiso que el video no justifica es motivo de rechazo de la revisión entera, no solo de ese permiso. Se trata como limitación conocida y se resuelve en una segunda pasada **junto con** la decisión del sabor *Instagram Login*, porque ambas atacan el mismo problema —clientes que hoy no podemos atender— y merecen un diseño conjunto. **Es la SEGUNDA evidencia real del mismo problema en un día**: la primera fue el negocio sin cuenta de Facebook (§19.8). Cuando el App Review esté aprobado, revisar si *Instagram Login* debe pasar de alternativa a camino principal. Ver también §19.7, que es de la misma familia (rol vía Business Manager ⇒ Meta pide `ads_management`/`ads_read`).
 
+### 19-quater. El «Centro de cuentas» NO es vincular Instagram a una página (2026-08-14)
+
+**Cómo salió.** Al retomar el App Review, la pregunta del usuario fue la
+correcta: *"pero antes no funcionó con la cuenta nueva, ¿por qué funcionaría
+ahora?"*. Al reconstruir qué se había hecho exactamente apareció que la segunda
+cuenta de Instagram (creada con un Hotmail desde el móvil, en modo negocio) se
+había enlazado **por el Centro de cuentas del perfil de Facebook**.
+
+**Eso no sirve, y no es el problema del portfolio.** Son dos fallos distintos que
+producen el mismo síntoma (0 páginas utilizables). La cadena que exige la API,
+confirmada en la documentación oficial de *Instagram API with Facebook Login*:
+
+```
+cuenta de Instagram profesional
+   └─ vinculada a una PÁGINA de Facebook
+        └─ la página expone `instagram_business_account`
+             └─ y el usuario debe tener tareas/rol sobre esa página
+```
+
+El **Centro de cuentas** une tu Instagram con tu **perfil personal** de Facebook
+(inicio de sesión compartido, publicación cruzada). La documentación de este
+flujo **ni lo menciona**. Un Instagram enlazado solo por ahí no aparece en
+ninguna página, así que `me/accounts` no tiene de dónde sacarlo.
+
+⚠️ **Meta empuja el Centro de cuentas por todas partes**, así que el cliente cree
+que ya lo hizo. Es un falso positivo de manual: la persona está *segura* de haber
+vinculado, y por eso ni lee la lista de pasos. Por eso el aviso se añadió como
+**primer punto** de `igPasos` (ES y EN) en `dashboard/negocios/[id]/page.js`, no
+en medio: quien cree que ya está hecho abandona antes de llegar al punto 3.
+
+**Al diagnosticar un fallo de conexión, distinguir SIEMPRE los tres casos**, que
+se parecen mucho y se arreglan distinto:
+
+| Caso | Síntoma | Arreglo |
+|---|---|---|
+| Enlazado solo por Centro de cuentas | 0 páginas | Vincular a una página de verdad |
+| Página dentro de un portfolio comercial | 0 páginas | §19-bis — hoy no tiene salida sin `business_management` |
+| Permiso viejo reutilizado | 0 páginas | "Editar configuración" en vez de "Continuar" |
+
 ### 19-ter. Modo Activo ≠ permisos abiertos, y por dónde seguir (cierre 2026-08-06/07)
 
 **La confusión que hay que tener clara** (se preguntó literalmente: *"si mi app ya está activa, ¿por qué esperamos revisión?"*). Son dos cosas independientes:

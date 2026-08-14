@@ -561,6 +561,10 @@ const TEXTOS = {
       // tipo de cuenta. Empezar por "cambia a cuenta profesional" hace que quien
       // YA es profesional crea que el mensaje no va con él y abandone.
       igPasos:[
+        // Va PRIMERO porque quien ya enlazó por el Centro de cuentas cree que
+        // ya está hecho y abandona la lista sin leerla. Es distinto del caso de
+        // "no tengo página": aquí la persona está segura de haberlo hecho.
+        'Ojo: enlazar Instagram con tu perfil en el «Centro de cuentas» de Meta NO es lo mismo y no sirve para esto. Eso une tu Instagram con tu perfil personal; lo que hace falta es unirlo a una página.',
         'Si no tienes página de Facebook, créala en facebook.com/pages/create (gratis, solo nombre y categoría).',
         'Desde una computadora, en tu página: Configuración → Cuentas vinculadas → Instagram → Conectar cuenta. Es más fiable que hacerlo desde el celular.',
         'Alternativa desde el celular: Instagram → Editar perfil → Página → Conectar una página existente.',
@@ -901,6 +905,7 @@ const TEXTOS = {
       igEntendido:'Got it',
       igReintentar:'Go to Connections',
       igPasos:[
+        'Heads up: linking Instagram to your profile in Meta’s "Accounts Center" is NOT the same thing and does not work for this. That links your Instagram to your personal profile; what is needed is linking it to a Page.',
         'If you do not have a Facebook Page, create one at facebook.com/pages/create (free, just a name and a category).',
         'From a computer, on your Page: Settings → Linked accounts → Instagram → Connect account. This is more reliable than doing it from the phone.',
         'From the phone instead: Instagram → Edit profile → Page → Connect an existing Page.',
