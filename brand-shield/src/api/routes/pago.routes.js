@@ -111,7 +111,16 @@ const procesarReembolso = async (datos) => {
 };
 
 router.post('/culqi/webhook', async (req, res) => {
-  if (!webhookAutorizado(req)) return res.status(401).json({ error: 'No autorizado' });
+  if (!webhookAutorizado(req)) {
+    // Se registra el RECHAZO, no solo el paso. Sin esta línea, un webhook mal
+    // configurado en el panel de Culqi (contraseña equivocada, secreto viejo)
+    // no dejaba ningún rastro: los logs se veían exactamente igual que si Culqi
+    // no hubiera llamado nunca, que es el caso que hay que poder descartar.
+    // Nunca se registra la credencial recibida, solo por dónde vino.
+    const via = req.query.secret ? 'query' : (req.headers?.authorization ? 'cabecera' : 'sin credencial');
+    console.error(`[Culqi webhook] RECHAZADO (401) — llegó ${req.body?.type || 'un evento'} con credencial inválida por ${via}`);
+    return res.status(401).json({ error: 'No autorizado' });
+  }
 
   try {
     const tipo = req.body?.type;

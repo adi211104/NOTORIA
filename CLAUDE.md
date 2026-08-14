@@ -2155,6 +2155,23 @@ Lo que devolvió tras la rotación:
    recupera su dinero y conserva el plan. Los **contracargos NO llegan por
    webhook** (Culqi no expone ese recurso): se vigilan en la sección
    *Controversias* del panel.
+
+   🔍 **Cómo verificar que quedó bien configurado — y por qué no se puede del
+   todo.** `GET /v2/webhooks` responde 401: Culqi **no expone la configuración
+   por API**, solo se ve en el panel. `GET /v2/events` sí lista los eventos
+   disparados, pero está vacío mientras no haya un reembolso real, y **guardar
+   el webhook no dispara ningún ping de prueba**. O sea que lo único que se
+   puede comprobar sin gastar dinero es *nuestro* lado
+   (`railway run node scripts/verificar-webhook-culqi.js`). La prueba completa
+   es un cobro pequeño reembolsado desde el panel, o esperar al primer
+   reembolso real.
+
+   Por eso el endpoint **registra también los rechazos**
+   (`[Culqi webhook] RECHAZADO (401)…`, sin la credencial recibida). Antes, un
+   webhook mal configurado en el panel dejaba los logs **idénticos** a los de un
+   webhook que nadie ha llamado todavía, y esos dos casos hay que poder
+   distinguirlos. Regla heredada de §20 (Meta): **la prueba son los logs del
+   servidor, nunca el cartel del panel del proveedor.**
 2. **RSA Keys** (misma sección del panel) — cifrado extra del payload del
    checkout. **Opcional**, Culqi no lo exige; no está implementado y no bloquea
    nada.
