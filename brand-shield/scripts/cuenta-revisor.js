@@ -46,7 +46,9 @@ if (password.length < 8) {
   vence.setDate(vence.getDate() + 30);
 
   const datos = {
-    nombre: 'Revisor Culqi',
+    // Genérico a propósito: esta cuenta se usa para Culqi y para Meta, y el
+    // nombre sale en el saludo del panel que ve el revisor.
+    nombre: 'Revisor',
     email,
     password: await bcrypt.hash(password, 12),
     emailVerificado: true,
