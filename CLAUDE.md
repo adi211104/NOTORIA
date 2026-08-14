@@ -2136,9 +2136,20 @@ Lo que devolvió tras la rotación:
    | Activar autenticación | **Sí** — usuario cualquiera, contraseña = `CULQI_WEBHOOK_SECRET` |
 
    El secreto se lee con `railway variables --service api --kv`. Alternativa sin
-   activar la autenticación: pegar la URL con `?secret=<CULQI_WEBHOOK_SECRET>`
+   activar la autenticación: pegar la URL con `?secret=` y el valor **real**
    detrás — el endpoint acepta las dos formas. Se prefiere la básica porque la
    URL queda escrita a la vista en el propio panel de Culqi.
+
+   ⚠️ **Dos trampas del formulario, encontradas al crearlo (2026-08-14):**
+   - Rechaza el formulario entero con *"El formulario contiene caracteres
+     inválidos"* si se pegan los `< >` de un marcador de posición. No admite
+     esos símbolos en la URL.
+   - **El campo de contraseña admite máximo 20 caracteres.** El
+     `CULQI_WEBHOOK_SECRET` original medía 32, no entraba, y eso llevó a poner
+     ahí *la contraseña del propio CulqiPanel* — la cuenta que controla cobros
+     y depósitos. **Nunca esa contraseña.** Por eso el secreto se regeneró de
+     **20 caracteres alfanuméricos** (sin símbolos, que es lo que el formulario
+     rechaza). Si algún día se rota, respetar ese límite.
 
    **Sin registrarlo, un reembolso no desactiva la suscripción**: el cliente
    recupera su dinero y conserva el plan. Los **contracargos NO llegan por
