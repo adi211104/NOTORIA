@@ -38,32 +38,90 @@ const registrarPago = async ({ usuarioId, plan, periodo, tipo, monto, titular, c
 };
 
 // ── POST /api/pagos/culqi/webhook ─────────────────────────
-// Culqi notifica reembolsos y contracargos aquí. Sin autenticación de sesión
-// (lo llama Culqi directamente) — protegido con un secreto propio en la URL.
-router.post('/culqi/webhook', async (req, res) => {
-  const secretoEsperado = process.env.CULQI_WEBHOOK_SECRET;
-  if (secretoEsperado && req.query.secret !== secretoEsperado) {
-    return res.status(401).json({ error: 'No autorizado' });
+// Culqi notifica aquí los reembolsos. Sin autenticación de sesión: lo llama
+// Culqi directamente, así que va protegido con un secreto propio.
+//
+// ⚠️ Tres detalles de la API de Culqi que este endpoint tuvo mal desde que se
+// escribió (corregidos el 2026-08-14, verificados contra los plugins oficiales
+// de Culqi para WooCommerce y PrestaShop). Los tres eran silenciosos: el
+// webhook respondía 200 y no hacía absolutamente nada.
+//
+//   1. Los tipos de evento de Culqi se componen `<recurso>.<acción>.<resultado>`.
+//      El de un reembolso es `refund.creation.succeeded`. Los nombres al estilo
+//      Stripe que había aquí (`charge.refunded`, `charge.dispute.created`,
+//      `order.expired`) NO existen en Culqi y nunca podían coincidir.
+//   2. `data` viaja como **cadena JSON** dentro del cuerpo, no como objeto:
+//      `req.body.data.email` daba `undefined` aunque el tipo hubiera coincidido.
+//   3. El evento de reembolso **no trae el correo** del cliente, trae `chargeId`.
+//      Buscar por `culqiCargoId` es además más preciso que por correo: apunta al
+//      cobro exacto que se devolvió y no a todos los de esa persona.
+//
+// Culqi no expone webhook de contracargos: las controversias se vigilan desde
+// el panel, no llegan por aquí.
+const EVENTO_REEMBOLSO = 'refund.creation.succeeded';
+
+// El secreto se acepta por query (`?secret=`) o por autenticación básica, que
+// es lo que activa el interruptor "Activar autenticación" del panel de Culqi.
+// Con básica el secreto viaja en la cabecera y no queda escrito en la URL, que
+// es lo que queda guardado a la vista en el propio panel.
+const webhookAutorizado = (req) => {
+  const esperado = process.env.CULQI_WEBHOOK_SECRET;
+  if (!esperado) return true; // sin secreto configurado no se exige nada
+
+  if (req.query.secret === esperado) return true;
+
+  const cabecera = req.headers?.authorization || '';
+  if (!cabecera.startsWith('Basic ')) return false;
+  const [usuario, clave] = Buffer.from(cabecera.slice(6), 'base64').toString('utf8').split(':');
+  return clave === esperado || usuario === esperado;
+};
+
+const datosDelEvento = (body) => {
+  const bruto = body?.data;
+  if (typeof bruto !== 'string') return bruto || null;
+  try {
+    return JSON.parse(bruto);
+  } catch {
+    return null;
+  }
+};
+
+// Marca el cobro devuelto en Facturación y desactiva la suscripción que pagaba.
+const procesarReembolso = async (datos) => {
+  const cargoId = datos?.chargeId || datos?.charge_id || datos?.id;
+  if (!cargoId) {
+    console.error('[Culqi webhook] Reembolso sin chargeId — no se puede saber qué cobro se devolvió');
+    return;
   }
 
-  try {
-    const { type, data } = req.body || {};
-    console.log(`[Culqi webhook] ${type}`);
+  const pago = await prisma.pago.findUnique({
+    where: { culqiCargoId: cargoId },
+    select: { id: true, usuarioId: true },
+  });
+  if (!pago) {
+    // Puede ser legítimo (un cargo hecho fuera de Notoria), pero si empieza a
+    // repetirse es que los cobros no se están registrando.
+    console.error(`[Culqi webhook] Reembolso del cargo ${cargoId}, que no está en la tabla pagos`);
+    return;
+  }
 
-    if (['charge.refunded', 'charge.dispute.created', 'order.expired'].includes(type) && data?.email) {
-      await prisma.usuario.updateMany({
-        where: { email: data.email },
-        data: { suscripcionActiva: false },
-      });
-      // Refleja el reembolso/contracargo en Facturación para que el historial
-      // que ve el usuario coincida con lo que realmente pasó con su cobro.
-      if (data?.id) {
-        await prisma.pago.updateMany({
-          where: { culqiCargoId: data.id },
-          data: { estado: 'REEMBOLSADO' },
-        }).catch(() => {});
-      }
-    }
+  await prisma.pago.update({ where: { id: pago.id }, data: { estado: 'REEMBOLSADO' } });
+  await prisma.usuario.update({ where: { id: pago.usuarioId }, data: { suscripcionActiva: false } });
+  console.log(`[Culqi webhook] Reembolso aplicado al cargo ${cargoId}`);
+};
+
+router.post('/culqi/webhook', async (req, res) => {
+  if (!webhookAutorizado(req)) return res.status(401).json({ error: 'No autorizado' });
+
+  try {
+    const tipo = req.body?.type;
+    console.log(`[Culqi webhook] ${tipo}`);
+
+    if (tipo === EVENTO_REEMBOLSO) await procesarReembolso(datosDelEvento(req.body));
+    // Los demás se registran en vez de ignorarse en silencio: si algún día se
+    // suscribe otro evento en el panel, o Culqi renombra uno, esto es lo único
+    // que lo delata.
+    else console.log(`[Culqi webhook] Evento sin manejar: ${tipo}`);
 
     res.json({ recibido: true });
   } catch (error) {

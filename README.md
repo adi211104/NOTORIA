@@ -488,9 +488,17 @@ scripts ya reintentan solos.
       **Nadie ajeno se activó un plan gratis**
 - [x] `.env` / `.env.local` se quedan con llaves de **TEST**: las live no van en
       archivos locales
+- [x] Webhook de reembolsos **corregido y desplegado** (14/08/2026): esperaba
+      tipos de evento al estilo Stripe que en Culqi no existen y leía `data`
+      como objeto cuando llega como cadena JSON. Respondía 200 sin hacer nada
 - [ ] 🔴 **Registrar el webhook en CulqiPanel → Desarrollo → Webhooks**:
-      `https://api.usenotoria.app/api/pagos/culqi/webhook?secret=<CULQI_WEBHOOK_SECRET>`.
-      Sin esto, un reembolso o contracargo **no desactiva la suscripción**
+      Producto `CulqiOnline` · Recurso `refund` · Acción **`creation`** (no
+      `update`) · Resultado `succeeded` · URL
+      `https://api.usenotoria.app/api/pagos/culqi/webhook`, con *Activar
+      autenticación* y `CULQI_WEBHOOK_SECRET` como contraseña (o la misma URL
+      con `?secret=…`, el endpoint acepta ambas).
+      Sin esto, un reembolso **no desactiva la suscripción**. Los contracargos
+      no llegan por webhook: se vigilan en *Controversias*
 - [ ] Renovar la llave secreta (la actual viajó en una captura por chat) y
       recargarla en Railway. La pública no cambia
 - [ ] *(opcional)* RSA Keys — cifrado extra del checkout, Culqi no lo exige

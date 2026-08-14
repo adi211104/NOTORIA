@@ -2124,13 +2124,26 @@ Lo que devolvió tras la rotación:
 
 ### Lo que queda del lado de Culqi (en el panel, no en el código)
 
-1. **Registrar el webhook.** CulqiPanel → Desarrollo → **Webhooks**, URL:
-   `https://api.usenotoria.app/api/pagos/culqi/webhook?secret=<CULQI_WEBHOOK_SECRET>`
-   El secreto ya está en Railway; se lee con
-   `railway variables --service api --kv`. **Sin registrarlo, un reembolso o un
-   contracargo no desactiva la suscripción**: el cliente recupera su dinero y
-   conserva el plan. El endpoint lleva vivo desde el 2026-08-05, lo que falta es
-   que Culqi sepa a dónde avisar.
+1. **Registrar el webhook.** CulqiPanel → Desarrollo → **Webhooks** → Crear:
+
+   | Campo | Valor |
+   |-------|-------|
+   | Producto | CulqiOnline |
+   | Recurso | `refund` |
+   | **Acción** | **`creation`** ← *no* `update` |
+   | Resultado | `succeeded` |
+   | URL | `https://api.usenotoria.app/api/pagos/culqi/webhook` |
+   | Activar autenticación | **Sí** — usuario cualquiera, contraseña = `CULQI_WEBHOOK_SECRET` |
+
+   El secreto se lee con `railway variables --service api --kv`. Alternativa sin
+   activar la autenticación: pegar la URL con `?secret=<CULQI_WEBHOOK_SECRET>`
+   detrás — el endpoint acepta las dos formas. Se prefiere la básica porque la
+   URL queda escrita a la vista en el propio panel de Culqi.
+
+   **Sin registrarlo, un reembolso no desactiva la suscripción**: el cliente
+   recupera su dinero y conserva el plan. Los **contracargos NO llegan por
+   webhook** (Culqi no expone ese recurso): se vigilan en la sección
+   *Controversias* del panel.
 2. **RSA Keys** (misma sección del panel) — cifrado extra del payload del
    checkout. **Opcional**, Culqi no lo exige; no está implementado y no bloquea
    nada.
