@@ -103,18 +103,31 @@ Restricciones que condicionan el diseño:
 
 ### Trámites pendientes (fuera del código)
 
-- [ ] Afiliación al **SEE-Del Contribuyente** en SUNAT Operaciones en Línea
-      (Empresa → Comprobantes de Pago → SEE Del Contribuyente → autorización de
-      incorporación, subiendo certificado y correo). Vigente desde el día siguiente.
+- [x] ✅ **Afiliación al SEE-Del Contribuyente — YA HECHA** (verificado en la ficha
+      RUC el 07/08/2026). La ficha dice `Sistema de Emisión Electrónica: DESDE LOS
+      SISTEMAS DEL CONTRIBUYENTE. AUTORIZ DESDE 27/07/2026`, `Emisor electrónico
+      desde: 27/07/2026` y `FACTURA (desde 27/07/2026), BOLETA (desde 27/07/2026)`.
+      Es la misma fecha desde la que es válido el certificado CDT, o sea que la
+      afiliación se hizo con él. ⚠️ Trae una obligación ya vigente: desde el
+      27/07/2026 la empresa es **emisor electrónico obligatorio** y no puede emitir
+      comprobantes de otra forma
 - [ ] Crear un **usuario SOL secundario** con permiso *solo* de emisión de comprobantes.
-      Nunca usar la Clave SOL principal en producción.
-- [ ] Inscripción en el **Registro de Exportadores de Servicios** (RS 312-2017).
-      ⚠️ **Sin esta inscripción las ventas al exterior no califican como exportación**:
-      pasan a tipo de operación `0401` y **sí llevarían IGV**. Trámite gratuito por SOL.
-- [ ] Recuperar la contraseña del `.p12` (se define al solicitar el CDT en SOL).
+      Nunca usar la Clave SOL principal en producción
+- [ ] ❓ **Registro de Exportadores de Servicios — probablemente NO haga falta**
+      (revisado el 07/08/2026). SUNAT dice textualmente que *"en los demás supuestos
+      de exportación de servicios establecidos en el artículo 33 de la Ley del IGV,
+      **no se exige** la inscripción en el Registro de Exportadores de Servicios"*:
+      solo se exige para servicios prestados **parcialmente en el extranjero**, y
+      Notoria presta el suyo íntegramente desde Perú. **No darlo por cerrado sin el
+      contador** — depende de bajo qué numeral del art. 33 califica el SaaS.
+      La afirmación anterior de este README (que sin la inscripción las ventas al
+      exterior pasaban a `0401` y llevaban IGV) valía para el supuesto equivocado
+- [x] Recuperar la contraseña del `.p12` — hecho, certificado verificado (26/07/2026)
 
-> Nada de esto es asesoría tributaria. Confirmar los tres puntos con un contador antes
-> de emitir el primer comprobante fiscal real.
+> Nada de esto es asesoría tributaria. Confirmar con un contador antes de emitir el
+> primer comprobante fiscal real. **Las obligaciones mensuales (SIRE, 621, libros y
+> cronograma de vencimientos) están en
+> [`docs/obligaciones-tributarias-mensuales.md`](docs/obligaciones-tributarias-mensuales.md).**
 
 ---
 
@@ -181,12 +194,57 @@ scripts ya reintentan solos.
 - [x] Cuenta en soles del BCP, a nombre de NOTORIA E.I.R.L. y ya registrada en Culqi
 - [ ] *(diferido)* Abrir la cuenta en dólares y registrar su CCI — solo al vender al exterior
 
-**SUNAT**
+**SUNAT — obligaciones mensuales** (guía completa en
+[`docs/obligaciones-tributarias-mensuales.md`](docs/obligaciones-tributarias-mensuales.md))
+- [ ] 🔴 **Declaración de julio 2026 — vence el 24/08/2026.** No es una más: es la
+      que **acoge la empresa al RMT**. Si se presenta tarde, el acogimiento no se
+      perfecciona y NOTORIA queda en Régimen General (29.5% de Renta en vez de 10%
+      sobre las primeras 15 UIT). Va **íntegramente en cero** (la primera factura de
+      compra es del 04/08/2026, o sea que cae en agosto). Orden: SIRE (RVIE y RCE,
+      ambos sin operaciones) y después el 621. ⚠️ **Justamente por ir en cero es
+      peligrosa:** sin ventas ni compras parecería aplicar la excepción de no
+      declarar, pero esa excepción **no rige cuando la declaración sirve para
+      acogerse a un régimen** — que es exactamente este caso.
+      📌 **DÓNDE SE QUEDÓ (07/08/2026, 20:45):** se intentó generar el RVIE de
+      julio y **la propuesta todavía no se puede aceptar**: SIRE solo la habilita
+      **a partir del octavo día calendario del mes siguiente**, o sea el
+      **08/08/2026**. Se llegó un día antes. Los tres síntomas —*Aceptar
+      Propuesta* que no responde, *Preliminar del RVIE* en "Ningún registro
+      encontrado" y *Generar registro* en gris— son **el mismo bloqueo en
+      cascada**, no tres problemas. Retomar el 08/08 desde: RVIE → Propuesta →
+      **Aceptar Propuesta** → Preliminar → Generación → CIR; luego lo mismo en RCE
+      y recién después el 621
+- [ ] **Declaración de agosto 2026 — vence el 21/09/2026.** Aquí entra la factura
+      de compra del 04/08/2026 en el RCE y su base imponible en la casilla 107.
+      ⚠️ **Al abrir la propuesta del RCE, revisar si BCP facturó mantenimiento de
+      cuenta, portes o comisiones**: son gasto deducible y normalmente llevan IGV,
+      así que dan crédito fiscal, y aparecen solos en la propuesta. Es lo que
+      define si la casilla 107 va en cero o no — también en el RCE de **julio**
+- [ ] Rutina mensual: SIRE + Formulario 621 **todos los meses**, aunque no haya
+      ingresos. Inicio de actividades 22/07/2026, RUC terminado en **6** → columna
+      "6 y 7" del cronograma. Sin periodos vencidos a la fecha (07/08/2026)
+- [ ] Afiliarse al **PLE** y llevar el **Libro Diario de Formato Simplificado**
+      (obligatorio en RMT; plazo de atraso 3 meses). La ficha RUC dice
+      `Afiliado al PLE desde: -`
+- [ ] Declaración **Anual** de Renta del ejercicio 2026 (obligatoria en RMT aunque
+      haya pérdida), en 2027 y con su propio cronograma
+
+**SUNAT — emisión y trámites**
 - [x] Contraseña del `.p12` — certificado verificado, RUC coincide (26/07/2026)
 - [x] Domicilio fiscal confirmado contra la ficha RUC y corregido en código y páginas legales
-- [ ] Afiliación al SEE-Del Contribuyente + usuario SOL secundario
-- [ ] Registro de Exportadores de Servicios
+- [x] ✅ **Afiliación al SEE-Del Contribuyente** — ya estaba hecha desde el
+      27/07/2026; se descubrió leyendo la ficha RUC el 07/08/2026. Figuraba como
+      pendiente por error
+- [ ] **Usuario SOL secundario** (solo permiso de emisión) — sigue pendiente y es
+      lo único que falta de trámites para poder emitir
+- [ ] ❓ Registro de Exportadores de Servicios — **probablemente innecesario**, ver
+      la sección de trámites arriba
 - [ ] Validar el criterio de IGV y exportación con un contador
+- [ ] 🔴 **Preguntar al contador por el IGV de utilización de servicios y la
+      retención de renta a no domiciliados** de Railway, Vercel, Groq y las APIs de
+      IA (Informe N° 011-2005-SUNAT/2B0000). Son servicios digitales de no
+      domiciliados consumidos en Perú: el obligado es Notoria, no el proveedor. Es
+      el riesgo tributario que hoy no se está mirando
 - [x] ~~Preguntar al contador si las boletas van por resumen diario~~ —
       **resuelto por norma el 06/08/2026, no hacía falta preguntar.** El resumen
       diario es **obligatorio** para toda boleta de venta electrónica y sus
@@ -376,7 +434,16 @@ scripts ya reintentan solos.
 - [x] Monitor de uptime con GitHub Actions (ping cada 15 min, email si falla)
 - [x] **Blog SEO en producción**: `/blog` + 5 artículos (contenido en
       `brand-shield-web/src/lib/blog.js`; agregar artículo = una entrada ahí)
-- [ ] Habilitar Web Analytics en el dashboard de Vercel (sin eso no recolecta)
+- [x] **Web Analytics habilitado en el dashboard de Vercel** (07/08/2026).
+      Verificado sirviendo de verdad, no solo por el tilde del panel:
+      `usenotoria.app/_vercel/insights/script.js` devuelve 200 con el script real
+      y una ruta inventada bajo el mismo prefijo da 404. Cuenta desde ese día, no
+      es retroactivo. ⚠️ Dos motivos por los que puede parecer que no funciona:
+      el script **se autodescarta** si detecta `navigator.webdriver` o un
+      *user agent* con "Headless" (o sea que curl y los navegadores automatizados
+      nunca suman una visita), y los bloqueadores de anuncios filtran
+      `/_vercel/insights/`. Comprobarlo siempre en un navegador normal o de
+      incógnito
 - [ ] Capturas reales del panel en el landing (faltan 4 screenshots del dashboard:
       score/gauge, reseñas con sospechosa, chat IA, tab Comentarios con TikTok)
 - [ ] Escribir 1-2 artículos nuevos del blog al mes
@@ -411,30 +478,35 @@ scripts ya reintentan solos.
       migration*. `/health` 200 y los dos workers arrancan y se declaran
       inactivos a la espera de `SUNAT_EMISION_ACTIVA`
 
-**Culqi** — operativo con llaves de **TEST** desde el 05/08/2026
-- [x] Llaves de test en `.env` / `.env.local` **y en Railway y Vercel**
-- [x] `node scripts/prueba-culqi.js` — circuito real contra Culqi, en verde
-- [x] Pago real de prueba end-to-end: cobro, comprobante y promo aplicada
-- [ ] **Solicitud enviada a Culqi** (asunto `MI COMERCIO FUE OBSERVADO`) —
-      esperando respuesta. Ver "Observación de la web" abajo
-- [ ] Llaves **live** en Railway y Vercel cuando aprueben.
-      ⚠️ **En Vercel no basta con cargar la variable: hay que volver a desplegar**,
-      porque `NEXT_PUBLIC_*` se incrusta en el build
-- [ ] Registrar el webhook en el panel de Culqi con `?secret=` y `CULQI_WEBHOOK_SECRET`
+**Culqi** — ✅ **comercio APROBADO y en LIVE desde el 14/08/2026**
+- [x] Comercio aprobado por Culqi tras subsanar la observación de la web
+- [x] Llaves **live** en Railway (backend) y Vercel (frontend), con el
+      `vercel --prod` que hace falta para que el bundle las tome
+- [x] Verificadas sin mover dinero: `railway run node scripts/verificar-culqi-live.js`
+- [x] Auditoría de la ventana de llaves de test: `node scripts/auditar-pagos.js`
+      → los 2 únicos pagos son `chr_test_` y de cuentas del propio dueño.
+      **Nadie ajeno se activó un plan gratis**
+- [x] `.env` / `.env.local` se quedan con llaves de **TEST**: las live no van en
+      archivos locales
+- [ ] 🔴 **Registrar el webhook en CulqiPanel → Desarrollo → Webhooks**:
+      `https://api.usenotoria.app/api/pagos/culqi/webhook?secret=<CULQI_WEBHOOK_SECRET>`.
+      Sin esto, un reembolso o contracargo **no desactiva la suscripción**
+- [ ] Renovar la llave secreta (la actual viajó en una captura por chat) y
+      recargarla en Railway. La pública no cambia
+- [ ] *(opcional)* RSA Keys — cifrado extra del checkout, Culqi no lo exige
 
-> ⚠️ **Riesgo asumido mientras haya llaves de test en producción:** el botón
-> "Pagar" de https://usenotoria.app/precios acepta la tarjeta de prueba
-> `4111 1111 1111 1111` y **activa el plan sin cobrar dinero real**. Al rotar a
-> live, revisar la tabla `pagos` por si alguien se coló (los de prueba tienen
-> `culqiCargoId` con prefijo `chr_test_`).
+> 🔴 **Ahora el desfase es el contrario y está vivo: se cobra de verdad y NO se
+> emite comprobante fiscal.** Con `SUNAT_EMISION_ACTIVA` apagado cada venta real
+> genera solo un VOUCHER interno, y NOTORIA es **emisor electrónico obligatorio
+> desde el 27/07/2026**. O se completan los trámites en SOL rápido, o no se
+> promociona `/precios` hasta tenerlos. **El orden sigue siendo: Culqi live ✅ →
+> trámites en SOL → emisión.**
 >
-> 🔴 **Y por eso Culqi tiene que pasar a live ANTES de encender
-> `SUNAT_EMISION_ACTIVA`.** Con la emisión activa y llaves de test, cualquiera
-> que pague con `4111 1111 1111 1111` generaría un **comprobante fiscal real
-> enviado a SUNAT por una venta que nunca ocurrió**. Eso es declarar ingresos
-> inexistentes, y no se borra: habría que emitir comunicación de baja o nota de
-> crédito, con el agravante de que la numeración no admite huecos. **El orden
-> correcto es: Culqi live → trámites en SOL → emisión.**
+> ⚠️ Herencia de la etapa de test: `padkar4@` y `giorrnellprincipe@` quedaron con
+> plan NEGOCIO y una tarjeta `crd_test_…` guardada, con vencimiento el 06 y el
+> 07/09/2026. El cron de renovación intentará cobrarlas con la llave live y
+> fallará (esa tarjeta no existe en el entorno live). Limpiar antes de esa fecha
+> con `node scripts/limpiar-pagos-prueba.js <email> --aplicar`.
 
 **Observación de la web por Culqi (05/08/2026) — subsanada**
 Culqi observó usenotoria.app por "Flujo de compra | Carrito de compras | Botón

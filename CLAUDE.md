@@ -48,7 +48,7 @@ Vigilio/
 | PDF | PDFKit |
 | Auth | JWT + Google Sign-In (OAuth) |
 | Alertas | Email (Resend) + Telegram Bot |
-| Pagos | Culqi — **operativo con llaves de TEST** (2026-08-05). Falta aprobación del comercio y rotar a live. Ver §2 |
+| Pagos | Culqi — **comercio APROBADO y llaves LIVE en producción (2026-08-14)**. Cobra dinero real desde ya. Ver §2 y §21 |
 | Social | Instagram Graph API — pendiente de credenciales · **TikTok — perfil y videos funcionando en producción (2026-07-30)**, ver §15 y §15-quater. Los **comentarios NO están en la Display API** (§15-quinquies): solicitud enviada a la API for Business, en revisión (§15-sexies) |
 | Menciones | **Motor y panel completos (2026-07-29)**, ver §18. Sin fuente de datos: requiere un proveedor externo de pago (decisión de negocio). Hoy la sección no se muestra en el panel |
 | WhatsApp | **Meta WhatsApp Cloud API** — migración **hecha** (`src/lib/whatsappMeta.js`); Twilio eliminado. Falta la plantilla aprobada y las credenciales |
@@ -100,9 +100,9 @@ TIKTOK_REDIRECT_URI=                         # opcional — por defecto BACKEND_
 MENCIONES_PROVEEDOR=                         # sin decidir — proveedor de datos para menciones de TikTok. Ver §18
 MENCIONES_PROVEEDOR_API_KEY=                 # sin decidir
 MENCIONES_MAX_POR_TERMINO=                   # opcional — default 20. Techo de gasto por término y ciclo
-CULQI_PUBLIC_KEY=                            # cargada (test) en local y Railway — rotar a live tras la aprobación
-CULQI_SECRET_KEY=                            # cargada (test) en local y Railway — rotar a live tras la aprobación
-CULQI_WEBHOOK_SECRET=                        # opcional — protege /api/pagos/culqi/webhook
+CULQI_PUBLIC_KEY=                            # Railway: pk_live_ (2026-08-14). En local sigue la de TEST, a propósito
+CULQI_SECRET_KEY=                            # Railway: sk_live_ (2026-08-14). En local sigue la de TEST — las live NO van en archivos
+CULQI_WEBHOOK_SECRET=                        # CARGADA en Railway — protege /api/pagos/culqi/webhook. Va en la query de la URL que se registra en CulqiPanel (§21)
 EMAIL_RECLAMACIONES=                         # opcional — destino de los avisos del Libro de Reclamaciones (default hola@usenotoria.app)
 PROMO_HASH_SECRET=                           # CARGADA en Railway y .env local (2026-08-05, con promo_tarjetas vacía). NO rotar sin vaciar esa tabla
 META_WHATSAPP_PHONE_NUMBER_ID=               # pendiente — WhatsApp Business Cloud API (mismo Meta App que Instagram)
@@ -134,7 +134,7 @@ META_GRAPH_VERSION=                          # opcional, default v21.0
 ```
 NEXT_PUBLIC_API_URL=http://localhost:3000    # cambiar a URL de Railway en prod
 NEXT_PUBLIC_GOOGLE_CLIENT_ID=...
-NEXT_PUBLIC_CULQI_PUBLIC_KEY=                # pendiente — llave pública de Culqi
+NEXT_PUBLIC_CULQI_PUBLIC_KEY=                # Vercel: pk_live_ desde el 2026-08-14. En local, la de TEST. Se incrusta EN EL BUILD: cambiarla exige `vercel --prod` (§21)
 NEXT_PUBLIC_WHATSAPP_VENTAS=51955599041      # botón flotante de ventas del landing; sin la variable el botón no se renderiza. Ya cargada en Vercel (2026-08-03)
 ```
 
@@ -212,7 +212,7 @@ y reinicies el backend, empiezan a funcionar sin tocar código.
 
 | Item | Estado | Qué hacer cuando llegue |
 |------|--------|------------------------|
-| **Culqi** (pagos) | Código listo, sin API key | Agregar `CULQI_PUBLIC_KEY` (frontend y backend) y `CULQI_SECRET_KEY` (backend) en `.env` / `.env.local` |
+| **Culqi** (pagos) | ✅ **COMPLETO en producción (2026-08-14)** — comercio aprobado, llaves live cargadas y verificadas | Solo queda registrar la URL del webhook en CulqiPanel → Desarrollo → Webhooks (§21) |
 | **Meta / Instagram** | Código listo, sin aprobación | Agregar `META_APP_ID` y `META_APP_SECRET` en `.env`; registrar el redirect URI `https://api.usenotoria.app/api/redes/instagram/callback` en Meta for Developers |
 | **TikTok — perfil, videos, comentarios, respuestas y moderación** | ✅ **COMPLETO en producción (2026-08-06)** — vía la **Accounts API**, ver **§15-octies** | Nada pendiente. Conexión única desde Conexiones. La app **NO está en Sandbox** (ese es otro entorno, con otro dominio): opera cuentas de clientes reales |
 | **TikTok — Display API** | Conservada como **respaldo**, sin usarse | `tiktok.scraper.js` sigue intacto por si hiciera falta una cuenta personal, pero no lee comentarios y ya no es la conexión principal |
@@ -220,20 +220,24 @@ y reinicies el backend, empiezan a funcionar sin tocar código.
 | **TripAdvisor** (2026-07-06) | Solo base preparada a propósito — decisión de negocio de no activarlo hasta tener buena cantidad de clientes, no solo falta de API key | Ver subsección dedicada más abajo antes de continuar |
 | **Menciones (TikTok)** | Motor, panel y alertas listos; **falta la fuente de datos** | Decisión de negocio: contratar un proveedor externo (§18). No se resuelve escribiendo código — TikTok no expone búsqueda de videos ajenos a apps comerciales. **Comprobado el 2026-07-30:** `business/mention/list/` tampoco existe en la API for Business, así que esa vía queda descartada (§15-sexies). El candidato que queda es el permiso *Discovery Search* de TikTok Accounts, que exigiría una segunda solicitud con la función declarada. Mientras no haya proveedor, la sección no aparece en el panel |
 
-### 2. Culqi — integración de pagos (ACTIVA con llaves de TEST desde 2026-08-05)
+### 2. Culqi — integración de pagos (LIVE en producción desde 2026-08-14)
 
-> **Estado (2026-08-05):** las llaves **de prueba** están cargadas en local, en
-> Railway y en Vercel, y el circuito completo está verificado contra la API real
-> (`node scripts/prueba-culqi.js` → "Todo OK"). El comercio **todavía no está
-> aprobado por Culqi**, así que no hay llaves live.
+> **Estado (2026-08-14):** comercio **aprobado por Culqi**. Las llaves **live**
+> están cargadas en Railway (backend) y Vercel (frontend), verificadas contra la
+> API real sin mover dinero con `railway run node scripts/verificar-culqi-live.js`
+> → "Todo OK". **Los pagos de https://usenotoria.app/precios cobran dinero real
+> desde este momento.** El detalle de la rotación y de lo que estaba roto está en
+> **§21**.
 >
-> ⚠️ **Consecuencia mientras haya llaves de test en producción:** el botón "Pagar"
-> de https://usenotoria.app/precios acepta la tarjeta de prueba
-> `4111 1111 1111 1111` y **activa el plan sin cobrar dinero real**. Cualquiera
-> que llegue a /precios puede darse un plan de pago gratis. Es un riesgo asumido a
-> propósito para que Culqi pueda revisar el flujo; **rotar a llaves live apenas
-> aprueben el comercio** y revisar si alguien se activó un plan en el intermedio
-> (tabla `pagos`: los de prueba tienen `culqiCargoId` con prefijo `chr_test_`).
+> En `brand-shield/.env` y `brand-shield-web/.env.local` siguen las llaves de
+> **TEST**, y así debe quedarse: las live no van en archivos locales (por eso
+> `set-culqi-keys.js` se niega a escribirlas). El entorno lo decide el prefijo de
+> la llave, no una bandera.
+>
+> ✅ **Comprobado que nadie se coló durante la ventana de llaves de test.** Los
+> únicos 2 pagos de la tabla `pagos` son `chr_test_` y de las cuentas del propio
+> usuario (`padkar4@` y `giorrnellprincipe@`). Ver §21 para lo que hay que hacer
+> con ellos.
 
 **Bugs que aparecieron al cargar las llaves (2026-08-05).** Ninguno era visible
 sin llaves; los dos habrían roto el primer cobro real:
@@ -1882,15 +1886,22 @@ el arranque.
 
 El orden no es negociable, y el primer punto es el que más caro sale:
 
-1. 🔴 **Culqi a llaves live.** Con `SUNAT_EMISION_ACTIVA=true` y llaves de test,
-   cualquiera que pague en `/precios` con `4111 1111 1111 1111` activa el plan
-   sin pagar **y dispara un comprobante fiscal real contra SUNAT por una venta
-   que no existió**. Son ingresos fantasma declarados, y deshacerlos exige
+1. ~~🔴 **Culqi a llaves live.**~~ ✅ **HECHO el 2026-08-14** (§21). El motivo por
+   el que iba primero: con `SUNAT_EMISION_ACTIVA=true` y llaves de test,
+   cualquiera que pagara en `/precios` con `4111 1111 1111 1111` activaba el plan
+   sin pagar **y disparaba un comprobante fiscal real contra SUNAT por una venta
+   que no existió**. Ingresos fantasma declarados, y deshacerlos exige
    comunicación de baja o nota de crédito — con la numeración, que no admite
    huecos, ya gastada.
-2. **Afiliación al SEE-Del Contribuyente** y **usuario SOL secundario**. Sin la
-   afiliación, producción rechaza todo; sin el usuario, `billService.configurado()`
-   es falso y los workers ni arrancan.
+   ⚠️ **Ahora el desfase corre al revés y ya está activo:** se cobra de verdad y
+   NO se emite comprobante fiscal (solo VOUCHER interno). Cada venta real desde
+   hoy es una venta sin boleta, y la empresa es **emisor electrónico obligatorio
+   desde el 27/07/2026**. O se terminan los pasos 2-5 rápido, o no se anuncia
+   `/precios` hasta terminarlos.
+2. **Afiliación al SEE-Del Contribuyente** ✅ (ya hecha, verificada en la ficha
+   RUC el 07/08/2026 — ver README) y **usuario SOL secundario** (pendiente). Sin
+   la afiliación, producción rechaza todo; sin el usuario,
+   `billService.configurado()` es falso y los workers ni arrancan.
 3. `SUNAT_CERT_PASSWORD`, `SUNAT_SOL_USUARIO`, `SUNAT_SOL_CLAVE` — **las pone el
    usuario**, nunca se guardan en archivos ni pasan por el chat:
    `railway variables --set "X=..." --service api`.
@@ -2021,3 +2032,117 @@ tocarlas.
   por cuenta **y por tarjeta**.
 - **Nada de "7 días gratis"**: no existe periodo de prueba.
 - **Ninguna fecha a SUNAT con `toISOString()`** — usar `tributario.fechaPeru()`.
+
+---
+
+## Sesión 2026-08-14 — §21. Culqi aprobado y en LIVE
+
+Culqi aprobó el comercio y el usuario renovó la llave privada en el panel
+(CulqiPanel → Desarrollo → API Keys, 14/08/2026 14:06). Al ir a cargarla
+aparecieron **tres cosas rotas a la vez**, y ninguna daba error visible: la web
+simplemente decía "No se pudo procesar el pago".
+
+### Lo que estaba pasando en producción antes de esta sesión
+
+| Dónde | Qué había | Consecuencia |
+|-------|-----------|--------------|
+| Vercel / navegador | `pk_test_b8r55oEGMtCgH2Ez` | El widget tokenizaba en modo PRUEBA: cualquiera podía activarse un plan con `4111 1111 1111 1111` |
+| Railway `CULQI_PUBLIC_KEY` | `pk_live_…` | **Distinta de la del navegador** — entornos cruzados |
+| Railway `CULQI_SECRET_KEY` | `sk_live_wDf3…` (la del 03/08) | La llave **anterior a la renovación**: Culqi la revoca en el acto → **401 en todo cobro** |
+
+O sea que los pagos llevaban roto desde el momento de la renovación, y antes de
+eso el frontend estaba en test contra un backend en live. Nadie lo habría notado
+hasta el primer cliente real.
+
+### Cómo se dejó
+
+```bash
+# Backend (Railway) — la pública ya estaba bien, solo se rotó la secreta
+printf '%s' 'sk_live_…' | railway variable set CULQI_SECRET_KEY --stdin --service api
+
+# Frontend (Vercel) — NEXT_PUBLIC_* se incrusta en el BUILD
+vercel env rm  NEXT_PUBLIC_CULQI_PUBLIC_KEY production --yes
+printf '%s' 'pk_live_…' | vercel env add NEXT_PUBLIC_CULQI_PUBLIC_KEY production
+vercel --prod --yes          # imprescindible: sin build nuevo el bundle sigue con la vieja
+```
+
+### 🔴 Trampa nueva: en PowerShell, `| railway variable set --stdin` mete un BOM
+
+La receta de la §2 (`echo "…" | railway variable set X --stdin`) se verificó en
+**bash**. Ejecutada en **PowerShell**, el pipe hacia un ejecutable nativo antepone
+un **BOM UTF-8 invisible** al valor: la llave se guardó como `﻿sk_live_…`,
+midió **25 caracteres en vez de 24** y Culqi devolvía 401 exactamente igual que
+si estuviera revocada.
+
+**Regla: cargar secretos por stdin SIEMPRE desde bash con `printf '%s'`** — `printf`
+además no agrega el salto de línea que sí agrega `echo`. Y comprobar la longitud
+después: `railway variables --service api --kv` y contar caracteres. Una llave de
+Culqi mide **24**.
+
+### `verificar-culqi-live.js` — probar llaves live sin cobrarle a nadie
+
+`prueba-culqi.js` no sirve con llaves live: haría un cobro real (por eso aborta).
+El script nuevo comprueba lo mismo que importa, solo con lecturas:
+
+```bash
+railway run node scripts/verificar-culqi-live.js   # usa las variables REALES de Railway
+```
+
+1. Que ninguna llave traiga espacios/BOM alrededor.
+2. Que las dos sean **del mismo entorno** (el fallo cruzado de arriba).
+3. Que la **secreta autentique** — `GET /v2/charges`, solo lectura.
+4. Que la **pública siga viva**: se le manda una tarjeta inválida al endpoint de
+   tokens. Con llaves live Culqi **no deja tokenizar desde el servidor**, así que
+   la petición siempre falla; lo que distingue es **cómo**: `401` = llave mala,
+   `400` = llave buena y lo que rechaza es la tarjeta. No crea nada.
+5. Que la llave del **bundle desplegado** en usenotoria.app sea esa misma — es lo
+   único que detecta un `vercel env add` sin `vercel --prod` detrás.
+
+Resultado el 2026-08-14: los 5 en verde, y **0 cargos en el entorno live** (nadie
+ha pagado de verdad todavía).
+
+### `auditar-pagos.js` — foto de solo lectura de los cobros
+
+```bash
+node scripts/auditar-pagos.js
+```
+
+Lo que devolvió tras la rotación:
+
+- **2 pagos, los dos `chr_test_`** y de cuentas del propio usuario
+  (`padkar4@gmail.com`, `giorrnellprincipe@gmail.com`). **Ningún desconocido se
+  activó un plan gratis** durante la ventana de llaves de test.
+- ⚠️ **Pero esas 2 cuentas quedaron con una tarjeta de TEST guardada**
+  (`suscripcionId = crd_test_…`) y vencimiento 06 y 07/09/2026. El cron de
+  renovación (5:00 AM) intentará cobrar esas tarjetas **con la llave live**, y
+  `crd_test_…` no existe en el entorno live: fallará y desactivará la suscripción.
+  No cobra de más ni a nadie equivocado, pero ensucia el log. Se limpia con
+  `node scripts/limpiar-pagos-prueba.js <email> --aplicar` (que además libera la
+  promo de bienvenida, hoy consumida por las dos).
+- 2 comprobantes, ambos **VOUCHER V001** — no fiscales, que es lo correcto con la
+  emisión SUNAT apagada.
+
+### Lo que queda del lado de Culqi (en el panel, no en el código)
+
+1. **Registrar el webhook.** CulqiPanel → Desarrollo → **Webhooks**, URL:
+   `https://api.usenotoria.app/api/pagos/culqi/webhook?secret=<CULQI_WEBHOOK_SECRET>`
+   El secreto ya está en Railway; se lee con
+   `railway variables --service api --kv`. **Sin registrarlo, un reembolso o un
+   contracargo no desactiva la suscripción**: el cliente recupera su dinero y
+   conserva el plan. El endpoint lleva vivo desde el 2026-08-05, lo que falta es
+   que Culqi sepa a dónde avisar.
+2. **RSA Keys** (misma sección del panel) — cifrado extra del payload del
+   checkout. **Opcional**, Culqi no lo exige; no está implementado y no bloquea
+   nada.
+3. ⚠️ **Renovar otra vez la llave secreta.** La actual viajó en una captura de
+   pantalla por chat. Renovar en el panel y repetir el único comando de Railway
+   de arriba + `railway run node scripts/verificar-culqi-live.js`. No hace falta
+   tocar Vercel: la **pública** no cambió (`pk_live_EbFd0Nib4QqOfhhk`, la misma
+   que ya estaba en Railway).
+
+### Lo que NO hay que deshacer
+
+- Las llaves **live no van en archivos locales**. `.env` y `.env.local` se quedan
+  con las de test, y `set-culqi-keys.js` sigue negándose a escribir `*_live_*`.
+- Los secretos se cargan **por stdin desde bash**, nunca con `echo` en PowerShell
+  ni como argumento de línea de comandos.
