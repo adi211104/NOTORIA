@@ -1495,6 +1495,32 @@ que nuestro endpoint parsea el evento de muestra. **No demuestra que exista el
 camino de entrega real.** Eso solo lo prueba `GET /{app-id}/subscriptions` y un
 evento de verdad.
 
+#### 3. Lo que la API de comentarios de Instagram SÍ y NO da (probado, 2026-08-14)
+
+Probado contra un comentario real con el token de producción, para no volver a
+teorizar:
+
+| Campo | Resultado |
+|---|---|
+| `id,text,username,timestamp` | ✅ 200 |
+| `like_count` | ✅ 200 — devolvió `0`. **Los likes SÍ se pueden leer** |
+| `from` | ✅ 200 — `{id, username}` y nada más |
+| `from{…,profile_picture_url}` | ❌ `(#100) Tried accessing nonexisting field` |
+| `user` | ✅ 200 pero **vacío** |
+
+🔴 **La foto de quien comenta NO existe en la API.** No es una carencia nuestra y
+no se arregla con permisos. La única vía sería `business_discovery`, que exige que
+el comentarista tenga cuenta **profesional** —la mayoría de la gente no la
+tiene— y costaría una llamada por cada uno. Por eso la tarjeta pinta un círculo
+con la inicial, igual que las reseñas. **Si alguien vuelve a pedir la foto, la
+respuesta es esta tabla.**
+
+🟢 **Los likes sí se pueden mostrar, y falta poco.** `tiktokBusiness.scraper.js`
+**ya los lee** (`likes: c.likes ?? 0`) y se tiran porque `ComentarioSocial` no
+tiene columna. Encenderlo son cuatro cambios chicos —pedir `like_count` en
+Instagram, columna `likes`, mapearla en el worker, pintarla— pero **exige migrar
+la base de producción**, así que va después de cerrar el App Review.
+
 ### 19-ter. Modo Activo ≠ permisos abiertos, y por dónde seguir (cierre 2026-08-06/07)
 
 **La confusión que hay que tener clara** (se preguntó literalmente: *"si mi app ya está activa, ¿por qué esperamos revisión?"*). Son dos cosas independientes:

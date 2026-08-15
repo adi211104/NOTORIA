@@ -1979,6 +1979,20 @@ export default function DetallePage() {
                     <Card key={c.id} style={{ borderLeft:`3px solid ${tono.c}` }}>
                       <div style={{ display:'flex', justifyContent:'space-between', gap:12, flexWrap:'wrap', alignItems:'flex-start' }}>
                         <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', minWidth:0 }}>
+                          {/* Inicial en vez de foto, y no por falta de ganas: NI
+                              Instagram NI TikTok dan la foto de quien comenta.
+                              Comprobado contra la API el 2026-08-14 — el campo
+                              `from` de un comentario devuelve solo {id, username}
+                              y pedir `profile_picture_url` responde "nonexisting
+                              field". La única vía sería `business_discovery`, que
+                              exige que el comentarista tenga cuenta profesional
+                              (la mayoría no la tiene) y costaría una llamada por
+                              cada uno. Mismo patrón que las reseñas. */}
+                          <div style={{ width:28, height:28, borderRadius:'50%', background:'rgba(11,115,36,0.12)',
+                                        color:'#4CAF66', display:'flex', alignItems:'center', justifyContent:'center',
+                                        fontSize:12, fontWeight:700, flexShrink:0 }}>
+                            {(c.autorNombre || '?').charAt(0).toUpperCase()}
+                          </div>
                           <span style={{ color:'var(--text)', fontSize:13.5, fontWeight:600 }}>{c.autorNombre || '—'}</span>
                           <span style={{ fontSize:11, color:'var(--text-3)', background:'var(--surface2)',
                                          border:'1px solid var(--border-c)', padding:'2px 8px', borderRadius:9 }}>
