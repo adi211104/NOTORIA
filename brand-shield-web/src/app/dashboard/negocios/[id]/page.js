@@ -168,6 +168,12 @@ const ScoreGauge = ({ score, color }) => {
 // Card y ST viven FUERA del componente: si se definen dentro, cada re-render
 // (el cooldown re-renderiza cada segundo) crea un tipo nuevo y React desmonta
 // todo su contenido — los inputs pierden el foco al escribir.
+// Nombre de la red tal como se le enseña al usuario. Existe porque los avisos de
+// borrado decían "TikTok" fijo y el mismo botón se usa en Instagram: al borrar
+// una respuesta de Instagram el aviso hablaba de otra red. Al añadir una fuente
+// nueva, agregarla aquí y no volver a escribir el nombre a mano.
+const nombreRed = (plataforma) => ({ TIKTOK:'TikTok', INSTAGRAM:'Instagram' })[plataforma] || plataforma;
+
 const Card = ({ children, style }) => <div style={{ background:'var(--surface)', border:'1px solid var(--border-c)', borderRadius:14, padding:20, ...style }}>{children}</div>;
 const ST = ({ children }) => <p style={{ fontSize:11, fontWeight:600, textTransform:'uppercase', letterSpacing:0.5, color:'var(--text-3)', margin:'0 0 10px' }}>{children}</p>;
 
@@ -345,7 +351,9 @@ const TEXTOS = {
     },
     comentarios: {
       titulo:'Comentarios en tus publicaciones',
-      sub:'Lo que la gente comenta en tus propios videos. Puedes responder desde acá.',
+      // "videos" era de cuando esto solo leía TikTok; en Instagram son
+      // publicaciones y el título de la sección ya dice "publicaciones".
+      sub:'Lo que la gente comenta en tus propias publicaciones. Puedes responder desde acá.',
       cuentaConectada:'Cuenta conectada',
       verPerfil:'Ver perfil ↗',
       escuchando:'Escuchando los comentarios de esta cuenta',
@@ -356,8 +364,10 @@ const TEXTOS = {
       totalLabel:'Total', negativosLabel:'Negativos', pendientesLabel:'Sin responder',
       filtroTodos:'Todos', negativo:'Negativos', positivo:'Positivos', neutro:'Neutros',
       soloPendientes:'Solo sin responder',
-      sinConectar:'Conecta tu cuenta de TikTok para traer los comentarios de tus videos.',
-      irAConectar:'Conectar TikTok →',
+      // Nombra las DOS redes: decía solo TikTok, y a un negocio que usa
+      // Instagram le estaba pidiendo conectar una red que quizá ni tiene.
+      sinConectar:'Conecta tu cuenta de Instagram o de TikTok para traer los comentarios de tus publicaciones.',
+      irAConectar:'Ir a Conexiones →',
       videosTitulo:'Tus últimos videos',
       videosDesc:'Lo que TikTok publica de tu cuenta. El número de comentarios es el que reporta TikTok.',
       videosSinTitulo:'(sin título)',
@@ -385,8 +395,9 @@ const TEXTOS = {
       oculto:'Oculto', fijado:'Fijado',
       ocultarAyuda:'Lo quita de la vista pública sin borrarlo. Su autor lo sigue viendo y no recibe aviso.',
       fijarAyuda:'Lo sube al inicio de los comentarios del video.',
-      borrarRespuesta:'Borrar respuesta', confirmarBorrado:'¿Seguro? Se borra de TikTok',
-      borrarRespuestaAyuda:'La retira de TikTok y deja el comentario como pendiente para que puedas escribir otra.',
+      borrarRespuesta:'Borrar respuesta',
+      confirmarBorrado:(red) => `¿Seguro? Se borra de ${red}`,
+      borrarRespuestaAyuda:(red) => `La retira de ${red} y deja el comentario como pendiente para que puedas escribir otra.`,
     },
     sospechosas: {
       sinSospechosas:'Sin reseñas sospechosas detectadas',
@@ -701,7 +712,7 @@ const TEXTOS = {
     },
     comentarios: {
       titulo:'Comments on your posts',
-      sub:'What people comment on your own videos. You can reply from here.',
+      sub:'What people comment on your own posts. You can reply from here.',
       cuentaConectada:'Connected account',
       verPerfil:'View profile ↗',
       escuchando:'Listening to comments on this account',
@@ -710,8 +721,8 @@ const TEXTOS = {
       totalLabel:'Total', negativosLabel:'Negative', pendientesLabel:'Unanswered',
       filtroTodos:'All', negativo:'Negative', positivo:'Positive', neutro:'Neutral',
       soloPendientes:'Unanswered only',
-      sinConectar:'Connect your TikTok account to pull comments from your videos.',
-      irAConectar:'Connect TikTok →',
+      sinConectar:'Connect your Instagram or TikTok account to pull the comments on your posts.',
+      irAConectar:'Go to Connections →',
       videosTitulo:'Your latest videos',
       videosDesc:'What TikTok reports for your account. The comment count is TikTok’s own.',
       videosSinTitulo:'(untitled)',
@@ -737,8 +748,9 @@ const TEXTOS = {
       oculto:'Hidden', fijado:'Pinned',
       ocultarAyuda:'Removes it from public view without deleting it. Its author still sees it and is not notified.',
       fijarAyuda:'Moves it to the top of the video comments.',
-      borrarRespuesta:'Delete reply', confirmarBorrado:'Sure? This deletes it on TikTok',
-      borrarRespuestaAyuda:'Removes it from TikTok and marks the comment as pending so you can write a new one.',
+      borrarRespuesta:'Delete reply',
+      confirmarBorrado:(red) => `Sure? This deletes it on ${red}`,
+      borrarRespuestaAyuda:(red) => `Removes it from ${red} and marks the comment as pending so you can write a new one.`,
     },
     sospechosas: {
       sinSospechosas:'No suspicious reviews detected',
@@ -1724,7 +1736,15 @@ export default function DetallePage() {
       {/* TAB Comentarios — comentarios en publicaciones propias (TikTok) */}
       {tab==='comentarios' && (() => {
         const tc = t.comentarios;
-        const conectado = comConexiones?.tiktok?.conectado;
+        // Antes esto miraba SOLO a TikTok, así que un negocio con Instagram
+        // conectado veía el cartel de "conecta TikTok" y ni uno de sus
+        // comentarios — con el contador de la pestaña diciendo que sí los
+        // había. Al sumar una red nueva, sumarla también aquí.
+        const redes = [
+          { id:'tiktok',    etiqueta:'TikTok',    datos:comConexiones?.tiktok },
+          { id:'instagram', etiqueta:'Instagram', datos:comConexiones?.instagram },
+        ].filter(r => r.datos?.conectado);
+        const conectado = redes.length > 0;
         const hayFiltro = !!(comFiltro.sentimiento || comFiltro.pendientes);
         const TONO = {
           negativo:{ c:'#f87171', bg:'rgba(239,68,68,0.1)',  bd:'rgba(239,68,68,0.3)' },
@@ -1755,47 +1775,52 @@ export default function DetallePage() {
               </Card>
             ) : (
               <>
-                {/* Tarjeta de la cuenta conectada. Es lo que hace que el panel se
-                    sienta de ALGUIEN y no un tablero genérico: foto, nombre y @. */}
-                {comConexiones?.tiktok?.conectado && (
-                  <Card style={{ padding:'14px 16px' }}>
+                {/* Tarjeta por cada cuenta conectada. Es lo que hace que el panel
+                    se sienta de ALGUIEN y no un tablero genérico: foto, nombre y
+                    @. Antes solo existía para TikTok; ahora se pinta igual para
+                    cualquier red, que además es lo que permite al dueño detectar
+                    que conectó la cuenta equivocada. */}
+                {redes.map(({ id, etiqueta, datos }) => (
+                  <Card key={id} style={{ padding:'14px 16px' }}>
                     <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
-                      {comConexiones.tiktok.avatar ? (
-                        <img src={comConexiones.tiktok.avatar} alt="" width={44} height={44}
+                      {datos.avatar ? (
+                        <img src={datos.avatar} alt="" width={44} height={44}
                           style={{ width:44, height:44, borderRadius:'50%', objectFit:'cover', border:'1px solid var(--border-c)', flexShrink:0 }}
                           onError={e => { e.currentTarget.style.display='none'; }} />
                       ) : (
                         <div style={{ width:44, height:44, borderRadius:'50%', background:'rgba(11,115,36,0.12)', color:'#4CAF66',
                                       display:'flex', alignItems:'center', justifyContent:'center', fontSize:17, fontWeight:700, flexShrink:0 }}>
-                          {(comConexiones.tiktok.nombre || 'T').charAt(0).toUpperCase()}
+                          {(datos.nombre || etiqueta).charAt(0).toUpperCase()}
                         </div>
                       )}
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
                           <span style={{ color:'var(--text)', fontSize:15, fontWeight:600 }}>
-                            {comConexiones.tiktok.nombre || 'TikTok'}
+                            {datos.nombre || etiqueta}
                           </span>
-                          {/* El @ solo existe si el scope user.info.profile está aprobado */}
-                          {comConexiones.tiktok.username && (
-                            <span style={{ color:'var(--text-3)', fontSize:12.5 }}>@{comConexiones.tiktok.username}</span>
+                          {/* En TikTok el @ solo existe si el scope
+                              user.info.profile está aprobado; en Instagram viene
+                              siempre con instagram_basic. */}
+                          {datos.username && (
+                            <span style={{ color:'var(--text-3)', fontSize:12.5 }}>@{datos.username}</span>
                           )}
                           <span style={{ fontSize:10.5, color:'#22c55e', background:'rgba(34,197,94,0.1)',
                                          border:'1px solid rgba(34,197,94,0.25)', padding:'1px 8px', borderRadius:9 }}>
-                            TikTok
+                            {etiqueta}
                           </span>
                         </div>
                         {/* Decir "escuchando" con el token muerto es lo que hacía
                             que un video recién subido no apareciera sin ninguna
                             explicación en el panel. */}
-                        {comConexiones.tiktok.estado === 'vencida' ? (
+                        {datos.estado === 'vencida' ? (
                           <p style={{ color:'#f59e0b', fontSize:11.5, margin:'3px 0 0' }}>{tc.conexionVencida}</p>
                         ) : (
                           <p style={{ color:'var(--text-3)', fontSize:11.5, margin:'3px 0 0' }}>{tc.escuchando}</p>
                         )}
                       </div>
                       <div style={{ display:'flex', gap:10, alignItems:'center', flexShrink:0 }}>
-                        {comConexiones.tiktok.url && (
-                          <a href={comConexiones.tiktok.url} target="_blank" rel="noopener noreferrer"
+                        {datos.url && (
+                          <a href={datos.url} target="_blank" rel="noopener noreferrer"
                             style={{ color:'#4CAF66', fontSize:11.5, textDecoration:'none' }}>{tc.verPerfil}</a>
                         )}
                         <Link href="/dashboard/conexiones" style={{ color:'var(--text-3)', fontSize:11.5, textDecoration:'none' }}>
@@ -1804,7 +1829,7 @@ export default function DetallePage() {
                       </div>
                     </div>
                   </Card>
-                )}
+                ))}
 
                 <div style={{ display:'flex', gap:16, flexWrap:'wrap' }}>
                   {[[tc.totalLabel, comResumen.total, null],
@@ -1950,7 +1975,7 @@ export default function DetallePage() {
                           <span style={{ color:'var(--text)', fontSize:13.5, fontWeight:600 }}>{c.autorNombre || '—'}</span>
                           <span style={{ fontSize:11, color:'var(--text-3)', background:'var(--surface2)',
                                          border:'1px solid var(--border-c)', padding:'2px 8px', borderRadius:9 }}>
-                            {({ TIKTOK:'TikTok', INSTAGRAM:'Instagram' })[c.plataforma] || c.plataforma}
+                            {nombreRed(c.plataforma)}
                           </span>
                           <span style={{ fontSize:11, color:tono.c, background:tono.bg,
                                          border:`1px solid ${tono.bd}`, padding:'2px 8px', borderRadius:9 }}>
@@ -2012,10 +2037,15 @@ export default function DetallePage() {
                           <p style={{ color:'var(--text-3)', fontSize:11, margin:'0 0 2px' }}>{tc.tuRespuesta}</p>
                           <p style={{ color:'var(--text-2)', fontSize:12.5, margin:0, lineHeight:1.55 }}>{c.respuesta}</p>
                           {/* Borrar la respuesta PROPIA, para reescribirla. Solo si
-                              tenemos su id de TikTok: las publicadas antes del
-                              2026-08-06 no lo tienen y el worker lo rellena luego. */}
+                              tenemos su id en la plataforma: las publicadas antes
+                              del 2026-08-06 no lo tienen y el worker lo rellena
+                              luego.
+                              Los textos nombran la RED del comentario: decían
+                              "TikTok" fijo y el mismo botón se usa en Instagram,
+                              así que al borrar una respuesta de Instagram el aviso
+                              hablaba de otra red. */}
                           {c.respuestaExternalId && (
-                            <button title={tc.borrarRespuestaAyuda} disabled={comModerando === c.id}
+                            <button title={tc.borrarRespuestaAyuda(nombreRed(c.plataforma))} disabled={comModerando === c.id}
                               onClick={() => (comBorrando === c.id ? borrarRespuesta(c.id) : setComBorrando(c.id))}
                               onBlur={() => setComBorrando(b => (b === c.id ? null : b))}
                               style={{ marginTop:7, fontSize:11,
@@ -2024,7 +2054,7 @@ export default function DetallePage() {
                                        border:`1px solid ${comBorrando === c.id ? 'rgba(248,113,113,0.4)' : 'var(--border-c)'}`,
                                        padding:'4px 11px', borderRadius:9,
                                        cursor: comModerando === c.id ? 'wait' : 'pointer' }}>
-                              {comBorrando === c.id ? tc.confirmarBorrado : tc.borrarRespuesta}
+                              {comBorrando === c.id ? tc.confirmarBorrado(nombreRed(c.plataforma)) : tc.borrarRespuesta}
                             </button>
                           )}
                         </div>

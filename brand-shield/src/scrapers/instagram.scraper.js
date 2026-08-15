@@ -262,8 +262,41 @@ const eliminarComentarioInstagram = async (comentarioId, accessToken) => {
   }
 };
 
+/**
+ * Perfil público de la cuenta de Instagram conectada: @usuario, nombre visible y
+ * foto. Lo consume el panel para enseñar DE QUIÉN es la cuenta conectada, igual
+ * que ya se hace con TikTok — un tablero que dice "Instagram" a secas no permite
+ * al dueño detectar que conectó la cuenta equivocada.
+ *
+ * ⚠️ A diferencia de TikTok, esto NO se cachea en el modelo `Negocio`. Cachearlo
+ * exigiría tres columnas nuevas y migrar la base de producción; la llamada es
+ * una sola, solo ocurre al abrir la pestaña de Comentarios y el fallo es
+ * inocuo. Si algún día se llama desde una ruta caliente, replicar el patrón de
+ * `tiktokNombre/Avatar/Username`.
+ *
+ * Nunca lanza: si Meta falla, el panel enseña la cuenta como conectada sin
+ * perfil, que es mejor que romper la pestaña entera.
+ */
+const obtenerPerfilInstagram = async (igUserId, accessToken) => {
+  if (!configurado() || !igUserId || !accessToken) return null;
+  try {
+    const { data } = await axios.get(`${GRAPH_URL}/${igUserId}`, {
+      params: { fields: 'id,username,name,profile_picture_url', access_token: accessToken },
+      timeout: 15000,
+    });
+    return {
+      username: data.username || null,
+      nombre: data.name || null,
+      avatar: data.profile_picture_url || null,
+      url: data.username ? `https://www.instagram.com/${data.username}` : null,
+    };
+  } catch {
+    return null;
+  }
+};
+
 module.exports = {
-  obtenerComentariosInstagram, responderComentarioInstagram,
+  obtenerComentariosInstagram, responderComentarioInstagram, obtenerPerfilInstagram,
   eliminarComentarioInstagram, configurado,
   obtenerCaptionPublicacion, suscribirWebhookInstagram, desuscribirWebhookInstagram,
   LIMITE_PUBLICACIONES, LIMITE_COMENTARIOS,

@@ -115,6 +115,14 @@ router.get('/:negocioId', async (req, res, next) => {
     // con los comentarios que ya estén guardados.
     const videos = await videosDelNegocio(negocio.id, conexion).catch(() => null);
 
+    // Perfil de Instagram: una sola llamada, y solo si hay cuenta conectada.
+    // No se cachea a propósito (ver `obtenerPerfilInstagram`), y si falla se
+    // sigue: la cuenta aparece conectada sin foto, que es mejor que romper el
+    // tab por un dato decorativo.
+    const perfilInstagram = perfilNegocio.instagramAccessToken
+      ? await instagram.obtenerPerfilInstagram(perfilNegocio.instagramUserId, perfilNegocio.instagramAccessToken)
+      : null;
+
     // Respaldo del @usuario cuando el perfil no se pudo leer.
     //
     // `user.info.profile` es un permiso OPCIONAL: en la pantalla de
@@ -178,6 +186,19 @@ router.get('/:negocioId', async (req, res, next) => {
           avatar: perfilNegocio.tiktokAvatar || null,
           username: perfilNegocio.tiktokUsername || null,
           url: perfilNegocio.tiktokPerfilUrl || null,
+        },
+        // Instagram faltaba entero. El panel decidía si mostrar "conecta tu
+        // cuenta" mirando SOLO a TikTok, así que un negocio con Instagram
+        // conectado y comentarios ya guardados veía el cartel de "conecta
+        // TikTok" y no sus comentarios — con el contador de la pestaña
+        // diciendo que sí los había.
+        instagram: {
+          disponible: instagram.configurado(),
+          conectado: !!perfilNegocio.instagramAccessToken,
+          // Se lee y se responde con los mismos permisos, así que aquí no hay
+          // la distinción que TikTok necesita entre Display y Accounts API.
+          comentarios: !!perfilNegocio.instagramAccessToken,
+          ...(perfilInstagram || { nombre: null, avatar: null, username: null, url: null }),
         },
       },
     });
