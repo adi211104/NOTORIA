@@ -23,6 +23,43 @@ const TIKTOK_BIZ_REDIRECT_URI = process.env.TIKTOK_BIZ_REDIRECT_URI || `${BACKEN
 const negocioDelUsuario = async (negocioId, usuarioId) =>
   prisma.negocio.findFirst({ where: { id: negocioId, usuarioId } });
 
+// Primer escaneo nada más conectar. Sin esto, el usuario autoriza, vuelve al
+// panel y encuentra la pestaña de comentarios VACÍA hasta que corra el cron —
+// hasta una hora después. Se lee como que la conexión no funcionó, y es la
+// primera impresión del producto justo después del paso que más cuesta.
+//
+// Se espera, pero con tope: el callback de OAuth tiene que redirigir sí o sí, y
+// una cuenta con muchas publicaciones podría tardar. Si se pasa del tope, el
+// escaneo sigue por su cuenta en segundo plano y el cron lo recogerá igual; lo
+// único que se pierde es que aparezca ya mismo.
+//
+// El negocio se relee CON el usuario porque el motor de alertas necesita
+// `prefsAlertas` para decidir a quién avisar y por dónde: sin esa relación
+// revienta al guardar el primer comentario negativo.
+const TOPE_PRIMER_ESCANEO_MS = 12000;
+
+const primerEscaneo = async (negocioId, red) => {
+  try {
+    const negocio = await prisma.negocio.findUnique({
+      where: { id: negocioId },
+      include: {
+        usuario: { select: { id: true, email: true, nombre: true, telegramChatId: true, prefsAlertas: true, plan: true } },
+      },
+    });
+    if (!negocio) return;
+
+    const { procesarComentariosSociales } = require('../../workers/monitoreo.worker');
+    await Promise.race([
+      procesarComentariosSociales(negocio),
+      new Promise((r) => setTimeout(r, TOPE_PRIMER_ESCANEO_MS)),
+    ]);
+  } catch (e) {
+    // Nunca tumba la conexión: la cuenta ya quedó vinculada, que es lo que el
+    // usuario pidió. Los comentarios llegarán en el siguiente ciclo.
+    console.warn(`[${red}] Primer escaneo tras conectar falló: ${e.message}`);
+  }
+};
+
 const requierePlanPago = (req, res) => {
   if (req.usuario.plan === 'GRATIS') {
     res.status(403).json({
@@ -155,6 +192,7 @@ router.get('/instagram/callback', async (req, res) => {
       console.warn(`[Instagram] Webhook no suscrito para ${pagina.name}: ${suscripcion.error}`);
     }
 
+    await primerEscaneo(negocioId, 'Instagram');
     volverA('ig=conectado');
   } catch (error) {
     console.error('[Instagram OAuth] Error en callback:', error.response?.data?.error?.message || error.message);
@@ -205,6 +243,7 @@ router.get('/tiktok/callback', async (req, res) => {
       },
     });
 
+    await primerEscaneo(negocioId, 'TikTok');
     res.redirect(`${FRONTEND_URL}/dashboard/negocios/${negocioId}?tt=conectado&tab=comentarios`);
   } catch (error) {
     console.error('[TikTok OAuth] Error en callback:', error.response?.data?.error?.message || error.message);
@@ -253,6 +292,7 @@ router.get('/tiktok-business/callback', async (req, res) => {
       },
     });
 
+    await primerEscaneo(negocioId, 'TikTok');
     res.redirect(`${FRONTEND_URL}/dashboard/negocios/${negocioId}?tt=conectado&tab=comentarios`);
   } catch (error) {
     console.error('[TikTok Biz OAuth] Error en callback:', error.message);
