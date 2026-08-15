@@ -1403,6 +1403,87 @@ se parecen mucho y se arreglan distinto:
 | Página dentro de un portfolio comercial | 0 páginas | §19-bis — hoy no tiene salida sin `business_management` |
 | Permiso viejo reutilizado | 0 páginas | "Editar configuración" en vez de "Continuar" |
 
+### 19-quinquies. CONFIRMADO: era el portfolio, y el webhook estaba en la app equivocada (2026-08-14)
+
+Dos hallazgos de la misma sesión. El primero cierra §19-bis; el segundo destapa
+que §20 nunca estuvo realmente verificado.
+
+#### 1. El portfolio era la causa — confirmado con `business_management`
+
+Se aprovechó algo que estaba delante desde el principio: **con acceso estándar,
+un permiso solo lo conceden quienes tienen ROL en la app** (§19-ter), y la dueña
+es administradora. O sea que `business_management` se podía añadir a la
+Configuración y **probar sin App Review**. Se hizo, y la conexión pasó a la
+primera:
+
+```
+me = Notoria [1211927292012805]           ← la página, ahora sí visible
+IG = notoriaapp [17841443218774198]       ← cuenta conectada
+```
+
+Antes, con los mismos 5 permisos concedidos y la página seleccionada en la
+pantalla de consentimiento, `me/accounts` devolvía **0**. Hipótesis cerrada: no
+era el Centro de cuentas (§19-quater, que era una anomalía real pero de otro
+cliente), no era la configuración, no era la vinculación. **Era el portfolio.**
+
+⚠️ **Consecuencia para el App Review:** el screencast NO puede grabarse con esta
+cuenta mientras `business_management` esté en la Configuración — la pantalla de
+consentimiento mostraría un permiso que no estamos pidiendo. Para grabar hay que
+quitarlo, y entonces la cuenta de la dueña vuelve a no poder conectarse. Las dos
+salidas siguen siendo las de §19-bis: página de otra persona (añadida como
+*Tester*) o meter `business_management` en la revisión.
+
+**Truco reutilizable:** para decidir entre hipótesis sobre permisos, añadir el
+permiso a la Configuración y probar con la cuenta que tiene rol en la app. Es
+gratis, reversible y no gasta una revisión.
+
+#### 2. 🔴 El webhook estaba cableado a la app equivocada
+
+`GET /{app-id}/subscriptions` con el app token devolvía **`data: []`**: la app
+`2232447584255257`, la que usa el backend, **no tenía ninguna suscripción de
+webhook**. Lo del 2026-08-06 se configuró desde *Instagram → Configuración de la
+API*, que pertenece a la app de Instagram `1305555994987658` — el sabor
+*Instagram Login*, que no es el nuestro.
+
+Eso explica retroactivamente §20.10: la firma llegaba con el secreto de la app de
+Instagram porque **era esa app la que enviaba**. En su momento se resolvió
+aceptando los dos secretos, que funcionó, pero tapó la causa.
+
+Y explica el error del campo: `POST /me/subscribed_apps?subscribed_fields=comments`
+respondía *"must be one of {feed, mention, …}"* porque Meta validaba contra los
+campos del objeto **Página**.
+
+✅ **Corregido en la consola:** app `2232447584255257` → Webhooks → objeto
+**instagram** → `comments`, callback `https://api.usenotoria.app/api/webhooks/instagram`.
+Verificado por API y por log:
+
+```
+objeto "instagram" | callback: …/api/webhooks/instagram | activo: true | campos: comments(v26.0)
+[Webhook IG] Verificación superada.
+```
+
+⚠️ **`suscribirWebhookInstagram()` no funciona por ningún camino.** Probados los
+cuatro con el token de página real, después de arreglar la suscripción de app:
+
+| Llamada | Respuesta |
+|---|---|
+| `graph.facebook.com/{ig-user-id}/subscribed_apps` + `comments` (v21 y v26) | `(#3) Application does not have the capability` |
+| `graph.facebook.com/{ig-user-id}/subscribed_apps` sin campos | `(#100) subscribed_fields is required` |
+| `graph.facebook.com/me/subscribed_apps` + `comments` (v21 y v26) | `comments` no es campo del objeto Página |
+
+El nodo `{ig-user-id}/subscribed_apps` **es del sabor Instagram Login**, contra
+`graph.instagram.com`. La documentación de Meta mezcla los dos sabores en la
+misma página y de ahí salió la llamada que nunca pudo funcionar. **Pendiente de
+zanjar con la prueba de un comentario real:** si el evento llega solo con la
+suscripción de app, la llamada por cuenta sobra y hay que quitarla del callback
+(hoy solo escupe un warning en cada conexión).
+
+⚠️ **La lección de §20 se queda corta y hay que ampliarla.** No basta con
+desconfiar del cartel del panel: el botón *Probar* de Meta demuestra únicamente
+que nuestro endpoint parsea el evento de muestra. **No demuestra que exista el
+camino de entrega real.** Eso solo lo prueba `GET /{app-id}/subscriptions` y un
+evento de verdad.
+
 ### 19-ter. Modo Activo ≠ permisos abiertos, y por dónde seguir (cierre 2026-08-06/07)
 
 **La confusión que hay que tener clara** (se preguntó literalmente: *"si mi app ya está activa, ¿por qué esperamos revisión?"*). Son dos cosas independientes:
