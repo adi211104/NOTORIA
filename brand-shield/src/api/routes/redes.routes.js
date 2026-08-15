@@ -505,8 +505,49 @@ router.delete('/:negocioId/:red', async (req, res, next) => {
       data: Object.fromEntries(campos.map((c) => [c, null])),
     });
 
-    console.log(`[Redes] ${red} desconectado de ${negocio.nombre}${revocado ? ' (token revocado en la plataforma)' : ''}`);
-    res.json({ mensaje: 'Conexión eliminada', red, revocado });
+    // Y el CONTENIDO que trajo esa cuenta. El perfil cacheado ya se borraba (ver
+    // REDES_DESCONECTABLES) justo por esto: si mañana se conecta otra cuenta, lo
+    // viejo se mezcla con lo nuevo. Faltaba aplicar el mismo criterio a lo que
+    // de verdad importa.
+    //
+    // Y hay una razón más fuerte que la cosmética: comentarios y menciones son
+    // **datos personales de terceros** —su @usuario y lo que escribieron— que
+    // Notoria solo puede tener mientras el negocio mantenga la conexión que dio
+    // acceso a ellos. Al retirarla, conservarlos sería guardar datos de gente
+    // que nunca trató con nosotros, con el consentimiento ya revocado. Es
+    // exactamente lo que mira un revisor de permisos, el mismo motivo por el que
+    // arriba se retira la suscripción al webhook.
+    //
+    // Se asume el coste: quien desconecte y vuelva a conectar LA MISMA cuenta
+    // pierde el historial. Se recupera solo en el siguiente escaneo dentro de la
+    // ventana de publicaciones recientes, y las respuestas ya publicadas siguen
+    // en la plataforma, que es donde viven de verdad.
+    const PLATAFORMA = { tiktok: 'TIKTOK', instagram: 'INSTAGRAM' }[red];
+    const [coms, menciones, alertas] = await prisma.$transaction([
+      prisma.comentarioSocial.deleteMany({ where: { negocioId: negocio.id, plataforma: PLATAFORMA } }),
+      prisma.mencion.deleteMany({ where: { negocioId: negocio.id, plataforma: PLATAFORMA } }),
+      // Acotado por tipo a propósito: el enum `Plataforma` lo comparten otras
+      // alertas, y un filtro solo por plataforma podría llevarse alguna que no
+      // venga de esta conexión.
+      prisma.alerta.deleteMany({
+        where: {
+          negocioId: negocio.id,
+          plataforma: PLATAFORMA,
+          tipo: { in: ['COMENTARIO_NEGATIVO', 'MENCION_NEGATIVA'] },
+        },
+      }),
+    ]);
+
+    console.log(`[Redes] ${red} desconectado de ${negocio.nombre}${revocado ? ' (token revocado en la plataforma)' : ''}`
+      + ` — borrados ${coms.count} comentario(s), ${menciones.count} mención(es), ${alertas.count} alerta(s)`);
+    res.json({
+      mensaje: 'Conexión eliminada',
+      red,
+      revocado,
+      // Se devuelve para que el panel pueda decir QUÉ se borró: "conexión
+      // eliminada" a secas no deja claro que también se fue el historial.
+      borrado: { comentarios: coms.count, menciones: menciones.count, alertas: alertas.count },
+    });
   } catch (error) { next(error); }
 });
 
