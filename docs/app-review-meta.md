@@ -431,6 +431,12 @@ completa sin ellos.
 - [x] ✅ `business_management` añadido a la Configuración `4655107931374707`.
 - [x] ✅ Webhook del objeto `instagram` suscrito en la app **correcta**
       (`2232447584255257`), campo `comments`, handshake verificado en los logs.
+- [x] ✅ **`@notoriaapp` con foto de perfil y una publicación real.** El revisor
+      va a ver esa cuenta en pantalla: un perfil vacío con silueta gris se lee
+      como una cuenta creada para pasar la revisión. Las piezas están en
+      `marca/` (`node marca/generar-social.js`), en **1080×1350**, que es el
+      formato que la cuadrícula del perfil no recorta — a 1080×1080 el titular
+      salía cortado por los lados.
 - [ ] 🔍 **Checkpoint que ahorra una noche:** antes de pulsar Conectar, mirar
       *portfolio → Cuentas → Páginas*. Si la página nueva aparece ahí, **parar**.
 - [ ] Conectar esa cuenta desde Notoria y comprobar que llegan comentarios.
