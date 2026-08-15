@@ -28,6 +28,35 @@ const PLANTILLAS = {
 
 const NOMBRE_RED = { TIKTOK: 'TikTok', INSTAGRAM: 'Instagram' };
 
+// Nombre del TIPO de alerta. La ficha del negocio pintaba el valor crudo del
+// enum (`a.tipo.replace(/_/g,' ')`), que es español por definición —
+// "COMENTARIO NEGATIVO" en medio de una interfaz en inglés—. La página de
+// Alertas ya tenía estas etiquetas traducidas, así que se centralizan aquí en
+// vez de duplicarlas.
+const ETIQUETAS = {
+  es: {
+    PICO_RESENAS_NEGATIVAS: 'Pico de reseñas negativas',
+    CAIDA_RATING: 'Caída de rating',
+    CUENTAS_NUEVAS: 'Cuentas sospechosas',
+    RESENA_MUY_NEGATIVA: 'Reseña crítica',
+    MENCION_NEGATIVA: 'Mención negativa',
+    COMENTARIO_NEGATIVO: 'Comentario negativo',
+  },
+  en: {
+    PICO_RESENAS_NEGATIVAS: 'Spike of negative reviews',
+    CAIDA_RATING: 'Rating drop',
+    CUENTAS_NUEVAS: 'Suspicious accounts',
+    RESENA_MUY_NEGATIVA: 'Critical review',
+    MENCION_NEGATIVA: 'Negative mention',
+    COMENTARIO_NEGATIVO: 'Negative comment',
+  },
+};
+
+// De reserva se devuelve el enum legible, no vacío: un tipo nuevo sin traducir
+// se sigue leyendo, aunque en inglés técnico.
+export const etiquetaAlerta = (tipo, idioma = 'es') =>
+  ETIQUETAS[idioma]?.[tipo] || ETIQUETAS.es[tipo] || String(tipo || '').replace(/_/g, ' ');
+
 export const textoAlerta = (alerta, idioma = 'es') => {
   const plantilla = PLANTILLAS[alerta?.tipo]?.[idioma];
   const d = alerta?.detalle;

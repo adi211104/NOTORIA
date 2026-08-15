@@ -4,7 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { negociosApi, comentariosApi } from '../../../../lib/api';
 import { iconoParaTipo, labelParaTipo } from '../../../../lib/tiposNegocio';
-import { textoAlerta } from '../../../../lib/alertas';
+import { textoAlerta, etiquetaAlerta } from '../../../../lib/alertas';
 import { useAuth } from '../../../../context/AuthContext';
 import { useIdioma } from '../../../../context/IdiomaContext';
 import Icon, { ICONO_ALERTA } from '../../../../components/Icons';
@@ -2239,7 +2239,7 @@ export default function DetallePage() {
                 <Icon name={ICONO_ALERTA[a.tipo]||'alerta'} size={20} color="#f59e0b" style={{ marginTop:2 }} />
                 <div>
                   <div style={{ display:'flex', gap:6, marginBottom:4 }}>
-                    <span style={{ fontSize:11, color:'#4CAF66', fontWeight:500 }}>{a.tipo.replace(/_/g,' ')}</span>
+                    <span style={{ fontSize:11, color:'#4CAF66', fontWeight:500, textTransform:'uppercase' }}>{etiquetaAlerta(a.tipo, idioma)}</span>
                     <span style={{ fontSize:11, background:'var(--surface2)', color:'var(--text-3)', padding:'0 6px', borderRadius:4 }}>{a.plataforma}</span>
                   </div>
                   <p style={{ color:'var(--text-2)', fontSize:13, lineHeight:1.5, margin:'0 0 4px' }}>{textoAlerta(a, idioma)}</p>
