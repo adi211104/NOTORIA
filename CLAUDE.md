@@ -2288,9 +2288,10 @@ Lo que devolvió tras la rotación:
 - 2 comprobantes, ambos **VOUCHER V001** — no fiscales, que es lo correcto con la
   emisión SUNAT apagada.
 
-### Lo que queda del lado de Culqi (en el panel, no en el código)
+### Lo del panel de Culqi — hecho el 2026-08-15
 
-1. **Registrar el webhook.** CulqiPanel → Desarrollo → **Webhooks** → Crear:
+1. ✅ **Webhook registrado.** CulqiPanel → Desarrollo → **Webhooks**, con esta
+   configuración:
 
    | Campo | Valor |
    |-------|-------|
@@ -2317,7 +2318,12 @@ Lo que devolvió tras la rotación:
      **20 caracteres alfanuméricos** (sin símbolos, que es lo que el formulario
      rechaza). Si algún día se rota, respetar ese límite.
 
-   **Sin registrarlo, un reembolso no desactiva la suscripción**: el cliente
+   ⏳ **Queda comprobarlo con un reembolso real**, que es lo único que puede
+   hacerlo (ver el bloque de abajo). Si la contraseña no cuadrara, el endpoint lo
+   deja escrito en los logs, así que el primer reembolso lo dirá pase lo que
+   pase.
+
+   Sin el webhook, un reembolso no desactivaría la suscripción: el cliente
    recupera su dinero y conserva el plan. Los **contracargos NO llegan por
    webhook** (Culqi no expone ese recurso): se vigilan en la sección
    *Controversias* del panel.
@@ -2341,11 +2347,14 @@ Lo que devolvió tras la rotación:
 2. **RSA Keys** (misma sección del panel) — cifrado extra del payload del
    checkout. **Opcional**, Culqi no lo exige; no está implementado y no bloquea
    nada.
-3. ⚠️ **Renovar otra vez la llave secreta.** La actual viajó en una captura de
-   pantalla por chat. Renovar en el panel y repetir el único comando de Railway
-   de arriba + `railway run node scripts/verificar-culqi-live.js`. No hace falta
-   tocar Vercel: la **pública** no cambió (`pk_live_EbFd0Nib4QqOfhhk`, la misma
-   que ya estaba en Railway).
+3. ~~Renovar otra vez la llave secreta.~~ **DESCARTADO por decisión del usuario
+   (2026-08-15).** Viajó en una captura por chat, pero no se publicó en ningún
+   sitio: se asume el riesgo y **no se vuelve a plantear**. Si algún día se rota
+   de todos modos: basta el comando de Railway de arriba más
+   `railway run node scripts/verificar-culqi-live.js`, sin tocar Vercel — la
+   **pública** no cambia (`pk_live_EbFd0Nib4QqOfhhk`). Y ojo con el webhook: su
+   campo de contraseña admite **máximo 20 caracteres** y habría que cambiarla
+   también allí.
 
 ### Lo que NO hay que deshacer
 

@@ -491,16 +491,25 @@ scripts ya reintentan solos.
 - [x] Webhook de reembolsos **corregido y desplegado** (14/08/2026): esperaba
       tipos de evento al estilo Stripe que en Culqi no existen y leía `data`
       como objeto cuando llega como cadena JSON. Respondía 200 sin hacer nada
-- [ ] 🔴 **Registrar el webhook en CulqiPanel → Desarrollo → Webhooks**:
-      Producto `CulqiOnline` · Recurso `refund` · Acción **`creation`** (no
-      `update`) · Resultado `succeeded` · URL
-      `https://api.usenotoria.app/api/pagos/culqi/webhook`, con *Activar
-      autenticación* y `CULQI_WEBHOOK_SECRET` como contraseña (o la misma URL
-      con `?secret=…`, el endpoint acepta ambas).
-      Sin esto, un reembolso **no desactiva la suscripción**. Los contracargos
-      no llegan por webhook: se vigilan en *Controversias*
-- [ ] Renovar la llave secreta (la actual viajó en una captura por chat) y
-      recargarla en Railway. La pública no cambia
+- [x] **Webhook registrado en CulqiPanel** (15/08/2026): Producto `CulqiOnline` ·
+      Recurso `refund` · Acción **`creation`** (no `update`) · Resultado
+      `succeeded` · URL `https://api.usenotoria.app/api/pagos/culqi/webhook`,
+      con *Activar autenticación* y `CULQI_WEBHOOK_SECRET` como contraseña.
+      El endpoint acepta también el secreto por `?secret=` en la URL.
+      Los contracargos **no llegan por webhook**: Culqi no expone ese recurso,
+      se vigilan en *Controversias*
+- [ ] ⏳ **Pendiente de comprobar con un reembolso real.** Es lo único que puede
+      confirmarlo: `GET /v2/webhooks` responde 401 (Culqi no expone la
+      configuración por API), `GET /v2/events` va vacío hasta que se dispare uno,
+      y guardar el webhook no manda ningún ping de prueba. Si la contraseña no
+      cuadrara, el endpoint ya lo deja escrito en los logs
+      (`[Culqi webhook] RECHAZADO (401)`), así que el primer reembolso lo dirá
+      pase lo que pase
+- [x] ~~Renovar la llave secreta~~ — **descartado por decisión del usuario
+      (15/08/2026).** La actual viajó en una captura por chat pero no se publicó
+      en ningún sitio; se asume y no se vuelve a plantear. Si algún día se rota:
+      el campo de contraseña del webhook admite **máximo 20 caracteres**, y hay
+      que cambiarla también allí
 - [ ] *(opcional)* RSA Keys — cifrado extra del checkout, Culqi no lo exige
 
 > 🔴 **Ahora el desfase es el contrario y está vivo: se cobra de verdad y NO se
