@@ -223,6 +223,28 @@ a un endpoint propio del administrador comercial. Lo que funcionó (2026-08-14):
 Enviar. Devolvió `{"id":"1337974595147527","name":"Notoria"}` en 493 ms.
 
 
+### Minutos del screencast (grabación del 2026-08-15, 2:43)
+
+Verificados fotograma a fotograma sobre el archivo final. **Añadir la línea
+`WHERE TO SEE IT IN THE VIDEO` al final del texto de cada permiso**: un revisor
+que tiene que buscar a ciegas en qué segundo aparece un permiso es un revisor que
+rechaza.
+
+| Momento | Minuto | Permiso que sustenta |
+|---|---|---|
+| Diálogo de Facebook: elegir la cuenta de Instagram | **0:18** | `pages_show_list` |
+| Diálogo de Facebook: revisión de accesos, con la nota del portfolio comercial | **0:24** | `pages_read_engagement`, `business_management` |
+| Aviso "Instagram connected" dentro de Notoria | **0:40** | — |
+| Cuenta conectada con @usuario y foto, y el comentario ya listado bajo su publicación | **0:44** | `instagram_basic`, `instagram_manage_comments` |
+| La respuesta publicada, vista en Instagram (2 comentarios, "Ocultar todas las respuestas") | **1:34** | `instagram_manage_comments` |
+| "Your reply: Thanks!" y el botón "Sure? This deletes it on Instagram" | **1:52** | `instagram_manage_comments` |
+| Respuesta borrada, el comentario vuelve a pendiente | **2:06** | `instagram_manage_comments` |
+| Conexiones → Remove connection | **2:18** | `pages_manage_metadata` |
+
+⚠️ **Los minutos son de ESTA grabación.** Hubo una anterior, de 2:48, con otros
+tiempos. Si se vuelve a grabar, hay que rehacer esta tabla — citar un minuto
+equivocado es peor que no citar ninguno.
+
 ### Formulario "Instrucciones de prueba para la web" — campo por campo
 
 Es un formulario aparte del de cada permiso, y tiene tres campos obligatorios.
