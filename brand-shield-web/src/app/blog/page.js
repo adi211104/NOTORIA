@@ -5,7 +5,7 @@ import LogoNotoria from '../../components/LogoNotoria';
 const GEO = "Georgia,'Times New Roman',serif";
 
 export const metadata = {
-  title: 'Blog — Reputación online para restaurantes y hoteles',
+  title: 'Blog — Reputación online para tu negocio',
   description: 'Guías prácticas para cuidar la reputación de tu restaurante u hotel: responder reseñas negativas, detectar reseñas falsas y subir tu rating en Google.',
   alternates: { canonical: 'https://usenotoria.app/blog' },
 };
@@ -27,7 +27,7 @@ export default function BlogIndex() {
         <p style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 2, margin: '0 0 12px' }}>Blog</p>
         <h1 style={{ fontSize: 34, fontWeight: 900, color: 'var(--text)', margin: '0 0 8px', letterSpacing: '-1.5px' }}>Reputación online, sin humo</h1>
         <p style={{ fontSize: 15, color: 'var(--text-2)', margin: '0 0 40px', lineHeight: 1.7 }}>
-          Guías prácticas para dueños de restaurantes y hoteles: qué hacer con las reseñas malas, las falsas y las que todavía no llegan.
+          Guías prácticas para dueños de negocio —restaurantes, hoteles, tiendas, clínicas—: qué hacer con las reseñas malas, las falsas y las que todavía no llegan.
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>

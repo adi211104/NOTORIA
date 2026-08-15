@@ -43,7 +43,7 @@ export default function PieLegal() {
               <span style={{ fontWeight: 800, fontSize: 15, color: '#141413' }}>Notoria</span>
             </Link>
             <p style={{ fontSize: 12.5, color: '#5C5B57', lineHeight: 1.7, margin: 0 }}>
-              Monitoreo de reputación online para restaurantes y hoteles del Perú.
+              Monitoreo de reputación online para negocios del Perú.
               Detectamos reseñas falsas, ataques de bots y caídas de rating.
             </p>
           </div>

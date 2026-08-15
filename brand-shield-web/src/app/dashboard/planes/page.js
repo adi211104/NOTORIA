@@ -58,7 +58,7 @@ const PLANES = {
       nombre: 'Negocio',
       precio: 59,
       precioAnual: 47,
-      descripcion: 'Para restaurantes y hoteles que cuidan su reputación',
+      descripcion: 'Para negocios que cuidan su reputación',
       badge: 'Más popular',
       features: [
         { texto: 'Hasta 5 negocios', ok: true },
@@ -144,7 +144,7 @@ const PLANES = {
       nombre: 'Business',
       precio: 59,
       precioAnual: 47,
-      descripcion: 'For restaurants and hotels that care about their reputation',
+      descripcion: 'For businesses that care about their reputation',
       badge: 'Most popular',
       features: [
         { texto: 'Up to 5 businesses', ok: true },

@@ -240,7 +240,7 @@ const TEXTOS = {
       dudas:'¿Preguntas? hola@usenotoria.app',
     },
     footer: {
-      descripcion:'Monitor de reputación online para restaurantes y hoteles del Perú: detecta reseñas falsas, ataques de bots y caídas de rating antes de que te cuesten clientes.',
+      descripcion:'Monitor de reputación online para negocios del Perú —restaurantes, hoteles, tiendas, clínicas y más—: detecta reseñas falsas, ataques de bots y caídas de rating antes de que te cuesten clientes.',
       lema:'Monitor de reputación online',
       columnas: [
         { titulo:'Producto', links:[
@@ -430,7 +430,7 @@ const TEXTOS = {
       dudas:'Questions? hola@usenotoria.app',
     },
     footer: {
-      descripcion:'Online reputation monitoring for restaurants and hotels anywhere in the world: detects fake reviews, bot attacks and rating drops before they cost you customers.',
+      descripcion:'Online reputation monitoring for any business: detects fake reviews, bot attacks and rating drops before they cost you customers.',
       lema:'Online reputation monitoring',
       columnas: [
         { titulo:'Product', links:[

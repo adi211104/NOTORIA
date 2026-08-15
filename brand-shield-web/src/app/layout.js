@@ -11,7 +11,7 @@ export const metadata = {
     default: 'Notoria — Monitor de reputación online',
     template: '%s — Notoria',
   },
-  description: 'Detecta reseñas falsas, ataques de bots y caídas de rating antes de que el daño sea irreversible. Monitor de reputación para restaurantes y hoteles del Perú.',
+  description: 'Detecta reseñas falsas, ataques de bots y caídas de rating antes de que el daño sea irreversible. Monitor de reputación para negocios del Perú.',
   keywords: ['reputación online', 'monitor reseñas', 'reseñas falsas', 'Google Business', 'restaurantes', 'hoteles'],
   authors: [{ name: 'Notoria' }],
   openGraph: {
@@ -20,7 +20,7 @@ export const metadata = {
     url: 'https://usenotoria.app',
     siteName: 'Notoria',
     title: 'Notoria — Tu reputación puede hundirse en una sola noche.',
-    description: 'Detecta reseñas falsas, ataques de bots y caídas de rating en tiempo real. Para restaurantes y hoteles del Perú.',
+    description: 'Detecta reseñas falsas, ataques de bots y caídas de rating en tiempo real. Para negocios del Perú.',
     images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'Notoria' }],
   },
   twitter: {
@@ -54,7 +54,7 @@ const JSON_LD = {
       url: 'https://usenotoria.app',
       applicationCategory: 'BusinessApplication',
       operatingSystem: 'Web',
-      description: 'Monitor de reputación online para restaurantes y hoteles del Perú: detecta reseñas falsas, ataques de bots y caídas de rating antes de que cuesten clientes.',
+      description: 'Monitor de reputación online para negocios del Perú —restaurantes, hoteles, tiendas, clínicas y más—: detecta reseñas falsas, ataques de bots y caídas de rating antes de que cuesten clientes.',
       inLanguage: 'es',
       offers: [
         { '@type': 'Offer', name: 'Plan Gratuito', price: '0', priceCurrency: 'PEN' },
