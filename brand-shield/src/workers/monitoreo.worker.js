@@ -466,7 +466,17 @@ const guardarComentarioSocial = async (negocio, fuente, crudo) => {
         tipo: 'COMENTARIO_NEGATIVO',
         plataforma: fuente.id,
         descripcion: `Comentario negativo en ${fuente.nombre} de ${fila.autorNombre || 'un usuario'}: "${(fila.texto || '').slice(0, 80)}…"`,
-        detalle: { comentarioId: comentario.id, plataforma: fuente.id, publicacionId: fila.publicacionId },
+        // `descripcion` queda en español porque es texto ya redactado y guardado.
+        // Las PIEZAS van aparte en `detalle` para que el panel pueda componer la
+        // frase en el idioma del usuario (ver web/src/lib/alertas.js): con la
+        // interfaz en inglés, una alerta en español canta.
+        detalle: {
+          comentarioId: comentario.id,
+          plataforma: fuente.id,
+          publicacionId: fila.publicacionId,
+          autor: fila.autorNombre || null,
+          texto: (fila.texto || '').slice(0, 80),
+        },
         negocioId: negocio.id,
       },
     });
@@ -564,7 +574,14 @@ const procesarMenciones = async (negocio) => {
             tipo: 'MENCION_NEGATIVA',
             plataforma: m.plataforma,
             descripcion: `Nueva mención negativa en ${fuente} de ${m.autorHandle || m.autorNombre || 'un usuario'}: "${(m.texto || '').slice(0, 80)}…"`,
-            detalle: { url: m.url, mencionId: mencion.id, plataforma: m.plataforma },
+            // Mismas piezas que en COMENTARIO_NEGATIVO, por el mismo motivo.
+            detalle: {
+              url: m.url,
+              mencionId: mencion.id,
+              plataforma: m.plataforma,
+              autor: m.autorHandle || m.autorNombre || null,
+              texto: (m.texto || '').slice(0, 80),
+            },
             negocioId: negocio.id,
           },
         });

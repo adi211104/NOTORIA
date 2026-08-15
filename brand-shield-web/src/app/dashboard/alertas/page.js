@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { alertas as alertasApi, API_URL } from '../../../lib/api';
+import { textoAlerta } from '../../../lib/alertas';
 import { useAuth } from '../../../context/AuthContext';
 import { useIdioma } from '../../../context/IdiomaContext';
 import Icon, { ICONO_ALERTA } from '../../../components/Icons';
@@ -337,7 +338,7 @@ export default function AlertasPage() {
                         {a.plataforma}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-200 leading-relaxed">{a.descripcion}</p>
+                    <p className="text-sm text-gray-200 leading-relaxed">{textoAlerta(a, idioma)}</p>
                     <p className="text-xs text-gray-600 mt-2">
                       {new Date(a.creadaEn).toLocaleString(idioma === 'en' ? 'en-US' : 'es-PE', {
                         timeZone: 'America/Lima',

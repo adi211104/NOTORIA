@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { negociosApi, comentariosApi } from '../../../../lib/api';
 import { iconoParaTipo, labelParaTipo } from '../../../../lib/tiposNegocio';
+import { textoAlerta } from '../../../../lib/alertas';
 import { useAuth } from '../../../../context/AuthContext';
 import { useIdioma } from '../../../../context/IdiomaContext';
 import Icon, { ICONO_ALERTA } from '../../../../components/Icons';
@@ -403,7 +404,8 @@ const TEXTOS = {
       // funciona, lo que no existe es la vía para leer comentarios.
       vacioDescTikTok:'Tu cuenta está conectada y el monitoreo corre. Los comentarios nuevos aparecen acá en cuanto se detectan, y puedes responderlos sin salir de Notoria. Ten en cuenta que TikTok solo muestra los videos públicos: los publicados para "Amigos" o "Solo yo" quedan fuera.',
       vacioFiltro:'Ningún comentario coincide con este filtro.',
-      enVideo:'En el video',
+      enVideo:'En este video',
+      enPublicacion:'En esta publicación',
       responder:'Responder',
       respondido:'Respondido',
       tuRespuesta:'Tu respuesta',
@@ -759,7 +761,8 @@ const TEXTOS = {
       vacioDesc:'They are checked every 4 hours along with the rest of the monitoring. You can also force a scan with the button above.',
       vacioDescTikTok:'Your account is connected and monitoring is running. New comments show up here as soon as they are detected, and you can reply without leaving Notoria. Note that TikTok only exposes public videos: anything posted to "Friends" or "Only me" stays out.',
       vacioFiltro:'No comment matches this filter.',
-      enVideo:'On video',
+      enVideo:'On this video',
+      enPublicacion:'On this post',
       responder:'Reply',
       respondido:'Replied',
       tuRespuesta:'Your reply',
@@ -2113,8 +2116,13 @@ export default function DetallePage() {
                                   onError={e => { e.currentTarget.parentElement.style.display='none'; }} />
                               </button>
                             )}
+                            {/* El texto de la publicación ya está en la cabecera
+                                del grupo, así que aquí solo se nombra la fuente.
+                                Antes decía "En el video" también en Instagram,
+                                donde no hay videos sino publicaciones: resto de
+                                cuando esto solo leía TikTok. */}
                             <p style={{ color:'var(--text-3)', fontSize:11.5, margin:0 }}>
-                              {tc.enVideo}: “{suVideo?.titulo?.trim() || c.publicacionTitulo}”
+                              {c.plataforma === 'TIKTOK' ? tc.enVideo : tc.enPublicacion}
                             </p>
                           </div>
                         );
@@ -2234,7 +2242,7 @@ export default function DetallePage() {
                     <span style={{ fontSize:11, color:'#4CAF66', fontWeight:500 }}>{a.tipo.replace(/_/g,' ')}</span>
                     <span style={{ fontSize:11, background:'var(--surface2)', color:'var(--text-3)', padding:'0 6px', borderRadius:4 }}>{a.plataforma}</span>
                   </div>
-                  <p style={{ color:'var(--text-2)', fontSize:13, lineHeight:1.5, margin:'0 0 4px' }}>{a.descripcion}</p>
+                  <p style={{ color:'var(--text-2)', fontSize:13, lineHeight:1.5, margin:'0 0 4px' }}>{textoAlerta(a, idioma)}</p>
                   <p style={{ color:'var(--text-3)', fontSize:11, margin:0 }}>{new Date(a.creadaEn).toLocaleString(idioma==='en'?'en-US':'es-PE',{timeZone:'America/Lima',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</p>
                 </div>
               </div>
