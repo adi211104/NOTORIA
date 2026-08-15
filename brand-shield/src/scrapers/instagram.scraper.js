@@ -186,6 +186,64 @@ const obtenerCaptionPublicacion = async (publicacionId, accessToken) => {
 };
 
 /**
+ * Datos de varias publicaciones DE UNA SOLA LLAMADA, para poder agrupar los
+ * comentarios por la publicación donde viven y enseñar su miniatura.
+ *
+ * ⚠️ Una por petición, en paralelo, NO con el lote `?ids=a,b,c`. Ese parámetro
+ * está **deprecado desde la v26.0** y responde `500 The ids query parameter is
+ * deprecated in v26.0+` — comprobado el 2026-08-15. Y ojo: pasa aunque el
+ * código llame a `v21.0`, porque la consola de la app tiene *Actualizar todas
+ * las llamadas* en v26.0 y esa opción manda sobre la versión de la URL. Si
+ * algún día vuelve a funcionar el lote, ahorra peticiones; hasta entonces, no.
+ *
+ * `TOPE_PUBLICACIONES` acota el gasto: son peticiones por carga de página y la
+ * cuota de la app es compartida entre todos los clientes.
+ *
+ * Sobre qué imagen se elige: en un **video**, `media_url` es el video y la
+ * imagen está en `thumbnail_url`, por eso ese va primero. En un **carrusel**
+ * `media_url` sí viene (comprobado), y `children` queda de reserva por si
+ * alguno no lo trae.
+ *
+ * ⚠️ Las URL del CDN de Instagram vienen firmadas y caducan en horas. Por eso
+ * esto NO se cachea ni se guarda en la base: se pide en cada carga y se sirve
+ * fresca. Guardarlas dejaría miniaturas rotas a los pocos días.
+ */
+const TOPE_PUBLICACIONES = 12;
+
+const obtenerPublicacionesInstagram = async (ids, accessToken) => {
+  const unicos = [...new Set((ids || []).filter(Boolean))].slice(0, TOPE_PUBLICACIONES);
+  if (!configurado() || !accessToken || !unicos.length) return {};
+
+  const una = async (id) => {
+    try {
+      const { data } = await axios.get(`${GRAPH_URL}/${id}`, {
+        params: {
+          fields: 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,children{media_url,thumbnail_url}',
+          access_token: accessToken,
+        },
+        timeout: 15000,
+      });
+      const hijo = data?.children?.data?.[0];
+      return [id, {
+        id,
+        titulo: (data.caption || '').slice(0, 160),
+        imagen: data.thumbnail_url || data.media_url || hijo?.thumbnail_url || hijo?.media_url || null,
+        url: data.permalink || null,
+        tipo: data.media_type || null,
+        fecha: data.timestamp || null,
+      }];
+    } catch {
+      // Una publicación que falla no tumba a las demás: la lista se agrupa igual
+      // con el texto que ya está guardado en cada comentario.
+      return null;
+    }
+  };
+
+  const resultados = await Promise.all(unicos.map(una));
+  return Object.fromEntries(resultados.filter(Boolean));
+};
+
+/**
  * Suscribe la página de Facebook ligada a la cuenta de Instagram para que Meta
  * envíe los webhooks de comentarios de ESA cuenta.
  *
@@ -298,7 +356,8 @@ const obtenerPerfilInstagram = async (igUserId, accessToken) => {
 module.exports = {
   obtenerComentariosInstagram, responderComentarioInstagram, obtenerPerfilInstagram,
   eliminarComentarioInstagram, configurado,
-  obtenerCaptionPublicacion, suscribirWebhookInstagram, desuscribirWebhookInstagram,
+  obtenerCaptionPublicacion, obtenerPublicacionesInstagram,
+  suscribirWebhookInstagram, desuscribirWebhookInstagram,
   LIMITE_PUBLICACIONES, LIMITE_COMENTARIOS,
   MAX_COMENTARIOS_POR_PUBLICACION, MAX_PETICIONES_EXTRA,
 };

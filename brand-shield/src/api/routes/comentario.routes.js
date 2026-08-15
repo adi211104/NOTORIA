@@ -158,8 +158,26 @@ router.get('/:negocioId', async (req, res, next) => {
       prisma.comentarioSocial.count({ where: { negocioId: negocio.id, respondida: false } }),
     ]);
 
+    // Publicaciones de los comentarios que se devuelven, para que el panel
+    // pueda agruparlos por publicación y enseñar su miniatura en vez de una
+    // lista plana donde no se sabe a qué publicación pertenece cada uno.
+    //
+    // Solo se piden las de los comentarios de ESTA página de resultados, no las
+    // 25 de la ventana de escaneo: lo que no se muestra no se paga.
+    const publicaciones = {};
+    const idsIg = comentarios.filter(c => c.plataforma === 'INSTAGRAM').map(c => c.publicacionId);
+    if (idsIg.length && perfilNegocio.instagramAccessToken) {
+      Object.assign(publicaciones, await instagram.obtenerPublicacionesInstagram(idsIg, perfilNegocio.instagramAccessToken));
+    }
+    // TikTok ya trae sus videos resueltos más arriba, con portada y título: se
+    // reusan en vez de volver a pedirlos.
+    for (const v of videos || []) {
+      if (v?.id) publicaciones[v.id] = { id: v.id, titulo: v.titulo || '', imagen: v.portada || null, url: v.url || null };
+    }
+
     res.json({
       comentarios,
+      publicaciones,
       resumen: { total, negativos, sinResponder },
       // Publicaciones propias. `null` = no se pudieron leer (sin cuenta, sin
       // permiso o TikTok caído); `[]` = la cuenta no tiene videos. El panel

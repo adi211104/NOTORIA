@@ -174,6 +174,24 @@ const ScoreGauge = ({ score, color }) => {
 // nueva, agregarla aquí y no volver a escribir el nombre a mano.
 const nombreRed = (plataforma) => ({ TIKTOK:'TikTok', INSTAGRAM:'Instagram' })[plataforma] || plataforma;
 
+// Agrupa los comentarios por la publicación donde viven, CONSERVANDO el orden en
+// que llegaron del backend (más recientes primero): un Map recuerda el orden de
+// inserción, así que la publicación con el comentario más nuevo queda arriba.
+// Ordenar por publicación en vez de por comentario enterraría lo recién llegado,
+// que es justo lo que el dueño necesita ver.
+//
+// Los que no tienen publicación conocida caen en un grupo sin cabecera, para que
+// no desaparezcan de la lista.
+const agrupadosPorPublicacion = (comentarios) => {
+  const grupos = new Map();
+  for (const c of comentarios) {
+    const clave = c.publicacionId || '__sin__';
+    if (!grupos.has(clave)) grupos.set(clave, []);
+    grupos.get(clave).push(c);
+  }
+  return [...grupos.entries()];
+};
+
 const Card = ({ children, style }) => <div style={{ background:'var(--surface)', border:'1px solid var(--border-c)', borderRadius:14, padding:20, ...style }}>{children}</div>;
 const ST = ({ children }) => <p style={{ fontSize:11, fontWeight:600, textTransform:'uppercase', letterSpacing:0.5, color:'var(--text-3)', margin:'0 0 10px' }}>{children}</p>;
 
@@ -371,6 +389,9 @@ const TEXTOS = {
       videosTitulo:'Tus últimos videos',
       videosDesc:'Lo que TikTok publica de tu cuenta. El número de comentarios es el que reporta TikTok.',
       videosSinTitulo:'(sin título)',
+      publicacionSinTitulo:'Publicación sin texto',
+      comentariosEnPublicacion:(n) => n === 1 ? '1 comentario' : `${n} comentarios`,
+      verPublicacion:'Ver publicación ↗',
       videosComentarios:(n) => n === 1 ? '1 comentario' : `${n} comentarios`,
       videosResponder:'Ver en TikTok ↗',
       videosReproducir:'Reproducir',
@@ -726,6 +747,9 @@ const TEXTOS = {
       videosTitulo:'Your latest videos',
       videosDesc:'What TikTok reports for your account. The comment count is TikTok’s own.',
       videosSinTitulo:'(untitled)',
+      publicacionSinTitulo:'Post with no caption',
+      comentariosEnPublicacion:(n) => n === 1 ? '1 comment' : `${n} comments`,
+      verPublicacion:'View post ↗',
       videosComentarios:(n) => n === 1 ? '1 comment' : `${n} comments`,
       videosResponder:'View on TikTok ↗',
       videosReproducir:'Play',
@@ -1000,6 +1024,9 @@ export default function DetallePage() {
   const [comConexiones, setComConexiones] = useState(null);
   // Videos propios traídos en vivo de TikTok. null = no se pudieron leer.
   const [comVideos, setComVideos] = useState(null);
+  // { [publicacionId]: { titulo, imagen, url } } — para agrupar los comentarios
+  // por la publicación donde viven en vez de una lista plana.
+  const [comPublicaciones, setComPublicaciones] = useState({});
   // Video que se está reproduciendo dentro del panel (el objeto, no el id).
   const [comVideoAbierto, setComVideoAbierto] = useState(null);
   const [comFiltro, setComFiltro] = useState({ sentimiento:'', pendientes:'' });
@@ -1089,6 +1116,7 @@ export default function DetallePage() {
       setComResumen(data.resumen);
       setComConexiones(data.conexiones);
       setComVideos(data.videos ?? null);
+      setComPublicaciones(data.publicaciones || {});
     } catch {
       // 403 por plan o backend caído — el render cubre ambos con lista vacía
       setComentarios([]);
@@ -1973,7 +2001,46 @@ export default function DetallePage() {
                       </p>
                     )}
                   </Card>
-                ) : comentarios.map(c => {
+                ) : agrupadosPorPublicacion(comentarios).map(([pubId, delGrupo]) => (
+                  <div key={pubId} style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                    {/* Cabecera de la publicación. Sin esto la lista es plana y
+                        con varias publicaciones no se sabe a cuál pertenece cada
+                        comentario, que es justo lo que hay que saber para
+                        responder con sentido. */}
+                    {(() => {
+                      const pub = comPublicaciones[pubId];
+                      if (!pub && pubId === '__sin__') return null;
+                      const titulo = (pub?.titulo || delGrupo[0]?.publicacionTitulo || '').trim();
+                      return (
+                        <div style={{ display:'flex', alignItems:'center', gap:12, marginTop:6 }}>
+                          {pub?.imagen ? (
+                            <img src={pub.imagen} alt="" width={52} height={52}
+                              style={{ width:52, height:52, borderRadius:10, objectFit:'cover',
+                                       border:'1px solid var(--border-c)', flexShrink:0 }}
+                              onError={e => { e.currentTarget.style.visibility='hidden'; }} />
+                          ) : (
+                            <div style={{ width:52, height:52, borderRadius:10, background:'var(--surface2)',
+                                          border:'1px solid var(--border-c)', flexShrink:0 }} />
+                          )}
+                          <div style={{ minWidth:0, flex:1 }}>
+                            <p style={{ margin:0, fontSize:13, color:'var(--text)', fontWeight:600,
+                                        overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                              {titulo || tc.publicacionSinTitulo}
+                            </p>
+                            <p style={{ margin:'2px 0 0', fontSize:11.5, color:'var(--text-3)' }}>
+                              {tc.comentariosEnPublicacion(delGrupo.length)}
+                            </p>
+                          </div>
+                          {pub?.url && (
+                            <a href={pub.url} target="_blank" rel="noopener noreferrer"
+                              style={{ color:'#4CAF66', fontSize:11.5, textDecoration:'none', flexShrink:0 }}>
+                              {tc.verPublicacion}
+                            </a>
+                          )}
+                        </div>
+                      );
+                    })()}
+                    {delGrupo.map(c => {
                   const tono = TONO[c.sentimiento] || TONO.neutro;
                   return (
                     <Card key={c.id} style={{ borderLeft:`3px solid ${tono.c}` }}>
@@ -2140,7 +2207,9 @@ export default function DetallePage() {
                       )}
                     </Card>
                   );
-                })}
+                    })}
+                  </div>
+                ))}
               </>
             )}
           </div>
