@@ -80,13 +80,16 @@ const piezaPromesa = `
   <text x="72" y="562" font-family="Georgia, 'Times New Roman', serif" font-size="86" font-weight="bold" fill="${CREMA}">antes que tu</text>
   <text x="72" y="662" font-family="Georgia, 'Times New Roman', serif" font-size="86" font-weight="bold" fill="${CREMA}">próximo cliente.</text>
   <text x="72" y="768" font-family="Georgia, 'Times New Roman', serif" font-size="34" fill="#9a9a95">Reseñas de Google y comentarios de Instagram,</text>
-  <text x="72" y="816" font-family="Georgia, 'Times New Roman', serif" font-size="34" fill="#9a9a95">en una sola bandeja. Para restaurantes y hoteles.</text>
+  <text x="72" y="816" font-family="Georgia, 'Times New Roman', serif" font-size="34" fill="#9a9a95">en una sola bandeja. Para cualquier negocio.</text>
   ${pie(CREMA, '#6f6f6b')}
 </svg>`;
 
 // ── Pieza 2: la reseña que duele ──────────────────────────
-// Enseña el problema en vez de contarlo. La reseña es genérica a propósito: no
-// se usa el nombre de ningún negocio real.
+// Enseña el problema en vez de contarlo. La reseña es genérica por dos motivos:
+// no se nombra ningún negocio real —inventarle una queja a un local existente
+// sería difamarlo— y la queja no es de un rubro concreto. Decía "la comida llegó
+// fría", que solo servía para un restaurante y contradecía el "para cualquier
+// negocio" del resto de las piezas.
 const piezaResena = `
 <svg xmlns="http://www.w3.org/2000/svg" width="${LADO}" height="${LADO}" viewBox="0 0 ${LADO} ${LADO}">
   <rect width="${LADO}" height="${LADO}" fill="${CREMA}"/>
@@ -96,8 +99,8 @@ const piezaResena = `
   <rect x="72" y="213" width="7" height="300" rx="3" fill="#d93a3a"/>
   ${estrellas(130, 286, 1, 21, '#d93a3a', '#ded9cf')}
   <text x="360" y="298" font-family="Georgia, 'Times New Roman', serif" font-size="28" fill="#8a8a84">hace 3 minutos</text>
-  <text x="128" y="373" font-family="Georgia, 'Times New Roman', serif" font-size="44" fill="#141413">“Esperamos 50 minutos y la comida</text>
-  <text x="128" y="433" font-family="Georgia, 'Times New Roman', serif" font-size="44" fill="#141413">llegó fría. No volvemos.”</text>
+  <text x="128" y="373" font-family="Georgia, 'Times New Roman', serif" font-size="44" fill="#141413">“Esperamos 50 minutos y nadie nos</text>
+  <text x="128" y="433" font-family="Georgia, 'Times New Roman', serif" font-size="44" fill="#141413">atendió. No volvemos.”</text>
 
   <rect x="72" y="558" width="936" height="118" rx="22" fill="${VERDE}"/>
   <text x="118" y="616" font-family="Georgia, 'Times New Roman', serif" font-size="36" font-weight="bold" fill="#ffffff">Notoria te avisa al instante</text>
@@ -128,7 +131,7 @@ const piezaVigila = `
       <circle cx="126" cy="${y - 4}" r="13" fill="${VERDE_CLARO}"/>
       <text x="172" y="${y + 8}" font-family="Georgia, 'Times New Roman', serif" font-size="38" fill="${CREMA}">${f}</text>`;
   }).join('')}
-  <text x="72" y="880" font-family="Georgia, 'Times New Roman', serif" font-size="32" fill="#9a9a95">Restaurantes y hoteles del Perú · Plan gratuito disponible</text>
+  <text x="72" y="880" font-family="Georgia, 'Times New Roman', serif" font-size="32" fill="#9a9a95">Para cualquier negocio en el Perú · Plan gratuito disponible</text>
   ${pie(CREMA, '#6f6f6b')}
 </svg>`;
 
