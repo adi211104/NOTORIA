@@ -223,30 +223,103 @@ a un endpoint propio del administrador comercial. Lo que funcionó (2026-08-14):
 Enviar. Devolvió `{"id":"1337974595147527","name":"Notoria"}` en 493 ms.
 
 
-### Instrucciones de prueba (campo "Test instructions", en inglés)
+### Formulario "Instrucciones de prueba para la web" — campo por campo
 
-> 1. Go to https://usenotoria.app/login
-> 2. Sign in with the test account: **revisormeta@usenotoria.app** /
->    **NotoriaMeta2026** (email already verified, BUSINESS plan enabled).
-> 3. In the left menu open **Conexiones** (Connections).
-> 4. Click **Conectar** on the Instagram card. You will be redirected to the
->    Facebook authorization dialog.
-> 5. Authorize a Facebook Page that is linked to an Instagram professional
->    account. The Page may belong to a Business Portfolio; that is precisely the
->    case `business_management` covers.
-> 6. You are returned to Notoria. The Instagram account appears as connected,
->    showing its username and profile picture (`instagram_basic`).
-> 7. Open the business from **Negocios** and select the **Comentarios** tab.
->    Comments from the account's own posts are listed
->    (`instagram_manage_comments`).
-> 8. Type a reply and send it: it is published on Instagram. You can then delete
->    that same reply from Notoria.
-> 9. To disconnect: **Conexiones** → gear icon on the Instagram card →
->    **Eliminar conexión**.
->
-> The app does not require payment to test any of this. There is no geo-blocking.
-> The interface is available in Spanish and English (language switch in the top
-> bar).
+Es un formulario aparte del de cada permiso, y tiene tres campos obligatorios.
+
+**¿Dónde podemos encontrar la app?**
+```
+https://usenotoria.app/login
+```
+
+**¿El inicio de sesión con Facebook está integrado en esta plataforma?** → **Sí**
+
+⚠️ Aunque Notoria **no** use Facebook para iniciar sesión (los usuarios entran con
+correo y contraseña o con Google). Responder "No" sería inexacto: todo el flujo de
+conexión es *Facebook Login for Business* y el revisor lo ve en pantalla. La
+distinción se explica en el campo de instrucciones.
+
+**Instrucciones para acceder a la app** (incluye la confirmación de uso de APIs de
+Meta que el propio campo exige)
+```
+Notoria (https://usenotoria.app) is a web application — there is no mobile app and
+no download is required. It is a reputation-monitoring tool for restaurants and
+hotels in Peru: it collects a business's Google reviews and Instagram comments
+into a single inbox, flags suspicious or negative ones, and lets the owner reply.
+
+USE OF META APIs AND FACEBOOK LOGIN — CONFIRMATION
+Yes, this app integrates Facebook Login. Important clarification: we do NOT use
+Facebook Login to sign users into Notoria (users register with email and password,
+or with Google). We use "Facebook Login for Business" for one specific purpose:
+so that a business owner can connect their own Instagram professional account to
+Notoria, granting us access to that account's media and comments.
+
+The flow calls graph.facebook.com: we exchange the authorization code for a user
+access token, call /me/accounts to find the Facebook Page linked to the owner's
+Instagram professional account, read that Page's instagram_business_account, and
+from then on read and reply to the comments on that Instagram account's own media.
+We also subscribe the Page to our webhook so new comments arrive in real time.
+
+We do not request or use email, user_friends, user_gender, user_birthday or any
+other personal-profile endpoint beyond public_profile, which Facebook Login for
+Business requires.
+
+STEP-BY-STEP TEST INSTRUCTIONS
+1. Go to https://usenotoria.app/login
+2. Sign in with the test account listed in the credentials field below. The email
+   is already verified and the Business plan is already enabled, so no payment or
+   registration step is needed.
+3. The account already contains one business ("La Mar Restaurante") with its
+   Google reviews loaded, so the dashboard is not empty.
+4. In the left menu open "Conexiones" (Connections).
+5. On the Instagram card, click "Conectar" (Connect). You will be redirected to
+   the Facebook authorization dialog.
+6. Authorize a Facebook Page that is linked to an Instagram professional account.
+   The Page may belong to a Business Portfolio — that is the case business_management
+   covers, and it is the situation most of our customers are in.
+7. You are returned to Notoria. The connected Instagram account is shown with its
+   username and profile picture (instagram_basic).
+8. Open the business from "Negocios" (Businesses) and select the "Comentarios"
+   (Comments) tab. The comments on that Instagram account's own posts are listed
+   (instagram_manage_comments).
+9. Type a reply and send it: it is published on Instagram. You can then delete
+   that same reply from Notoria.
+10. To disconnect: "Conexiones" -> gear icon on the Instagram card -> "Eliminar
+    conexión" (Remove connection). This also removes our webhook subscription.
+
+The interface is available in Spanish and English; the language switch is in the
+top bar.
+```
+
+**Credenciales de prueba**
+```
+Test account (email already verified, Business plan already active, no payment
+required at any point):
+
+  URL:      https://usenotoria.app/login
+  Email:    revisormeta@usenotoria.app
+  Password: NotoriaMeta2026
+
+The plan on this account is set to expire in August 2027, so the credentials
+remain valid for more than one year from the date of this request. The account
+already has one business configured with its Google reviews, so the Instagram
+connection flow can be reached immediately after signing in.
+```
+
+**Códigos de regalo de tiendas de apps**
+```
+Not applicable. Notoria is a web application; it is not distributed through any
+app store and there is nothing to download or purchase.
+```
+
+**Restricciones geográficas**
+```
+None. There is no geo-blocking or geo-fencing of any kind. The app and all of its
+features are reachable from any country. The product is commercially focused on
+Peru and prices are shown in Peruvian soles, but access is not restricted by
+location, and the test account above has full access to every feature.
+```
+
 
 ---
 
@@ -258,10 +331,24 @@ Enviar. Devolvió `{"id":"1337974595147527","name":"Notoria"}` en 493 ms.
 | Contraseña | `NotoriaMeta2026` |
 | Plan | **NEGOCIO** (los comentarios y menciones están limitados por plan) |
 | Email | **ya verificado** a propósito |
+| Vence | **agosto de 2027** |
+| Negocio cargado | *La Mar Restaurante* (`cmsts7u8q000l1ju3ue6ejkrb`), con sus reseñas de Google escaneadas |
 
 Creada el 2026-08-14 con
 `node scripts/cuenta-revisor.js revisormeta@usenotoria.app NotoriaMeta2026 NEGOCIO`
 y comprobada contra producción (`POST /api/auth/login` → 200, plan NEGOCIO).
+
+⚠️ **Vence en 2027 a propósito, no en 30 días.** El formulario de Meta exige que
+las credenciales de prueba sigan activas **un año desde la solicitud**, y una
+revisión puede reabrirse meses después. Por eso `cuenta-revisor.js` usa 400 días.
+No hay riesgo de cobro: el cron de renovación filtra por
+`suscripcionId: { not: null }` y esta cuenta no tiene tarjeta guardada.
+
+⚠️ **Y lleva un negocio ya creado, también a propósito.** El botón de conectar
+Instagram vive **dentro de un negocio**: una cuenta recién creada aterriza en el
+onboarding, y el revisor tendría que buscar un negocio en Google Maps antes de
+llegar a lo que vino a revisar. Con el negocio cargado y escaneado, el flujo de
+Instagram se alcanza en dos clics desde el login.
 
 **Por qué el email va pre-verificado:** el enlace de verificación llega al buzón
 del dueño, no al del revisor, y la franja amarilla de "verifica tu correo" se lee
