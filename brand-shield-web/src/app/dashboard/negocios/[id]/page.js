@@ -1003,10 +1003,14 @@ export default function DetallePage() {
   // Video que se está reproduciendo dentro del panel (el objeto, no el id).
   const [comVideoAbierto, setComVideoAbierto] = useState(null);
   const [comFiltro, setComFiltro] = useState({ sentimiento:'', pendientes:'' });
-  const [comRespondiendo, setComRespondiendo] = useState(null); // id del comentario
-  const [comTexto, setComTexto] = useState('');
-  const [comEnviando, setComEnviando] = useState(false);
-  const [comError, setComError] = useState('');
+  // Texto y error POR COMENTARIO. Antes eran un solo string, porque solo podía
+  // haber una caja de respuesta abierta a la vez: había que pulsar "Responder"
+  // para que apareciera. Ahora la caja está siempre visible en cada comentario
+  // —un clic menos para lo que más se hace en esta pantalla— y eso obliga a que
+  // cada uno recuerde lo suyo, o escribir en uno cambiaría el texto de todos.
+  const [comTexto, setComTexto] = useState({});
+  const [comEnviando, setComEnviando] = useState(null); // id del comentario en vuelo
+  const [comError, setComError] = useState({}); // { [comentarioId]: mensaje }
   const [competidores, setCompetidores] = useState([]);
   const [compBusqueda, setCompBusqueda] = useState('');
   const [compResultados, setCompResultados] = useState([]);
@@ -1097,17 +1101,20 @@ export default function DetallePage() {
   }, [tab, cargarComentarios]);
 
   const responderComentario = async (comentarioId) => {
-    setComEnviando(true);
-    setComError('');
+    const texto = (comTexto[comentarioId] || '').trim();
+    if (!texto) return;
+    setComEnviando(comentarioId);
+    setComError(e => ({ ...e, [comentarioId]: '' }));
     try {
-      await comentariosApi.responder(comentarioId, comTexto);
-      setComRespondiendo(null);
-      setComTexto('');
+      await comentariosApi.responder(comentarioId, texto);
+      // Se limpia SOLO el de este comentario: lo que el usuario tenga escrito en
+      // otro sigue ahí.
+      setComTexto(t => ({ ...t, [comentarioId]: '' }));
       await cargarComentarios();
     } catch (e) {
-      setComError(e.message);
+      setComError(er => ({ ...er, [comentarioId]: e.message }));
     } finally {
-      setComEnviando(false);
+      setComEnviando(null);
     }
   };
 
@@ -2062,37 +2069,37 @@ export default function DetallePage() {
                         <p style={{ color:'var(--text-3)', fontSize:11.5, margin:'10px 0 0', fontStyle:'italic' }}>
                           {tc.sinVideoOrigen}
                         </p>
-                      ) : comRespondiendo === c.id ? (
-                        <div style={{ marginTop:10 }}>
-                          <textarea value={comTexto} onChange={e => setComTexto(e.target.value)}
-                            placeholder={tc.placeholder} rows={3} maxLength={500}
-                            style={{ width:'100%', background:'var(--surface2)', color:'var(--text)',
+                      ) : (() => {
+                        // Caja siempre visible, sin paso previo: responder es la
+                        // acción principal de esta pantalla y no merece un clic
+                        // de peaje. Enter envía; Shift+Enter hace salto de línea.
+                        const texto = comTexto[c.id] || '';
+                        const enviando = comEnviando === c.id;
+                        const vacio = !texto.trim();
+                        return (
+                        <div style={{ marginTop:10, display:'flex', gap:8, alignItems:'flex-start' }}>
+                          <textarea value={texto}
+                            onChange={e => setComTexto(t => ({ ...t, [c.id]: e.target.value }))}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); responderComentario(c.id); }
+                            }}
+                            placeholder={tc.placeholder} rows={1} maxLength={500}
+                            style={{ flex:1, background:'var(--surface2)', color:'var(--text)',
                                      border:'1px solid var(--border-c)', borderRadius:9, padding:'9px 11px',
-                                     fontSize:13, resize:'vertical', fontFamily:'inherit' }} />
-                          {comError && <p style={{ color:'#f87171', fontSize:11.5, margin:'6px 0 0' }}>{comError}</p>}
-                          <div style={{ display:'flex', gap:8, marginTop:8 }}>
-                            <button onClick={() => responderComentario(c.id)} disabled={comEnviando || !comTexto.trim()}
-                              style={{ fontSize:12, color:'#fff', background:'#0B7324', border:'none',
-                                       padding:'7px 15px', borderRadius:9,
-                                       cursor:(comEnviando || !comTexto.trim()) ? 'not-allowed' : 'pointer',
-                                       opacity:(comEnviando || !comTexto.trim()) ? 0.6 : 1 }}>
-                              {comEnviando ? tc.enviando : tc.enviar}
-                            </button>
-                            <button onClick={() => { setComRespondiendo(null); setComTexto(''); setComError(''); }}
-                              style={{ fontSize:12, color:'var(--text-3)', background:'transparent',
-                                       border:'1px solid var(--border-c)', padding:'7px 15px', borderRadius:9, cursor:'pointer' }}>
-                              {tc.cancelar}
-                            </button>
-                          </div>
+                                     fontSize:13, resize:'vertical', fontFamily:'inherit', minHeight:38 }} />
+                          <button onClick={() => responderComentario(c.id)} disabled={enviando || vacio}
+                            style={{ fontSize:12, color:'#fff', background:'#0B7324', border:'none',
+                                     padding:'9px 15px', borderRadius:9, flexShrink:0,
+                                     cursor:(enviando || vacio) ? 'not-allowed' : 'pointer',
+                                     opacity:(enviando || vacio) ? 0.5 : 1 }}>
+                            {enviando ? tc.enviando : tc.enviar}
+                          </button>
                         </div>
-                      ) : (
-                        <button onClick={() => { setComRespondiendo(c.id); setComTexto(''); setComError(''); }}
-                          style={{ marginTop:10, fontSize:11.5, color:'#4CAF66', background:'rgba(11,115,36,0.1)',
-                                   border:'1px solid rgba(11,115,36,0.3)', padding:'5px 13px', borderRadius:10, cursor:'pointer' }}>
-                          {tc.responder}
-                        </button>
+                        );
+                      })()}
+                      {comError[c.id] && (
+                        <p style={{ color:'#f87171', fontSize:11.5, margin:'6px 0 0' }}>{comError[c.id]}</p>
                       )}
-
                       {/* Moderación. Va aparte del bloque de respuesta a
                           propósito: ocultar y fijar siguen teniendo sentido en un
                           comentario ya respondido. Se muestran solo en TikTok y
