@@ -1,5 +1,35 @@
 # App Review de Meta — paquete de envío
 
+> ## 🚩 ESTADO: ENVIADA el 2026-08-15, con **5 permisos**, no 6
+>
+> `business_management` **quedó fuera y no por decisión**: su botón *Request
+> advanced access* seguía **deshabilitado** al enviar, con el contador de Meta en
+> `Ready to use (0)`. Meta no deja pedir acceso avanzado a un permiso sin
+> llamadas registradas, y avisa de que el botón tarda **hasta 24 h** en
+> activarse tras la primera. La llamada se hizo el 2026-08-14 a las 21:33 desde
+> el Explorador de la API (`me/businesses`, que devolvió el portfolio), pero el
+> contador seguía en cero cuatro horas después.
+>
+> **Consecuencia:** aprobados los cinco, el producto queda operativo, pero un
+> cliente con su página dentro de un **portfolio comercial** seguirá sin poder
+> conectarse (§19-bis). Eso exige una **segunda solicitud**, que solo se puede
+> enviar cuando esta se resuelva.
+>
+> ⚠️ **Lo que puede preguntar Meta:** en el vídeo, al **0:24**, la pantalla de
+> consentimiento muestra el aviso del portfolio comercial, porque
+> `business_management` sigue en la Configuración y se concede aunque no se haya
+> pedido. Respuesta preparada, y es verdadera:
+>
+> > *The permission appears in the consent dialog because it is present in our
+> > Facebook Login configuration, but we are not requesting advanced access to it
+> > in this submission. We will request it separately once we can: the Request
+> > advanced access button was disabled at the time of submitting, pending Meta's
+> > API-call counter.*
+>
+> **Mientras la evalúan, no tocar la Configuración ni la app.** Cambiar cosas a
+> mitad de una revisión es lo que la alarga.
+
+
 Todo lo que hay que pegar en el formulario de *Revisión de la app*, más las
 trampas que ya costaron tiempo. **Escrito el 2026-08-14** porque hasta ahora los
 textos solo existían en una conversación del 03/08: si esa conversación se

@@ -1426,6 +1426,15 @@ pantalla de consentimiento, `me/accounts` devolvía **0**. Hipótesis cerrada: n
 era el Centro de cuentas (§19-quater, que era una anomalía real pero de otro
 cliente), no era la configuración, no era la vinculación. **Era el portfolio.**
 
+🚩 **DESENLACE (2026-08-15): la revisión se envió con 5 permisos, no con 6.** No
+por cambiar de idea: el botón *Request advanced access* de `business_management`
+seguía **deshabilitado** al enviar, con el contador en `Ready to use (0)`. Meta
+no deja pedir acceso avanzado a un permiso sin llamadas registradas y avisa de
+que el botón tarda **hasta 24 h** tras la primera; la llamada se hizo a las 21:33
+del día anterior y cuatro horas después el contador seguía en cero. Queda para
+una **segunda solicitud**, que solo se puede enviar cuando esta se resuelva.
+Detalle y la respuesta preparada por si Meta pregunta: `docs/app-review-meta.md`.
+
 ✅ **Y esto reabrió la decisión del App Review, que se tomó DOS veces el mismo
 día.** Por la mañana se cerró en 5 permisos porque *"`business_management` no se
 puede demostrar en el vídeo sin un cliente con portfolio"*. Por la noche resultó
