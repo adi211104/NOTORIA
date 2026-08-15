@@ -27,13 +27,26 @@ sin *Invalid Scopes*, y el secreto de la app es válido.
 
 ---
 
-## 2. Permisos que se piden — DECISIÓN TOMADA: los 5, ni uno más
+## 2. Permisos que se piden — DECISIÓN: 6, con `business_management` y sin `ads_read`
 
-Decidido el 2026-08-14 (la §19-bis lo dejaba abierto). El motivo: **Meta exige
-demostrar cada permiso en el screencast**, y estos cinco se ven en el flujo real
-que ya funciona. `business_management` y `ads_read` no se podrían enseñar
-funcionando sin un cliente con portfolio, y pedir permisos de anuncios en una
-herramienta de reputación dispara el escrutinio. Ver §5 (limitaciones).
+**Esta decisión se tomó dos veces el mismo día, y la segunda es la buena.**
+Primero se cerró en 5 permisos con este argumento: *Meta exige demostrar cada
+permiso en el screencast, y `business_management` no se puede enseñar funcionando
+sin un cliente que tenga la página en un portfolio*. Horas después, al
+diagnosticar por qué la dueña no lograba conectarse, se descubrió que **ese
+cliente es la propia dueña**: su página está en el portfolio Notoria y sin
+`business_management` la conexión devuelve cero páginas. Probado y confirmado
+(§19-quinquies del CLAUDE.md).
+
+Eso tumba el argumento original —ahora sí se demuestra en el vídeo, con un caso
+real— y añade uno nuevo: **sin `business_management` no hay screencast que
+grabar**, porque la cuenta de la dueña no conecta.
+
+`ads_read` **NO se pide.** La §19.7 avisaba de que Meta podría exigirlo cuando el
+rol sobre la página viene de Business Manager, pero la prueba del 2026-08-14
+demuestra que **no hace falta**: la conexión funcionó solo con
+`business_management`. Pedir permisos de anuncios en una herramienta de
+reputación es lo que dispara el escrutinio, y hay evidencia de que sobra.
 
 | Permiso | Para qué lo usa Notoria | Dónde se ve en el video |
 |---------|-------------------------|--------------------------|
@@ -41,12 +54,12 @@ herramienta de reputación dispara el escrutinio. Ver §5 (limitaciones).
 | `instagram_manage_comments` | Leer los comentarios de las publicaciones del propio negocio, publicar la respuesta y borrar la respuesta propia | Pestaña **Comentarios** → responder → borrar la respuesta |
 | `pages_show_list` | Listar las páginas que administra el usuario, para encontrar la que tiene `instagram_business_account` | Pantalla de autorización de Facebook |
 | `pages_read_engagement` | Resolver el vínculo página ↔ Instagram y leer los datos de la página necesarios para esa resolución | Mismo paso, es lo que permite completar la conexión |
-| `pages_manage_metadata` | Suscribir la página a los webhooks (`/me/subscribed_apps`) para recibir comentarios nuevos en tiempo real | Se explica en la narración: es lo que hace que un comentario nuevo aparezca solo |
+| `pages_manage_metadata` | Suscribir la página a los webhooks para recibir comentarios nuevos en tiempo real | Se explica en la narración: es lo que hace que un comentario nuevo aparezca solo |
+| `business_management` | Listar las páginas que pertenecen a un **portfolio comercial**. Sin él, `/me/accounts` devuelve vacío para cualquier negocio que haya verificado su empresa, trabajado con agencia o corrido anuncios | La conexión de la propia cuenta demo: su página está en un portfolio, y es la única forma de que aparezca |
 
-⚠️ `pages_manage_metadata` **tiene que estar también en la Configuración de la
-consola**, no solo en la lista del formulario. Si falta allí, el token no lo trae
-y la suscripción al webhook falla en silencio: la conexión funciona y los
-webhooks no llegan nunca (§19 del CLAUDE.md).
+⚠️ Los permisos **tienen que estar también en la Configuración de la consola**
+(`config_id`), no solo en la lista del formulario. Si falta uno allí, el token no
+lo trae. Le pasó a `pages_manage_metadata` y a `business_management`.
 
 ### Textos en inglés (para pegar en "How will you use this permission?")
 
@@ -83,11 +96,23 @@ webhooks no llegan nunca (§19 del CLAUDE.md).
 > business posts where customers tagged them.
 
 **pages_manage_metadata**
-> Used exclusively to subscribe the connected Page to our webhook
-> (`POST /{page-id}/subscribed_apps` with the `comments` field) so that new
+> Used exclusively to subscribe the connected Page to our webhook so that new
 > Instagram comments reach Notoria in real time instead of waiting for the
 > periodic scan. This matters because our product promise is fast detection of a
 > negative comment. We do not modify any other Page setting.
+
+**business_management**
+> Our customers are restaurants and hotels. In practice most of them have their
+> Facebook Page inside a Business Portfolio — because they verified their
+> business, ran ads at some point, or work with a marketing agency. For those
+> accounts `/me/accounts` returns an empty list unless the app has
+> `business_management`, so the owner grants every permission correctly, sees
+> the success screen, and the connection still fails with no explanation. We use
+> this permission for one thing only: to list the Pages the user administers
+> through their Business Portfolio, so we can find the one linked to their
+> Instagram professional account. We do not create, modify or delete any
+> business asset, we do not read or manage ad accounts, and we do not access any
+> business the user has not explicitly selected during authorization.
 
 ### Instrucciones de prueba (campo "Test instructions", en inglés)
 
@@ -98,8 +123,8 @@ webhooks no llegan nunca (§19 del CLAUDE.md).
 > 4. Click **Conectar** on the Instagram card. You will be redirected to the
 >    Facebook authorization dialog.
 > 5. Authorize a Facebook Page that is linked to an Instagram professional
->    account. Note: the Page must NOT belong to a Business Portfolio — see
->    "Known limitation" below.
+>    account. The Page may belong to a Business Portfolio; that is precisely the
+>    case `business_management` covers.
 > 6. You are returned to Notoria. The Instagram account appears as connected,
 >    showing its username and profile picture (`instagram_basic`).
 > 7. Open the business from **Negocios** and select the **Comentarios** tab.
@@ -165,9 +190,13 @@ Toma por toma:
 7. **Responder** un comentario desde Notoria y enseñar la respuesta publicada en
    Instagram (abrir la publicación en otra pestaña ayuda mucho).
 8. **Borrar** esa misma respuesta desde Notoria.
-9. **Narrar `pages_manage_metadata`**: explicar que la suscripción de la página
-   al webhook es lo que hace que un comentario nuevo aparezca sin recargar. Si
-   se puede, dejar un comentario desde otra cuenta y enseñarlo llegando solo.
+9. **Narrar `pages_manage_metadata`**: explicar que la suscripción al webhook es
+   lo que hace que un comentario nuevo aparezca sin recargar.
+   ⚠️ **No intentar demostrarlo en vivo: es imposible hoy.** Meta exige *Advanced
+   Access* para entregar notificaciones del campo `comments`, y eso llega
+   justamente con esta aprobación. Comprobado el 2026-08-14: con el webhook bien
+   suscrito y verificado, un comentario real **no genera ningún evento**. Narrarlo
+   y seguir; grabar un intento fallido sería peor que no enseñarlo.
 10. **Desconectar** — Conexiones → tuerca → Eliminar conexión. Cierra el ciclo y
     demuestra que el usuario controla sus datos.
 
@@ -175,33 +204,37 @@ Toma por toma:
 
 ## 5. Limitación conocida (y qué se responde si Meta pregunta)
 
-Un negocio cuya página esté dentro de un **portfolio comercial** no puede
-conectarse todavía: `/me/accounts` devuelve vacío sin `business_management`
-(§19-bis). Y un negocio **sin cuenta de Facebook** tampoco, porque este sabor la
-exige (§19.8).
+Queda **una** sola, y no se resuelve pidiendo permisos: un negocio **sin cuenta
+de Facebook** no puede conectarse, porque el sabor *Facebook Login* exige una
+página y que el dueño tenga rol sobre ella (§19.8 del CLAUDE.md). Una cuenta
+profesional de Instagram no necesita página, así que quien abrió su Instagram con
+el móvil y nunca usó Facebook se queda fuera.
 
-**Las dos se resuelven en una segunda pasada, juntas**, porque atacan el mismo
-problema y merecen un diseño conjunto: `business_management` por un lado y
-adoptar el sabor *Instagram Login* por otro. No se mezclan con esta revisión.
+**Se resuelve en una segunda pasada** añadiendo el sabor *Instagram Login*
+(`graph.instagram.com`), que es aditivo pero cuesta su propio App Review, un flag
+en `Negocio` para saber con qué sabor se conectó cada cuenta, y pierde `/tags`
+aunque conserva las @menciones. No se mezcla con esta revisión.
 
-Si Meta pregunta por qué no pedimos `business_management`: porque no lo usamos.
-El flujo que enviamos funciona sobre páginas administradas a título personal.
+Si Meta pregunta por qué pedimos `business_management`: porque sin él nuestros
+propios clientes no pueden conectarse. Está en §2, con el caso real que lo
+demuestra.
+
+Si Meta pregunta por qué NO pedimos `ads_read` o `ads_management`: porque no los
+usamos. Notoria no lee ni gestiona anuncios. Se comprobó que la conexión se
+completa sin ellos.
 
 ---
 
 ## 6. Checklist antes de darle a Enviar
 
-- [ ] **Cuenta demo lista** (es lo único que falta y solo puede hacerlo el
-      usuario). ⚠️ **El Instagram del Hotmail ya existe y está en modo negocio,
-      pero se enlazó por el «Centro de cuentas», que NO es el vínculo que la API
-      necesita** (§19-quater). No hay que crear otra cuenta de Instagram: hay
-      que **crear una página** y vincularle esa cuenta.
-  - [ ] Página **nueva** desde el perfil personal en `facebook.com/pages/create`
-        — nunca desde Business Suite, que la crea como activo del portfolio.
-  - [ ] Vincular el Instagram del Hotmail **a esa página**, desde una
-        computadora: página → *Configuración → Cuentas vinculadas → Instagram →
-        Conectar cuenta*.
-  - [ ] `@notoriaapp` y `@priad111` NO se usan: ya son activos del portfolio.
+- [x] ✅ **Cuenta demo: ya no hace falta ninguna.** Con `business_management` la
+      cuenta de la propia dueña conecta — verificado el 2026-08-14: página
+      *Notoria* `1211927292012805` + Instagram `@notoriaapp`
+      `17841443218774198`. Todo el trabajo previo de "crear una cuenta demo
+      limpia fuera del portfolio" **queda sin objeto**.
+- [x] ✅ `business_management` añadido a la Configuración `4655107931374707`.
+- [x] ✅ Webhook del objeto `instagram` suscrito en la app **correcta**
+      (`2232447584255257`), campo `comments`, handshake verificado en los logs.
 - [ ] 🔍 **Checkpoint que ahorra una noche:** antes de pulsar Conectar, mirar
       *portfolio → Cuentas → Páginas*. Si la página nueva aparece ahí, **parar**.
 - [ ] Conectar esa cuenta desde Notoria y comprobar que llegan comentarios.

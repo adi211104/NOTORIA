@@ -1426,12 +1426,17 @@ pantalla de consentimiento, `me/accounts` devolvía **0**. Hipótesis cerrada: n
 era el Centro de cuentas (§19-quater, que era una anomalía real pero de otro
 cliente), no era la configuración, no era la vinculación. **Era el portfolio.**
 
-⚠️ **Consecuencia para el App Review:** el screencast NO puede grabarse con esta
-cuenta mientras `business_management` esté en la Configuración — la pantalla de
-consentimiento mostraría un permiso que no estamos pidiendo. Para grabar hay que
-quitarlo, y entonces la cuenta de la dueña vuelve a no poder conectarse. Las dos
-salidas siguen siendo las de §19-bis: página de otra persona (añadida como
-*Tester*) o meter `business_management` en la revisión.
+✅ **Y esto reabrió la decisión del App Review, que se tomó DOS veces el mismo
+día.** Por la mañana se cerró en 5 permisos porque *"`business_management` no se
+puede demostrar en el vídeo sin un cliente con portfolio"*. Por la noche resultó
+que **ese cliente es la propia dueña**. Decisión final: **6 permisos, con
+`business_management` y sin `ads_read`** — este último se descarta con evidencia,
+no por prudencia: la conexión se completó sin él, así que §19.7 no aplica a
+nuestro flujo. Detalle en `docs/app-review-meta.md` §2.
+
+✅ **Con eso, la "cuenta demo limpia" de §19-ter queda SIN OBJETO.** El screencast
+se graba con la cuenta de la dueña, su página *Notoria* y `@notoriaapp`. No hay
+que crear ningún Instagram ni ninguna página nueva, ni pelearse con el portfolio.
 
 **Truco reutilizable:** para decidir entre hipótesis sobre permisos, añadir el
 permiso a la Configuración y probar con la cuenta que tiene rol en la app. Es
@@ -1473,10 +1478,16 @@ cuatro con el token de página real, después de arreglar la suscripción de app
 
 El nodo `{ig-user-id}/subscribed_apps` **es del sabor Instagram Login**, contra
 `graph.instagram.com`. La documentación de Meta mezcla los dos sabores en la
-misma página y de ahí salió la llamada que nunca pudo funcionar. **Pendiente de
-zanjar con la prueba de un comentario real:** si el evento llega solo con la
-suscripción de app, la llamada por cuenta sobra y hay que quitarla del callback
-(hoy solo escupe un warning en cada conexión).
+misma página y de ahí salió la llamada que nunca pudo funcionar.
+
+🔴 **No se puede zanjar hasta que aprueben el App Review, y §20 ya lo decía.** Se
+intentó comprobarlo con un comentario real y no llegó ningún evento — pero eso
+**no prueba nada** sobre `suscribirWebhookInstagram()`, porque Meta exige
+*Advanced Access* para entregar el campo `comments` y hoy está en estándar. Con
+el webhook correctamente suscrito y verificado, un comentario real sigue sin
+generar evento, y es el comportamiento esperado. **Al aprobar la revisión:
+comprobar si los eventos llegan sin la llamada por cuenta; si llegan, borrarla
+del callback** (hoy solo escupe un warning en cada conexión).
 
 ⚠️ **La lección de §20 se queda corta y hay que ampliarla.** No basta con
 desconfiar del cartel del panel: el botón *Probar* de Meta demuestra únicamente
