@@ -2649,8 +2649,20 @@ Dos cosas que costaron y conviene saber:
 
 🔍 **NITIDEZ — cómo se recapturan si hace falta (aprendido a la fuerza).** Las primeras salieron blandas por DOS motivos que se suman:
 
-1. **El capturador del navegador devuelve imágenes de 1512 px de un viewport de 1920**, o sea que ya reduce a 0.79x antes de que toques nada. Se compensa poniendo  en **1.3** antes de capturar: el panel se renderiza más grande y cada píxel suyo ocupa 1.03 px de imagen en vez de 0.79 (~30% más detalle). Más de 1.4 no cabe en el encuadre.
-2. **El marco se muestra a , no al ancho de la columna.** A los 1010 px que daba la columna, una imagen de 1512 px deja 1.5 px por píxel CSS y una pantalla retina pide 2. A 900 px sube a 1.68. **Si alguien ensancha ese marco, hay que rehacer las capturas más grandes.**
+1. **El capturador del navegador devuelve imágenes de 1512 px de un viewport de
+   1920**, o sea que ya reduce a 0.79x antes de que toques nada. Se compensa
+   poniendo `document.documentElement.style.zoom = '1.3'` antes de capturar: el
+   panel se renderiza más grande y cada píxel suyo pasa a ocupar ~1.03 px de
+   imagen en vez de 0.79 (~30% más detalle). Más de 1.4 ya no cabe en el
+   encuadre.
+2. **El marco se muestra a `maxWidth: 900`, no al ancho de la columna.** A los
+   1010 px que daba la columna, una imagen de 1512 px deja 1.5 px por píxel CSS
+   y una pantalla retina pide 2. A 900 px sube a 1.68. **Si alguien ensancha ese
+   marco, hay que rehacer las capturas más grandes.**
+
+⚠️ Al documentar esto en el repo: **no metas backticks dentro de un `node -e`
+lanzado desde bash** — bash los interpreta como sustitución de comandos y borra
+el contenido. Fue exactamente lo que pasó al escribir esta sección.
 
 ⚠️ **Limitación conocida:** las capturas están en **español**. Con el landing en
 inglés, el panel de la imagen sigue en español. Se asume (el mercado es Perú); si
