@@ -2591,3 +2591,32 @@ datos no.
 4. **Medir accesibilidad contando `aria-label` engaña**: `title` también da
    nombre accesible. Contados en el DOM real: **0 botones sin nombre** en
    Resumen y en la ficha de negocio.
+
+### 23.6 — Gráfica de historial de rating (`GraficaRating`)
+
+Cuatro cosas mal, todas visibles con datos reales:
+
+1. ⚠️ **`preserveAspectRatio="none"`** sobre un lienzo de 100×60 estirado al ancho
+   de la tarjeta: el trazo salía finísimo en horizontal y grueso en vertical, y
+   los puntos se deformaban en óvalos. **Regla: en un SVG con `viewBox`, nunca
+   `preserveAspectRatio="none"` si el dibujo tiene círculos o grosores de línea**
+   — dale al viewBox la proporción real y deja que escale uniforme.
+2. **La ventana mínima del eje Y era de 1.0 estrella entera.** El movimiento
+   típico de un rating es de una o dos décimas, así que quedaba aplastado contra
+   el centro y parecía una raya recta. Bajada a **0.3**.
+3. **Sin ninguna referencia numérica**: la línea flotaba a media altura sin decir
+   entre qué valores se movía. Ahora hay líneas punteadas en el mínimo y el
+   máximo REALES, rotuladas.
+4. **Diez etiquetas de fecha debajo**, una por escaneo: con varios escaneos el
+   mismo día repetía "08/15" cuatro veces y se encimaban. Ahora solo las de los
+   extremos, y cada punto lleva su valor y fecha en un `<title>` al pasar el
+   cursor.
+
+Además el pie dice ahora **cuánto se movió** (`4.2 −0.1`, coloreado) en vez de
+obligar a comparar a ojo el primer número con el último; con rating estable dice
+"sin cambios" y pinta una sola línea de referencia. El relleno pasó de verde
+plano —que con un rating estable era un rectángulo sólido que se comía la
+tarjeta— a un degradado que se desvanece.
+
+**Verificado en vivo en los dos casos**: con los datos reales (plano) y forzando
+temporalmente una serie con subidas y bajadas, en tema oscuro y claro.

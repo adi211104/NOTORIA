@@ -77,39 +77,112 @@ const GraficaRating = ({ snapshots }) => {
   const datos = [...snapshots].reverse().slice(-10);
   const vals = datos.map(s => s.ratingActual ?? 0);
 
-  // Dominio Y con un mínimo de amplitud para que la línea nunca quede plana/invisible
-  let yMin = Math.min(...vals), yMax = Math.max(...vals);
-  if (yMax - yMin < 1) { const mid = (yMax + yMin) / 2; yMin = Math.max(0, mid - 0.5); yMax = Math.min(5, mid + 0.5); }
-  yMin = Math.max(0, yMin - 0.2); yMax = Math.min(5, yMax + 0.2);
+  const fecha = (s) => new Date(s.tomadoEn).toLocaleDateString(locale, { day:'2-digit', month:'2-digit' });
+  const primero = vals[0];
+  const ultimo = vals[vals.length - 1];
+  const delta = Math.round((ultimo - primero) * 100) / 100;
 
-  const W = 100, H = 60, PAD = 6;
-  const x = (i) => datos.length === 1 ? W / 2 : PAD + (i / (datos.length - 1)) * (W - PAD * 2);
-  const y = (v) => H - PAD - ((v - yMin) / (yMax - yMin)) * (H - PAD * 2);
+  // Rango REAL de los datos: es lo que se rotula en el eje, para que se sepa
+  // entre qué valores se mueve la línea. Antes no había ninguna referencia
+  // numérica y la línea podía estar a media altura sin decir nada.
+  const vMin = Math.min(...vals), vMax = Math.max(...vals);
+  const plano = vMax - vMin < 0.005;
+
+  // Dominio dibujado. La amplitud mínima pasó de 1.0 a 0.3: con una ventana de
+  // una estrella entera, el movimiento típico de un rating —una o dos décimas—
+  // quedaba aplastado contra el centro y parecía una raya recta.
+  let yMin = vMin, yMax = vMax;
+  const AMPLITUD_MIN = 0.3;
+  if (yMax - yMin < AMPLITUD_MIN) {
+    const mid = (yMax + yMin) / 2;
+    yMin = mid - AMPLITUD_MIN / 2;
+    yMax = mid + AMPLITUD_MIN / 2;
+  }
+  const respiro = (yMax - yMin) * 0.18;
+  yMin = Math.max(0, yMin - respiro);
+  yMax = Math.min(5, yMax + respiro);
+
+  // Decimales del eje: con una ventana estrecha, un solo decimal rotularía
+  // "4.0" en las DOS líneas de referencia y no se distinguirían. Se usan dos
+  // solo en ese caso — si el rating no se movió hay una sola línea y no hay
+  // nada que distinguir, así que "4.0" y no "4.00".
+  const dec = (!plano && vMax - vMin < 0.15) ? 2 : 1;
+
+  // ⚠️ NADA de preserveAspectRatio="none". Estiraba el lienzo de 100×60 hasta el
+  // ancho de la tarjeta: el trazo salía finísimo en horizontal y grueso en
+  // vertical, y los puntos se deformaban en óvalos. Ahora el viewBox tiene una
+  // proporción realista y escala uniforme.
+  // Proporción: la tarjeta mide ~215 px de ancho, así que un lienzo 320×104 se
+  // renderizaba a unos 70 px de alto y la gráfica quedaba achatada. Con 320×140
+  // sube a ~94 px, que ya respira.
+  const W = 320, H = 140;
+  const X0 = 36, X1 = W - 8, Y0 = 14, Y1 = H - 26;
+  const x = (i) => datos.length === 1 ? (X0 + X1) / 2 : X0 + (i / (datos.length - 1)) * (X1 - X0);
+  const y = (v) => Y1 - ((v - yMin) / (yMax - yMin)) * (Y1 - Y0);
   const puntos = vals.map((v, i) => `${x(i)},${y(v)}`).join(' ');
-  const area = `${x(0)},${H} ${puntos} ${x(vals.length - 1)},${H}`;
+  const area = `${x(0)},${Y1} ${puntos} ${x(vals.length - 1)},${Y1}`;
+
+  // Las referencias van en los valores REALES (mínimo y máximo), no en
+  // fracciones arbitrarias del alto. Si el rating no se movió, una sola.
+  const referencias = plano ? [vMax] : [vMax, vMin];
+  const colorDelta = delta > 0 ? '#4CAF66' : delta < 0 ? '#f87171' : 'var(--text-3)';
 
   return (
     <div>
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width:'100%', height:80, display:'block' }}>
-        {[0.25, 0.5, 0.75].map(f => (
-          <line key={f} x1={PAD} x2={W - PAD} y1={PAD + f * (H - PAD * 2)} y2={PAD + f * (H - PAD * 2)} stroke="var(--border-c)" strokeWidth="0.3" />
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width:'100%', height:'auto', display:'block' }}
+           role="img" aria-label={t.resumen.graficaEscaneos(datos.length)}>
+        {/* Degradado en el relleno. Con un verde plano, un rating estable pintaba
+            un rectángulo sólido de lado a lado que se comía la tarjeta y no
+            aportaba nada; desvanecido se lee como área bajo la curva. */}
+        <defs>
+          <linearGradient id="grad-rating" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#0B7324" stopOpacity="0.28" />
+            <stop offset="100%" stopColor="#0B7324" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {referencias.map((v) => (
+          <g key={v}>
+            <line x1={X0} x2={X1} y1={y(v)} y2={y(v)} stroke="var(--border-c)" strokeWidth="1" strokeDasharray="3 3" />
+            <text x={X0 - 6} y={y(v) + 3.5} textAnchor="end" fontSize="9.5" fill="var(--text-3)">{v.toFixed(dec)}</text>
+          </g>
         ))}
-        <polygon points={area} fill="rgba(11,115,36,0.12)" />
-        <polyline points={puntos} fill="none" stroke="#0B7324" strokeWidth="1.2" strokeLinejoin="round" strokeLinecap="round" />
-        {vals.map((v, i) => (
-          <circle key={i} cx={x(i)} cy={y(v)} r={i === vals.length - 1 ? 1.8 : 1.2} fill={i === vals.length - 1 ? '#0B7324' : 'var(--surface)'} stroke="#0B7324" strokeWidth="0.8" />
-        ))}
-      </svg>
-      <div style={{ display:'flex', justifyContent:'space-between', marginTop:6 }}>
-        {datos.map((s, i) => {
-          const esU = i === datos.length - 1;
+
+        <polygon points={area} fill="url(#grad-rating)" />
+        <polyline points={puntos} fill="none" stroke="#0B7324" strokeWidth="2"
+                  strokeLinejoin="round" strokeLinecap="round" />
+
+        {vals.map((v, i) => {
+          const esU = i === vals.length - 1;
           return (
-            <div key={i} style={{ textAlign:'center', flex:1 }} title={t.resumen.estrellasTitle(s.ratingActual)}>
-              <div style={{ fontSize:11, fontWeight:esU?700:400, color:esU?'#0B7324':'var(--text-2)' }}>{s.ratingActual}</div>
-              <div style={{ fontSize:9, color:'var(--text-3)' }}>{new Date(s.tomadoEn).toLocaleDateString(locale,{day:'2-digit',month:'2-digit'})}</div>
-            </div>
+            <circle key={i} cx={x(i)} cy={y(v)} r={esU ? 4 : 2.6}
+                    fill={esU ? '#0B7324' : 'var(--surface)'} stroke="#0B7324" strokeWidth="1.6">
+              {/* Cada punto lleva su valor y su fecha al pasar el cursor. Antes
+                  esto se resolvía imprimiendo las diez etiquetas debajo, lo que
+                  con varios escaneos el mismo día repetía "08/15" cuatro veces. */}
+              <title>{t.resumen.graficaPunto(v, fecha(datos[i]))}</title>
+            </circle>
           );
         })}
+
+        {/* Solo las fechas de los extremos: son las que sitúan el periodo. */}
+        <text x={X0} y={H - 5} textAnchor="start" fontSize="9.5" fill="var(--text-3)">{fecha(datos[0])}</text>
+        <text x={X1} y={H - 5} textAnchor="end" fontSize="9.5" fill="var(--text-3)">{fecha(datos[datos.length - 1])}</text>
+      </svg>
+
+      {/* Lo que se venía a saber: cuánto se movió. Antes había que comparar a
+          ojo el primer número con el último. */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, marginTop:10, flexWrap:'wrap' }}>
+        <span style={{ fontSize:11.5, color:'var(--text-3)' }}>{t.resumen.graficaEscaneos(datos.length)}</span>
+        {plano ? (
+          <span style={{ fontSize:11.5, color:'var(--text-3)' }}>{t.resumen.graficaSinCambios}</span>
+        ) : (
+          <span style={{ display:'inline-flex', alignItems:'baseline', gap:6 }}>
+            <span style={{ fontSize:16, fontWeight:700, color:'var(--text)' }}>{ultimo}</span>
+            <span style={{ fontSize:12, fontWeight:700, color:colorDelta }}>
+              {delta > 0 ? '+' : '−'}{Math.abs(delta).toFixed(dec)}
+            </span>
+          </span>
+        )}
       </div>
     </div>
   );
@@ -332,6 +405,9 @@ const TEXTOS = {
       historial:'Historial de rating',
       graficaMinimo:'Necesitas al menos 2 escaneos para ver la tendencia.',
       estrellasTitle:(n) => `${n} estrellas`,
+      graficaSinCambios:'Sin cambios en el periodo',
+      graficaEscaneos:(n) => `Últimos ${n} escaneos`,
+      graficaPunto:(v, f) => `${v} estrellas el ${f}`,
       distribucion:'Distribución de estrellas',
       sinResenas:'Sin reseñas captadas aún',
       sinResenasDesc:(n) => `La Google Places API devuelve máximo 5 reseñas por consulta. Para negocios muy activos como este, a veces el array viene vacío aunque el total sea ${n}.`,
@@ -705,6 +781,9 @@ const TEXTOS = {
       historial:'Rating history',
       graficaMinimo:'You need at least 2 scans to see the trend.',
       estrellasTitle:(n) => `${n} stars`,
+      graficaSinCambios:'No change in this period',
+      graficaEscaneos:(n) => `Last ${n} scans`,
+      graficaPunto:(v, f) => `${v} stars on ${f}`,
       distribucion:'Star distribution',
       sinResenas:'No reviews captured yet',
       sinResenasDesc:(n) => `The Google Places API returns at most 5 reviews per query. For very active businesses like this one, the array can come back empty even though the total is ${n}.`,
