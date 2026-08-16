@@ -555,11 +555,16 @@ la función, no anunciarla como "próximamente".
 > promociona `/precios` hasta tenerlos. **El orden sigue siendo: Culqi live ✅ →
 > trámites en SOL → emisión.**
 >
-> ⚠️ Herencia de la etapa de test: `padkar4@` y `giorrnellprincipe@` quedaron con
-> plan NEGOCIO y una tarjeta `crd_test_…` guardada, con vencimiento el 06 y el
-> 07/09/2026. El cron de renovación intentará cobrarlas con la llave live y
-> fallará (esa tarjeta no existe en el entorno live). Limpiar antes de esa fecha
-> con `node scripts/limpiar-pagos-prueba.js <email> --aplicar`.
+> ✅ ~~Herencia de la etapa de test: tarjetas `crd_test_` guardadas que el cron de
+> renovación intentaría cobrar con la llave live.~~ **RESUELTO — verificado el
+> 16/08/2026** con `railway ssh --service api "node scripts/auditar-pagos.js"`:
+> **0 pagos registrados, 0 comprobantes y 0 tarjetas que hayan usado la promo.**
+> Las tres cuentas con plan de pago (`didier@usenotoria.app`,
+> `didierprincipe@gmail.com`, `revisormeta@usenotoria.app`) lo tienen **concedido
+> a mano, sin tarjeta**, así que no hay nada que el cron pueda intentar cobrar.
+> ⚠️ Ojo al método: `railway run` **no** sirve para esto — inyecta la URL interna
+> `postgres.railway.internal`, que no se alcanza desde fuera. Hay que entrar al
+> contenedor con `railway ssh`.
 
 **Observación de la web por Culqi (05/08/2026) — subsanada**
 Culqi observó usenotoria.app por "Flujo de compra | Carrito de compras | Botón
