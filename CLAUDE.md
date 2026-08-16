@@ -2620,3 +2620,34 @@ tarjeta— a un degradado que se desvanece.
 
 **Verificado en vivo en los dos casos**: con los datos reales (plano) y forzando
 temporalmente una serie con subidas y bajadas, en tema oscuro y claro.
+
+### 23.7 — Capturas reales del panel en el landing (§ PanelShowcase)
+
+El landing ya explicaba el producto con piezas dibujadas (§22.2), pero no había
+prueba de que existiera. Ahora hay una sección con **capturas reales**, en marco
+de navegador y con 4 pestañas: Resumen · Tu negocio · Reseñas · Competencia.
+Imágenes en `public/panel/*.webp`, ~142 KB las cuatro.
+
+🔴 **LOS DATOS ESTÁN ANONIMIZADOS, Y ES OBLIGATORIO MANTENERLO ASÍ.** Las
+capturas salen de una cuenta real cuyo negocio monitoreado es un **restaurante
+real que NO es cliente**, con reseñas de **personas identificables**. Publicarlo
+tal cual insinuaría una relación comercial que no existe y expondría datos de
+terceros en material publicitario. Antes de capturar se sustituye por el negocio
+ficticio que ya usa el landing ("Cevichería El Muelle"), y los nombres y textos
+de las reseñas por otros inventados. **Si se rehacen las capturas, repetir la
+sustitución** — el procedimiento está en la cabecera de `PanelShowcase.js`.
+
+Dos cosas que costaron y conviene saber:
+
+- **`loading="lazy"` + `key` para remontar = imagen en blanco.** El `key` fuerza
+  el remontaje (es lo que dispara la animación de entrada), pero con lazy la
+  imagen nueva empieza a cargar recién al montarse y la pestaña se queda vacía
+  un instante largo. Con 142 KB en total, carga ansiosa y listo.
+- **Cada captura lleva su propio `width`/`height`.** Con un alto fijo para las
+  cuatro, la caja reservaba el espacio de la más larga y dejaba un hueco enorme
+  bajo las cortas.
+
+⚠️ **Limitación conocida:** las capturas están en **español**. Con el landing en
+inglés, el panel de la imagen sigue en español. Se asume (el mercado es Perú); si
+alguna vez pesa, hay que tomar un segundo juego con el panel en inglés y elegir
+por idioma.

@@ -14,6 +14,8 @@ import AnalisisGratis from '../components/AnalisisGratis';
 // Las piezas gráficas viven aparte para no engordar más este archivo, y porque
 // llevan su propia explicación de por qué son mockups y no capturas del panel.
 import { GraficaAtaque, TarjetaAlerta, MedidorScore, DiagramaFlujo } from '../components/MockupsLanding';
+// Capturas reales del panel (datos anonimizados — ver la cabecera del componente).
+import PanelShowcase from '../components/PanelShowcase';
 // Fuente única de los datos de contacto públicos (ver components/PieLegal.js)
 import { CONTACTO } from '../components/PieLegal';
 
@@ -851,6 +853,16 @@ export default function LandingPage() {
                 ))}
               </div>
             </div>
+          </div>
+        </section>
+
+        {/* El producto por dentro — capturas reales del panel.
+            Va aquí, justo después de explicar QUÉ hace: primero se cuenta el
+            circuito, y acto seguido se enseña que existe de verdad. Antes de
+            "cómo funciona", que ya es el paso de contratar. */}
+        <section style={{ padding:'80px 24px', borderBottom:`1px solid ${C.border}`, background:C.surface }}>
+          <div style={{ maxWidth:1060, margin:'0 auto' }}>
+            <PanelShowcase idioma={idioma} colores={C} />
           </div>
         </section>
 
