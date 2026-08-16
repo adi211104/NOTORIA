@@ -53,6 +53,12 @@ const TEXTOS = {
       sinPendientes: 'No tienes alertas pendientes',
       sinRegistradas: 'No hay alertas registradas aún',
       marcarLeida: 'Marcar leída',
+      // "Sin alertas" y "no pude consultarlas" NO pueden verse igual en una
+      // herramienta de monitoreo. Ver la nota del estado `error`.
+      errorTitulo: 'No pudimos cargar tus alertas',
+      errorSub: 'Esto NO quiere decir que no haya ninguna: quiere decir que no pudimos consultarlas. Revisa tu conexión y vuelve a intentarlo.',
+      errorBoton: 'Reintentar',
+      errorSubtitulo: 'Estado desconocido',
     },
   },
 
@@ -102,6 +108,10 @@ const TEXTOS = {
       sinPendientes: 'You have no pending alerts',
       sinRegistradas: 'No alerts recorded yet',
       marcarLeida: 'Mark as read',
+      errorTitulo: 'We could not load your alerts',
+      errorSub: 'This does NOT mean there are none: it means we could not check for them. Check your connection and try again.',
+      errorBoton: 'Retry',
+      errorSubtitulo: 'Status unknown',
     },
   },
 };
@@ -216,13 +226,22 @@ export default function AlertasPage() {
   const t = TEXTOS[idioma] || TEXTOS.es;
   const [lista, setLista] = useState([]);
   const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState(false);
   const [filtro, setFiltro] = useState('todas');
   const [mostrarConfig, setMostrarConfig] = useState(false);
 
+  // 🔴 El error NO se traga. Antes era `.catch(console.error)` y la pantalla
+  // seguía adelante con la lista vacía, mostrando el cartel verde de "Sin
+  // alertas / No hay alertas registradas aún". O sea que ante un backend caído
+  // o el WiFi del local fallando, Notoria afirmaba que no había nada que
+  // atender sin haberlo podido comprobar. En una herramienta cuyo trabajo es
+  // avisar, ese falso "todo bien" es el peor fallo posible.
   const cargar = () => {
+    setCargando(true);
+    setError(false);
     alertasApi.listar()
       .then(setLista)
-      .catch(console.error)
+      .catch((e) => { console.error(e); setError(true); })
       .finally(() => setCargando(false));
   };
 
@@ -251,8 +270,14 @@ export default function AlertasPage() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-white">{t.pagina.titulo}</h1>
+          {/* Con error, ni "N sin leer" ni "Todo al día": ambos se calculan
+              sobre una lista vacía que nunca llegó a cargarse, y "Todo al día"
+              contradiría al recuadro de error de abajo. Mientras carga tampoco
+              se afirma nada. */}
           <p className="text-gray-400 mt-1">
-            {noLeidas > 0 ? t.pagina.sinLeer(noLeidas) : t.pagina.alDia}
+            {error ? t.pagina.errorSubtitulo
+              : cargando ? ' '
+              : noLeidas > 0 ? t.pagina.sinLeer(noLeidas) : t.pagina.alDia}
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -306,6 +331,20 @@ export default function AlertasPage() {
       {cargando ? (
         <div className="flex justify-center py-12">
           <div className="w-8 h-8 border-2 border-green-700 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : error ? (
+        /* Va ANTES del caso "lista vacía": si no pudimos consultar, no se
+           afirma que no haya nada. */
+        <div style={{ background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:12, padding:'28px 30px', textAlign:'center' }}>
+          <div style={{ display:'flex', justifyContent:'center', marginBottom:10 }}>
+            <Icon name="alerta" size={26} color="#f87171" />
+          </div>
+          <p style={{ color:'var(--text)', fontSize:15, fontWeight:600, margin:'0 0 6px' }}>{t.pagina.errorTitulo}</p>
+          <p style={{ color:'var(--text-2)', fontSize:13, lineHeight:1.6, margin:'0 auto 16px', maxWidth:420 }}>{t.pagina.errorSub}</p>
+          <button onClick={cargar}
+            style={{ background:'#0B7324', color:'#fff', border:'none', borderRadius:8, padding:'9px 18px', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+            {t.pagina.errorBoton}
+          </button>
         </div>
       ) : filtradas.length === 0 ? (
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-12 text-center">

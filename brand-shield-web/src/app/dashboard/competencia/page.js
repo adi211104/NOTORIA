@@ -33,6 +33,7 @@ const TEXTOS = {
     analizarConIA:'Analizar con IA', actualizarAnalisis:'Actualizar análisis', analizando:'Analizando...', analizarTitle:'Analizar reseñas del competidor con IA',
     analisisPlanPago:'Análisis con IA en plan Negocio →',
     dejarMonitorear:'Dejar de monitorear', errorAnalisis:'No se pudo analizar', errorConexionServidor:'Error de conexión con el servidor',
+    confirmarBorrar:'Sí, quitar', cancelarBorrar:'Cancelar',
     analisisTitulo:'Análisis con IA', analisisBasado:'Basado en las reseñas públicas más recientes.',
     filtroSinResultados:'Ningún competidor coincide con el filtro.',
     cargando:'Cargando...',
@@ -56,6 +57,7 @@ const TEXTOS = {
     analizarConIA:'Analyze with AI', actualizarAnalisis:'Refresh analysis', analizando:'Analyzing...', analizarTitle:"Analyze the competitor's reviews with AI",
     analisisPlanPago:'AI analysis on the Business plan →',
     dejarMonitorear:'Stop monitoring', errorAnalisis:'Could not analyze', errorConexionServidor:'Connection error with the server',
+    confirmarBorrar:'Yes, remove', cancelarBorrar:'Cancel',
     analisisTitulo:'AI analysis', analisisBasado:'Based on the most recent public reviews.',
     filtroSinResultados:'No competitor matches the filter.',
     cargando:'Loading...',
@@ -81,6 +83,10 @@ export default function CompetenciaPage() {
   const [compResultados, setCompResultados] = useState([]);
   const [compBuscando, setCompBuscando] = useState(false);
   const [compError, setCompError] = useState('');
+  // Borrado en dos pasos: `borrando` guarda el id del competidor que está
+  // esperando confirmación, y `errorBorrar` el fallo si el servidor lo rechaza.
+  const [borrando, setBorrando] = useState(null);
+  const [errorBorrar, setErrorBorrar] = useState('');
   const [compAgregando, setCompAgregando] = useState(false);
   const compTimeoutRef = useRef(null);
 
@@ -127,9 +133,21 @@ export default function CompetenciaPage() {
     finally { setCompAgregando(false); }
   };
 
+  // Antes esto borraba al primer clic y, si el servidor fallaba, el `catch {}`
+  // se lo tragaba: se llamaba a `cargar()` igual, el competidor reaparecía y el
+  // usuario no tenía forma de saber si su clic había hecho algo. Ahora hay dos
+  // pasos —el mismo patrón que ya usa /dashboard/conexiones para quitar una
+  // cuenta— y el fallo se dice en pantalla. Dejar de monitorear a un competidor
+  // tira también su histórico de comparación, así que preguntar no sobra.
   const eliminarCompetidor = async (id) => {
-    try { await competidoresApi.eliminar(id); } catch {}
-    cargar();
+    setErrorBorrar('');
+    try {
+      await competidoresApi.eliminar(id);
+      setBorrando(null);
+      cargar();
+    } catch (e) {
+      setErrorBorrar(e.message || t.errorConexionServidor);
+    }
   };
 
   const analizarCompetidor = async (negocioId, compId) => {
@@ -300,11 +318,34 @@ export default function CompetenciaPage() {
                                   <Icon name="destello" size={11} /> {analisis?.cargando ? t.analizando : analisis?.texto ? t.actualizarAnalisis : t.analizarConIA}
                                 </button>
                               )}
-                              <button onClick={() => eliminarCompetidor(c.id)} title={t.dejarMonitorear}
-                                style={{ background:'none', border:'none', color:'var(--text-3)', cursor:'pointer', padding:4, display:'flex' }}>
-                                <Icon name="basura" size={14} />
-                              </button>
+                              {borrando === c.id ? (
+                                <span style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
+                                  <button onClick={() => { setBorrando(null); setErrorBorrar(''); }}
+                                    style={{ background:'var(--surface2)', border:'1px solid var(--border-c)', color:'var(--text-2)', borderRadius:6, padding:'5px 10px', fontSize:11.5, cursor:'pointer', whiteSpace:'nowrap' }}>
+                                    {t.cancelarBorrar}
+                                  </button>
+                                  <button onClick={() => eliminarCompetidor(c.id)}
+                                    style={{ background:'#B74040', border:'none', color:'#fff', borderRadius:6, padding:'5px 10px', fontSize:11.5, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>
+                                    {t.confirmarBorrar}
+                                  </button>
+                                </span>
+                              ) : (
+                                <button onClick={() => { setBorrando(c.id); setErrorBorrar(''); }}
+                                  title={t.dejarMonitorear} aria-label={t.dejarMonitorear}
+                                  style={{ background:'none', border:'none', color:'var(--text-3)', cursor:'pointer', padding:4, display:'flex', borderRadius:6 }}>
+                                  <Icon name="basura" size={14} />
+                                </button>
+                              )}
                             </div>
+
+                            {/* El fallo al quitar se muestra en la fila del
+                                competidor afectado, no en un cartel global:
+                                así se ve junto al botón que se pulsó. */}
+                            {errorBorrar && borrando === c.id && (
+                              <div style={{ borderTop:'1px solid var(--border-c)', padding:'8px 14px' }}>
+                                <span style={{ color:'#f87171', fontSize:12 }}>{errorBorrar}</span>
+                              </div>
+                            )}
 
                             {analisis?.error && (
                               <div style={{ borderTop:'1px solid var(--border-c)', padding:'10px 14px', display:'flex', justifyContent:'space-between', alignItems:'center', gap:10, flexWrap:'wrap' }}>

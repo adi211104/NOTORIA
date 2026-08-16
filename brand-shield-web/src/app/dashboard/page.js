@@ -25,6 +25,12 @@ const TEXTOS = {
       vacioTitulo:'Todo tranquilo por ahora', vacioSub:'Te avisaremos si detectamos algo sospechoso',
     },
     semaforo: 'Reputación general',
+    // 🔴 El texto es explícito a propósito. Ver la nota del estado `error`.
+    error: {
+      titulo:'No pudimos cargar tus datos',
+      sub:'Esto NO quiere decir que no haya alertas: quiere decir que no pudimos consultarlas. Revisa tu conexión y vuelve a intentarlo.',
+      boton:'Reintentar',
+    },
   },
   en: {
     saludo:(nombre)=>`Hi, ${nombre}`,
@@ -41,6 +47,11 @@ const TEXTOS = {
       vacioTitulo:'All quiet for now', vacioSub:"We'll let you know if we detect anything suspicious",
     },
     semaforo: 'Overall reputation',
+    error: {
+      titulo:'We could not load your data',
+      sub:'This does NOT mean there are no alerts: it means we could not check for them. Check your connection and try again.',
+      boton:'Retry',
+    },
   },
 };
 
@@ -51,19 +62,49 @@ export default function DashboardPage() {
   const [negocios, setNegocios] = useState([]);
   const [alertas, setAlertas] = useState([]);
   const [cargando, setCargando] = useState(true);
+  // 🔴 Este estado arregla el peor fallo posible en una herramienta de
+  // monitoreo. Antes el error se tragaba con `.catch(console.error)` y la
+  // pantalla seguía su curso: las listas quedaban vacías y el panel mostraba
+  // "Todo tranquilo por ahora — te avisaremos si detectamos algo sospechoso".
+  // O sea que ante un backend caído, un token vencido o el WiFi del local
+  // fallando, Notoria le decía al dueño que su reputación estaba bien SIN
+  // HABERLA PODIDO CONSULTAR. Es justo la afirmación que el producto no puede
+  // permitirse equivocar: "no hay alertas" y "no pude mirar" tienen que verse
+  // distinto.
+  const [error, setError] = useState(false);
 
-  useEffect(() => {
+  const cargar = () => {
+    setCargando(true);
+    setError(false);
     Promise.all([negociosApi.listar(), alertasApi.listar()])
       .then(([n, a]) => { setNegocios(n); setAlertas(a); })
-      .catch(console.error)
+      .catch((e) => { console.error(e); setError(true); })
       .finally(() => setCargando(false));
-    // Ocultar banner si ya fue cerrado antes
-  }, []);
+  };
+
+  useEffect(() => { cargar(); }, []);
 
   const alertasNoLeidas = alertas.filter(a => !a.leida).length;
   if (cargando) return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:240 }}>
       <div className="w-8 h-8 border-2 border-green-700 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+
+  // Si la consulta falló, se corta aquí: NO se pintan las cifras en cero ni el
+  // "todo tranquilo", porque serían mentira. Es preferible una pantalla que
+  // admite que no sabe.
+  if (error) return (
+    <div style={{ background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:14, padding:'28px 30px', maxWidth:560 }}>
+      <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
+        <Icon name="alerta" size={20} color="#f87171" />
+        <h2 style={{ fontSize:16, fontWeight:700, color:'var(--text)', margin:0 }}>{t.error.titulo}</h2>
+      </div>
+      <p style={{ color:'var(--text-2)', fontSize:13.5, lineHeight:1.65, margin:'0 0 18px' }}>{t.error.sub}</p>
+      <button onClick={cargar}
+        style={{ background:'#0B7324', color:'#fff', border:'none', borderRadius:8, padding:'9px 18px', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+        {t.error.boton}
+      </button>
     </div>
   );
 
@@ -86,17 +127,34 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Stats */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))', gap:12, marginBottom:24 }}>
+      {/* Stats — cada cifra ES un enlace a la pantalla donde se actúa sobre
+          ella. Antes eran tres números muertos: el usuario leía "3 alertas sin
+          leer" y tenía que ir a buscarlas al menú. Al ser <Link>, además heredan
+          el hover y la pulsación de la capa de interacción sin nada extra.
+          El icono no es decorativo: hace la tarjeta reconocible de un vistazo,
+          que es como se leen estas cifras — de reojo, no leyendo la etiqueta. */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:12, marginBottom:24 }}>
         {[
-          { label:t.stats.negociosActivos, val: negocios.length, color:'var(--text)' },
-          { label:t.stats.alertasSinLeer, val: alertasNoLeidas, color: alertasNoLeidas > 0 ? '#f87171' : 'var(--text)' },
-          { label:t.stats.totalAlertas, val: alertas.length, color:'var(--text)' },
+          { label:t.stats.negociosActivos, val:negocios.length, icono:'tienda', href:'/dashboard/negocios', color:'var(--text)', tinte:'var(--accent-t)', borde:'var(--accent-b)', iconoColor:'#4CAF66' },
+          // La única que cambia de color: si hay algo sin leer, la tarjeta entera
+          // se tiñe de rojo. Es el aviso más barato del panel.
+          { label:t.stats.alertasSinLeer, val:alertasNoLeidas, icono:'campana', href:'/dashboard/alertas',
+            color: alertasNoLeidas > 0 ? '#f87171' : 'var(--text)',
+            tinte: alertasNoLeidas > 0 ? 'rgba(248,113,113,0.1)' : 'var(--surface2)',
+            borde: alertasNoLeidas > 0 ? 'rgba(248,113,113,0.3)' : 'var(--border-c)',
+            iconoColor: alertasNoLeidas > 0 ? '#f87171' : 'var(--text-3)' },
+          { label:t.stats.totalAlertas, val:alertas.length, icono:'grafica', href:'/dashboard/alertas', color:'var(--text)', tinte:'var(--surface2)', borde:'var(--border-c)', iconoColor:'var(--text-3)' },
         ].map((s,i) => (
-          <div key={i} style={{ background:'var(--surface)', border:'1px solid var(--border-c)', borderRadius:14, padding:20 }}>
-            <p style={{ color:'var(--text-2)', fontSize:13, margin:'0 0 6px' }}>{s.label}</p>
-            <p style={{ fontSize:32, fontWeight:700, color:s.color, margin:0 }}>{s.val}</p>
-          </div>
+          <Link key={i} href={s.href}
+            style={{ background:'var(--surface)', border:'1px solid var(--border-c)', borderRadius:14, padding:20, textDecoration:'none', display:'block' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, marginBottom:10 }}>
+              <p style={{ color:'var(--text-2)', fontSize:13, margin:0 }}>{s.label}</p>
+              <span style={{ width:32, height:32, borderRadius:9, background:s.tinte, border:`1px solid ${s.borde}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <Icon name={s.icono} size={16} color={s.iconoColor} />
+              </span>
+            </div>
+            <p style={{ fontSize:32, fontWeight:700, color:s.color, margin:0, lineHeight:1 }}>{s.val}</p>
+          </Link>
         ))}
       </div>
 

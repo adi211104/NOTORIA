@@ -39,6 +39,8 @@ const TEXTOS = {
     modalCancelar: 'Cancelar',
     modalConfirmar: 'Sí, eliminar',
     errorEscanear: 'Error al escanear',
+    errorEliminarGenerico: 'No se pudo eliminar el negocio. Intenta de nuevo.',
+    cerrarAviso: 'Cerrar aviso',
     locale: 'es-PE',
   },
   en: {
@@ -68,6 +70,8 @@ const TEXTOS = {
     modalCancelar: 'Cancel',
     modalConfirmar: 'Yes, delete',
     errorEscanear: 'Error while scanning',
+    errorEliminarGenerico: 'The business could not be deleted. Please try again.',
+    cerrarAviso: 'Dismiss',
     locale: 'en-US',
   },
 };
@@ -109,6 +113,10 @@ export default function NegociosPage() {
   const [progreso, setProgreso] = useState(0);
   const [cooldowns, setCooldowns] = useState({});
   const [modalEliminar, setModalEliminar] = useState(null);
+  // Fallos de acciones que antes iban a un alert() del navegador: el de borrar
+  // se pinta dentro de su modal, el de escanear como aviso sobre la lista.
+  const [errorEliminar, setErrorEliminar] = useState('');
+  const [errorEscaneo, setErrorEscaneo] = useState('');
   const timeoutRef = useRef(null);
   const intervalRef = useRef(null);
 
@@ -179,16 +187,27 @@ export default function NegociosPage() {
     finally { setGuardando(false); }
   };
 
+  // El fallo se muestra DENTRO del modal, no con un alert() del navegador. Con
+  // el alert, el diálogo del sistema tapaba el modal, había que aceptarlo para
+  // volver y el aviso se veía fuera de la marca. Ahora el error sale justo
+  // encima de los botones que se acaban de pulsar y el modal sigue abierto
+  // para reintentar.
   const confirmarEliminar = async () => {
     if (!modalEliminar) return;
-    try { await negociosApi.eliminar(modalEliminar.id); setModalEliminar(null); cargar(); }
-    catch (err) { alert(err.message); }
+    setErrorEliminar('');
+    try {
+      await negociosApi.eliminar(modalEliminar.id);
+      setModalEliminar(null);
+      cargar();
+    } catch (err) {
+      setErrorEliminar(err.message || t.errorEliminarGenerico);
+    }
   };
 
   const escanear = async (negocio) => {
     const cd = cooldowns[negocio.id];
     if (cd && !cd.puedeEscanear && cd.segundosRestantes > 0) return;
-    setEscaneando(negocio.id); setProgreso(0);
+    setEscaneando(negocio.id); setProgreso(0); setErrorEscaneo('');
     let p = 0;
     intervalRef.current = setInterval(() => {
       p += Math.random() * 8;
@@ -204,7 +223,10 @@ export default function NegociosPage() {
       const data = await res.json();
       if (!res.ok) {
         clearInterval(intervalRef.current);
-        alert(data.error || t.errorEscanear);
+        // Aviso en página, no alert(): el mensaje del servidor suele ser útil
+        // ("espera X minutos", "límite del plan"), y en un alert se lee y se
+        // descarta sin poder volver a mirarlo. Aquí se queda hasta cerrarlo.
+        setErrorEscaneo(data.error || t.errorEscanear);
         setEscaneando(null); setProgreso(0); return;
       }
       setProgreso(100);
@@ -235,6 +257,19 @@ export default function NegociosPage() {
           {mostrarForm ? t.cancelarBtn : t.agregarBtn}
         </button>
       </div>
+
+      {errorEscaneo && (
+        <div style={{ background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:10, padding:'11px 15px', marginBottom:16, display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12 }}>
+          <div style={{ display:'flex', alignItems:'flex-start', gap:9, minWidth:0 }}>
+            <span style={{ flexShrink:0, marginTop:1 }}><Icon name="alerta" size={15} color="#f87171" /></span>
+            <p style={{ color:'#f87171', fontSize:13, margin:0, lineHeight:1.5 }}>{errorEscaneo}</p>
+          </div>
+          <button onClick={() => setErrorEscaneo('')} title={t.cerrarAviso} aria-label={t.cerrarAviso}
+            style={{ background:'none', border:'none', color:'#f87171', cursor:'pointer', padding:2, display:'flex', flexShrink:0, borderRadius:5 }}>
+            <Icon name="cerrar" size={14} />
+          </button>
+        </div>
+      )}
 
       {mostrarForm && (
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border-c)', borderRadius: 14, padding: 20, marginBottom: 16 }}>
@@ -387,8 +422,13 @@ export default function NegociosPage() {
             <p style={{ color: 'var(--text-2)', fontSize: 13, textAlign: 'center', lineHeight: 1.6, margin: '0 0 20px' }}>
               {t.modalTexto(modalEliminar.nombre)}
             </p>
+            {errorEliminar && (
+              <div style={{ background:'rgba(239,68,68,0.12)', border:'1px solid rgba(239,68,68,0.35)', borderRadius:8, padding:'9px 12px', marginBottom:14 }}>
+                <p style={{ color:'#f87171', fontSize:12.5, margin:0, lineHeight:1.5, textAlign:'center' }}>{errorEliminar}</p>
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setModalEliminar(null)} style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border-c)', color: 'var(--text-2)', borderRadius: 10, padding: 10, fontSize: 14, cursor: 'pointer' }}>{t.modalCancelar}</button>
+              <button onClick={() => { setModalEliminar(null); setErrorEliminar(''); }} style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border-c)', color: 'var(--text-2)', borderRadius: 10, padding: 10, fontSize: 14, cursor: 'pointer' }}>{t.modalCancelar}</button>
               <button onClick={confirmarEliminar} style={{ flex: 1, background: '#ef4444', border: 'none', color: '#fff', borderRadius: 10, padding: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>{t.modalConfirmar}</button>
             </div>
           </div>

@@ -218,7 +218,20 @@ export default function ConexionesPage() {
   const ttConectado = params?.get('tt') === 'conectado';
   const ttError = params?.get('tt_error');
 
-  if (negocios === null) return null;
+  // Antes esto era `return null`: la página se quedaba COMPLETAMENTE EN BLANCO
+  // mientras cargaba —y aquí no se pide una lista, sino el estado de redes de
+  // cada negocio, uno por uno, así que tarda más que el resto del panel—. Una
+  // pantalla vacía sin nada que la explique se lee como "se rompió". El resto
+  // de páginas ya mostraban su spinner; esta era la única que no.
+  if (negocios === null) return (
+    <div>
+      <h1 style={{ fontSize:24, fontWeight:700, color:'var(--text)', margin:'0 0 4px' }}>{t.titulo}</h1>
+      <p style={{ color:'var(--text-2)', fontSize:14, margin:'0 0 24px' }}>{t.sub}</p>
+      <div className="flex justify-center py-12">
+        <div className="w-8 h-8 border-2 border-green-700 border-t-transparent rounded-full animate-spin" />
+      </div>
+    </div>
+  );
 
   return (
     <div>

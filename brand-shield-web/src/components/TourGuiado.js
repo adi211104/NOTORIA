@@ -28,6 +28,9 @@ export default function TourGuiado() {
   const [activo, setActivo] = useState(false);
   const [paso, setPaso] = useState(0);
   const [rect, setRect] = useState(null);
+  // Los pasos que REALMENTE se pueden enseñar en esta sesión. Ver la nota del
+  // efecto de activación: PASOS es el catálogo, esto es lo que existe en pantalla.
+  const [pasos, setPasos] = useState([]);
 
   // El layout del dashboard no se remonta al navegar entre sus páginas, así
   // que este efecto reacciona a cada cambio de ruta (no solo al montar) para
@@ -40,15 +43,36 @@ export default function TourGuiado() {
       // muestra el popup de recomendación de escaneo — no solaparlo con el
       // tour; se arma en la siguiente página que visite.
       if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('bienvenida') === '1') return;
-      const timer = setTimeout(() => setActivo(true), 500);
+      // 🔴 Solo se ofrecen los pasos cuyo elemento EXISTE en pantalla.
+      //
+      // Sin este filtro el tour se moría en silencio: `planes` y `facturacion`
+      // salieron del menú lateral hace tiempo (Planes se consulta una vez y
+      // Facturación vive dentro de Configuración), así que al llegar a esos
+      // pasos `querySelector` devolvía null, `rect` quedaba en null y el
+      // componente hacía `return null` — sin recuadro, sin botón "Siguiente" y
+      // sin forma de cerrarlo. Peor: `bs_tour` nunca llegaba a marcarse como
+      // visto, así que el tour se rearmaba en CADA carga y volvía a morir en el
+      // mismo sitio. El usuario nunca veía los dos últimos pasos.
+      //
+      // Filtrando por presencia real, el tour se adapta solo a lo que haya en
+      // el menú (que cambia según el plan: Menciones, por ejemplo, aparece y
+      // desaparece), y el contador "Paso i de n" dice la verdad.
+      const timer = setTimeout(() => {
+        const disponibles = PASOS.filter((p) => document.querySelector(`[data-tour="${p.key}"]`));
+        if (disponibles.length === 0) return;
+        setPasos(disponibles);
+        setPaso(0);
+        setActivo(true);
+      }, 500);
       return () => clearTimeout(timer);
     } catch {}
   }, [pathname, activo]);
 
   const medir = useCallback(() => {
-    const el = document.querySelector(`[data-tour="${PASOS[paso]?.key}"]`);
+    const clave = pasos[paso]?.key;
+    const el = clave ? document.querySelector(`[data-tour="${clave}"]`) : null;
     setRect(el ? el.getBoundingClientRect() : null);
-  }, [paso]);
+  }, [paso, pasos]);
 
   useEffect(() => {
     if (!activo) return;
@@ -62,10 +86,10 @@ export default function TourGuiado() {
     setActivo(false);
   };
 
-  if (!activo || !rect) return null;
+  if (!activo || !rect || !pasos[paso]) return null;
 
-  const info = PASOS[paso][idioma] || PASOS[paso].es;
-  const esUltimo = paso === PASOS.length - 1;
+  const info = pasos[paso][idioma] || pasos[paso].es;
+  const esUltimo = paso === pasos.length - 1;
   const top = Math.max(12, rect.top);
   const left = rect.right + 14;
 
@@ -83,7 +107,7 @@ export default function TourGuiado() {
         padding: 16, boxShadow: '0 12px 32px rgba(0,0,0,0.35)',
       }}>
         <p style={{ fontSize: 10.5, fontWeight: 700, color: '#4CAF66', textTransform: 'uppercase', letterSpacing: 0.5, margin: '0 0 6px' }}>
-          {t.paso(paso + 1, PASOS.length)}
+          {t.paso(paso + 1, pasos.length)}
         </p>
         <h4 style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--text)', margin: '0 0 6px' }}>{info.t}</h4>
         <p style={{ fontSize: 12.5, color: 'var(--text-2)', margin: '0 0 14px', lineHeight: 1.5 }}>{info.d}</p>

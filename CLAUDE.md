@@ -2503,3 +2503,91 @@ panel):
 
 **No hubo migración de BD**: ningún cambio tocó `schema.prisma`, así que la regla
 de "desplegar primero, migrar después" no aplicaba esta vez.
+
+---
+
+## Sesión 2026-08-16 — §23. El panel: interacción, estructura y un falso "todo bien"
+
+### 23.1 — Por qué los botones no respondían al cursor
+
+No era descuido de estilos, era una imposibilidad: el panel está escrito con
+**~994 `style={{…}}` inline contra 119 `className`**, y un estilo inline **no
+puede declarar `:hover`, `:focus` ni `:active`**. Lo medible: 17 `transition:`
+sueltas, dos `onMouseEnter` y **cero** estados de foco en todo el panel.
+
+Reescribir mil estilos era inasumible, pero **141 de los 149 elementos clicables
+son `<button>` o `<Link>`** (solo 8 son `div onClick`), así que la respuesta al
+cursor se resolvió desde CSS: capa `.panel` en `globals.css`, encendida con
+`className="panel"` en la raíz de `dashboard/layout.js`.
+
+⚠️ **El hover se pinta con un VELO (`box-shadow: inset 0 0 0 999px`), no con
+`filter: brightness()`.** Brightness *aclara*, y en tema claro un botón blanco
+aclarado sigue siendo blanco. El velo es translúcido y se invierte con el tema
+(`--velo-hover`), así que funciona sobre cualquier fondo **sin conocerlo** — que
+es justo el problema cuando el color vive inline.
+
+⚠️ **`!important` en el borde de los campos, y no es pereza:** los inputs traen
+`border-color` en su estilo inline, que gana a cualquier selector. Sin él, al
+enfocar aparecía el halo pero el borde seguía gris. Comprobado en vivo:
+enfocado da `rgb(13,138,42)`, sin foco vuelve al gris del inline.
+
+### 23.2 — Estructura
+
+Barra lateral: de 8 enlaces planos a tres grupos (*Lo que vigilas* / *Lo que te
+llega* / *Herramientas*); un grupo sin entradas visibles no pinta ni su rótulo.
+**Los colores del nav salieron a CSS (`.nav-item`)**: mientras el color siguiera
+inline era imposible que el ítem se iluminara. Las cifras del Resumen pasaron a
+ser enlaces a la pantalla donde se actúa sobre ellas.
+
+### 23.3 — 🔴 El fallo más grave: el panel afirmaba "todo tranquilo" sin haber mirado
+
+`dashboard/page.js` y `alertas/page.js` hacían `.catch(console.error)` y seguían
+adelante: la lista quedaba vacía y se pintaba el cartel verde *"Todo tranquilo
+por ahora"*. Ante un 500, un timeout o el **rate-limit de 100 pet./15min**,
+Notoria le decía al dueño que su reputación estaba bien **sin haberla podido
+consultar**. En una herramienta de monitoreo, "no hay alertas" y "no pude
+consultarlas" no pueden verse igual. Ahora hay estado de error explícito, con
+botón de reintentar, y el subtítulo de Alertas dice *"Estado desconocido"* en vez
+de *"Todo al día"*.
+
+**Alcance exacto:** si falla el PERFIL, el layout ya mostraba su pantalla de
+"sin conexión". Esto cubre el caso en que la sesión carga pero la consulta de
+datos no.
+
+### 23.4 — Otros arreglos de la misma revisión
+
+- **Borrar competidor** (`competencia`): borraba al primer clic y el `catch {}`
+  se tragaba el fallo — el competidor reaparecía sin explicación. Ahora
+  confirma en dos pasos y muestra el error. Conexiones ya lo hacía bien; era la
+  excepción.
+- **Conexiones** hacía `return null` mientras cargaba: pantalla **en blanco**, y
+  encima es la página más lenta (pide el estado de redes negocio por negocio).
+- **Los 4 `alert()` del navegador** pasaron a avisos en página. Uno de ellos
+  destapó que `msgScan` se pintaba **en verde también para los errores**: un "no
+  se pudo escanear" se leía como un éxito.
+- **Tour de bienvenida ROTO** (`TourGuiado.js`): apuntaba a `planes` y
+  `facturacion`, fuera del menú desde hace tiempo. Al no existir el elemento,
+  `rect` quedaba null y el componente hacía `return null`: sin recuadro, sin
+  "Siguiente" y sin poder cerrarlo — y como `bs_tour` nunca se marcaba, **se
+  rearmaba en cada carga y volvía a morir en el mismo sitio**. Ningún usuario
+  nuevo vio los dos últimos pasos. Ahora filtra por los pasos cuyo elemento
+  existe de verdad.
+- **La X de cerrar el menú móvil se veía en escritorio**: tenía `md:hidden` pero
+  también `display:'flex'` inline, que gana. Mismo patrón de siempre.
+
+### 23.5 — Trampas de verificación (costaron tiempo, anotarlas)
+
+1. 🔴 **`next dev` sirve CSS RANCIO bajo el MISMO hash de chunk.** Tras editar
+   `globals.css`, el bundle traía las variables nuevas pero **no** el bloque
+   siguiente, y la barra lateral se veía rota sin que el código lo estuviera.
+   **Si tocas `globals.css` y no ves el cambio: `rm -rf .next` y reiniciar.** No
+   falla siempre, y cuando falla lo hace en silencio.
+2. **`:focus` no se puede probar con el navegador automatizado**:
+   `document.hasFocus()` es `false`, así que `.focus()` no activa `:focus` y da
+   un falso negativo. Verificar por otra vía.
+3. **El JS inyectado en la pestaña corre en un contexto AISLADO**: sobrescribir
+   `window.fetch` desde ahí **no** afecta al código de la página. Para simular
+   un fallo de red hay que tocar el cliente (`lib/api.js`) temporalmente.
+4. **Medir accesibilidad contando `aria-label` engaña**: `title` también da
+   nombre accesible. Contados en el DOM real: **0 botones sin nombre** en
+   Resumen y en la ficha de negocio.

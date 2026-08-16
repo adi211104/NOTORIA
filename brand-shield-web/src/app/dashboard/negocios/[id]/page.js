@@ -290,7 +290,7 @@ const PLANTILLAS = {
 const TEXTOS = {
   es: {
     breadcrumb: 'Mis negocios',
-    general: { errorBackend:'No se puede conectar al backend. Asegúrate de que esté corriendo.' },
+    general: { errorBackend:'No se puede conectar al backend. Asegúrate de que esté corriendo.', cerrarAviso:'Cerrar aviso' },
     header: {
       google:'Google',
       alerta:(n) => `${n} alerta${n>1?'s':''}`,
@@ -663,7 +663,7 @@ const TEXTOS = {
 
   en: {
     breadcrumb: 'My businesses',
-    general: { errorBackend:'Could not connect to the backend. Make sure it is running.' },
+    general: { errorBackend:'Could not connect to the backend. Make sure it is running.', cerrarAviso:'Dismiss' },
     header: {
       google:'Google',
       alerta:(n) => `${n} alert${n>1?'s':''}`,
@@ -1030,6 +1030,12 @@ export default function DetallePage() {
   const [progreso, setProgreso] = useState(0);
   const [cooldown, setCooldown] = useState(null);
   const [msgScan, setMsgScan] = useState('');
+  // `msgScan` se pinta en VERDE, y se estaba usando también para los fallos de
+  // escaneo: un "no se pudo escanear" salía con el mismo color que un "listo".
+  // Los errores van por aquí y se pintan en rojo. También recoge los fallos que
+  // antes iban a un alert() del navegador.
+  const [errorAccion, setErrorAccion] = useState('');
+  const [errorEliminar, setErrorEliminar] = useState('');
   const [copiado, setCopiado] = useState('');
   // Comentarios de redes en publicaciones propias (TikTok)
   const [comentarios, setComentarios] = useState(null);
@@ -1304,7 +1310,9 @@ export default function DetallePage() {
           window.location.href = `${API_URL}/api/auth/google-business/iniciar?negocioId=${id}&token=${t}`;
         } else { throw new Error(); }
       })
-      .catch(() => alert((TEXTOS[idioma] || TEXTOS.es).general.errorBackend));
+      // Aviso en página, no alert(): el alert tapaba el panel con un diálogo
+      // del sistema y había que aceptarlo antes de poder hacer nada.
+      .catch(() => setErrorAccion((TEXTOS[idioma] || TEXTOS.es).general.errorBackend));
   };
 
   const copiar = async (texto, clave) => {
@@ -1332,7 +1340,7 @@ export default function DetallePage() {
 
   const escanear = async () => {
     if (cooldown && !cooldown.puedeEscanear && cooldown.segundosRestantes > 0) return;
-    setEscaneando(true); setProgreso(0); setMsgScan('');
+    setEscaneando(true); setProgreso(0); setMsgScan(''); setErrorAccion('');
     let p = 0;
     scanIntervalRef.current = setInterval(() => { p += Math.random()*8; if(p>90) p=90; setProgreso(Math.round(p)); }, 300);
     try {
@@ -1342,7 +1350,7 @@ export default function DetallePage() {
       });
       const data = await res.json();
       clearInterval(scanIntervalRef.current);
-      if (!res.ok) { setMsgScan(data.error||t.header.errorEscanear); setEscaneando(false); setProgreso(0); return; }
+      if (!res.ok) { setErrorAccion(data.error||t.header.errorEscanear); setEscaneando(false); setProgreso(0); return; }
       setProgreso(100);
       const cooldownSeg = (data.cooldownMinutos||1440)*60;
       if (cooldownIntervalRef.current) clearInterval(cooldownIntervalRef.current);
@@ -1360,8 +1368,11 @@ export default function DetallePage() {
   };
 
   const eliminarNegocio = async () => {
+    setErrorEliminar('');
     try { await negociosApi.eliminar(id); router.push('/dashboard/negocios'); }
-    catch (e) { alert(e.message); }
+    // El fallo se queda en la zona de peligro, junto al botón que se pulsó, en
+    // vez de en un alert() del navegador.
+    catch (e) { setErrorEliminar(e.message || t.general.errorBackend); }
   };
 
   const abrirResponder = (r) => {
@@ -1549,6 +1560,20 @@ export default function DetallePage() {
           </div>
         </div>
         {msgScan && <div style={{ background:'rgba(11,115,36,0.1)', border:'1px solid rgba(11,115,36,0.3)', color:'#4CAF66', borderRadius:8, padding:'9px 14px', marginTop:12, fontSize:13 }}>{msgScan}</div>}
+        {/* Los fallos van en rojo y con opción de cerrar. Antes compartían el
+            recuadro verde de arriba, así que un error se leía como un éxito. */}
+        {errorAccion && (
+          <div style={{ background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:8, padding:'9px 14px', marginTop:12, display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12 }}>
+            <div style={{ display:'flex', alignItems:'flex-start', gap:9, minWidth:0 }}>
+              <span style={{ flexShrink:0, marginTop:1 }}><Icon name="alerta" size={15} color="#f87171" /></span>
+              <p style={{ color:'#f87171', fontSize:13, margin:0, lineHeight:1.5 }}>{errorAccion}</p>
+            </div>
+            <button onClick={() => setErrorAccion('')} title={t.general.cerrarAviso} aria-label={t.general.cerrarAviso}
+              style={{ background:'none', border:'none', color:'#f87171', cursor:'pointer', padding:2, display:'flex', flexShrink:0, borderRadius:5 }}>
+              <Icon name="cerrar" size={14} />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
@@ -2708,8 +2733,13 @@ export default function DetallePage() {
             ) : (
               <div>
                 <p style={{ color:'#f87171', fontSize:13, fontWeight:600, margin:'0 0 10px' }}>{t.config.confirmarEliminar(negocio.nombre)}</p>
+                {errorEliminar && (
+                  <div style={{ background:'rgba(239,68,68,0.12)', border:'1px solid rgba(239,68,68,0.35)', borderRadius:8, padding:'8px 11px', marginBottom:10 }}>
+                    <p style={{ color:'#f87171', fontSize:12.5, margin:0, lineHeight:1.5 }}>{errorEliminar}</p>
+                  </div>
+                )}
                 <div style={{ display:'flex', gap:8 }}>
-                  <button onClick={() => setModalEliminar(false)} style={{ flex:1, background:'var(--surface2)', border:'1px solid var(--border-c)', color:'var(--text-2)', borderRadius:8, padding:9, fontSize:13, cursor:'pointer' }}>{t.config.cancelar}</button>
+                  <button onClick={() => { setModalEliminar(false); setErrorEliminar(''); }} style={{ flex:1, background:'var(--surface2)', border:'1px solid var(--border-c)', color:'var(--text-2)', borderRadius:8, padding:9, fontSize:13, cursor:'pointer' }}>{t.config.cancelar}</button>
                   <button onClick={eliminarNegocio} style={{ flex:1, background:'#ef4444', border:'none', color:'#fff', borderRadius:8, padding:9, fontSize:13, fontWeight:600, cursor:'pointer' }}>{t.config.siEliminar}</button>
                 </div>
               </div>

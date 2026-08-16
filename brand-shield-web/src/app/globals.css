@@ -18,6 +18,10 @@
      que con var() ya no es posible). */
   --border-l: #3A3A38;
   --bg-t:     rgba(20,20,19,0.8);
+  /* Velos de interacción del panel (ver la capa de interacción más abajo).
+     En oscuro se aclara con blanco; en claro se oscurece con negro. */
+  --velo-hover:  rgba(255,255,255,0.07);
+  --velo-activo: rgba(255,255,255,0.13);
 }
 
 /* ── Variables — modo claro ────────────────────────────── */
@@ -35,6 +39,8 @@
   --accent-b: rgba(11,115,36,0.25);
   --border-l: #C4C2B8;
   --bg-t:     rgba(250,249,245,0.8);
+  --velo-hover:  rgba(0,0,0,0.045);
+  --velo-activo: rgba(0,0,0,0.085);
 }
 
 /* ── Base ──────────────────────────────────────────────── */
@@ -114,6 +120,155 @@ html {
    ahorro de batería en Android de gama baja): apagar animaciones infinitas. */
 @media (prefers-reduced-motion: reduce) {
   .pulse-badge, .scan-shimmer, .logo-icon { animation: none !important; }
+}
+
+/* ══ PANEL — capa de interacción ═════════════════════════
+   POR QUÉ EXISTE. El panel está escrito con estilos inline: ~994 `style={{…}}`
+   contra 119 `className`. Y un estilo inline NO PUEDE declarar `:hover`,
+   `:focus` ni `:active` — es una limitación del atributo, no un descuido. El
+   resultado medible era que en todo el panel había 17 `transition:` sueltas,
+   dos `onMouseEnter` y **cero** estados de foco: los botones no respondían al
+   cursor y quien navega con el teclado no sabía dónde estaba parado.
+
+   Reescribir mil estilos inline sería un cambio enorme y arriesgado, así que la
+   respuesta al cursor vive aquí. Cubre los 141 `<button>`/`<Link>` del panel
+   —el 95% de lo clicable— sin tocar ni uno.
+
+   POR QUÉ UN "VELO" Y NO `filter: brightness()`. Brightness ACLARA, y en tema
+   claro un botón blanco aclarado sigue siendo blanco: no se vería nada. El velo
+   es una capa translúcida que se invierte con el tema, así que funciona sobre
+   cualquier color de fondo sin necesidad de conocerlo — que es justo el
+   problema cuando el color vive en un estilo inline. Se pinta con un
+   `box-shadow: inset` enorme porque así respeta solo el `border-radius` del
+   elemento y queda por debajo del contenido, que sigue legible.
+
+   Se activa poniendo `className="panel"` en la raíz de dashboard/layout.js. */
+
+.panel button,
+.panel a,
+.panel summary,
+.panel [role="button"] {
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease,
+              box-shadow .15s ease, opacity .15s ease, transform .08s ease;
+}
+
+.panel button:not(:disabled):hover,
+.panel a:hover,
+.panel summary:hover,
+.panel [role="button"]:not([aria-disabled="true"]):hover {
+  box-shadow: inset 0 0 0 999px var(--velo-hover);
+}
+
+/* Pulsación: se hunde un pixel. Es el acuse de recibo del clic — sin él, en una
+   acción que tarda (guardar, escanear) no se sabe si el clic entró. */
+.panel button:not(:disabled):active,
+.panel a:active,
+.panel [role="button"]:not([aria-disabled="true"]):active {
+  box-shadow: inset 0 0 0 999px var(--velo-activo);
+  transform: translateY(1px);
+}
+
+/* Deshabilitado: se ve apagado y NO se ilumina al pasar por encima. Antes un
+   botón inactivo respondía igual que uno activo. */
+.panel button:disabled,
+.panel [aria-disabled="true"] {
+  opacity: .5;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+/* Foco de TECLADO. No existía en ninguna parte del panel. `:focus-visible` y no
+   `:focus` para que el anillo salga al tabular pero no al hacer clic con el
+   mouse, que es lo que lo vuelve molesto y lleva a quitarlo. */
+.panel button:focus-visible,
+.panel a:focus-visible,
+.panel input:focus-visible,
+.panel select:focus-visible,
+.panel textarea:focus-visible,
+.panel [role="button"]:focus-visible {
+  outline: 2px solid var(--accent-h);
+  outline-offset: 2px;
+}
+
+/* Campos de formulario: el borde se tiñe y aparece un halo al enfocar, y el
+   borde se aviva al pasar por encima. */
+.panel input,
+.panel select,
+.panel textarea {
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+/* El `!important` del borde NO es pereza: los campos traen `border-color` en su
+   estilo inline (`style="border-color: var(--border-c)"`), y un estilo inline
+   gana a cualquier selector por específico que sea. Sin esto el halo aparecía
+   pero el borde se quedaba gris. El `box-shadow` no lo necesita porque ningún
+   campo lo declara inline. */
+.panel input:hover:not(:focus),
+.panel select:hover:not(:focus),
+.panel textarea:hover:not(:focus) {
+  border-color: var(--border-l) !important;
+}
+.panel input:focus,
+.panel select:focus,
+.panel textarea:focus {
+  border-color: var(--accent-h) !important;
+  box-shadow: 0 0 0 3px var(--accent-t);
+}
+
+/* ── Barra lateral ─────────────────────────────────────────
+   Estas entradas SÍ llevan clase en vez de estilo inline, y es a propósito: el
+   color del texto y del icono tienen que cambiar al pasar el cursor, y un color
+   inline gana siempre sobre el de la hoja de estilos. Moverlo aquí es lo único
+   que permite que el ítem se ilumine. */
+.panel .nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 5px;
+  text-decoration: none;
+  font-size: 13.5px;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-weight: 400;
+  color: var(--text-2);
+  background: transparent;
+}
+.panel .nav-item .nav-ico {
+  display: flex;
+  align-items: center;
+  color: var(--text-3);
+  transition: color .15s ease;
+}
+.panel .nav-item:hover { color: var(--text); }
+.panel .nav-item:hover .nav-ico { color: var(--accent-h); }
+
+.panel .nav-item.activo {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+.panel .nav-item.activo .nav-ico,
+.panel .nav-item.activo:hover .nav-ico { color: #fff; }
+.panel .nav-item.activo:hover { color: #fff; }
+
+/* Rótulo de cada grupo de la barra lateral. */
+.panel .nav-grupo {
+  font-size: 10px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-3);
+  font-family: Georgia, 'Times New Roman', serif;
+  padding: 14px 10px 5px;
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel button,
+  .panel a,
+  .panel [role="button"] { transition: none; }
+  .panel button:active,
+  .panel a:active,
+  .panel [role="button"]:active { transform: none; }
 }
 
 /* ── Layout ────────────────────────────────────────────── */

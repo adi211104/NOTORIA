@@ -40,26 +40,45 @@ const NavIcon = ({ type, size=16 }) => {
 // Facturación NO está acá a propósito: se consulta de vez en cuando, no a
 // diario, así que vive dentro de Configuración. La ruta /dashboard/facturacion
 // sigue viva — los correos de comprobante enlazan directo a ella.
-const navItems = [
-  { href:'/dashboard',               key:'resumen',      icon:'home' },
-  { href:'/dashboard/negocios',      key:'negocios',     icon:'store' },
-  { href:'/dashboard/competencia',   key:'competencia',  icon:'versus' },
-  { href:'/dashboard/alertas',       key:'alertas',      icon:'bell' },
-  // `soloSi` esconde la entrada cuando la función no está disponible en el
-  // servidor. Menciones no se ofrece si no hay ninguna fuente de escucha activa:
-  // no se anuncia como "próximamente", simplemente no existe hasta que funcione.
-  { href:'/dashboard/menciones',     key:'menciones',    icon:'menciones', soloSi:(u) => u?.mencionesDisponibles },
-  { href:'/dashboard/conexiones',    key:'conexiones',   icon:'enlace' },
-  { href:'/dashboard/reportes',      key:'reportes',     icon:'doc' },
-  // Planes salió del menú (2026-07-29): se consulta una vez, no a diario. La ruta
-  // sigue viva y se llega desde el recuadro del plan de abajo y desde los upsells.
-  { href:'/dashboard/configuracion', key:'configuracion',icon:'settings' },
+//
+// Las ocho entradas están AGRUPADAS por lo que hace cada una, no en una lista
+// plana. Ocho enlaces seguidos y sin jerarquía obligan a leerlos todos para
+// encontrar uno; en tres bloques cortos se busca primero el bloque. El orden de
+// los grupos sigue el uso real: primero lo que miras, luego lo que te llega,
+// y al final lo que se configura una vez y no se vuelve a tocar.
+//
+// `soloSi` esconde una entrada cuando la función no está disponible en el
+// servidor. Menciones no se ofrece si no hay ninguna fuente de escucha activa:
+// no se anuncia como "próximamente", simplemente no existe hasta que funcione.
+// Si un grupo se queda sin entradas visibles, no se pinta ni su rótulo.
+//
+// Planes salió del menú (2026-07-29): se consulta una vez, no a diario. Se llega
+// desde el recuadro del plan de abajo y desde los upsells.
+const navGrupos = [
+  { key:'principal', items:[
+    { href:'/dashboard',               key:'resumen',      icon:'home' },
+  ]},
+  { key:'vigilancia', items:[
+    { href:'/dashboard/negocios',      key:'negocios',     icon:'store' },
+    { href:'/dashboard/competencia',   key:'competencia',  icon:'versus' },
+  ]},
+  { key:'entrante', items:[
+    { href:'/dashboard/alertas',       key:'alertas',      icon:'bell' },
+    { href:'/dashboard/menciones',     key:'menciones',    icon:'menciones', soloSi:(u) => u?.mencionesDisponibles },
+  ]},
+  { key:'herramientas', items:[
+    { href:'/dashboard/conexiones',    key:'conexiones',   icon:'enlace' },
+    { href:'/dashboard/reportes',      key:'reportes',     icon:'doc' },
+    { href:'/dashboard/configuracion', key:'configuracion',icon:'settings' },
+  ]},
 ];
 
 // ── Diccionario de textos (es / en) ──────────────────────
 const TEXTOS = {
   es: {
     nav: { resumen:'Resumen', negocios:'Mis negocios', competencia:'Competencia', alertas:'Alertas', menciones:'Menciones', conexiones:'Conexiones', reportes:'Reportes PDF', planes:'Planes', facturacion:'Facturación', configuracion:'Configuración' },
+    // `principal` va vacío a propósito: un rótulo sobre una sola entrada es ruido.
+    navGrupos: { principal:'', vigilancia:'Lo que vigilas', entrante:'Lo que te llega', herramientas:'Herramientas' },
     emailVerif: {
       titulo:'Confirma tu correo',
       revisaBandeja:'Revisa tu bandeja y carpeta de spam. Puede tardar 1-2 min.',
@@ -86,6 +105,7 @@ const TEXTOS = {
   },
   en: {
     nav: { resumen:'Overview', negocios:'My businesses', competencia:'Competitors', alertas:'Alerts', menciones:'Mentions', conexiones:'Connections', reportes:'PDF reports', planes:'Plans', facturacion:'Billing', configuracion:'Settings' },
+    navGrupos: { principal:'', vigilancia:'What you watch', entrante:'What reaches you', herramientas:'Tools' },
     emailVerif: {
       titulo:'Confirm your email',
       revisaBandeja:'Check your inbox and spam folder. It can take 1-2 min.',
@@ -238,7 +258,10 @@ export default function DashboardLayout({ children }) {
   const PLAN_LABELS = t.plan.labels;
 
   return (
-    <div style={{ minHeight:'100vh', display:'flex', background:'var(--bg)' }}>
+    // `panel` enciende la capa de interacción de globals.css (hover, pulsación,
+    // foco de teclado y estados de formulario). Va aquí, en la raíz, para que
+    // alcance a la barra lateral y a todas las páginas hijas de una vez.
+    <div className="panel" style={{ minHeight:'100vh', display:'flex', background:'var(--bg)' }}>
       {/* Fondo oscuro al abrir el menú en móvil */}
       {menuAbierto && (
         <div onClick={() => setMenuAbierto(false)} className="md:hidden" style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', zIndex:40 }} />
@@ -254,28 +277,38 @@ export default function DashboardLayout({ children }) {
             <ShieldIcon size={18} color="#0B7324"/>
             <span style={{ fontWeight:800, fontSize:16, color:'var(--text)', fontFamily:"Georgia,'Times New Roman',serif", letterSpacing:'-0.3px' }}>Notoria</span>
           </Link>
-          <button onClick={() => setMenuAbierto(false)} className="md:hidden" aria-label="Cerrar menú"
-            style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-3)', padding:4, display:'flex' }}>
+          {/* `flex md:hidden` y NO `display:'flex'` inline: el estilo inline
+              gana sobre la clase, así que con `display:'flex'` puesto ahí el
+              `md:hidden` no tenía ningún efecto y esta X de cerrar el menú
+              móvil se veía SIEMPRE, también en escritorio, donde no hay menú
+              que cerrar. Verificado en vivo: computaba `display:flex` a 1920px.
+              Es el mismo patrón que ya usa bien la barra superior móvil. */}
+          <button onClick={() => setMenuAbierto(false)} className="flex md:hidden" aria-label="Cerrar menú"
+            style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-3)', padding:4, borderRadius:5 }}>
             <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
           </button>
         </div>
 
-        {/* Nav */}
-        <nav style={{ flex:1, padding:'10px 10px', display:'flex', flexDirection:'column', gap:2, overflowY:'auto' }}>
-          {navItems.filter(item => !item.soloSi || item.soloSi(usuario)).map(item => {
-            const activo = pathname === item.href;
+        {/* Nav — los colores viven en globals.css (.nav-item), no inline: un
+            color inline gana sobre la hoja de estilos y bloquearía el hover. */}
+        <nav style={{ flex:1, padding:'6px 10px 10px', display:'flex', flexDirection:'column', gap:2, overflowY:'auto' }}>
+          {navGrupos.map(grupo => {
+            const visibles = grupo.items.filter(item => !item.soloSi || item.soloSi(usuario));
+            if (visibles.length === 0) return null;
             return (
-              <Link key={item.href} href={item.href} data-tour={item.key}
-                style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', borderRadius:5, textDecoration:'none', fontSize:13.5, fontFamily:"Georgia,'Times New Roman',serif", transition:'all 0.12s',
-                  background: activo ? '#0B7324' : 'transparent',
-                  color: activo ? '#FFFFFF' : '#B0AEA5',
-                  fontWeight: activo ? 600 : 400,
-                }}>
-                <span style={{ color: activo ? '#FFFFFF' : '#6B6A65', display:'flex', alignItems:'center' }}>
-                  <NavIcon type={item.icon}/>
-                </span>
-                {t.nav[item.key]}
-              </Link>
+              <div key={grupo.key} style={{ display:'flex', flexDirection:'column', gap:2 }}>
+                {/* El primer grupo (Resumen) no lleva rótulo: sobra encima de
+                    una sola entrada, y así el menú no empieza con texto gris. */}
+                {t.navGrupos[grupo.key] && <p className="nav-grupo">{t.navGrupos[grupo.key]}</p>}
+                {visibles.map(item => (
+                  <Link key={item.href} href={item.href} data-tour={item.key}
+                    className={`nav-item${pathname === item.href ? ' activo' : ''}`}
+                    aria-current={pathname === item.href ? 'page' : undefined}>
+                    <span className="nav-ico"><NavIcon type={item.icon}/></span>
+                    {t.nav[item.key]}
+                  </Link>
+                ))}
+              </div>
             );
           })}
         </nav>
@@ -298,10 +331,15 @@ export default function DashboardLayout({ children }) {
               <p style={{ fontSize:13, color:'var(--text)', margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontFamily:"Georgia,'Times New Roman',serif" }}>{usuario.nombre}</p>
               <p style={{ fontSize:11, color:'var(--text-3)', margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontFamily:"Georgia,'Times New Roman',serif" }}>{usuario.email}</p>
             </div>
-            <button onClick={logout} title={t.logout}
-              style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-3)', padding:'4px', display:'flex', alignItems:'center', marginLeft:6, transition:'color 0.15s' }}
+            {/* El hover en rojo se queda en JS porque es un color SEMÁNTICO
+                (salir es destructivo), no el velo genérico. Pero al soltar
+                volvía a un '#6B6A65' fijo, que es el gris del tema OSCURO: en
+                tema claro el icono se quedaba más apagado que el resto para
+                siempre. Ahora devuelve la variable, que es la que corresponda. */}
+            <button onClick={logout} title={t.logout} aria-label={t.logout}
+              style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-3)', padding:'4px', display:'flex', alignItems:'center', marginLeft:6, borderRadius:5 }}
               onMouseEnter={e=>e.currentTarget.style.color='#B74040'}
-              onMouseLeave={e=>e.currentTarget.style.color='#6B6A65'}>
+              onMouseLeave={e=>e.currentTarget.style.color='var(--text-3)'}>
               <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
                 <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
               </svg>
