@@ -428,10 +428,15 @@ la función, no anunciarla como "próximamente".
       **Menciones** (Instagram era su única fuente)
 - [x] Una cuenta **ya conectada** sigue viéndose siempre: hay que poder
       desconectarla y borrar sus datos, que es lo que Meta exige
-- [ ] 🔴 **Antes de desplegar:** cargar en Railway
-      `INSTAGRAM_CUENTAS_PRUEBA=revisormeta@usenotoria.app` (y el correo del
-      dueño). **Sin esto el revisor de Meta no ve la integración y rechaza la
-      revisión entera** — que sigue en curso desde el 15/08
+- [x] `INSTAGRAM_CUENTAS_PRUEBA=revisormeta@usenotoria.app,padkar4@gmail.com`
+      cargada en Railway **antes** del deploy (44 caracteres, verificada sin BOM).
+      Sin ella el revisor de Meta no vería la integración y rechazaría la
+      revisión entera, que sigue en curso desde el 15/08
+- [x] **DESPLEGADO Y VERIFICADO EN VIVO (16/08/2026).** Railway `2d096b34`
+      SUCCESS, Vercel `notoria-nyvag1t0l` Ready. Comprobado **dentro del
+      contenedor de producción**, no por el panel:
+      `instagramVisiblePara({email:'revisormeta@usenotoria.app'})` → **true**,
+      y con un correo de cliente → **false**. `INSTAGRAM_ACTIVO` sin definir
 - [ ] El día que aprueben: `INSTAGRAM_ACTIVO=true` en Railway y reiniciar. No
       hace falta desplegar código, y **la lógica no se borra** — vuelve a hacer
       falta con el siguiente permiso o la siguiente red

@@ -2469,3 +2469,37 @@ que deja la caja centrada en la caída, porque si no el primer vistazo en móvil
 era la parte plana, que no cuenta nada. Verificado en un iframe de 400 px:
 `scrollWidth` del documento 398 vs `clientWidth` 395, o sea sin scroll horizontal
 de página.
+
+### 22.3 — Despliegue del 2026-08-16, verificado en vivo
+
+Railway `2d096b34` SUCCESS · Vercel `notoria-nyvag1t0l` Ready · commit `044f4d7`.
+
+**Orden que se siguió, y por qué importa:** la variable
+`INSTAGRAM_CUENTAS_PRUEBA` se cargó **antes** de subir el código (con
+`--skip-deploys`). Al revés habría existido una ventana en la que el código nuevo
+ya escondía Instagram y la lista de excepciones todavía no estaba — o sea, con el
+revisor de Meta fuera justo mientras revisa.
+
+**Cómo se verificó** (ninguna de las tres cosas se puede dar por buena mirando un
+panel):
+
+1. **El interruptor, dentro del contenedor de producción:**
+   `railway ssh --service api "node -e \"…instagramVisiblePara(…)\""` →
+   `revisor ve IG: true` / `cliente ve IG: false`, con `INSTAGRAM_ACTIVO`
+   sin definir. Esto prueba a la vez que el módulo se desplegó, que está
+   cableado y que la variable llegó bien.
+2. **El landing: contra los CHUNKS, no contra el HTML.** `app/page.js` es
+   `'use client'` y el HTML que sirve Vercel son 24 kB sin nada del contenido —
+   buscar ahí "292 M" da 0 y parece que el deploy falló. Hay que bajar los
+   `/_next/static/chunks/*` que referencia el HTML y buscar en ellos. Presentes:
+   `292 M`, `5-9%`, los tres dominios de las fuentes, `Cuatro pasos que corren
+   solos`. Ausentes las cifras retiradas: `0.3 estrellas`, `Ataque a las 3AM`,
+   `tarda el daño en volverse` → 0 coincidencias.
+   ℹ️ `Score de reputación 0-100` **sigue apareciendo una vez, y está bien**:
+   salió de las tarjetas de funcionalidades pero se queda en la lista del plan
+   Gratuito.
+3. Endpoints: `/health` 200 y `POST /api/redes/:id/instagram/conectar` 401 sin
+   sesión (ruta viva).
+
+**No hubo migración de BD**: ningún cambio tocó `schema.prisma`, así que la regla
+de "desplegar primero, migrar después" no aplicaba esta vez.
