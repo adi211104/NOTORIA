@@ -21,30 +21,30 @@ import { useState } from 'react';
 
 const VISTAS = {
   es: [
-    { id:'resumen', pestana:'Resumen', img:'/panel/panel-resumen.webp', w:1512, h:380,
+    { id:'resumen', pestana:'Resumen', img:'/panel/panel-resumen.webp', w:1512, h:482,
       titulo:'Todo bajo control en una pantalla',
       desc:'Negocios activos, alertas sin leer y el estado general. Si algo necesita tu atención, lo ves al entrar.' },
-    { id:'score', pestana:'Tu negocio', img:'/panel/panel-score.webp', w:1512, h:740,
+    { id:'score', pestana:'Tu negocio', img:'/panel/panel-score.webp', w:1512, h:785,
       titulo:'Un solo número, y qué hacer para subirlo',
       desc:'El score desglosa de dónde sale cada punto y te dice el siguiente paso concreto: responde estas reseñas, reporta estas otras.' },
     { id:'resenas', pestana:'Reseñas', img:'/panel/panel-resenas.webp', w:1512, h:785,
       titulo:'La sospechosa viene marcada, y con el motivo',
       desc:'Cada reseña con su calificación y su fecha. Las que tienen patrón de ataque salen señaladas y con el botón para reportarlas a Google.' },
-    { id:'competencia', pestana:'Competencia', img:'/panel/panel-competencia.webp', w:1512, h:350,
+    { id:'competencia', pestana:'Competencia', img:'/panel/panel-competencia.webp', w:1512, h:452,
       titulo:'Cuánto te gana el de la esquina',
       desc:'Tu rating al lado del suyo, con la diferencia exacta. Y el análisis de IA de en qué fallan ellos.' },
   ],
   en: [
-    { id:'resumen', pestana:'Overview', img:'/panel/panel-resumen.webp', w:1512, h:380,
+    { id:'resumen', pestana:'Overview', img:'/panel/panel-resumen.webp', w:1512, h:482,
       titulo:'Everything under control on one screen',
       desc:'Active businesses, unread alerts and overall status. If something needs you, you see it the moment you log in.' },
-    { id:'score', pestana:'Your business', img:'/panel/panel-score.webp', w:1512, h:740,
+    { id:'score', pestana:'Your business', img:'/panel/panel-score.webp', w:1512, h:785,
       titulo:'One number, and how to raise it',
       desc:'The score breaks down where every point comes from and tells you the concrete next step: reply to these reviews, report those.' },
     { id:'resenas', pestana:'Reviews', img:'/panel/panel-resenas.webp', w:1512, h:785,
       titulo:'Suspicious ones come flagged, with the reason',
       desc:'Every review with its rating and date. The ones showing attack patterns are marked, with the button to report them to Google.' },
-    { id:'competencia', pestana:'Competitors', img:'/panel/panel-competencia.webp', w:1512, h:350,
+    { id:'competencia', pestana:'Competitors', img:'/panel/panel-competencia.webp', w:1512, h:452,
       titulo:'How far ahead the place next door is',
       desc:'Your rating next to theirs, with the exact gap. Plus the AI read on where they fall short.' },
   ],
@@ -92,8 +92,14 @@ export default function PanelShowcase({ idioma = 'es', colores }) {
       </div>
 
       {/* Marco de navegador. Es lo que hace que se lea como "una app de verdad"
-          y no como una imagen suelta pegada en la página. */}
-      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, overflow:'hidden' }}>
+          y no como una imagen suelta pegada en la página.
+
+          ⚠️ El `maxWidth: 900` NO es capricho de diseño, es NITIDEZ. Las
+          capturas miden 1512 px de ancho; mostrarlas a los 1010 px que da la
+          columna dejaba 1.5 px de imagen por píxel CSS, y una pantalla retina
+          pide 2 — de ahí que se vieran blandas. A 900 px suben a 1.68. Si
+          alguien ensancha esto, hay que rehacer las capturas más grandes. */}
+      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, overflow:'hidden', maxWidth:900, margin:'0 auto' }}>
         <div style={{ display:'flex', alignItems:'center', gap:8, padding:'9px 14px', borderBottom:`1px solid ${C.border}`, background:C.surface2 }}>
           <span style={{ display:'flex', gap:5 }}>
             {['#ef4444', '#f59e0b', '#22c55e'].map((c) => (
