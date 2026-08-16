@@ -11,6 +11,7 @@ const instagram = require('../../scrapers/instagram.scraper');
 const tiktok = require('../../scrapers/tiktok.scraper');
 const tiktokBiz = require('../../scrapers/tiktokBusiness.scraper');
 const { firmarState, verificarState } = require('../../lib/oauthState');
+const { instagramVisiblePara } = require('../../lib/instagramVisible');
 
 const router = express.Router();
 
@@ -310,7 +311,11 @@ router.get('/:negocioId/estado', async (req, res, next) => {
 
     res.json({
       instagram: {
-        disponible: instagram.configurado(),
+        // Mientras los permisos sigan en acceso estándar esto es false para
+        // todo el mundo salvo las cuentas de prueba (ver lib/instagramVisible).
+        // El panel ESCONDE la fila entera cuando viene false: nada de
+        // "próximamente", que invita a preguntar por una fecha que no tenemos.
+        disponible: instagram.configurado() && instagramVisiblePara(req.usuario),
         conectado: !!negocio.instagramAccessToken,
       },
       tiktok: {
@@ -343,6 +348,14 @@ router.post('/:negocioId/instagram/conectar', async (req, res, next) => {
         error: 'La integración con Instagram está en proceso de aprobación por Meta. Te avisaremos cuando esté disponible.',
         estado: 'PENDIENTE_APROBACION',
       });
+    }
+
+    // Credenciales hay, pero la función está oculta para este usuario: 404 y no
+    // 403, igual que en menciones. No es que le falte permiso al usuario — es
+    // que la función no existe todavía para él. El panel ya no muestra el botón;
+    // esto cierra el camino de quien llegue a la URL a mano.
+    if (!instagramVisiblePara(req.usuario)) {
+      return res.status(404).json({ error: 'Función no disponible' });
     }
 
     const params = new URLSearchParams({

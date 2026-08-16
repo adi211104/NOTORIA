@@ -110,17 +110,37 @@ const RESPUESTA_TAGS = {
   check('un error de Meta no lanza hacia el worker', Array.isArray(rMal) && rMal.length === 0);
 
   // ── 6. La fuente enciende la sección ───────────────────
-  // Con META_APP_ID/SECRET presentes, Menciones deja de estar oculta.
+  // Ojo: desde el 2026-08-16 las credenciales de Meta YA NO BASTAN. Instagram
+  // está oculto mientras Meta revisa la app, así que estas dos funciones reciben
+  // el usuario y solo encienden la fuente para las cuentas de prueba o con
+  // INSTAGRAM_ACTIVO=true (ver lib/instagramVisible.js). Aquí se abre el
+  // interruptor a propósito: lo que esta prueba mide es el scraper, no el gate
+  // —de eso se encarga scripts/prueba-instagram-visible.js—.
+  const activoGuardado = process.env.INSTAGRAM_ACTIVO;
+  process.env.INSTAGRAM_ACTIVO = 'true';
+  const USUARIO = { email: 'duenio@negocio.pe' };
+
   check('Instagram aparece como fuente disponible',
-    fuentesDisponibles().some((f) => f.id === 'INSTAGRAM'), JSON.stringify(fuentesDisponibles()));
-  check('con Instagram ya hay al menos una fuente', hayFuenteDisponible() === true);
+    fuentesDisponibles(USUARIO).some((f) => f.id === 'INSTAGRAM'), JSON.stringify(fuentesDisponibles(USUARIO)));
+  check('con Instagram ya hay al menos una fuente', hayFuenteDisponible(USUARIO) === true);
+
+  // Con el interruptor cerrado, un cliente cualquiera no ve la fuente aunque
+  // las credenciales estén puestas — que es el estado real de hoy en producción.
+  delete process.env.INSTAGRAM_ACTIVO;
+  check('con la revisión de Meta pendiente, el cliente no ve la fuente',
+    hayFuenteDisponible(USUARIO) === false);
+  if (activoGuardado === undefined) delete process.env.INSTAGRAM_ACTIVO;
+  else process.env.INSTAGRAM_ACTIVO = activoGuardado;
 
   // Sin credenciales de la app, la fuente desaparece
+  process.env.INSTAGRAM_ACTIVO = 'true';
   const idGuardado = process.env.META_APP_ID;
   delete process.env.META_APP_ID;
   check('sin credenciales de la app, la fuente se apaga',
-    !fuentesDisponibles().some((f) => f.id === 'INSTAGRAM'));
+    !fuentesDisponibles(USUARIO).some((f) => f.id === 'INSTAGRAM'));
   process.env.META_APP_ID = idGuardado;
+  if (activoGuardado === undefined) delete process.env.INSTAGRAM_ACTIVO;
+  else process.env.INSTAGRAM_ACTIVO = activoGuardado;
 
   console.log(fallos === 0 ? '\n=== TODO OK ===' : `\n=== ${fallos} FALLAS ===`);
   process.exit(fallos === 0 ? 0 : 1);

@@ -417,6 +417,37 @@ scripts ya reintentan solos.
       requisito de subtítulos de Meta
 - [ ] WhatsApp Cloud API en la misma app: plantilla UTILITY + credenciales en Railway
 
+**Instagram OCULTO mientras dura la revisión (16/08/2026)** — `CLAUDE.md` §22.1
+Con los permisos en acceso estándar, solo quien tiene rol en la app puede
+concederlos: el primer cliente real que pulsara "Conectar Instagram" recibiría un
+error de Meta que no puede resolver. Se decidió publicitar la web ya y **esconder**
+la función, no anunciarla como "próximamente".
+- [x] Interruptor `src/lib/instagramVisible.js` + 12 pruebas
+      (`node scripts/prueba-instagram-visible.js`). Esconde la fila en
+      *Conexiones*, devuelve 404 en el endpoint de conectar y apaga la sección
+      **Menciones** (Instagram era su única fuente)
+- [x] Una cuenta **ya conectada** sigue viéndose siempre: hay que poder
+      desconectarla y borrar sus datos, que es lo que Meta exige
+- [ ] 🔴 **Antes de desplegar:** cargar en Railway
+      `INSTAGRAM_CUENTAS_PRUEBA=revisormeta@usenotoria.app` (y el correo del
+      dueño). **Sin esto el revisor de Meta no ve la integración y rechaza la
+      revisión entera** — que sigue en curso desde el 15/08
+- [ ] El día que aprueben: `INSTAGRAM_ACTIVO=true` en Railway y reiniciar. No
+      hace falta desplegar código, y **la lógica no se borra** — vuelve a hacer
+      falta con el siguiente permiso o la siguiente red
+
+**Landing: gráficos y fuentes (16/08/2026)** — `CLAUDE.md` §22.2
+- [x] Fusionadas las dos secciones que decían lo mismo; funcionalidades de 9 a 6
+- [x] Piezas gráficas en `components/MockupsLanding.js` (gráfica del ataque,
+      alerta, medidor de score, diagrama del circuito) — mockups en código, no
+      capturas: siguen el tema claro/oscuro y no envejecen con el panel
+- [x] 🔴 **Cifras inventadas fuera.** La de "−22% de clientes si el rating baja
+      0.3★" contradecía por un orden de magnitud al único estudio que lo mide.
+      Ahora cada cifra lleva su enlace visible. **Regla: sin URL pública que la
+      sostenga, una cifra no entra al landing** (Ley 29571)
+- [x] Corregido el blog: el 89% de BrightLocal mide quién **espera** respuesta,
+      no quién lee las respuestas antes de decidir
+
 **Crecimiento / landing (sesión 03/08/2026)**
 - [x] Repo en GitHub (`adi211104/NOTORIA`) con push funcionando
 - [x] Widget "analiza tu negocio gratis" en el hero — funcionando en producción

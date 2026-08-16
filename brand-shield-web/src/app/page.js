@@ -11,6 +11,9 @@ const PixelBlast = dynamic(() => import('../components/PixelBlast'), { ssr: fals
 import LogoNotoria from '../components/LogoNotoria';
 import BotonWhatsApp from '../components/BotonWhatsApp';
 import AnalisisGratis from '../components/AnalisisGratis';
+// Las piezas gráficas viven aparte para no engordar más este archivo, y porque
+// llevan su propia explicación de por qué son mockups y no capturas del panel.
+import { GraficaAtaque, TarjetaAlerta, MedidorScore, DiagramaFlujo } from '../components/MockupsLanding';
 // Fuente única de los datos de contacto públicos (ver components/PieLegal.js)
 import { CONTACTO } from '../components/PieLegal';
 
@@ -90,34 +93,47 @@ const TEXTOS = {
       ctaCrear:'Crear cuenta gratis', ctaComo:'Ver cómo funciona', ctaDash:'Ir al panel de control',
       micro:'Sin tarjeta de crédito · 1 negocio gratis para siempre · Registro en 30 segundos',
     },
-    stats: {
+    // Antes esto eran DOS secciones seguidas ("Por qué esto te importa" y "El
+    // problema") que decían lo mismo con seis tarjetas de texto. Se fusionaron
+    // en una, y el argumento lo lleva ahora la gráfica del ataque: se entiende
+    // de un vistazo lo que costaba tres párrafos.
+    // ⚠️ CADA CIFRA VA CON SU FUENTE PÚBLICA Y VERIFICABLE, y así debe quedar.
+    // Antes decían "30% de las reseñas negativas tienen patrones de bot",
+    // "−22% de clientes si el rating baja 0.3★" y "3 días tarda el daño en
+    // verse": ninguna tenía respaldo, y la del 22% además contradice al único
+    // estudio serio que mide eso (Luca, HBS: una estrella entera mueve 5-9% de
+    // ingresos, o sea que 0.3★ no llega ni al 3%). Publicitar cifras infladas
+    // es publicidad engañosa (Ley 29571) y encima es innecesario: los datos
+    // reales, citados, pegan más fuerte que los inventados.
+    //
+    // Regla para quien toque esto: si una cifra no tiene URL pública que la
+    // sostenga, no entra al landing.
+    porque: {
       tag:'Por qué esto te importa',
       titulo:'La reputación online no perdona un mal fin de semana',
-      sub:'Estos son los tres patrones que vemos una y otra vez en negocios que no monitorean su reputación.',
+      fuenteLabel:'Fuente',
       items: [
-        { n:'30%', l:'de reseñas negativas tienen patrones de bots', icon:'bot', d:'Cuentas recién creadas, un solo comentario, texto repetido: así se ven los ataques coordinados de la competencia.' },
-        { n:'22%', l:'menos clientes cuando el rating cae 0.3 estrellas', icon:'trend', d:'Google prioriza en Maps y en resultados de búsqueda a los negocios mejor calificados. Cada décima cuenta.' },
-        { n:'3 días', l:'tarda el daño en volverse visible sin monitoreo', icon:'alert', d:'Para cuando lo notas a simple vista, ya perdiste ventas y el algoritmo ya empezó a bajarte de posición.' },
+        { n:'292 M', icon:'bot',
+          l:'de reseñas bloqueó o eliminó Google en 2025 por incumplir sus políticas, más 13 millones de fichas de negocio falsas.',
+          fuente:'Google — «New ways we’re protecting businesses on Maps», 2026',
+          url:'https://blog.google/products-and-platforms/products/maps/new-ways-were-protecting-businesses-on-maps/' },
+        { n:'5-9%', icon:'money',
+          l:'de ingresos gana un restaurante independiente por cada estrella que sube su calificación. Al bajar, se pierde igual.',
+          fuente:'M. Luca, Harvard Business School, working paper 12-016 (datos de Yelp)',
+          url:'https://www.hbs.edu/ris/Publication%20Files/12-016_a7e4a5a2-03f9-490d-b093-8f951238dba2.pdf' },
+        { n:'31%', icon:'trend',
+          l:'de los consumidores solo entra a negocios con 4.5 estrellas o más. El año anterior era el 17%.',
+          fuente:'BrightLocal — Local Consumer Review Survey 2026',
+          url:'https://www.brightlocal.com/research/local-consumer-review-survey/' },
       ],
     },
-    problema: {
-      tag:'El problema', titulo:'¿Qué pasa cuando no lo monitoreas?',
-      cards: [
-        { icon:'lightning', t:'Ataque a las 3AM', d:'Un competidor coordina 8 reseñas de 1 estrella en la madrugada. Te enteras el miércoles, cuando el rating ya cayó 0.5 puntos.' },
-        { icon:'trend', t:'Rating cae, ventas también', d:'Con 4.0★ recibes 30% menos clientes que con 4.3★. Google te baja en resultados sin que lo notes.' },
-        { icon:'money', t:'Semanas de daño económico', d:'Una semana de mala reputación puede costar más que un año de publicidad. Sin alertas, reaccionas demasiado tarde.' },
-      ],
-    },
-    aclaracion: {
-      tag:'Cómo te protege Notoria', titulo:'Esto es exactamente lo que hacemos por ti',
-      sub:'Notoria trabaja en segundo plano, 24/7, para que tu reputación online esté siempre bajo control:',
-      siTitulo:'Todo esto, sin que muevas un dedo',
+    proteccion: {
+      tag:'Cómo te protege Notoria', titulo:'Cuatro pasos que corren solos, 24/7',
+      sub:'Tú solo entras cuando hay algo que decidir.',
       si:[
-        'Vigila tu rating y tus reseñas nuevas las 24 horas, sin que tengas que revisar manualmente',
-        'Detecta patrones de reseñas falsas y ataques de bots: cuentas nuevas, texto repetido, picos inusuales',
-        'Te alerta al instante por email, Telegram o WhatsApp para que actúes mientras aún se puede',
-        'Te ayuda a responder rápido, con plantillas profesionales y respuestas generadas con IA',
-        'Te dice exactamente qué reseñas reportar a Google y por qué, para que tú decidas el siguiente paso',
+        'Marca cada reseña sospechosa con el motivo, para que puedas reportarla en Google',
+        'Redacta la respuesta por ti: 30 plantillas profesionales y respuestas con IA',
+        'Tú eliges por qué canal te avisamos y con qué frecuencia',
       ],
     },
     como: {
@@ -150,17 +166,23 @@ const TEXTOS = {
     },
     features: {
       tag:'Funcionalidades', titulo:'Todo lo que necesitas en un lugar',
+      // Eran nueve tarjetas de texto. Las dos que ahora se ven dibujadas —el
+      // score y el historial de rating— salieron de la lista: enseñarlas y
+      // además describirlas era decir lo mismo dos veces. La tercera que salió
+      // (frecuencia de escaneo) ya está en la tabla comparativa, con su número
+      // por plan. Las tres siguen nombradas abajo, en una línea.
       items: [
         { icon:'bell', t:'Alertas en tiempo real', d:'Email o Telegram al minuto. No el lunes, sino al momento en que ocurre.' },
         { icon:'bot', t:'Detecta bots y falsas', d:'Identifica cuentas nuevas, texto repetitivo y picos inusuales automáticamente.' },
-        { icon:'eye', t:'Score de reputación 0-100', d:'Un solo número que resume tu salud online. Sabes al instante si estás bien o en riesgo.' },
         { icon:'lightning', t:'QR para pedir reseñas', d:'Enlace directo y código QR imprimible. Convierte clientes felices en reseñas de 5 estrellas.' },
         { icon:'trend', t:'Vigila a tu competencia', d:'Compara tu rating con el de tus rivales directos, con análisis de IA de sus debilidades.' },
         { icon:'chat', t:'Responde sin salir', d:'30 plantillas profesionales y respuestas generadas con IA, desde un solo panel.' },
         { icon:'doc', t:'Reportes PDF mensuales', d:'El día 1 de cada mes en tu email. Ideal para socios e inversionistas.' },
-        { icon:'chart', t:'Historial de rating', d:'Gráfica de evolución por escaneo. Ve exactamente cuándo y cuánto cayó.' },
-        { icon:'search', t:'Escaneo programado', d:'Cada 1h, 4h o 24h según tu plan. Frecuencia adaptada a tu negocio.' },
       ],
+      scoreTitulo:'Y un solo número que lo resume todo',
+      scoreDesc:'El score de reputación combina tu rating, el ritmo de reseñas nuevas, cuántas son negativas y cuántas huelen a bot. Lo miras una vez al día y sabes si hay algo que atender.',
+      masTitulo:'También incluido en todos los planes',
+      mas:['Historial de rating por escaneo', 'Escaneo programado cada 1, 4 o 24 horas', 'Detalle del motivo en cada reseña marcada'],
     },
     precios: {
       tag:'Precios', titulo:'Precios sin sorpresas',
@@ -283,34 +305,32 @@ const TEXTOS = {
       ctaCrear:'Create free account', ctaComo:'See how it works', ctaDash:'Go to dashboard',
       micro:'No credit card · 1 business free forever · Sign up in 30 seconds',
     },
-    stats: {
+    porque: {
       tag:'Why this matters',
       titulo:'Online reputation doesn’t forgive a bad weekend',
-      sub:'These are the three patterns we see again and again in businesses that don’t monitor their reputation.',
+      fuenteLabel:'Source',
       items: [
-        { n:'30%', l:'of negative reviews show bot patterns', icon:'bot', d:'Newly created accounts, a single comment, repeated text — that’s what a competitor’s coordinated attack looks like.' },
-        { n:'22%', l:'fewer customers when your rating drops 0.3 stars', icon:'trend', d:'Google ranks better-rated businesses higher in Maps and search results. Every tenth of a star counts.' },
-        { n:'3 days', l:'for the damage to become visible without monitoring', icon:'alert', d:'By the time you notice with the naked eye, you’ve already lost sales and the algorithm has started ranking you lower.' },
+        { n:'292M', icon:'bot',
+          l:'reviews were blocked or removed by Google in 2025 for breaking its policies, plus 13 million fake Business Profiles.',
+          fuente:'Google — “New ways we’re protecting businesses on Maps”, 2026',
+          url:'https://blog.google/products-and-platforms/products/maps/new-ways-were-protecting-businesses-on-maps/' },
+        { n:'5-9%', icon:'money',
+          l:'more revenue for an independent restaurant with each extra star in its rating. Losing a star cuts the same way.',
+          fuente:'M. Luca, Harvard Business School, working paper 12-016 (Yelp data)',
+          url:'https://www.hbs.edu/ris/Publication%20Files/12-016_a7e4a5a2-03f9-490d-b093-8f951238dba2.pdf' },
+        { n:'31%', icon:'trend',
+          l:'of consumers will only use a business rated 4.5 stars or higher. A year earlier it was 17%.',
+          fuente:'BrightLocal — Local Consumer Review Survey 2026',
+          url:'https://www.brightlocal.com/research/local-consumer-review-survey/' },
       ],
     },
-    problema: {
-      tag:'The problem', titulo:'What happens when you don’t monitor it?',
-      cards: [
-        { icon:'lightning', t:'Attack at 3AM', d:'A competitor coordinates 8 one-star reviews overnight. You find out on Wednesday, when your rating has already dropped 0.5 points.' },
-        { icon:'trend', t:'Rating falls, sales follow', d:'At 4.0★ you get 30% fewer customers than at 4.3★. Google pushes you down in results without you noticing.' },
-        { icon:'money', t:'Weeks of economic damage', d:'One week of bad reputation can cost more than a year of advertising. Without alerts, you react too late.' },
-      ],
-    },
-    aclaracion: {
-      tag:'How Notoria protects you', titulo:'This is exactly what we do for you',
-      sub:'Notoria works in the background, 24/7, so your online reputation always stays under control:',
-      siTitulo:'All of this, without lifting a finger',
+    proteccion: {
+      tag:'How Notoria protects you', titulo:'Four steps that run on their own, 24/7',
+      sub:'You only step in when there’s something to decide.',
       si:[
-        'Watches your rating and new reviews 24/7, so you don’t have to check manually',
-        'Detects patterns of fake reviews and bot attacks: new accounts, repeated text, unusual spikes',
-        'Alerts you instantly by email, Telegram or WhatsApp so you can act while it still matters',
-        'Helps you reply fast, with professional templates and AI-generated responses',
-        'Tells you exactly which reviews to report to Google and why, so you decide the next step',
+        'Flags every suspicious review with the reason, so you can report it to Google',
+        'Writes the reply for you: 30 professional templates and AI-generated answers',
+        'You choose which channel we use to reach you, and how often',
       ],
     },
     como: {
@@ -346,14 +366,15 @@ const TEXTOS = {
       items: [
         { icon:'bell', t:'Real-time alerts', d:'Email or Telegram within minutes. Not on Monday, but the moment it happens.' },
         { icon:'bot', t:'Detects bots and fakes', d:'Automatically flags new accounts, repetitive text and unusual spikes.' },
-        { icon:'eye', t:'0-100 reputation score', d:'One number that sums up your online health. Know instantly if you are safe or at risk.' },
         { icon:'lightning', t:'QR to request reviews', d:'Direct link and printable QR code. Turn happy customers into 5-star reviews.' },
         { icon:'trend', t:'Watch your competition', d:'Compare your rating against direct rivals, with AI analysis of their weaknesses.' },
         { icon:'chat', t:'Reply without leaving', d:'30 professional templates and AI-generated replies, from a single panel.' },
         { icon:'doc', t:'Monthly PDF reports', d:'On the 1st of every month in your inbox. Great for partners and investors.' },
-        { icon:'chart', t:'Rating history', d:'Evolution chart per scan. See exactly when and how much it dropped.' },
-        { icon:'search', t:'Scheduled scanning', d:'Every 1h, 4h or 24h depending on your plan. Frequency that fits your business.' },
       ],
+      scoreTitulo:'And one number that sums it all up',
+      scoreDesc:'The reputation score combines your rating, the pace of new reviews, how many are negative and how many look like bots. Check it once a day and you know whether something needs attention.',
+      masTitulo:'Also included in every plan',
+      mas:['Rating history per scan', 'Scheduled scanning every 1, 4 or 24 hours', 'The reason spelled out on every flagged review'],
     },
     precios: {
       tag:'Pricing', titulo:'Pricing with no surprises',
@@ -587,13 +608,6 @@ export default function LandingPage() {
         .pcard:hover{border-color:${C.borderL};}
         .pcard.featured:hover{border-color:${C.greenH};}
 
-        .pain-card{
-          background:${C.surface};border:1px solid ${C.border};
-          border-radius:8px;padding:28px;
-          transition:border-color 0.2s;
-        }
-        .pain-card:hover{border-color:${C.borderL};}
-
         .step-card{
           background:${C.surface};border:1px solid ${C.border};
           border-radius:8px;padding:28px;
@@ -759,75 +773,80 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Stats */}
-        <section style={{ padding:'80px 24px', borderBottom:`1px solid ${C.border}` }}>
+        {/* Por qué importa — la gráfica lleva el argumento.
+            Antes esto eran dos secciones ("Stats" y "El dolor") con seis
+            tarjetas de texto entre las dos, diciendo lo mismo. Ahora el ataque
+            se VE, y las tres cifras quedan como pie de foto. */}
+        <section style={{ padding:'80px 24px', borderBottom:`1px solid ${C.border}`, background:C.surface }}>
           <div style={{ maxWidth:1060, margin:'0 auto' }}>
-            <div style={{ marginBottom:40, maxWidth:640 }}>
-              <div className="section-tag">{t.stats.tag}</div>
-              <h2 style={{ fontSize:'clamp(24px,3.2vw,34px)', fontWeight:800, margin:'0 0 10px', letterSpacing:'-1px', color:C.text }}>
-                {t.stats.titulo}
+            <div style={{ marginBottom:32, maxWidth:640 }}>
+              <div className="section-tag">{t.porque.tag}</div>
+              <h2 style={{ fontSize:'clamp(26px,3.5vw,40px)', fontWeight:800, margin:0, letterSpacing:'-1px', color:C.text }}>
+                {t.porque.titulo}
               </h2>
-              <p style={{ fontSize:14.5, color:C.text2, margin:0, lineHeight:1.7 }}>{t.stats.sub}</p>
             </div>
+
+            <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:12, padding:'24px 26px', marginBottom:12 }}>
+              <GraficaAtaque idioma={idioma} />
+            </div>
+
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))', gap:12 }}>
-              {t.stats.items.map((s,i) => (
-                <div key={i} className="stat-card">
-                  <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
+              {t.porque.items.map((s,i) => (
+                <div key={i} className="stat-card" style={{ display:'flex', flexDirection:'column' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
                     <div style={{ width:38, height:38, borderRadius:9, background:C.greenT, border:`1px solid ${C.greenB}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                       <Icon d={ICONS[s.icon]} size={19} color={C.green}/>
                     </div>
                     <div style={{ fontSize:32, fontWeight:900, color:C.text, letterSpacing:'-1px' }}>{s.n}</div>
                   </div>
-                  <div style={{ fontSize:13.5, color:C.text, fontWeight:600, lineHeight:1.5, marginBottom:8 }}>{s.l}</div>
-                  <p style={{ fontSize:12.5, color:C.text2, lineHeight:1.65, margin:0 }}>{s.d}</p>
+                  <div style={{ fontSize:13.5, color:C.text2, lineHeight:1.55, flex:1 }}>{s.l}</div>
+                  {/* La fuente va pegada a su cifra, no en una nota al pie que
+                      nadie asocia con nada. rel="noopener" porque abre fuera. */}
+                  <a href={s.url} target="_blank" rel="noopener noreferrer"
+                     style={{ display:'block', marginTop:14, paddingTop:12, borderTop:`1px solid ${C.border}`,
+                              fontSize:11, color:C.text3, textDecoration:'none', lineHeight:1.5 }}>
+                    <span style={{ fontWeight:700, letterSpacing:0.5, textTransform:'uppercase' }}>{t.porque.fuenteLabel}</span>
+                    {' · '}{s.fuente} ↗
+                  </a>
                 </div>
               ))}
             </div>
           </div>
         </section>
 
-        {/* El dolor */}
-        <section style={{ padding:'80px 24px', borderBottom:`1px solid ${C.border}`, background:C.surface }}>
-          <div style={{ maxWidth:1060, margin:'0 auto' }}>
-            <div style={{ marginBottom:44 }}>
-              <div className="section-tag">{t.problema.tag}</div>
-              <h2 style={{ fontSize:'clamp(26px,3.5vw,40px)', fontWeight:800, margin:0, letterSpacing:'-1px', color:C.text }}>
-                {t.problema.titulo}
-              </h2>
-            </div>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:12 }}>
-              {t.problema.cards.map((d,i) => (
-                <div key={i} className="pain-card">
-                  <div style={{ color:C.green, marginBottom:16 }}>
-                    <Icon d={ICONS[d.icon]} size={24} color={C.green}/>
-                  </div>
-                  <h3 style={{ fontSize:17, fontWeight:700, color:C.text, margin:'0 0 8px' }}>{d.t}</h3>
-                  <p style={{ fontSize:14, color:C.text2, lineHeight:1.7, margin:0 }}>{d.d}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Aclaración: qué hace y qué no hace Notoria */}
+        {/* Cómo te protege — el circuito dibujado, y la alerta tal cual llega */}
         <section style={{ padding:'80px 24px', borderBottom:`1px solid ${C.border}` }}>
           <div style={{ maxWidth:1060, margin:'0 auto' }}>
-            <div style={{ marginBottom:36, maxWidth:640 }}>
-              <div className="section-tag">{t.aclaracion.tag}</div>
+            <div style={{ marginBottom:32, maxWidth:640 }}>
+              <div className="section-tag">{t.proteccion.tag}</div>
               <h2 style={{ fontSize:'clamp(26px,3.5vw,40px)', fontWeight:800, margin:'0 0 14px', letterSpacing:'-1px', color:C.text }}>
-                {t.aclaracion.titulo}
+                {t.proteccion.titulo}
               </h2>
-              <p style={{ fontSize:15, color:C.text2, lineHeight:1.75, margin:0 }}>{t.aclaracion.sub}</p>
+              <p style={{ fontSize:15, color:C.text2, lineHeight:1.75, margin:0 }}>{t.proteccion.sub}</p>
             </div>
-            <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:'28px 30px' }}>
-              <h3 style={{ fontSize:14, fontWeight:700, color:C.green, margin:'0 0 18px', textTransform:'uppercase', letterSpacing:0.5 }}>
-                {t.aclaracion.siTitulo}
-              </h3>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:'6px 28px' }}>
-                {t.aclaracion.si.map((linea,i) => (
-                  <div key={i} style={{ display:'flex', gap:10, alignItems:'flex-start', marginBottom:12 }}>
-                    <Icon d={ICONS.check} size={16} color={C.green} />
-                    <p style={{ fontSize:13.5, color:C.text2, lineHeight:1.6, margin:0 }}>{linea}</p>
+
+            {/* Los iconos se pasan desde aquí para que el diagrama use el mismo
+                juego que el resto del landing y no invente uno propio. */}
+            <div style={{ marginBottom:16 }}>
+              <DiagramaFlujo idioma={idioma} iconos={{
+                0: <Icon d={ICONS.eye} size={19} color={C.green}/>,
+                1: <Icon d={ICONS.bot} size={19} color={C.green}/>,
+                2: <Icon d={ICONS.bell} size={19} color={C.green}/>,
+                3: <Icon d={ICONS.chat} size={19} color={C.green}/>,
+              }} />
+            </div>
+
+            {/* `stretch` y no `start`: la columna de la derecha tiene tres
+                líneas y la alerta bastante más alto, así que quedaba una caja
+                corta flotando junto a una larga. */}
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))', gap:16, alignItems:'stretch' }}>
+              <TarjetaAlerta idioma={idioma} />
+              <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:'24px 26px',
+                            display:'flex', flexDirection:'column', justifyContent:'center' }}>
+                {t.proteccion.si.map((linea,i) => (
+                  <div key={i} style={{ display:'flex', gap:10, alignItems:'flex-start', marginBottom:i === t.proteccion.si.length-1 ? 0 : 16 }}>
+                    <span style={{ flexShrink:0, marginTop:2 }}><Icon d={ICONS.check} size={16} color={C.green} /></span>
+                    <p style={{ fontSize:14, color:C.text2, lineHeight:1.65, margin:0 }}>{linea}</p>
                   </div>
                 ))}
               </div>
@@ -869,7 +888,9 @@ export default function LandingPage() {
                 {t.features.titulo}
               </h2>
             </div>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))', gap:12 }}>
+            {/* minmax de 300px y no 240: con seis tarjetas, 240 daba cuatro
+                columnas y dejaba una segunda fila coja de 4+2. */}
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))', gap:12, marginBottom:12 }}>
               {t.features.items.map((f,i) => (
                 <div key={i} className="fcard">
                   <div className="icon-wrap"><Icon d={ICONS[f.icon]} size={18} color={C.green}/></div>
@@ -877,6 +898,31 @@ export default function LandingPage() {
                   <p style={{ fontSize:13, color:C.text2, lineHeight:1.65, margin:0 }}>{f.d}</p>
                 </div>
               ))}
+            </div>
+
+            {/* El score dejó de ser una tarjeta más y pasó a verse. Al lado, en
+                una línea, lo que antes ocupaba tres tarjetas: cosas que suman
+                pero que nadie contrata por ellas. */}
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:12, alignItems:'center',
+                          background:C.bg, border:`1px solid ${C.border}`, borderRadius:12, padding:'26px 28px' }}>
+              <MedidorScore idioma={idioma} />
+              <div>
+                <h3 style={{ fontSize:19, fontWeight:800, color:C.text, margin:'0 0 10px', letterSpacing:'-0.5px' }}>
+                  {t.features.scoreTitulo}
+                </h3>
+                <p style={{ fontSize:14, color:C.text2, lineHeight:1.7, margin:'0 0 18px' }}>{t.features.scoreDesc}</p>
+                <div style={{ fontSize:11, fontWeight:700, letterSpacing:1, textTransform:'uppercase', color:C.text3, marginBottom:9 }}>
+                  {t.features.masTitulo}
+                </div>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:7 }}>
+                  {t.features.mas.map((m,i) => (
+                    <span key={i} style={{ fontSize:12, color:C.text2, background:C.surface2,
+                                           border:`1px solid ${C.border}`, borderRadius:20, padding:'5px 12px' }}>
+                      {m}
+                    </span>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </section>

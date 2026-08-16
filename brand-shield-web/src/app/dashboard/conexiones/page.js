@@ -20,7 +20,6 @@ const TEXTOS = {
     conectando: 'Abriendo…',
     reconectar: 'Reconectar',
     reconectarTitle: 'Vuelve a autorizar la cuenta. Hace falta cuando se habilitan permisos nuevos: el token actual conserva los que tenía al conectarse.',
-    proximamente: 'Próximamente',
     soloPlanNegocio: 'Desde el Plan Negocio',
     actualizar: 'Actualizar',
     redes: {
@@ -30,7 +29,6 @@ const TEXTOS = {
       instagram:     { n:'Instagram', d:'Comentarios de tus publicaciones y respuesta directa.' },
       tiktok:        { n:'TikTok', d:'Comentarios de tus videos y respuesta directa.' },
     },
-    pendienteAprobacion: 'La integración está lista y esperando aprobación de la plataforma. Se activará sola.',
     ttExito: 'Cuenta de TikTok conectada. Los comentarios entrarán en el próximo escaneo.',
     ttErrorTitulo: 'No se pudo conectar TikTok',
     ttError: {
@@ -67,7 +65,6 @@ const TEXTOS = {
     conectando: 'Opening…',
     reconectar: 'Reconnect',
     reconectarTitle: 'Authorize the account again. Needed when new permissions are enabled: the current token keeps the ones it had when it was connected.',
-    proximamente: 'Coming soon',
     soloPlanNegocio: 'From the Business plan',
     actualizar: 'Upgrade',
     redes: {
@@ -77,7 +74,6 @@ const TEXTOS = {
       instagram:     { n:'Instagram', d:'Comments on your posts with direct reply.' },
       tiktok:        { n:'TikTok', d:'Comments on your videos with direct reply.' },
     },
-    pendienteAprobacion: 'The integration is ready and awaiting platform approval. It will activate automatically.',
     ttExito: 'TikTok account connected. Comments will be picked up on the next scan.',
     ttErrorTitulo: 'Could not connect TikTok',
     ttError: {
@@ -118,6 +114,14 @@ const Pastilla = ({ tono, children, title }) => {
     </span>
   );
 };
+
+// Redes que se le muestran a este negocio, en orden. `disponible` lo decide el
+// backend (GET /api/redes/:id/estado) y hoy apaga Instagram para todo el mundo
+// salvo las cuentas con las que Meta revisa la app. `conectado` manda por encima:
+// una cuenta ya enlazada nunca se esconde, o el usuario se quedaría sin forma de
+// desconectarla ni de borrar los datos que trajo.
+const redesVisibles = (est) =>
+  ['instagram', 'tiktok'].filter((red) => est?.[red]?.disponible || est?.[red]?.conectado);
 
 const Fila = ({ nombre, descripcion, children, ultima }) => (
   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:14, padding:'11px 0',
@@ -242,6 +246,7 @@ export default function ConexionesPage() {
         <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
           {negocios.map((n) => {
             const est = estados[n.id];
+            const visibles = redesVisibles(est);
             return (
               <div key={n.id} style={{ background:'var(--surface)', border:'1px solid var(--border-c)', borderRadius:14, padding:'18px 20px' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:9, marginBottom:6 }}>
@@ -270,7 +275,11 @@ export default function ConexionesPage() {
                     )}
                   </Fila>
 
-                  <Fila nombre={t.redes.facebook.n} descripcion={planPago ? t.redes.facebook.d : t.soloPlanNegocio}>
+                  {/* `ultima` mira la lista de redes que vienen después: si
+                      están todas ocultas, esta fila cierra la tarjeta y no debe
+                      dejar un borde inferior colgando. */}
+                  <Fila nombre={t.redes.facebook.n} descripcion={planPago ? t.redes.facebook.d : t.soloPlanNegocio}
+                    ultima={visibles.length === 0}>
                     {!planPago ? (
                       <Link href="/dashboard/planes" style={{ fontSize:11.5, color:'#4CAF66', textDecoration:'none', background:'rgba(11,115,36,0.1)', padding:'3px 10px', borderRadius:10 }}>{t.actualizar}</Link>
                     ) : (
@@ -280,10 +289,19 @@ export default function ConexionesPage() {
                     )}
                   </Fila>
 
-                  {['instagram', 'tiktok'].map((red, i) => (
+                  {/* Una red que hoy no podemos entregar sencillamente NO se
+                      lista: ni "próximamente" ni el motivo. Instagram sale con
+                      `disponible:false` mientras Meta revisa la app —con los
+                      permisos en acceso estándar, un cliente real que pulse
+                      Conectar recibe un error que no puede resolver—, y volverá
+                      solo el día que aprueben (ver lib/instagramVisible.js en el
+                      backend). Excepción a propósito: si la cuenta YA está
+                      conectada la fila se queda pase lo que pase, porque hay que
+                      poder desconectarla y borrar sus datos. */}
+                  {visibles.map((red, i) => (
                     <Fila key={red} nombre={t.redes[red].n}
                       descripcion={planPago ? t.redes[red].d : t.soloPlanNegocio}
-                      ultima={i === 1}>
+                      ultima={i === visibles.length - 1}>
                       {!planPago ? (
                         <Link href="/dashboard/planes" style={{ fontSize:11.5, color:'#4CAF66', textDecoration:'none', background:'rgba(11,115,36,0.1)', padding:'3px 10px', borderRadius:10 }}>{t.actualizar}</Link>
                       ) : est?.[red]?.conectado ? (
@@ -301,14 +319,14 @@ export default function ConexionesPage() {
                             <Icon name="ajustes" size={13} />
                           </button>
                         </div>
-                      ) : est?.[red]?.disponible ? (
+                      ) : (
+                        // Sin conectar. No hace falta mirar `disponible`: si no
+                        // lo estuviera, la fila no se habría renderizado.
                         <button onClick={() => conectarRed(n.id, red)}
                           disabled={conectando === `${n.id}:${red}`}
                           style={{ fontSize:11.5, color:'#4CAF66', background:'rgba(11,115,36,0.1)', border:'1px solid rgba(11,115,36,0.3)', padding:'4px 13px', borderRadius:10, cursor:conectando===`${n.id}:${red}`?'wait':'pointer' }}>
                           {conectando === `${n.id}:${red}` ? t.conectando : t.conectar}
                         </button>
-                      ) : (
-                        <Pastilla tono="espera" title={t.pendienteAprobacion}>{t.proximamente}</Pastilla>
                       )}
                     </Fila>
                   ))}

@@ -18,7 +18,12 @@ export const ARTICULOS = [
     fecha: '2026-08-03',
     minutos: 6,
     contenido: [
-      { tipo: 'p', texto: 'Una reseña negativa duele, pero no es la reseña la que te quita clientes: es tu respuesta — o tu silencio. El 89% de las personas lee las respuestas del negocio antes de decidir si va o no. Una respuesta calmada y concreta frente a una crítica dura te hace ganar más confianza que diez reseñas de 5 estrellas.' },
+      // La cifra del 89% existe, pero medía otra cosa: cuánta gente ESPERA
+      // respuesta, no cuánta LEE las respuestas antes de decidir. Corregida con
+      // el dato exacto y su enlace. Una cifra bien traída convence igual y no
+      // expone a un reclamo por publicidad engañosa (Ley 29571). Los bloques
+      // 'p' se pintan con dangerouslySetInnerHTML, así que el <a> va inline.
+      { tipo: 'p', texto: 'Una reseña negativa duele, pero no es la reseña la que te quita clientes: es tu respuesta — o tu silencio. El 89% de los consumidores espera que el negocio responda a su reseña, y el 42% dice que es poco probable que use un negocio que las ignora por completo (<a href="https://www.brightlocal.com/research/local-consumer-review-survey/" target="_blank" rel="noopener noreferrer">BrightLocal, Local Consumer Review Survey 2026</a>). Una respuesta calmada y concreta frente a una crítica dura te hace ganar más confianza que diez reseñas de 5 estrellas.' },
       { tipo: 'h2', texto: 'La regla de oro: responde para los que van a leer, no para el que escribió' },
       { tipo: 'p', texto: 'El autor de la reseña probablemente no vuelva. Pero cientos de clientes potenciales van a leer ese intercambio durante años. Tu respuesta no es una discusión privada: es tu carta de presentación pública. Por eso nunca se responde en caliente, nunca se acusa al cliente de mentir (aunque mienta), y nunca se entra en detalles de la pelea.' },
       { tipo: 'h2', texto: 'La estructura que funciona (4 pasos)' },

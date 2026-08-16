@@ -19,9 +19,9 @@ router.use(verificarPlan(['NEGOCIO', 'FRANQUICIA']));
 
 // Sin ninguna fuente operativa la sección no se ofrece: el nav la esconde y la
 // API la trata como inexistente. Un 404 y no un 403 a propósito — no es que al
-// usuario le falte permiso, es que la función no existe para nadie todavía.
+// usuario le falte permiso, es que la función no existe para él todavía.
 router.use((req, res, next) => {
-  if (!hayFuenteDisponible()) {
+  if (!hayFuenteDisponible(req.usuario)) {
     return res.status(404).json({ error: 'Función no disponible' });
   }
   next();
@@ -81,7 +81,7 @@ router.get('/', async (req, res, next) => {
       resumen: { total, negativas, sinVer },
       // Solo las fuentes que funcionan de verdad — nunca las apagadas.
       // Ver la nota de producto en lib/menciones.js.
-      fuentes: fuentesDisponibles(),
+      fuentes: fuentesDisponibles(req.usuario),
       negocios: negocios.map((n) => ({
         id: n.id,
         nombre: n.nombre,

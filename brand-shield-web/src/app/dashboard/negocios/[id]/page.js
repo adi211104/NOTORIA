@@ -383,9 +383,14 @@ const TEXTOS = {
       totalLabel:'Total', negativosLabel:'Negativos', pendientesLabel:'Sin responder',
       filtroTodos:'Todos', negativo:'Negativos', positivo:'Positivos', neutro:'Neutros',
       soloPendientes:'Solo sin responder',
-      // Nombra las DOS redes: decía solo TikTok, y a un negocio que usa
-      // Instagram le estaba pidiendo conectar una red que quizá ni tiene.
-      sinConectar:'Conecta tu cuenta de Instagram o de TikTok para traer los comentarios de tus publicaciones.',
+      // Nombra las redes que HOY se pueden conectar, no una lista fija: decía
+      // solo TikTok y a un negocio que usa Instagram le pedía conectar una red
+      // que quizá ni tiene; con la lista fija ahora pasaría lo contrario, le
+      // pediría Instagram mientras Meta tiene la app en revisión y el botón ni
+      // aparece. La lista sale de `disponible` en /api/redes/:id/estado.
+      sinConectar:(redes) => redes.length
+        ? `Conecta tu cuenta de ${redes.join(' o de ')} para traer los comentarios de tus publicaciones.`
+        : 'Este negocio todavía no tiene ninguna red social conectada.',
       irAConectar:'Ir a Conexiones →',
       videosTitulo:'Tus últimos videos',
       videosDesc:'Lo que TikTok publica de tu cuenta. El número de comentarios es el que reporta TikTok.',
@@ -541,7 +546,10 @@ const TEXTOS = {
       colorDesc:'El cambio se aplica inmediatamente en la lista y en el borde del negocio.',
       colorActivo:(c) => `Color activo: ${c}`,
       conexionesTitulo:'Conexiones',
-      conexionesDesc:'Google Maps, Google Business, Facebook, Instagram y TikTok de todos tus negocios.',
+      // Sin enumerar las redes una por una: la lista cambia según lo que esté
+      // aprobado en cada plataforma, y esta pantalla no la consulta. La de
+      // verdad está en /dashboard/conexiones, que sí pregunta al backend.
+      conexionesDesc:'Google Maps, Google Business y las redes sociales de todos tus negocios.',
       conexionesIr:'Administrar →',
       googleMapsRating:'Google Maps (rating)',
       googleMapsRatingDesc:'Rating y total de reseñas',
@@ -744,7 +752,9 @@ const TEXTOS = {
       totalLabel:'Total', negativosLabel:'Negative', pendientesLabel:'Unanswered',
       filtroTodos:'All', negativo:'Negative', positivo:'Positive', neutro:'Neutral',
       soloPendientes:'Unanswered only',
-      sinConectar:'Connect your Instagram or TikTok account to pull the comments on your posts.',
+      sinConectar:(redes) => redes.length
+        ? `Connect your ${redes.join(' or ')} account to pull the comments on your posts.`
+        : 'This business has no social account connected yet.',
       irAConectar:'Go to Connections →',
       videosTitulo:'Your latest videos',
       videosDesc:'What TikTok reports for your account. The comment count is TikTok’s own.',
@@ -898,7 +908,7 @@ const TEXTOS = {
       colorDesc:'The change applies immediately in the list and on the business border.',
       colorActivo:(c) => `Active color: ${c}`,
       conexionesTitulo:'Connections',
-      conexionesDesc:'Google Maps, Google Business, Facebook, Instagram and TikTok across all your businesses.',
+      conexionesDesc:'Google Maps, Google Business and the social accounts of all your businesses.',
       conexionesIr:'Manage →',
       googleMapsRating:'Google Maps (rating)',
       googleMapsRatingDesc:'Rating and total reviews',
@@ -1778,11 +1788,17 @@ export default function DetallePage() {
         // conectado veía el cartel de "conecta TikTok" y ni uno de sus
         // comentarios — con el contador de la pestaña diciendo que sí los
         // había. Al sumar una red nueva, sumarla también aquí.
-        const redes = [
+        const TODAS = [
           { id:'tiktok',    etiqueta:'TikTok',    datos:comConexiones?.tiktok },
           { id:'instagram', etiqueta:'Instagram', datos:comConexiones?.instagram },
-        ].filter(r => r.datos?.conectado);
+        ];
+        const redes = TODAS.filter(r => r.datos?.conectado);
         const conectado = redes.length > 0;
+        // Para el cartel de "no hay nada conectado": solo se nombran las redes
+        // que el backend declara `disponible`. Instagram no lo está mientras
+        // Meta revisa la app, así que no se le pide al usuario que conecte algo
+        // cuyo botón está escondido (ver lib/instagramVisible.js en el backend).
+        const conectables = TODAS.filter(r => r.datos?.disponible).map(r => r.etiqueta);
         const hayFiltro = !!(comFiltro.sentimiento || comFiltro.pendientes);
         const TONO = {
           negativo:{ c:'#f87171', bg:'rgba(239,68,68,0.1)',  bd:'rgba(239,68,68,0.3)' },
@@ -1806,7 +1822,7 @@ export default function DetallePage() {
                 comentarios" sería engañoso — no hay de dónde traerlos. */}
             {comConexiones && !conectado ? (
               <Card>
-                <p style={{ color:'var(--text-2)', fontSize:13, margin:'0 0 10px' }}>{tc.sinConectar}</p>
+                <p style={{ color:'var(--text-2)', fontSize:13, margin:'0 0 10px' }}>{tc.sinConectar(conectables)}</p>
                 <Link href="/dashboard/conexiones" style={{ color:'#4CAF66', fontSize:13, textDecoration:'none' }}>
                   {tc.irAConectar}
                 </Link>

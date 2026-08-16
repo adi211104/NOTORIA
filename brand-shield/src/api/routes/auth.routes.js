@@ -176,11 +176,16 @@ router.get('/perfil', autenticar, async (req, res, next) => {
       },
     });
 
-    // Bandera de disponibilidad, no una columna del usuario: depende de la
-    // configuración del servidor, no de la cuenta. Viaja en el perfil porque el
-    // layout del dashboard ya lo carga y así no hace falta un request extra solo
-    // para decidir si el menú muestra "Menciones".
-    res.json({ ...usuario, mencionesDisponibles: hayFuenteDisponible() });
+    // Bandera de disponibilidad, no una columna del usuario: depende sobre todo
+    // de la configuración del servidor. Viaja en el perfil porque el layout del
+    // dashboard ya lo carga y así no hace falta un request extra solo para
+    // decidir si el menú muestra "Menciones".
+    //
+    // Se le pasa el usuario porque hoy la única fuente es Instagram y está
+    // oculto hasta que Meta apruebe, salvo para las cuentas de prueba de la
+    // revisión (lib/instagramVisible.js). Para el resto no hay ninguna fuente
+    // encendida, así que Menciones vuelve a estar invisible.
+    res.json({ ...usuario, mencionesDisponibles: hayFuenteDisponible(usuario) });
   } catch (error) {
     next(error);
   }

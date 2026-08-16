@@ -2362,3 +2362,110 @@ Lo que devolvió tras la rotación:
   con las de test, y `set-culqi-keys.js` sigue negándose a escribir `*_live_*`.
 - Los secretos se cargan **por stdin desde bash**, nunca con `echo` en PowerShell
   ni como argumento de línea de comandos.
+
+---
+
+## Sesión 2026-08-16 — §22. Instagram oculto tras un interruptor, y landing con gráficos y fuentes
+
+### 22.1 — Instagram deja de existir para el cliente hasta que Meta apruebe
+
+**El problema, que no era de código.** La integración de Instagram está
+terminada, probada y desplegada, pero sus permisos siguen en **acceso estándar**
+(§19.10): con ese nivel, un permiso solo lo puede conceder alguien con **rol en
+la app**. O sea que el botón "Conectar Instagram" funcionaba para el dueño y
+**habría fallado con el primer cliente real**, con un error de Meta que el
+cliente no puede resolver. Se quería publicitar la web ya, así que ofrecer un
+botón que solo falla era lo peor de las dos opciones.
+
+**Lo que NO se hizo, y por qué.** No se borró la función ni se puso
+"Próximamente". Borrarla obligaría a rehacerla; y "próximamente" viola la regla
+de producto que ya rige en `lib/menciones.js` — *lo que no podemos entregar no se
+muestra*, porque invita a preguntar por una fecha que no tenemos.
+
+🔴 **El detalle que casi cuesta la revisión: el App Review está EN CURSO** (se
+envió el 2026-08-15, §21). Si Instagram se ocultaba para todos, el revisor de
+Meta —que entra con `revisormeta@usenotoria.app`— no habría visto la integración
+y habría rechazado **la revisión entera**, no solo ese permiso. De ahí que el
+interruptor tenga lista de excepciones en vez de ser un sí/no.
+
+**Cómo quedó.** Fuente única en **`src/lib/instagramVisible.js`**:
+
+| Variable | Efecto |
+|---|---|
+| `INSTAGRAM_ACTIVO=true` | visible para **todos** — es lo que se pone el día que aprueben |
+| `INSTAGRAM_CUENTAS_PRUEBA=a@b.c,d@e.f` | correos que lo ven mientras tanto (revisor de Meta + dueño) |
+
+Solo el literal `'true'` activa (ni `1`, ni `sí`, ni `TRUE`), y los correos se
+comparan en minúsculas y sin espacios.
+
+Puntos donde se aplica:
+- `redes.routes.js` → `GET /:negocioId/estado` devuelve `instagram.disponible:false`,
+  y `POST /:negocioId/instagram/conectar` responde **404** ("Función no
+  disponible", no 403: no es falta de permiso, es que la función no existe para
+  él). El **callback de OAuth no se gateó a propósito**: su `state` va firmado
+  con HMAC y caduca, así que solo se llega ahí pasando por `conectar`.
+- `lib/menciones.js` → `fuentesDisponibles(usuario)` y `hayFuenteDisponible(usuario)`
+  ahora reciben el usuario. ⚠️ **Consecuencia que hay que tener presente: Instagram
+  era la ÚNICA fuente de menciones**, así que la sección Menciones vuelve a estar
+  invisible para los clientes (como estuvo de julio a agosto). Reaparece sola al
+  encender el interruptor.
+- Panel: `dashboard/conexiones` **esconde la fila entera** (helper `redesVisibles`),
+  y la fila de Facebook pasa a ser `ultima` cuando no queda ninguna detrás, para
+  no dejar un borde colgando. El cartel de la pestaña Comentarios nombra ahora
+  **solo las redes `disponible`** en vez de una lista fija.
+
+🔑 **Excepción deliberada: una cuenta YA conectada nunca se esconde.** Si se
+escondiera, el usuario se quedaría sin forma de desconectarla ni de borrar los
+datos que trajo — que es justo lo que Meta exige poder hacer. La regla es
+`disponible || conectado`.
+
+Red de seguridad: **`scripts/prueba-instagram-visible.js`** (12 comprobaciones,
+sin servidor ni BD). Cubre el caso real de hoy —credenciales de Meta presentes
+pero función oculta— y el de mañana —interruptor abierto para todos—.
+
+**Pendiente del usuario (no es código):** cargar `INSTAGRAM_CUENTAS_PRUEBA` en
+Railway con el correo del revisor **antes** de desplegar, o el revisor se queda
+fuera. `INSTAGRAM_ACTIVO` se deja sin poner.
+
+### 22.2 — Landing: menos texto, más producto, y cada cifra con su fuente
+
+Había cuatro secciones seguidas de tarjetas de texto y ni una imagen del
+producto. Cambios:
+
+- **Fusionadas "Stats" y "El problema"** en una sola (`porque`): decían lo mismo
+  dos veces, con seis tarjetas entre las dos.
+- **Piezas gráficas nuevas** en `components/MockupsLanding.js`: gráfica del
+  ataque, mockup de la alerta, medidor del score y diagrama del circuito.
+  **Son mockups en código, no capturas**: siguen el tema claro/oscuro solos y no
+  envejecen con cada cambio del panel. Los datos van rotulados *Ejemplo
+  ilustrativo*.
+- **Funcionalidades de 9 tarjetas a 6.** Las dos que ahora se VEN dibujadas
+  (score e historial de rating) salieron de la lista —enseñarlas y describirlas
+  era decirlo dos veces— y quedan nombradas en una línea.
+
+🔴 **REGLA NUEVA Y PERMANENTE: una cifra sin URL pública que la sostenga no entra
+al landing.** Las tres que había estaban inventadas, y una era además **falsa por
+un orden de magnitud**: "−22% de clientes si el rating baja 0.3★" contra el único
+estudio que mide eso (Luca, HBS: **una estrella entera** mueve 5-9% de ingresos,
+o sea que 0.3★ no llega ni al 3%). Es exactamente el terreno de la publicidad
+engañosa (Ley 29571). Sustituidas por datos verificables, cada uno con enlace
+visible en su propia tarjeta:
+
+| Cifra | Fuente |
+|---|---|
+| 292 M de reseñas bloqueadas/eliminadas por Google en 2025, + 13 M de fichas falsas | [Google, blog oficial (2026)](https://blog.google/products-and-platforms/products/maps/new-ways-were-protecting-businesses-on-maps/) |
+| 5-9% de ingresos por estrella (restaurante independiente) | [M. Luca, HBS working paper 12-016](https://www.hbs.edu/ris/Publication%20Files/12-016_a7e4a5a2-03f9-490d-b093-8f951238dba2.pdf) |
+| 31% solo usa negocios de 4.5★ o más (era 17%) | [BrightLocal, LCRS 2026](https://www.brightlocal.com/research/local-consumer-review-survey/) |
+
+También se corrigió el **blog**: decía "el 89% lee las respuestas del negocio
+antes de decidir". El 89% existe pero mide otra cosa —cuánta gente **espera**
+respuesta—; ahora dice eso, con su enlace.
+
+⚠️ **Trampa de móvil que hay que recordar al dibujar SVG:** un `viewBox` escala
+**todo, el texto incluido**. Las etiquetas de 11 px quedaban en ~6 px en un
+teléfono. Solución: `min-width` en el SVG dentro de una caja con
+`overflow-x:auto` —el scroll es de la caja, nunca del documento— y un `useEffect`
+que deja la caja centrada en la caída, porque si no el primer vistazo en móvil
+era la parte plana, que no cuenta nada. Verificado en un iframe de 400 px:
+`scrollWidth` del documento 398 vs `clientWidth` 395, o sea sin scroll horizontal
+de página.
