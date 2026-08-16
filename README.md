@@ -111,7 +111,7 @@ Restricciones que condicionan el diseño:
       afiliación se hizo con él. ⚠️ Trae una obligación ya vigente: desde el
       27/07/2026 la empresa es **emisor electrónico obligatorio** y no puede emitir
       comprobantes de otra forma
-- [ ] Crear un **usuario SOL secundario** con permiso *solo* de emisión de comprobantes.
+- [x] Crear un **usuario SOL secundario** con permiso *solo* de emisión de comprobantes.
       Nunca usar la Clave SOL principal en producción
 - [ ] ❓ **Registro de Exportadores de Servicios — probablemente NO haga falta**
       (revisado el 07/08/2026). SUNAT dice textualmente que *"en los demás supuestos
@@ -235,7 +235,7 @@ scripts ya reintentan solos.
 - [x] ✅ **Afiliación al SEE-Del Contribuyente** — ya estaba hecha desde el
       27/07/2026; se descubrió leyendo la ficha RUC el 07/08/2026. Figuraba como
       pendiente por error
-- [ ] **Usuario SOL secundario** (solo permiso de emisión) — sigue pendiente y es
+- [x] **Usuario SOL secundario** (solo permiso de emisión) — sigue pendiente y es
       lo único que falta de trámites para poder emitir
 - [ ] ❓ Registro de Exportadores de Servicios — **probablemente innecesario**, ver
       la sección de trámites arriba
@@ -255,15 +255,15 @@ scripts ya reintentan solos.
 - [ ] Verificar que el ubigeo **070104** corresponde al domicilio fiscal
 - [x] `SUNAT_CERT_P12_BASE64` cargado en Railway (06/08/2026, 12.616 caracteres,
       longitud verificada contra el archivo local)
-- [ ] `SUNAT_CERT_PASSWORD` en Railway — **la pone el usuario**, no está en
+- [x] `SUNAT_CERT_PASSWORD` en Railway — **la pone el usuario**, no está en
       ningún archivo:
       `railway variables --set "SUNAT_CERT_PASSWORD=..." --service api`
-- [ ] `SUNAT_SOL_USUARIO` y `SUNAT_SOL_CLAVE` (del usuario SOL secundario, que
+- [x] `SUNAT_SOL_USUARIO` y `SUNAT_SOL_CLAVE` (del usuario SOL secundario, que
       todavía no existe)
-- [ ] `SUNAT_ENTORNO=produccion`. ⚠️ **Sin esta variable el backend apunta al
+- [x] `SUNAT_ENTORNO=produccion`. ⚠️ **Sin esta variable el backend apunta al
       BETA**: los comprobantes de clientes reales se irían al entorno de
       pruebas y no existirían para SUNAT, sin ningún error visible
-- [ ] `SUNAT_EMISION_ACTIVA=true` — **el último interruptor, no el primero**
+- [x] `SUNAT_EMISION_ACTIVA=true` — **el último interruptor, no el primero**
 - [x] **`.p12` movido fuera de OneDrive** (06/08/2026) — la llave privada ya no
       se sincroniza a la nube. Operativamente el certificado vive en Railway como
       `SUNAT_CERT_P12_BASE64`; el archivo local es solo respaldo. ⚠️ La ruta de
@@ -604,3 +604,35 @@ sección "🔴 Bugs ABIERTOS en producción")
 - [SUNAT — Exportación de servicios](https://emprender.sunat.gob.pe/principales-impuestos/impuesto-general-las-ventas-igv/exportacion-servicios)
 - [Culqi — Depósitos](https://docs.culqi.com/es/documentacion/pagos-online/depositos/resumen/)
 - [BCP — Tarifario de cuentas para empresas](https://www.viabcp.com/tarifario)
+
+**🟢 EMISIÓN SUNAT ACTIVADA (16/08/2026)**
+Usuario SOL secundario `NOTORIAS` creado con dos opciones y solo esas: *Servicio
+de Envío de Documentos Electrónicos por Servicio Web* (la que autentica el envío)
+y las 4 de *Consultar Envíos de CPE* (solo lectura). **No** se le dio
+*Certificado Digital*.
+
+Las 5 variables están en Railway y verificadas **dentro del contenedor**, no solo
+en el panel: `cert.configurado()` y `bill.configurado()` en true, el `.p12` abre
+con la clave cargada (serie `1f13ed80…`, emisor ECEP-RENIEC) y
+`SUNAT_ENTORNO=produccion`.
+
+⚠️ **Lo que NO se pudo verificar: que las credenciales SOL autentiquen.** Se
+intentó un `getStatus` de solo lectura con un ticket inexistente, y **SUNAT
+responde HTTP 200 con cuerpo vacío tanto con la clave real como con una falsa**
+— el probe no discrimina y no prueba nada. Lo único comprobado es que el usuario
+y la clave entran en sunat.gob.pe. La primera venta real es la prueba funcional.
+
+✅ **Y ese riesgo es menor de lo que parecía.** El correlativo se asigna al crear
+el comprobante (`comprobante.service.js`, UPDATE atómico), así que si la clave
+estuviera mal: el comprobante se crea con su número, **falla al enviarse pero no
+se pierde**, y `envioSunat.worker.js` reintenta con backoff durante 3 días. Se
+corrige la clave y sale con su número original — **sin hueco en la numeración y
+sin nota de crédito**. El fallo queda en los logs de Railway.
+
+🔧 Herramienta nueva: `node scripts/probar-clave-p12.js` dice sí o no a una clave
+del `.p12` sin cargar nada. Nació porque el asistente de Windows, ante una clave
+incorrecta, **se limita a reabrirse** sin decir que falló.
+
+📌 **Pendiente de confirmar:** el ubigeo. El código usa `070104` (La Perla,
+Callao — formato INEI de 6 dígitos que SUNAT exige); el usuario mencionó `07011`,
+que tiene 5. Se cambia con `EMISOR_UBIGEO` sin tocar código.
