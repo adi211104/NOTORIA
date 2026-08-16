@@ -163,6 +163,50 @@ export const ARTICULOS = [
       { tipo: 'destacado', texto: 'Escribe el nombre de tu negocio en <a href="/#hero">el analizador gratuito</a> y en 10 segundos te decimos si tus reseñas recientes tienen patrones sospechosos. Si quieres la vigilancia 24/7 con alertas, <a href="/registro">el plan Gratuito</a> no pide tarjeta.' },
     ],
   },
+
+  {
+    slug: 'como-pedir-resenas-google-sin-penalizacion',
+    titulo: 'Cómo pedir reseñas a tus clientes sin que Google te penalice',
+    descripcion: 'La forma correcta de conseguir reseñas nuevas: qué prácticas castiga Google (y mucha gente hace sin saberlo), el momento exacto para pedirlas y por qué las reseñas viejas dejan de contar.',
+    fecha: '2026-08-16',
+    minutos: 7,
+    contenido: [
+      { tipo: 'p', texto: 'Hay una asimetría que juega en tu contra todos los días: el cliente enojado escribe solo, y el cliente contento se va feliz y no escribe nada. Por eso un negocio que atiende bien puede tener un rating mediocre — no porque falle, sino porque las únicas personas suficientemente motivadas para escribir son las que se fueron molestas.' },
+      { tipo: 'p', texto: 'La solución es pedir reseñas. El problema es que las tres formas más comunes de pedirlas <strong>violan las políticas de Google</strong>, y el castigo no es una advertencia: es que te borren las reseñas conseguidas así, y en casos repetidos, que te limiten la ficha.' },
+
+      { tipo: 'h2', texto: 'Lo que Google castiga (y casi nadie sabe)' },
+      { tipo: 'lista', items: [
+        '<strong>Filtrar por satisfacción.</strong> Preguntar primero "¿cómo estuvo todo?" y mandar el enlace de Google solo a quien responde bien, desviando al resto a un formulario privado. Se llama <em>review gating</em> y está prohibido explícitamente. Es la trampa más común porque suena razonable y muchas herramientas de marketing la venden como función.',
+        '<strong>Incentivar.</strong> Descuentos, postres gratis, sorteos o puntos a cambio de una reseña. Da igual que no exijas que sea positiva: cualquier contraprestación está prohibida.',
+        '<strong>Pedirlas en lote desde el local.</strong> Pasarle la tablet del negocio a diez clientes seguidos para que dejen su reseña ahí mismo. Google ve diez reseñas desde el mismo dispositivo y la misma red en una hora, y eso tiene exactamente la forma de un ataque coordinado.',
+        '<strong>Comprarlas.</strong> No hace falta explicarlo, pero conviene el dato: en 2025 Google bloqueó o eliminó <strong>292 millones</strong> de reseñas por incumplir sus políticas y borró 13 millones de fichas falsas. La detección funciona.',
+      ]},
+      { tipo: 'destacado', texto: 'El punto incómodo del <em>review gating</em>: no solo es sancionable, es que además no funciona a largo plazo. Un rating construido filtrando descontentos se cae solo cuando llega el primer cliente molesto que sí encuentra dónde escribir — y para entonces no tienes reseñas recientes que lo compensen.' },
+
+      { tipo: 'h2', texto: 'Lo que sí puedes hacer: pedirle a todos, siempre' },
+      { tipo: 'p', texto: 'La regla es simple: puedes pedir reseñas cuanto quieras, siempre que le pidas <strong>a todos por igual</strong> y no ofrezcas nada a cambio. Pedirle a todos suena arriesgado — "¿y si el molesto escribe?" — pero los números juegan a tu favor: si atiendes bien a nueve de cada diez, pedirle a los diez te sube el promedio. Filtrar es lo que lo hunde, porque reduce el volumen y te deja sin reseñas frescas.' },
+
+      { tipo: 'h2', texto: 'El momento importa más que el mensaje' },
+      { tipo: 'p', texto: 'La reseña se consigue en el pico de satisfacción, no al día siguiente. En un restaurante ese pico es justo después del postre o al pagar, cuando la experiencia todavía se siente; en un hotel, en el check-out, no en el correo automático de tres días después. Cada hora que pasa, la probabilidad de que escriban se desploma.' },
+      { tipo: 'numerada', items: [
+        '<strong>Que lo pida una persona, no un cartel.</strong> "¿Le gustó todo? Nos ayudaría muchísimo si lo cuenta en Google" convierte muchísimo más que un letrero pegado en la pared, que ya nadie ve.',
+        '<strong>Que sea un solo toque.</strong> Si el cliente tiene que buscar tu negocio en Maps, encontrar el botón y pensar qué escribir, lo abandona. Un QR o un enlace corto que abra directamente el cuadro de reseña elimina toda esa fricción.',
+        '<strong>Que lo pida quien atendió.</strong> Pedirlo el mozo que sirvió la mesa funciona mejor que pedirlo el cajero, porque hay una relación de por medio.',
+        '<strong>Que el equipo sepa cuándo NO pedir.</strong> A una mesa que esperó cuarenta minutos no se le pide reseña: se le pide disculpas. Pedirla ahí es regalar una de una estrella.',
+      ]},
+
+      { tipo: 'h2', texto: 'Las reseñas caducan (y esto casi nadie lo tiene en cuenta)' },
+      { tipo: 'p', texto: 'Conseguir treinta reseñas de golpe y no volver a pedir nunca es una estrategia perdedora, por dos motivos. El primero es que un pico aislado de reseñas se ve artificial. El segundo es más importante: <strong>el 74% de los consumidores busca reseñas escritas en los últimos tres meses</strong>, según la encuesta de BrightLocal de 2026. Un 4.8 sostenido con reseñas de hace dos años convence menos que un 4.5 con reseñas de la semana pasada.' },
+      { tipo: 'p', texto: 'La misma encuesta trae otro dato que conviene tener presente al fijarse una meta: <strong>el 31% de los consumidores solo entra a negocios con 4.5 estrellas o más</strong>, cuando el año anterior era el 17%. La vara sube rápido. Lo que hace un año era un buen rating, hoy deja fuera a un tercio de la gente.' },
+      { tipo: 'p', texto: 'La conclusión práctica: pedir reseñas no es una campaña, es una rutina. Pocas y constantes le ganan a muchas de golpe.' },
+
+      { tipo: 'h2', texto: 'Un guion que puedes usar mañana' },
+      { tipo: 'p', texto: 'Para el equipo de sala, al momento de la cuenta: <em>"¿Todo bien con la comida hoy? Qué bueno. Si tiene un minuto, nos ayuda muchísimo una reseña en Google — es este código, se abre solo."</em> Sin condicionar, sin ofrecer nada, sin preguntar antes qué nota va a poner.' },
+      { tipo: 'p', texto: 'Y una última pieza que se olvida: <strong>responde las que lleguen</strong>. Según esa misma encuesta, el 89% de los consumidores espera respuesta a su reseña, y el 42% dice que es poco probable que use un negocio que las ignora por completo. Responder también le señala al siguiente cliente que del otro lado hay alguien.' },
+
+      { tipo: 'destacado', texto: 'Notoria genera el <strong>QR y el enlace corto</strong> de tu negocio para pedir reseñas en un solo toque, y vigila las que van llegando: te avisa si aparece una negativa o si alguna tiene patrón de bot. <a href="/registro">El plan Gratuito</a> incluye el QR y no pide tarjeta.' },
+    ],
+  },
 ];
 
 export const articuloPorSlug = (slug) => ARTICULOS.find((a) => a.slug === slug);
