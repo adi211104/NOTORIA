@@ -252,7 +252,7 @@ scripts ya reintentan solos.
       el **sétimo día calendario siguiente**. Que el web service acepte una
       boleta suelta por `sendBill` no sustituye la obligación de informarla por
       resumen. No hay elección que hacer ni depende del tipo de negocio
-- [ ] Verificar que el ubigeo **070104** corresponde al domicilio fiscal
+- [x] ✅ **Ubigeo confirmado: 070104** (16/08/2026). ⚠️ NO confundir con el CÓDIGO POSTAL de La Perla, que es 07011 (5 dígitos) y es lo que devuelve codigopostal.gob.pe. SUNAT pide el **ubigeo INEI**, de 6 dígitos, y el XML lo declara como tal (`schemeAgencyName: PE:INEI` en ublInvoice.js). Se descompone en pares: 07 Callao + 01 Callao + 04 La Perla. Meter el código postal haría que SUNAT observe el comprobante
 - [x] `SUNAT_CERT_P12_BASE64` cargado en Railway (06/08/2026, 12.616 caracteres,
       longitud verificada contra el archivo local)
 - [x] `SUNAT_CERT_PASSWORD` en Railway — **la pone el usuario**, no está en
@@ -633,6 +633,4 @@ sin nota de crédito**. El fallo queda en los logs de Railway.
 del `.p12` sin cargar nada. Nació porque el asistente de Windows, ante una clave
 incorrecta, **se limita a reabrirse** sin decir que falló.
 
-📌 **Pendiente de confirmar:** el ubigeo. El código usa `070104` (La Perla,
-Callao — formato INEI de 6 dígitos que SUNAT exige); el usuario mencionó `07011`,
-que tiene 5. Se cambia con `EMISOR_UBIGEO` sin tocar código.
+✅ **Ubigeo confirmado: se queda en 070104.** El 07011 que aparecía como duda es el CÓDIGO POSTAL de La Perla, no el ubigeo INEI — son catálogos distintos y SUNAT pide el segundo.
