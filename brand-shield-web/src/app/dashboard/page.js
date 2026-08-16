@@ -133,7 +133,11 @@ export default function DashboardPage() {
           el hover y la pulsación de la capa de interacción sin nada extra.
           El icono no es decorativo: hace la tarjeta reconocible de un vistazo,
           que es como se leen estas cifras — de reojo, no leyendo la etiqueta. */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:12, marginBottom:24 }}>
+      {/* minmax de 220 y no 160: a 390 px de pantalla, 160 dejaba caber DOS
+          tarjetas y la tercera bajaba sola a media fila, con un hueco al lado
+          que se veía como un error de maquetación. Con 220 el móvil pasa a una
+          columna limpia y el escritorio sigue mostrando las tres en fila. */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))', gap:12, marginBottom:24 }}>
         {[
           { label:t.stats.negociosActivos, val:negocios.length, icono:'tienda', href:'/dashboard/negocios', color:'var(--text)', tinte:'var(--accent-t)', borde:'var(--accent-b)', iconoColor:'#4CAF66' },
           // La única que cambia de color: si hay algo sin leer, la tarjeta entera

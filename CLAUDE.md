@@ -2668,3 +2668,37 @@ el contenido. Fue exactamente lo que pasó al escribir esta sección.
 inglés, el panel de la imagen sigue en español. Se asume (el mercado es Perú); si
 alguna vez pesa, hay que tomar un segundo juego con el panel en inglés y elegir
 por idioma.
+
+### 23.8 — El panel en móvil (revisado el 2026-08-16 a 390 px)
+
+Nunca se había mirado en un ancho de teléfono. Se revisó a 390 px y salieron
+tres cosas, todas arregladas:
+
+1. **Las pestañas de la ficha de negocio ocupaban TRES filas.** Son ocho y
+   estaban con `flexWrap:'wrap'`, así que empujaban el contenido media pantalla
+   hacia abajo. Ahora es una sola fila deslizable (`nowrap` + `overflow-x:auto`),
+   con `flexShrink:0` en cada botón — sin eso se comprimen en vez de desbordar y
+   el texto se parte. En escritorio caben todas y el scroll ni aparece.
+2. **La cabecera del negocio se amontonaba**: rating, total de reseñas y el
+   botón de escanear en una fila que no cabía; el botón se partía en dos líneas
+   y el aviso en otras dos. Resuelto con `flexWrap` + `rowGap`.
+3. **Las tres tarjetas del Resumen quedaban 2+1**, con un hueco al lado de la
+   tercera que parecía un error de maquetación. El `minmax` pasó de 160 a
+   **220 px**: en móvil da una columna limpia y en escritorio siguen las tres en
+   fila.
+
+✅ Lo que YA estaba bien: el cajón lateral con hamburguesa, los grupos del menú,
+y **cero desborde horizontal** en las tres pantallas revisadas.
+
+🔧 **Cómo revisar móvil sin teléfono ni emulador.** El emulador de Android **no
+arranca en esta máquina**: CPU AMD sin el *Android Emulator hypervisor driver*
+(AEHD) instalado — se instala desde Android Studio → SDK Tools, es un driver de
+sistema. Mientras tanto, la vía que funciona es meter la página en un **iframe de
+390 px** desde la consola del navegador: las media queries responden al viewport
+del iframe, así que es una prueba real, no una simulación. Ojo: el iframe debe
+apuntar al MISMO origen para que la sesión de `localStorage` valga.
+
+⚠️ Y el tropiezo de siempre: `next start` sirve una build donde `NEXT_PUBLIC_*`
+ya está **incrustado**. Para apuntar el frontend local al backend de producción
+hay que usar `next dev` con la variable, o rehacer la build — con `next start` a
+secas sale "Sin conexión al servidor".

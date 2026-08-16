@@ -1589,7 +1589,12 @@ export default function DetallePage() {
               </div>
             </div>
           </div>
-          <div style={{ display:'flex', alignItems:'center', gap:16 }}>
+          {/* Rating · reseñas · botón de escaneo. En un teléfono de 390 px esta
+              fila no cabe: el botón se partía en dos líneas y el aviso de
+              "escaneo disponible" en otras dos, dejando la cabecera amontonada.
+              Con `flexWrap` los tres bloques se reacomodan solos, y el `gap`
+              vertical evita que queden pegados al envolver. */}
+          <div style={{ display:'flex', alignItems:'center', gap:16, flexWrap:'wrap', rowGap:12 }}>
             {snap && (
               <>
                 <div style={{ textAlign:'center' }}>
@@ -1655,11 +1660,17 @@ export default function DetallePage() {
         )}
       </div>
 
-      {/* Tabs */}
-      <div style={{ display:'flex', gap:4, marginBottom:16, flexWrap:'wrap' }}>
+      {/* Tabs — una sola fila que se desliza, NO `flexWrap`.
+          Con wrap, las ocho pestañas ocupaban TRES filas en un teléfono de
+          390 px y empujaban el contenido media pantalla hacia abajo. En una
+          fila deslizable se ve dónde empieza el contenido y se llega a
+          cualquier pestaña con el pulgar. En escritorio caben todas, así que
+          el scroll ni aparece. `flexShrink:0` es imprescindible: sin él las
+          pestañas se comprimen en vez de desbordar, y el texto se parte. */}
+      <div style={{ display:'flex', gap:4, marginBottom:16, flexWrap:'nowrap', overflowX:'auto', WebkitOverflowScrolling:'touch', paddingBottom:4 }}>
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            style={{ padding:'7px 14px', borderRadius:8, border:`1px solid ${tab===t.id?'#0B7324':'var(--border-c)'}`, background:tab===t.id?'#0B7324':'transparent', color:tab===t.id?'#fff':'var(--text-2)', fontSize:12.5, cursor:'pointer', fontWeight:tab===t.id?500:400 }}>
+            style={{ flexShrink:0, whiteSpace:'nowrap', padding:'7px 14px', borderRadius:8, border:`1px solid ${tab===t.id?'#0B7324':'var(--border-c)'}`, background:tab===t.id?'#0B7324':'transparent', color:tab===t.id?'#fff':'var(--text-2)', fontSize:12.5, cursor:'pointer', fontWeight:tab===t.id?500:400 }}>
             {t.label}
           </button>
         ))}
