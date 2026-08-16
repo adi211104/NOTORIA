@@ -634,3 +634,8 @@ del `.p12` sin cargar nada. Nació porque el asistente de Windows, ante una clav
 incorrecta, **se limita a reabrirse** sin decir que falló.
 
 ✅ **Ubigeo confirmado: se queda en 070104.** El 07011 que aparecía como duda es el CÓDIGO POSTAL de La Perla, no el ubigeo INEI — son catálogos distintos y SUNAT pide el segundo.
+
+~~Rotar la clave SOL de NOTORIAS~~ — **descartado por decisión del usuario
+(16/08/2026).** Se vio un prefijo en un error de PowerShell, pero no la clave
+completa. Se asume el riesgo y **no se vuelve a plantear** (mismo criterio que
+con la llave secreta de Culqi, §21).
