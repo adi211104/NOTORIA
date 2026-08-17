@@ -521,13 +521,23 @@ export default function LandingPage() {
 
   const t = TEXTOS[idioma] || TEXTOS.es;
 
-  if (cargando) return (
-    <div style={{ minHeight:'100vh', background:C.bg, display:'flex', alignItems:'center', justifyContent:'center' }}>
-      <div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor:`${C.green} transparent transparent transparent` }} />
-    </div>
-  );
-
-  const loggedIn = !!usuario;
+  // 🔴 Acá había un `if (cargando) return <spinner/>` y costaba caro. `cargando`
+  // arranca en true, así que el render de servidor devolvía SOLO el spinner: el
+  // HTML de usenotoria.app llegaba con 38 caracteres de texto (nada más que el
+  // <title>) y todo el contenido aparecía recién al ejecutarse el JavaScript.
+  // Consecuencias reales, no teóricas:
+  //   · la verificación de marca del OAuth de Google FALLÓ (2026-08-17) con
+  //     "En la página principal, no se explica el propósito de la app" — su
+  //     robot lee el HTML y no encontraba nada;
+  //   · el SEO del landing quedaba en nada por el mismo motivo;
+  //   · y todo visitante veía un spinner antes del hero.
+  //
+  // El landing NO necesita la sesión para renderizarse: lo único que depende de
+  // ella es el botón del nav. Mientras carga se muestra la versión de invitado,
+  // que es lo correcto para la inmensa mayoría del tráfico de una página de
+  // ventas; a quien ya tiene sesión el botón le cambia a "Mi panel" un instante
+  // después. No volver a poner un guard de carga sobre toda la página.
+  const loggedIn = !cargando && !!usuario;
 
   return (
     <>

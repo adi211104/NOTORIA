@@ -2909,3 +2909,37 @@ que la emisión real **ya está encendida**. Consulta de solo lectura contra la 
 de producción: **0 comprobantes y 0 pagos exitosos**. Traducción: el primer
 cliente que pague va a ser también la primera factura real que se le manda a
 SUNAT. Conviene probar ese circuito antes de gastar en publicidad, no después.
+
+### 24.6 El landing servía 38 caracteres: causa, arreglo y verificación (2026-08-17)
+
+**Causa exacta.** `app/page.js` tenía, justo antes del `return`:
+
+```js
+if (cargando) return (<div style={{minHeight:'100vh'...}}><spinner/></div>);
+```
+
+`cargando` viene de `useAuth()` y **arranca en `true`**. En el render de servidor
+no hay `localStorage` ni efectos, así que Next prerenderizaba **solo el spinner**:
+`usenotoria.app` servía 38 caracteres de texto (nada más que el `<title>`).
+Ojo con el diagnóstico, porque es contraintuitivo: **`'use client'` NO impide el
+render en servidor** — Next igual genera el HTML inicial de los componentes de
+cliente. Lo que lo impedía era este guard. Buscar `animate-spin` en el HTML
+servido es lo que lo delató.
+
+**Arreglo.** Se eliminó el guard y `loggedIn` pasó a `!cargando && !!usuario`. El
+landing no necesita la sesión para renderizarse: lo único que depende de ella es
+el botón del nav, que mientras carga muestra la versión de invitado — correcto
+para la inmensa mayoría del tráfico de una página de ventas. Resultado medido:
+**9.053 caracteres** de copy real en el HTML, empezando por el hero.
+
+**Qué destrabó.** (1) La **verificación de marca del OAuth**, que había fallado
+con *"En la página principal, no se explica el propósito de la app"*: al
+reintentarla pasó, y quedó **publicada** — la consola confirma *"Se verificó la
+información de tu marca y se muestra a los usuarios"*, así que el cliente ya ve
+"Notoria" y los enlaces en la pantalla de consentimiento de Google. (2) El SEO
+del landing, que estaba en cero por el mismo motivo. (3) La revisión de la página
+de destino de Google Ads, que también lee el HTML.
+
+⚠️ **Regla:** no volver a poner un "cargando" global sobre una página pública.
+Si hace falta esperar la sesión, que espere solo el trozo que la usa.
+`/precios` ya lo hace bien (sirve 5.315 caracteres).
