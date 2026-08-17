@@ -1,0 +1,810 @@
+<title>Auditoría Notoria</title>
+<style>
+  :root {
+    --paper:      #F6F7F4;
+    --surface:    #FFFFFF;
+    --surface-2:  #EFF1EC;
+    --ink:        #151A16;
+    --ink-2:      #404A43;
+    --muted:      #6A746D;
+    --rule:       #DBE1D8;
+    --rule-soft:  #E7EBE4;
+    --brand:      #0B7324;
+    --brand-soft: #E4EFE5;
+    --crit:       #A33520;
+    --crit-soft:  #F6E6E1;
+    --warn:       #85610F;
+    --warn-soft:  #F3ECDB;
+    --shadow:     0 1px 2px rgba(21,26,22,.05);
+
+    --f-display: Georgia, "Times New Roman", Times, serif;
+    --f-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --f-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:      #0D110F;
+      --surface:    #141915;
+      --surface-2:  #1A211C;
+      --ink:        #E6EBE6;
+      --ink-2:      #BAC3BC;
+      --muted:      #8D978F;
+      --rule:       #262E28;
+      --rule-soft:  #1E2620;
+      --brand:      #5CA36F;
+      --brand-soft: #16261A;
+      --crit:       #E08167;
+      --crit-soft:  #2A1712;
+      --warn:       #D2A445;
+      --warn-soft:  #251D0E;
+      --shadow:     0 1px 2px rgba(0,0,0,.3);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:      #0D110F;
+    --surface:    #141915;
+    --surface-2:  #1A211C;
+    --ink:        #E6EBE6;
+    --ink-2:      #BAC3BC;
+    --muted:      #8D978F;
+    --rule:       #262E28;
+    --rule-soft:  #1E2620;
+    --brand:      #5CA36F;
+    --brand-soft: #16261A;
+    --crit:       #E08167;
+    --crit-soft:  #2A1712;
+    --warn:       #D2A445;
+    --warn-soft:  #251D0E;
+    --shadow:     0 1px 2px rgba(0,0,0,.3);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 16px;
+    line-height: 1.62;
+    margin: 0;
+    padding: 0 24px 96px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 860px; margin: 0 auto; }
+
+  a { color: var(--brand); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, summary:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; border-radius: 2px; }
+
+  /* ── Cabecera ─────────────────────────────── */
+  .head { padding: 72px 0 0; }
+  .stamp {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--rule);
+  }
+  h1 {
+    font-family: var(--f-display);
+    font-weight: 400;
+    font-size: clamp(38px, 6.5vw, 60px);
+    line-height: 1.06;
+    letter-spacing: -.015em;
+    margin: 30px 0 0;
+    text-wrap: balance;
+  }
+  .dek {
+    font-size: 18px;
+    line-height: 1.6;
+    color: var(--ink-2);
+    max-width: 62ch;
+    margin: 20px 0 0;
+  }
+
+  /* ── Veredicto ────────────────────────────── */
+  .verdict {
+    margin: 42px 0 0;
+    padding: 26px 28px;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    box-shadow: var(--shadow);
+  }
+  .verdict p { margin: 0 0 12px; font-size: 16.5px; }
+  .verdict p:last-child { margin-bottom: 0; }
+  .verdict strong { color: var(--ink); }
+
+  .scoreboard {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin: 26px 0 0;
+  }
+  .sb-cell { background: var(--surface); padding: 16px 18px; }
+  .sb-n {
+    font-family: var(--f-display);
+    font-size: 34px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    display: block;
+  }
+  .sb-n.crit { color: var(--crit); }
+  .sb-n.warn { color: var(--warn); }
+  .sb-n.ok   { color: var(--brand); }
+  .sb-l {
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 8px;
+    display: block;
+  }
+
+  /* ── Secciones ────────────────────────────── */
+  section { margin-top: 76px; }
+  .sec-head { border-bottom: 2px solid var(--ink); padding-bottom: 10px; }
+  .sec-kicker {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--brand);
+    display: block;
+    margin-bottom: 8px;
+  }
+  h2 {
+    font-family: var(--f-display);
+    font-weight: 400;
+    font-size: clamp(26px, 4vw, 34px);
+    line-height: 1.15;
+    letter-spacing: -.01em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .sec-intro { color: var(--ink-2); max-width: 66ch; margin: 18px 0 0; }
+
+  /* ── Hallazgos ────────────────────────────── */
+  .entry {
+    display: grid;
+    grid-template-columns: 78px 1fr;
+    gap: 0 22px;
+    padding: 28px 0;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .entry:last-child { border-bottom: 0; }
+  .gutter { padding-top: 3px; }
+  .code {
+    font-family: var(--f-mono);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    display: block;
+  }
+  .code.crit { color: var(--crit); }
+  .code.warn { color: var(--warn); }
+  .code.info { color: var(--brand); }
+  .sev {
+    font-family: var(--f-mono);
+    font-size: 9.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    padding: 2px 5px;
+    margin-top: 7px;
+    display: inline-block;
+    border: 1px solid currentColor;
+  }
+  .sev.crit { color: var(--crit); background: var(--crit-soft); }
+  .sev.warn { color: var(--warn); background: var(--warn-soft); }
+  .sev.info { color: var(--brand); background: var(--brand-soft); }
+
+  .entry h3 {
+    font-family: var(--f-display);
+    font-weight: 400;
+    font-size: 22px;
+    line-height: 1.25;
+    margin: 0 0 12px;
+    text-wrap: balance;
+  }
+  .entry p { margin: 0 0 12px; color: var(--ink-2); }
+  .entry p:last-child { margin-bottom: 0; }
+  .entry strong { color: var(--ink); font-weight: 600; }
+
+  code {
+    font-family: var(--f-mono);
+    font-size: .855em;
+    background: var(--surface-2);
+    border: 1px solid var(--rule-soft);
+    padding: 1px 5px;
+    white-space: nowrap;
+  }
+
+  .fix {
+    margin-top: 14px;
+    padding: 12px 15px;
+    background: var(--surface);
+    border-left: 2px solid var(--brand);
+    font-size: 14.5px;
+    color: var(--ink-2);
+  }
+  .fix b {
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--brand);
+    display: block;
+    margin-bottom: 4px;
+    font-weight: 600;
+  }
+
+  /* ── Tablas ───────────────────────────────── */
+  .scroller { overflow-x: auto; margin: 26px 0 0; border: 1px solid var(--rule); }
+  table { border-collapse: collapse; width: 100%; min-width: 560px; background: var(--surface); }
+  th, td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--rule-soft); vertical-align: top; font-size: 14.5px; }
+  thead th {
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--rule);
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.no  { color: var(--crit); }
+  td.yes { color: var(--brand); }
+  .tnote { font-size: 13px; color: var(--muted); margin: 10px 0 0; }
+
+  /* ── Propuestas ───────────────────────────── */
+  .prop {
+    padding: 30px 0;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .prop:last-of-type { border-bottom: 0; }
+  .prop-top { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  .prop-id {
+    font-family: var(--f-mono);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--brand);
+    letter-spacing: .04em;
+  }
+  .prop h3 {
+    font-family: var(--f-display);
+    font-weight: 400;
+    font-size: 25px;
+    line-height: 1.2;
+    margin: 0;
+    flex: 1 1 300px;
+    text-wrap: balance;
+  }
+  .star { color: var(--warn); font-size: 15px; }
+  .prop p { color: var(--ink-2); margin: 14px 0 0; }
+  .prop strong { color: var(--ink); font-weight: 600; }
+
+  .meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 1px;
+    background: var(--rule-soft);
+    border: 1px solid var(--rule-soft);
+    margin-top: 20px;
+  }
+  .meta div { background: var(--surface); padding: 11px 14px; }
+  .meta dt {
+    font-family: var(--f-mono);
+    font-size: 10px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 3px;
+  }
+  .meta dd { margin: 0; font-size: 14px; color: var(--ink); }
+
+  .formula {
+    font-family: var(--f-mono);
+    font-size: 14px;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    padding: 16px 18px;
+    margin: 16px 0 0;
+    overflow-x: auto;
+    color: var(--ink);
+  }
+
+  /* ── Orden final ──────────────────────────── */
+  ol.plan { list-style: none; counter-reset: step; padding: 0; margin: 26px 0 0; }
+  ol.plan li {
+    counter-increment: step;
+    display: grid;
+    grid-template-columns: 40px 1fr;
+    gap: 0 18px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  ol.plan li::before {
+    content: counter(step);
+    font-family: var(--f-display);
+    font-size: 24px;
+    line-height: 1.1;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  ol.plan b { display: block; font-weight: 600; margin-bottom: 2px; }
+  ol.plan span { color: var(--ink-2); font-size: 15px; }
+  ol.plan .tag {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    color: var(--brand);
+    letter-spacing: .05em;
+  }
+
+  .closing {
+    margin-top: 46px;
+    padding: 24px 26px;
+    background: var(--warn-soft);
+    border: 1px solid var(--warn);
+    color: var(--ink);
+  }
+  .closing h3 { font-family: var(--f-display); font-weight: 400; font-size: 21px; margin: 0 0 10px; }
+  .closing p { margin: 0; color: var(--ink-2); }
+
+  footer {
+    margin-top: 72px;
+    padding-top: 22px;
+    border-top: 1px solid var(--rule);
+    font-family: var(--f-mono);
+    font-size: 11.5px;
+    letter-spacing: .06em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  @media (max-width: 620px) {
+    body { padding: 0 18px 72px; }
+    .entry, ol.plan li { grid-template-columns: 1fr; gap: 12px 0; }
+    .gutter { display: flex; align-items: center; gap: 10px; }
+    .sev { margin-top: 0; }
+    ol.plan li::before { font-size: 18px; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="head">
+    <div class="stamp">
+      <span>Notoria · usenotoria.app</span>
+      <span>17 ago 2026</span>
+      <span>Código + producción en vivo</span>
+    </div>
+    <h1>Lo que Notoria promete, lo que hace y lo que podría vender</h1>
+    <p class="dek">Revisión completa del backend, el panel, la web pública y la API en producción. Cada hallazgo lleva el archivo y la línea donde está; cada propuesta lleva su costo real y su código de aprobación.</p>
+  </header>
+
+  <div class="verdict">
+    <p>El código está mejor cuidado que el de la mayoría de SaaS de este tamaño: los comentarios explican <em>por qué</em>, no <em>qué</em>, y hay decisiones difíciles bien razonadas (el panel que se niega a decir «todo tranquilo» cuando no pudo consultar, el HMAC del state de OAuth, la cola de envío a SUNAT). Eso no es lo que hay que arreglar.</p>
+    <p>Lo que hay que arreglar son tres cosas que no se ven desde la web: <strong>el ciclo de cobro está roto en las dos direcciones</strong> —el que paga se cae solo y el que deja de pagar conserva todo—, <strong>la página de precios promete cosas que el código no hace</strong>, y <strong>el detector de reseñas falsas, que es el corazón del producto, corre con dos de las cinco señales que anuncia</strong>.</p>
+    <p>Ninguna de las tres cuesta dinero arreglarla. Y una vez arregladas, los datos que Notoria ya está guardando dan para tres o cuatro servicios que hoy nadie ofrece en el Perú.</p>
+  </div>
+
+  <div class="scoreboard">
+    <div class="sb-cell"><span class="sb-n crit">3</span><span class="sb-l">Fugas de dinero</span></div>
+    <div class="sb-cell"><span class="sb-n crit">1</span><span class="sb-l">Riesgo crítico</span></div>
+    <div class="sb-cell"><span class="sb-n warn">6</span><span class="sb-l">Promesas sin código</span></div>
+    <div class="sb-cell"><span class="sb-n ok">8</span><span class="sb-l">Propuestas</span></div>
+  </div>
+
+  <!-- ══════════════ PARTE 1 ══════════════ -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-kicker">Parte 1 — Hallazgos</span>
+      <h2>El balde gotea por los dos lados</h2>
+    </div>
+    <p class="sec-intro">Los tres primeros hallazgos son el mismo problema visto desde ángulos distintos: nadie vigila el ciclo de vida de una suscripción después del primer cobro.</p>
+
+    <div class="entry">
+      <div class="gutter"><span class="code crit">F1</span><span class="sev crit">Crítico</span></div>
+      <div>
+        <h3>Una tarjeta rechazada equivale a perder al cliente para siempre, en silencio</h3>
+        <p>En <code>monitoreo.worker.js:795</code>, si el cargo de renovación falla se ejecuta <code>suscripcionActiva: false</code> y se acabó. No hay reintento, no hay correo, no hay aviso en el panel. Al día siguiente ese usuario ya no entra en la consulta del cron —que exige <code>suscripcionActiva: true</code>— así que <strong>nunca se le vuelve a intentar cobrar</strong>.</p>
+        <p>Un banco que bloquea un cargo por sospecha durante 24 horas, o una tarjeta que vence, te cuesta el cliente entero. El cliente ni se entera: sigue usando el producto normalmente (ver F3).</p>
+      </div>
+    </div>
+
+    <div class="entry">
+      <div class="gutter"><span class="code crit">F2</span><span class="sev crit">Crítico</span></div>
+      <div>
+        <h3>El cobro es «hoy o nunca»</h3>
+        <p>La consulta de renovación (<code>monitoreo.worker.js:739</code>) filtra por <code>fechaVencimiento: { gte: inicioHoy, lte: finHoy }</code>: solo cobra a quien vence <em>exactamente hoy</em>. Cualquier día en que el cron de las 5:00 no llegue a correr —un deploy, un reinicio de Railway, un contenedor que se durmió— esos vencimientos quedan atrás y no vuelven a entrar en la consulta jamás.</p>
+        <div class="fix"><b>Arreglo</b>Quitar el <code>gte</code>: cobrar todo lo vencido hasta hoy, no solo lo de hoy. Una línea.</div>
+      </div>
+    </div>
+
+    <div class="entry">
+      <div class="gutter"><span class="code crit">F3</span><span class="sev crit">Crítico</span></div>
+      <div>
+        <h3>Nadie baja nunca al plan Gratis</h3>
+        <p>El campo <code>plan</code> no se modifica hacia abajo en ninguna parte del backend en ejecución —solo en dos scripts manuales—. Y el middleware <code>requiereSuscripcion</code> está escrito en <code>auth.middleware.js:47</code> pero <strong>no se usa en ninguna ruta</strong>: el que decide es <code>verificarPlan</code>, que solo mira <code>plan</code>.</p>
+        <p>Consecuencia: quien deja de pagar —por cancelación, por reembolso o por el rechazo de F1— conserva Negocio o Franquicia completos, indefinidamente. <code>suscripcionActiva: false</code> hoy no bloquea absolutamente nada.</p>
+      </div>
+    </div>
+
+    <div class="entry">
+      <div class="gutter"><span class="code warn">F4</span><span class="sev warn">Costo</span></div>
+      <div>
+        <h3>El plan Gratis consume seis veces lo que anuncia</h3>
+        <p>La web vende «escaneo cada 24 horas» en el plan Gratuito. El worker (<code>monitoreo.worker.js:249</code>) corre <code>0 */4 * * *</code> sobre <em>todos</em> los negocios activos, sin mirar el plan. Un negocio gratuito son <strong>180 llamadas mensuales a Google Places en vez de 30</strong>, y su competidor otras 180, porque <code>procesarNegocio</code> refresca los competidores en cada ciclo sin distinguir plan.</p>
+        <p>Cada cuenta gratuita cuesta del orden de 360 llamadas al mes que el producto no prometió dar. Con cincuenta cuentas gratuitas eso ya es una factura visible en la consola de Google.</p>
+      </div>
+    </div>
+
+    <div class="entry">
+      <div class="gutter"><span class="code crit">F5</span><span class="sev crit">Legal</span></div>
+      <div>
+        <h3>Cancelar la suscripción no existe, pero la página legal dice que sí</h3>
+        <p>No hay endpoint de cancelación ni pantalla que lo ofrezca. Sin embargo <code>/devoluciones</code> dice textualmente: «Puedes cancelar tu suscripción en cualquier momento desde tu panel, en <strong>Configuración → Suscripción</strong>». Esa sección no existe — la palabra «suscripción» no aparece ni una vez en <code>dashboard/configuracion/page.js</code>. El FAQ del landing repite la misma promesa.</p>
+        <p>Es una obligación publicada en la página legal que el producto no cumple, y del tipo exacto que Culqi ya observó una vez.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ PARTE 2 ══════════════ -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-kicker">Parte 2 — El motor</span>
+      <h2>El detector corre a media máquina</h2>
+    </div>
+    <p class="sec-intro">Notoria se llama así por esto: detectar reseñas falsas y ataques. Es la promesa central del producto y la razón por la que alguien paga. Vale la pena mirarla de cerca.</p>
+
+    <div class="entry">
+      <div class="gutter"><span class="code crit">F6</span><span class="sev crit">Crítico</span></div>
+      <div>
+        <h3>De las cuatro señales que anuncia el FAQ, dos no existen y una no puede dispararse</h3>
+        <p>El FAQ promete: «cuentas recién creadas, autores con una sola reseña, texto repetitivo o duplicado y picos inusuales de reseñas negativas en pocas horas».</p>
+        <div class="scroller">
+          <table>
+            <thead><tr><th>Señal anunciada</th><th>Estado real en el código</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>Cuentas recién creadas · autores con una sola reseña</td>
+                <td class="no"><strong>Imposible.</strong> <code>detector.js:30</code> la evalúa sobre <code>autorResenasTotal</code>, y los cinco lugares que producen reseñas lo escriben <code>null</code>: google, facebook, google-business, tripadvisor y el analizador público. La alerta <code>CUENTAS_NUEVAS</code> necesita 3 reseñas marcadas con ese motivo, así que nunca se ha creado ni una.</td>
+              </tr>
+              <tr>
+                <td>Texto repetitivo o duplicado</td>
+                <td class="no"><strong>No implementado.</strong> No hay comparación de textos entre reseñas en ninguna parte de <code>detector.js</code>.</td>
+              </tr>
+              <tr>
+                <td>Picos inusuales en pocas horas</td>
+                <td class="no"><strong>Prácticamente inalcanzable.</strong> <code>detector.js:76</code> exige ≥5 reseñas negativas en 24 h, pero la API pública de Places devuelve un máximo de 5 reseñas <em>en total</em>. Tendrían que ser las cinco, todas nuevas y todas negativas.</td>
+              </tr>
+              <tr>
+                <td>Palabra crítica (intoxicación, cucaracha, INDECOPI…) · 1★ sin texto</td>
+                <td class="yes">Funcionan. Son las dos únicas que funcionan.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="tnote">La tarjeta de funcionalidades del landing dice: «Identifica cuentas nuevas, texto repetitivo y picos inusuales automáticamente». Las tres cosas que nombra son justo las tres que no ocurren.</p>
+      </div>
+    </div>
+
+    <div class="entry">
+      <div class="gutter"><span class="code crit">F7</span><span class="sev crit">Grave</span></div>
+      <div>
+        <h3>La alerta de caída de rating se repite cada 4 horas, para siempre</h3>
+        <p><code>detector.js:92</code> compara el rating actual contra <code>googleRatingBase</code>, un valor que se fija al crear el negocio y <strong>no se actualiza nunca</strong>. En cuanto el rating cae 0.3 puntos, la alerta se vuelve a crear en cada ciclo del worker, indefinidamente, con el mismo texto y el mismo correo.</p>
+        <p>El resultado no es solo ruido: el cliente aprende a ignorar los correos de Notoria. Para un producto cuyo único canal es el correo, eso es lo peor que puede pasar.</p>
+        <div class="fix"><b>Arreglo</b>Comparar contra el snapshot anterior, no contra una base congelada, y no re-alertar mientras la alerta previa siga sin leerse.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ PARTE 3 ══════════════ -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-kicker">Parte 3 — La oferta</span>
+      <h2>Lo que dice la página de precios y lo que hay detrás</h2>
+    </div>
+    <p class="sec-intro">La página <code>/precios</code> se presenta como «catálogo de servicios». Estas son las diferencias que encontré entre el catálogo y el código.</p>
+
+    <div class="scroller">
+      <table>
+        <thead><tr><th>Se promete</th><th>Dónde</th><th>Qué hay en el código</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>«Un ataque se detecta en máximo 24 h / 4 h / 1 h», según el plan</td>
+            <td>Landing, tabla comparativa y <code>/precios</code></td>
+            <td class="no">Un único cron cada 4 h para todos. Franquicia paga S/179 por detección en 1 h y recibe 4 h; Gratis recibe 4 h habiendo pagado por 24 h (F4).</td>
+          </tr>
+          <tr>
+            <td>Historial de 7 días / 90 días / ilimitado</td>
+            <td>Los tres planes</td>
+            <td class="no">No hay retención ni límite por plan. Todos ven lo que haya guardado.</td>
+          </tr>
+          <tr>
+            <td>«Reportes PDF semanales y mensuales» (Franquicia)</td>
+            <td>Landing y <code>/precios</code></td>
+            <td class="no">Solo existe el mensual (<code>iniciarReportesMensuales</code>, día 1). El resumen semanal existe pero es un correo, no un PDF, y lo reciben todos los planes.</td>
+          </tr>
+          <tr>
+            <td>«Panel de control ejecutivo multi-sede» (Franquicia)</td>
+            <td>Landing y tabla comparativa</td>
+            <td class="no">No existe una vista distinta. El listado de negocios es idéntico en los tres planes.</td>
+          </tr>
+          <tr>
+            <td>«Detección avanzada de bots» (Negocio)</td>
+            <td><code>/precios</code></td>
+            <td class="no">El detector es exactamente el mismo en los tres planes.</td>
+          </tr>
+          <tr>
+            <td>«Puedes cancelar en cualquier momento desde tu panel»</td>
+            <td>FAQ y <code>/devoluciones</code></td>
+            <td class="no">Ver F5.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="tnote">Lo que se promete de más en los planes de pago es lo que expone a un reclamo. Lo que se regala de más en el plan Gratis es lo que cuesta plata. Las dos se resuelven con el mismo cambio: que el escaneo respete el plan.</p>
+  </section>
+
+  <!-- ══════════════ PARTE 4 ══════════════ -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-kicker">Parte 4 — Seguridad</span>
+      <h2>Lo que encontré revisando la superficie de ataque</h2>
+    </div>
+    <p class="sec-intro">Verifiqué en producción que la autenticación funciona: todas las rutas protegidas responden 401 sin token, el webhook de Culqi responde 401 sin el secreto, el de Meta responde 403, y no hay secretos en el historial de git. Lo que sigue es lo que sí encontré.</p>
+
+    <div class="entry">
+      <div class="gutter"><span class="code crit">S1</span><span class="sev crit">Crítico</span></div>
+      <div>
+        <h3>Cualquier cuenta gratuita puede disparar un escaneo de toda la plataforma</h3>
+        <p>En <code>utils.routes.js:83</code>, si el cuerpo de la petición llega <strong>sin <code>negocioId</code></strong>, el bloque del cooldown entero se salta y se ejecuta <code>ejecutarAhora(null)</code> — que en <code>monitoreo.worker.js:289</code> resuelve a <code>where: { activo: true }</code>: <strong>todos los negocios de todos los clientes</strong>.</p>
+        <p>Cada llamada dispara consultas a Google Places por cada negocio y cada competidor de la base entera, correos de alerta a otros clientes, y auto-respuestas publicadas en sus fichas de Google Maps. El único freno es el límite global de 100 peticiones cada 15 minutos, y crear una cuenta gratuita toma 30 segundos.</p>
+        <div class="fix"><b>Arreglo</b>Exigir <code>negocioId</code> y devolver 400 si no viene. Una línea. Es lo primero que haría.</div>
+      </div>
+    </div>
+
+    <div class="entry">
+      <div class="gutter"><span class="code warn">S2</span><span class="sev warn">Alto</span></div>
+      <div>
+        <h3>La web no envía ni una sola cabecera de seguridad</h3>
+        <p>Comprobado en vivo contra <code>usenotoria.app</code>: no hay <code>Content-Security-Policy</code>, ni <code>X-Frame-Options</code>, ni <code>X-Content-Type-Options</code>, ni <code>Referrer-Policy</code>. El backend sí las manda todas (helmet está bien puesto); la web, ninguna, porque <code>next.config.ts</code> no define <code>headers()</code>.</p>
+        <p>Importa más de lo normal porque el JWT vive en <code>localStorage</code> (<code>api.js:19</code>): sin CSP, cualquier script inyectado —una dependencia comprometida, por ejemplo— se lleva la sesión. Y sin <code>frame-ancestors</code> el panel se puede incrustar en un iframe ajeno.</p>
+        <div class="fix"><b>Arreglo</b>Un bloque <code>async headers()</code> en <code>next.config.ts</code>. Media hora y no cuesta nada.</div>
+      </div>
+    </div>
+
+    <div class="entry">
+      <div class="gutter"><span class="code warn">S3</span><span class="sev warn">Medio</span></div>
+      <div>
+        <h3>El OAuth de Google Business no comprueba de quién es el negocio</h3>
+        <p><code>google-business.routes.js:40</code> firma el state con el <code>negocioId</code> que llegue por query sin verificar que pertenezca al dueño del token, y el callback (línea 91) hace <code>update({ where: { id: negocioId } })</code> sin filtrar por usuario. Con un <code>negocioId</code> ajeno se le pisan los tokens de GBP a otro cliente y se le rompe la integración.</p>
+        <p>El riesgo real es bajo porque los cuid no se adivinan, pero el arreglo es añadir <code>usuarioId</code> a la búsqueda.</p>
+      </div>
+    </div>
+
+    <div class="entry">
+      <div class="gutter"><span class="code warn">S4</span><span class="sev warn">Medio</span></div>
+      <div>
+        <h3>El registro y el login no normalizan el correo</h3>
+        <p><code>auth.routes.js:33</code> guarda el email tal como llega, y el login lo busca igual. Pero <code>recuperar-password</code> (línea 443) sí hace <code>toLowerCase().trim()</code>. En PostgreSQL el índice único distingue mayúsculas, así que quien se registre como <code>Juan@correo.com</code> nunca podrá recuperar su contraseña, y se pueden abrir dos cuentas con el mismo correo escrito distinto.</p>
+      </div>
+    </div>
+
+    <div class="entry">
+      <div class="gutter"><span class="code warn">S5</span><span class="sev warn">Medio</span></div>
+      <div>
+        <h3>Google Sign-In no comprueba <code>email_verified</code></h3>
+        <p><code>auth.routes.js:350</code> toma el correo del payload de Google y, si ya existe una cuenta con ese correo, le enlaza el <code>googleId</code> (línea 369). En dominios de Workspace mal configurados el correo del token puede no estar verificado, y eso convierte el enlace automático en una vía de apropiación de cuentas. Es una condición de una línea.</p>
+      </div>
+    </div>
+
+    <div class="entry">
+      <div class="gutter"><span class="code info">S6</span><span class="sev info">Bajo</span></div>
+      <div>
+        <h3>Cambiar la contraseña no cierra las sesiones abiertas</h3>
+        <p>El JWT dura 7 días y no hay número de versión en el usuario, así que <code>cambiar-password</code> no invalida los tokens ya emitidos. Si alguien te robó la sesión, cambiar la clave no lo expulsa. Se resuelve con un contador <code>tokenVersion</code> en el usuario que viaje dentro del JWT.</p>
+      </div>
+    </div>
+
+    <div class="entry">
+      <div class="gutter"><span class="code warn">S7</span><span class="sev warn">Bug</span></div>
+      <div>
+        <h3>Dos borrados que terminan en error 500</h3>
+        <p><strong>Competidores:</strong> <code>competidor.routes.js:117</code> borra el competidor sin borrar antes sus filas de <code>snapshots_competidores</code>. Como el worker crea un snapshot por competidor cada 4 horas, a partir del primer ciclo <strong>ningún competidor se puede eliminar</strong> — la clave foránea lo impide y el usuario ve un error genérico.</p>
+        <p><strong>Cuenta:</strong> <code>auth.routes.js:329</code> borra la cuenta tras limpiar los datos del negocio, pero no toca <code>pagos</code> ni <code>comprobantes</code>. Cualquier cliente que haya pagado alguna vez no puede eliminar su cuenta. Ojo: ahí el arreglo correcto <em>no</em> es borrar, porque los comprobantes hay que conservarlos cinco años — es anonimizar al usuario y conservar el registro fiscal.</p>
+      </div>
+    </div>
+
+    <div class="entry">
+      <div class="gutter"><span class="code info">S8</span><span class="sev info">Bajo</span></div>
+      <div>
+        <h3>El QR de reseñas se genera en un servidor de terceros</h3>
+        <p><code>dashboard/negocios/[id]/page.js:2598</code> pide la imagen a <code>api.qrserver.com</code> pasándole el enlace de reseñas del cliente. Es una función de pago que depende de un servicio gratuito ajeno —si se cae o limita, deja de funcionar sin aviso— y contradice el «no compartimos tus datos» de la política de privacidad. Se resuelve con <code>npm i qrcode</code> y generarlo en casa. Ver también la propuesta P4.</p>
+      </div>
+    </div>
+
+    <div class="entry">
+      <div class="gutter"><span class="code info">S9</span><span class="sev info">Menor</span></div>
+      <div>
+        <h3>Un segundo pool de conexiones a la base</h3>
+        <p><code>detector.js:6</code> hace <code>new PrismaClient()</code> en vez de importar el singleton de <code>lib/prisma.js</code>. Duplica las conexiones abiertas contra PostgreSQL sin ninguna razón. Un import de una línea.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ PARTE 5 ══════════════ -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-kicker">Parte 5 — Propuestas</span>
+      <h2>Ocho cosas que se pueden vender con lo que ya hay</h2>
+    </div>
+    <p class="sec-intro">Todas parten de datos que Notoria <em>ya</em> recoge o de APIs que <em>ya</em> paga. Ninguna exige contratar un proveedor nuevo. Están numeradas para que puedas responder «aprobamos P1, P3 y P8».</p>
+
+    <article class="prop">
+      <div class="prop-top">
+        <span class="prop-id">P1</span>
+        <h3>Vigilancia de la ficha de Google <span class="star">★ la más vendible</span></h3>
+      </div>
+      <p>Hoy Notoria vigila <em>lo que la gente escribe</em> sobre el negocio. No vigila <strong>la ficha en sí</strong>. Y Google Maps permite que cualquier persona sugiera cambios a la ficha de un negocio ajeno: horario, teléfono, dirección, y el que de verdad duele — marcarla como <strong>cerrada permanentemente</strong>. Los dueños se enteran días después, cuando ya no entró nadie en todo el fin de semana.</p>
+      <p><code>obtenerResenasGoogle</code> ya llama a Place Details en cada ciclo. Añadiendo <code>business_status</code> a los <code>fields</code> se detecta el caso catastrófico dentro del mismo escaneo que ya corre. Ese campo pertenece al grupo Basic Data, que esa llamada ya está pagando: <strong>no cambia la factura</strong>. Con <code>opening_hours</code> y <code>formatted_phone_number</code> (grupo Contact, ese sí con costo extra) se cubren los cambios de horario y teléfono.</p>
+      <p>Recomendación: <code>business_status</code> encendido para todos, horario y teléfono solo en planes de pago. De paso da una diferencia real entre planes, que es justo lo que hoy falta.</p>
+      <dl class="meta">
+        <div><dt>Costo nuevo</dt><dd>Cero para el aviso de cierre</dd></div>
+        <div><dt>Esfuerzo</dt><dd>1–2 días</dd></div>
+        <div><dt>Se toca</dt><dd>google.scraper · detector · schema</dd></div>
+        <div><dt>Vende</dt><dd>Sí, y sola</dd></div>
+      </dl>
+    </article>
+
+    <article class="prop">
+      <div class="prop-top">
+        <span class="prop-id">P2</span>
+        <h3>Detectar ráfagas con la aritmética del rating <span class="star">★ arregla F6</span></h3>
+      </div>
+      <p>Notoria no puede leer más de 5 reseñas, pero sí ve el <code>rating</code> y el <code>user_ratings_total</code> cada 4 horas, y los guarda en <code>Snapshot</code>. De dos fotos consecutivas sale información que hoy se está tirando a la basura:</p>
+      <div class="formula">reseñas nuevas  k  = N₂ − N₁<br>promedio de esas k ≈ (R₂·N₂ − R₁·N₁) / k</div>
+      <p>Es decir: <strong>se puede afirmar que entraron 9 reseñas y que promediaron 1.3★ sin haber leído ni una</strong>. Eso es exactamente el pico coordinado que <code>PICO_RESENAS_NEGATIVAS</code> hoy no puede detectar, y es un argumento mucho más fuerte que «detectamos patrones»: es una cifra.</p>
+      <p>La advertencia honesta: Google redondea el rating a un decimal, así que el margen de error crece con el tamaño de la ficha. Es fiable en negocios de hasta unos cientos de reseñas —que es el grueso del mercado— y en fichas muy grandes conviene presentarlo como rango («promediaron entre 1.0★ y 1.8★») en vez de número exacto. Mejor un rango honesto que un número inventado.</p>
+      <dl class="meta">
+        <div><dt>Costo nuevo</dt><dd>Cero</dd></div>
+        <div><dt>Esfuerzo</dt><dd>2–3 días</dd></div>
+        <div><dt>Se toca</dt><dd>detector.js · monitoreo.worker</dd></div>
+        <div><dt>Datos</dt><dd>Ya están guardados</dd></div>
+      </dl>
+    </article>
+
+    <article class="prop">
+      <div class="prop-top">
+        <span class="prop-id">P3</span>
+        <h3>Simulador de rating</h3>
+      </div>
+      <p>Con el rating y el total que ya están en la base: «estás en 4.2 con 180 reseñas — te faltan 41 reseñas de 5★ para llegar a 4.5», y su reverso, «una sola reseña de 1★ hoy te baja 0.018★». Es aritmética pura, cuesta cero y responde la pregunta que todo dueño se hace y hoy nadie le contesta.</p>
+      <p>Sirve en tres sitios: dentro del panel como consejo accionable, dentro del PDF mensual, y —el más valioso— como <strong>herramienta pública gratuita en el landing</strong>. Una calculadora que responde «¿cuántas reseñas necesito?» es contenido que se comparte solo y que posiciona en búsquedas que hoy no capturas.</p>
+      <dl class="meta">
+        <div><dt>Costo nuevo</dt><dd>Cero</dd></div>
+        <div><dt>Esfuerzo</dt><dd>1 día</dd></div>
+        <div><dt>Se toca</dt><dd>Frontend, sobre todo</dd></div>
+        <div><dt>Efecto</dt><dd>Captación</dd></div>
+      </dl>
+    </article>
+
+    <article class="prop">
+      <div class="prop-top">
+        <span class="prop-id">P4</span>
+        <h3>Convertir el QR en un motor de reseñas medible</h3>
+      </div>
+      <p>Hoy el QR es una imagen estática pedida a un tercero (S8) y nadie sabe si sirve. Convertirlo en un enlace propio —<code>usenotoria.app/r/&lt;código&gt;</code>, que registra el escaneo y redirige a Google Maps— da tres cosas de golpe: el QR generado en casa, una métrica que hoy no existe («38 escaneos esta semana, tu ficha ganó 11 reseñas»), y la posibilidad de dar un código distinto <strong>por mesa, por mozo o por sede</strong>.</p>
+      <p>Ese último punto es un argumento de venta directo para Franquicia, y es lo único del producto que <em>mueve</em> el rating en vez de solo mirarlo — que es lo que el cliente realmente quiere comprar.</p>
+      <dl class="meta">
+        <div><dt>Costo nuevo</dt><dd>Cero</dd></div>
+        <div><dt>Esfuerzo</dt><dd>3–4 días</dd></div>
+        <div><dt>Se toca</dt><dd>Tabla nueva · ruta pública · panel</dd></div>
+        <div><dt>Vende</dt><dd>Franquicia</dd></div>
+      </dl>
+    </article>
+
+    <article class="prop">
+      <div class="prop-top">
+        <span class="prop-id">P5</span>
+        <h3>Sub-usuarios y modo agencia <span class="star">★ el ticket más alto</span></h3>
+      </div>
+      <p>Hoy un <code>Negocio</code> cuelga de un <code>Usuario</code> y punto. Una cadena con seis locales no le puede dar acceso al encargado de cada local sin repartir la contraseña del dueño. Y una agencia de marketing que lleva quince restaurantes —en Lima hay muchas— no tiene forma de usar Notoria en serio.</p>
+      <p>Es el cambio que abre el ticket más alto del catálogo: una agencia paga por quince fichas lo que quince dueños por separado no pagarían nunca, y además <strong>trae a sus clientes ya puestos</strong>. Requiere una tabla de miembros con rol (dueño / editor / lectura) y cambiar los <code>findFirst({ usuarioId })</code> por una comprobación de pertenencia. Es el más grande de la lista y probablemente el que más cambia el negocio.</p>
+      <p>De paso, es lo que convierte el «panel ejecutivo multi-sede» de la tabla comparativa en algo que existe.</p>
+      <dl class="meta">
+        <div><dt>Costo nuevo</dt><dd>Cero</dd></div>
+        <div><dt>Esfuerzo</dt><dd>1–2 semanas</dd></div>
+        <div><dt>Se toca</dt><dd>Schema · todas las rutas · panel</dd></div>
+        <div><dt>Vende</dt><dd>Nivel nuevo</dd></div>
+      </dl>
+    </article>
+
+    <article class="prop">
+      <div class="prop-top">
+        <span class="prop-id">P6</span>
+        <h3>Sello público de reputación</h3>
+      </div>
+      <p>Una página pública por negocio (<code>usenotoria.app/n/&lt;slug&gt;</code>) con su rating, su tendencia y la fecha del último control, más un sello embebible para la web del cliente: «Reputación verificada por Notoria». El cliente lo pone porque le conviene a él; cada sello es un enlace de vuelta y una impresión de marca gratis. Es la vía de crecimiento más barata que tiene un SaaS de este tipo, y se apoya en datos que ya están en la base.</p>
+      <p>Condición no negociable: <strong>opcional y apagado por defecto</strong>. Publicar la ficha de un cliente sin que la pida sería un problema, no una función.</p>
+      <dl class="meta">
+        <div><dt>Costo nuevo</dt><dd>Cero</dd></div>
+        <div><dt>Esfuerzo</dt><dd>3–4 días</dd></div>
+        <div><dt>Se toca</dt><dd>Ruta pública · SEO · panel</dd></div>
+        <div><dt>Efecto</dt><dd>Crecimiento</dd></div>
+      </dl>
+    </article>
+
+    <article class="prop">
+      <div class="prop-top">
+        <span class="prop-id">P7</span>
+        <h3>Benchmark de zona y de rubro</h3>
+      </div>
+      <p>En cada escaneo Notoria guarda el rating de negocios y de competidores. Acumulado, eso es algo que <strong>nadie más tiene en el Perú</strong>: el rating promedio de los restaurantes de Miraflores, cómo se mueve mes a mes, en qué percentil está tu local.</p>
+      <p>Dentro del producto es una métrica que justifica el plan de pago sola («estás en el percentil 62 de tu zona»). Fuera del producto, un informe trimestral publicable es el mejor material de prensa y de SEO que puede tener la marca. Condición: solo datos agregados y anónimos, nunca la ficha identificable de un cliente.</p>
+      <dl class="meta">
+        <div><dt>Costo nuevo</dt><dd>Cero</dd></div>
+        <div><dt>Esfuerzo</dt><dd>4–5 días</dd></div>
+        <div><dt>Se toca</dt><dd>Consultas sobre Snapshot</dd></div>
+        <div><dt>Requiere</dt><dd>Volumen de clientes</dd></div>
+      </dl>
+    </article>
+
+    <article class="prop">
+      <div class="prop-top">
+        <span class="prop-id">P8</span>
+        <h3>Cerrar el ciclo del cobro <span class="star">★ el retorno más seguro</span></h3>
+      </div>
+      <p>No es una función nueva: es dejar de perder plata. Cobrar los vencimientos atrasados y no solo los de hoy (F2). Reintentar un cargo fallido tres veces a lo largo de una semana antes de dar de baja, en vez de rendirse al primer no (F1). Avisar por correo en cada intento — «no pudimos cobrar tu plan, actualiza tu tarjeta» — que es el correo que más dinero recupera en cualquier SaaS. Bajar el <code>plan</code> a GRATIS cuando de verdad termina el periodo pagado (F3). Y poner el botón de cancelar que la página de devoluciones ya promete (F5).</p>
+      <p>De toda la lista, es la que tiene el retorno más alto y más predecible, porque no depende de vender nada nuevo: son clientes que ya te eligieron.</p>
+      <dl class="meta">
+        <div><dt>Costo nuevo</dt><dd>Cero</dd></div>
+        <div><dt>Esfuerzo</dt><dd>2–3 días</dd></div>
+        <div><dt>Se toca</dt><dd>monitoreo.worker · pago.routes · panel</dd></div>
+        <div><dt>Resuelve</dt><dd>F1 F2 F3 F5</dd></div>
+      </dl>
+    </article>
+  </section>
+
+  <!-- ══════════════ PARTE 6 ══════════════ -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-kicker">Parte 6 — Orden</span>
+      <h2>Por dónde empezaría yo</h2>
+    </div>
+
+    <ol class="plan">
+      <li><div><b>Cerrar S1</b><span class="tag">hoy · una línea</span><br><span>Exigir <code>negocioId</code> en el escaneo manual. Es un agujero que cuesta dinero real y toca datos de otros clientes.</span></div></li>
+      <li><div><b>P8 + escaneo por plan (F4)</b><span class="tag">esta semana</span><br><span>Dejar de perder ingresos por un lado y de regalar cuota de Google por el otro. Un mismo cambio arregla las dos direcciones.</span></div></li>
+      <li><div><b>S2 — cabeceras en la web</b><span class="tag">media hora</span><br><span>Lo más barato de toda la lista en relación a lo que protege.</span></div></li>
+      <li><div><b>F7 + P2 — el detector</b><span class="tag">1 semana</span><br><span>Que las alertas dejen de repetirse y empiecen a detectar de verdad. Es lo que el cliente cree que ya está comprando.</span></div></li>
+      <li><div><b>P1 — vigilancia de ficha</b><span class="tag">1–2 días</span><br><span>La función nueva más vendible y más barata. Un dueño de restaurante la entiende en cinco segundos.</span></div></li>
+      <li><div><b>P3 — simulador</b><span class="tag">1 día</span><br><span>Gancho de captación, y de paso arregla que el analizador gratuito del landing hoy no ofrezca casi nada.</span></div></li>
+      <li><div><b>S3 a S9 — saneamiento</b><span class="tag">1–2 días</span><br><span>La lista de bugs y bordes sueltos. Ninguno urgente, todos baratos.</span></div></li>
+      <li><div><b>P4 y P6 — crecimiento</b><span class="tag">1–2 semanas</span><br><span>El QR medible y el sello público. Los dos generan demanda en vez de solo servirla.</span></div></li>
+      <li><div><b>P5 y P7 — los grandes</b><span class="tag">cuando toque</span><br><span>Sub-usuarios y benchmark. Cambian el techo del negocio, pero exigen decisión, no solo código.</span></div></li>
+    </ol>
+
+    <div class="closing">
+      <h3>Una decisión que no puede esperar al código</h3>
+      <p>Las promesas de la página de precios hay que resolverlas <em>ahora</em>, no cuando estén implementadas. O se hace el escaneo por plan esta semana, o se ajusta el texto mientras tanto. Lo que no se puede sostener es anunciar «escaneo cada hora» en un catálogo de servicios público cuando el cron corre cada cuatro — y menos con un Libro de Reclamaciones ya montado en la propia web.</p>
+    </div>
+  </section>
+
+  <footer>
+    Auditoría del 17 de agosto de 2026 · brand-shield + brand-shield-web · Revisión de código, API en producción y web pública
+  </footer>
+
+</div>

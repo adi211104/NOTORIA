@@ -114,7 +114,21 @@ router.delete('/:id', async (req, res, next) => {
       return res.status(404).json({ error: 'Competidor no encontrado' });
     }
 
-    await prisma.competidor.delete({ where: { id: req.params.id } });
+    // 🔴 Los snapshots van PRIMERO, no es opcional.
+    //
+    // `snapshots_competidores` apunta a esta fila con una clave foránea
+    // obligatoria, que Prisma crea con ON DELETE RESTRICT. Y el worker guarda un
+    // snapshot por competidor en cada ciclo de 4 horas, así que en cuanto pasaba
+    // el primer ciclo el borrado empezaba a fallar con un 500 y el competidor
+    // quedaba imposible de quitar para siempre. Solo funcionaba si lo borrabas
+    // en las primeras horas de haberlo agregado.
+    //
+    // Las dos operaciones van en una transacción: si el borrado del competidor
+    // fallara, no queremos haber tirado ya su historial.
+    await prisma.$transaction([
+      prisma.snapshotCompetidor.deleteMany({ where: { competidorId: req.params.id } }),
+      prisma.competidor.delete({ where: { id: req.params.id } }),
+    ]);
     res.json({ mensaje: 'Competidor eliminado' });
   } catch (error) { next(error); }
 });

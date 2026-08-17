@@ -80,35 +80,52 @@ router.get('/buscar-negocio', autenticar, async (req, res, next) => {
 });
 
 // ── POST /api/utils/monitoreo-manual ─────────────────────
+// 🔴 `negocioId` es OBLIGATORIO, y no puede volver a dejar de serlo.
+//
+// Hasta el 2026-08-17 este endpoint aceptaba el cuerpo vacío. Cuando `negocioId`
+// venía undefined se saltaba el bloque de abajo ENTERO —cooldown incluido— y
+// llamaba a `ejecutarAhora(null)`, que en el worker resuelve a
+// `where: { activo: true }`: TODOS los negocios de TODOS los clientes.
+//
+// O sea que cualquier cuenta gratuita, con un POST de cuerpo vacío, disparaba un
+// escaneo de la plataforma completa: una consulta a Google Places por cada
+// negocio y cada competidor de la base, correos de alerta a otros clientes, y
+// auto-respuestas publicadas en las fichas de Google de otra gente. El único
+// freno era el límite global de 100 peticiones/15 min.
+//
+// Si algún día hace falta un escaneo global, va en un script de terminal
+// (`scripts/escanear.js`), nunca detrás de una sesión de usuario.
 router.post('/monitoreo-manual', autenticar, async (req, res, next) => {
   try {
-    const { negocioId } = req.body;
+    const { negocioId } = req.body || {};
     const plan = req.usuario.plan;
     const cooldownMin = COOLDOWN_MINUTOS[plan] || 1440;
 
-    // Verificar cooldown si se especifica un negocio
-    if (negocioId) {
-      const negocio = await prisma.negocio.findFirst({
-        where: { id: negocioId, usuarioId: req.usuario.id },
-        select: { ultimoEscaneo: true, nombre: true },
-      });
-      if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
-
-      if (negocio.ultimoEscaneo) {
-        const transcurridos = (Date.now() - new Date(negocio.ultimoEscaneo).getTime()) / 1000 / 60;
-        if (transcurridos < cooldownMin) {
-          const restantes = Math.ceil(cooldownMin - transcurridos);
-          return res.status(429).json({
-            error: `Debes esperar ${restantes} minutos más para volver a escanear.`,
-            minutosRestantes: restantes,
-            cooldownMinutos: cooldownMin,
-          });
-        }
-      }
-
-      // Actualizar ultimoEscaneo
-      await prisma.negocio.update({ where: { id: negocioId }, data: { ultimoEscaneo: new Date() } });
+    if (!negocioId || typeof negocioId !== 'string') {
+      return res.status(400).json({ error: 'negocioId es requerido' });
     }
+
+    // La pertenencia se comprueba acá: `ejecutarAhora` recibe un id ya validado.
+    const negocio = await prisma.negocio.findFirst({
+      where: { id: negocioId, usuarioId: req.usuario.id },
+      select: { ultimoEscaneo: true, nombre: true },
+    });
+    if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
+
+    if (negocio.ultimoEscaneo) {
+      const transcurridos = (Date.now() - new Date(negocio.ultimoEscaneo).getTime()) / 1000 / 60;
+      if (transcurridos < cooldownMin) {
+        const restantes = Math.ceil(cooldownMin - transcurridos);
+        return res.status(429).json({
+          error: `Debes esperar ${restantes} minutos más para volver a escanear.`,
+          minutosRestantes: restantes,
+          cooldownMinutos: cooldownMin,
+        });
+      }
+    }
+
+    // Actualizar ultimoEscaneo
+    await prisma.negocio.update({ where: { id: negocioId }, data: { ultimoEscaneo: new Date() } });
 
     res.json({
       mensaje: 'Escaneo iniciado en segundo plano. Las alertas aparecerán en unos segundos.',

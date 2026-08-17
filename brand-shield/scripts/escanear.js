@@ -45,7 +45,10 @@ const negocioId = process.argv[2] || null;
     console.log('\nEscaneando TODOS los negocios activos\n');
   }
 
-  await ejecutarAhora(negocioId);
+  // `global: true` solo cuando no se pasó un id. Es explícito a propósito: el
+  // barrido de toda la plataforma es una operación de terminal y el worker ya no
+  // la hace por accidente si el id llega undefined (ver monitoreo.worker.js).
+  await ejecutarAhora(negocioId, { global: !negocioId });
 
   if (negocioId) {
     const comentarios = await prisma.comentarioSocial.count({ where: { negocioId } });

@@ -283,9 +283,20 @@ const iniciarMonitoreo = () => {
   console.log('[Worker] Cron job configurado: cada 4 horas');
 };
 
-// Permite ejecutar el monitoreo manualmente (útil para pruebas)
-const ejecutarAhora = async (negocioId = null) => {
-  console.log('[Worker] Ejecución manual iniciada...');
+// Permite ejecutar el monitoreo manualmente (útil para pruebas y scripts).
+//
+// ⚠️ Sin `negocioId` esto escanea la plataforma ENTERA: una consulta a Google
+// Places por cada negocio y cada competidor de la base, más los correos de
+// alerta y las auto-respuestas que eso dispare. Es una operación de terminal,
+// no algo que pueda quedar colgando de una ruta HTTP — llamarla desde una ruta
+// con el id en null fue exactamente el agujero que se cerró el 2026-08-17 en
+// `utils.routes.js`. Por eso ahora el barrido global exige pedirlo a propósito
+// con `{ global: true }`: un `undefined` que se cuela ya no basta.
+const ejecutarAhora = async (negocioId = null, { global: barridoGlobal = false } = {}) => {
+  if (!negocioId && !barridoGlobal) {
+    throw new Error('ejecutarAhora requiere un negocioId, o { global: true } para barrer toda la plataforma');
+  }
+  console.log(`[Worker] Ejecución manual iniciada${negocioId ? '' : ' — BARRIDO GLOBAL'}...`);
   const where = negocioId ? { activo: true, id: negocioId } : { activo: true };
   const negocios = await prisma.negocio.findMany({
     where,

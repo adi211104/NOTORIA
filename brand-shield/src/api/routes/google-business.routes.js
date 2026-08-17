@@ -36,6 +36,20 @@ router.get('/iniciar', async (req, res) => {
     });
   }
 
+  // 🔴 El negocio tiene que ser de quien pide el enlace.
+  //
+  // Antes se firmaba el state con el `negocioId` que llegara por query sin
+  // comprobar nada: bastaba con poner el id de otro cliente para que el callback
+  // le sobrescribiera SUS tokens de Google Business (el update de más abajo no
+  // filtraba por dueño). El state va firmado con HMAC, sí, pero se firmaba
+  // igual de bien un id ajeno — la firma impide falsificar el state, no impide
+  // pedir uno legítimo para el negocio de otro.
+  const propio = await prisma.negocio.findFirst({
+    where: { id: negocioId, usuarioId: payload.id },
+    select: { id: true },
+  });
+  if (!propio) return res.status(404).json({ error: 'Negocio no encontrado' });
+
   // State firmado con HMAC (ver src/lib/oauthState.js) — no falsificable + expira.
   const state = firmarState({ negocioId, userId: payload.id });
 
@@ -85,6 +99,18 @@ router.get('/callback', async (req, res) => {
 
     if (!cuentas.length) {
       return res.redirect(`${FRONTEND_URL}/dashboard/negocios/${negocioId}?gbp_error=no_accounts&tab=config`);
+    }
+
+    // Segunda comprobación de dueño, ya con el userId que viaja firmado dentro
+    // del state. `/iniciar` ya la hizo, pero esta ruta la vuelve a hacer porque
+    // es la que escribe: si mañana aparece otra forma de llegar acá, el filtro
+    // sigue puesto donde importa.
+    const negocioDelUsuario = await prisma.negocio.findFirst({
+      where: { id: negocioId, usuarioId: userId },
+      select: { id: true },
+    });
+    if (!negocioDelUsuario) {
+      return res.redirect(`${FRONTEND_URL}/dashboard?gbp_error=negocio_no_encontrado`);
     }
 
     // Guardar token temporalmente — el frontend elegirá la ubicación

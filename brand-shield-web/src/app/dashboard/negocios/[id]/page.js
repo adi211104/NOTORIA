@@ -9,6 +9,7 @@ import { useAuth } from '../../../../context/AuthContext';
 import { useIdioma } from '../../../../context/IdiomaContext';
 import Icon, { ICONO_ALERTA } from '../../../../components/Icons';
 import BloqueoPlan from '../../../../components/BloqueoPlan';
+import CodigoQR, { descargarQR } from '../../../../components/CodigoQR';
 
 import { API_URL } from '../../../../lib/api';
 const getToken = () => localStorage.getItem('bs_token');
@@ -2594,17 +2595,19 @@ export default function DetallePage() {
                 <Card style={{ textAlign:'center' }}>
                   <ST>{t.crecer.qrTitulo}</ST>
                   <div style={{ background:'#fff', borderRadius:10, padding:14, display:'inline-block', margin:'4px 0 10px' }}>
-                    {/* API pública de QR — genera la imagen al vuelo sin dependencias */}
-                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&data=${encodeURIComponent(linkResena)}`}
-                      alt={t.crecer.qrAlt(negocio.nombre)} width={180} height={180} style={{ display:'block' }} />
+                    {/* Se dibuja en el navegador (components/CodigoQR.js). Antes salía de
+                        api.qrserver.com, que le mandaba a un tercero el enlace de reseñas
+                        de cada cliente y hacía depender una función de pago de un
+                        servicio gratuito ajeno. */}
+                    <CodigoQR valor={linkResena} tamano={180} alt={t.crecer.qrAlt(negocio.nombre)} />
                   </div>
                   <p style={{ color:'var(--text-2)', fontSize:12, margin:'0 0 10px', lineHeight:1.5 }}>
                     {t.crecer.qrDesc}
                   </p>
-                  <a href={`https://api.qrserver.com/v1/create-qr-code/?size=600x600&margin=16&data=${encodeURIComponent(linkResena)}`} target="_blank" rel="noopener noreferrer"
-                    style={{ display:'inline-flex', alignItems:'center', gap:7, background:'var(--surface2)', border:'1px solid var(--border-c)', color:'var(--text-2)', borderRadius:8, padding:'8px 16px', fontSize:12.5, textDecoration:'none' }}>
+                  <button onClick={() => descargarQR(linkResena, `QR-resenas-${(negocio.nombre || 'negocio').replace(/[^\w-]+/g, '-').slice(0, 40)}.png`)}
+                    style={{ display:'inline-flex', alignItems:'center', gap:7, background:'var(--surface2)', border:'1px solid var(--border-c)', color:'var(--text-2)', borderRadius:8, padding:'8px 16px', fontSize:12.5, cursor:'pointer' }}>
                     <Icon name="descargar" size={13} /> {t.crecer.altaResolucion}
-                  </a>
+                  </button>
                 </Card>
 
                 <Card>

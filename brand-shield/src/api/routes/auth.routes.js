@@ -13,18 +13,42 @@ const router = express.Router();
 const { autenticar } = require('../middlewares/auth.middleware');
 const { hayFuenteDisponible } = require('../../lib/menciones');
 
-// ── Validaciones con Zod ──────────────────────────────────
+// 🔴 El correo se normaliza SIEMPRE antes de tocar la base.
+//
+// En PostgreSQL el índice único distingue mayúsculas, así que "Juan@correo.com"
+// y "juan@correo.com" eran dos cuentas distintas. Y como `recuperar-password` sí
+// hacía `toLowerCase()` pero el registro y el login no, quien se registrara con
+// una mayúscula quedaba atrapado: no podía recuperar su contraseña nunca, porque
+// la búsqueda del reset no encontraba su fila.
+//
+// El `.transform` va dentro del schema para que no haya forma de saltárselo
+// desde un call-site nuevo.
+const emailNormalizado = z.string().trim().toLowerCase().pipe(z.string().email('Email inválido'));
+
 const schemaRegistro = z.object({
   nombre: z.string().min(2, 'El nombre debe tener al menos 2 caracteres'),
-  email: z.string().email('Email inválido'),
+  email: emailNormalizado,
   password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),
   telefono: z.string().optional(),
 });
 
 const schemaLogin = z.object({
-  email: z.string().email('Email inválido'),
+  email: emailNormalizado,
   password: z.string().min(1, 'La contraseña es requerida'),
 });
+
+// Búsqueda por correo sin distinguir mayúsculas.
+//
+// Hace falta por las cuentas creadas ANTES de normalizar el registro: si alguien
+// se registró como "Juan@correo.com", su fila sigue teniendo la mayúscula, y un
+// `findUnique({ email: 'juan@correo.com' })` no la encuentra. Sin esto, arreglar
+// el registro dejaría fuera a esos usuarios, que es peor que el bug original.
+//
+// No se hace backfill de las filas viejas a propósito: bajar todo a minúsculas
+// en producción podría chocar contra el @unique si existieran dos variantes del
+// mismo correo, y ese choque hay que resolverlo a mano, no en un arranque.
+const buscarUsuarioPorEmail = (email) =>
+  prisma.usuario.findFirst({ where: { email: { equals: email, mode: 'insensitive' } } });
 
 // ── POST /api/auth/registro ───────────────────────────────
 router.post('/registro', async (req, res, next) => {
@@ -32,10 +56,9 @@ router.post('/registro', async (req, res, next) => {
     // Validar datos
     const datos = schemaRegistro.parse(req.body);
 
-    // Verificar si el email ya existe
-    const existe = await prisma.usuario.findUnique({
-      where: { email: datos.email },
-    });
+    // Verificar si el email ya existe (sin distinguir mayúsculas: una cuenta
+    // vieja con "Juan@correo.com" tiene que bloquear el alta de "juan@correo.com")
+    const existe = await buscarUsuarioPorEmail(datos.email);
     if (existe) {
       return res.status(409).json({ error: 'Este email ya está registrado' });
     }
@@ -99,9 +122,7 @@ router.post('/login', async (req, res, next) => {
     const datos = schemaLogin.parse(req.body);
 
     // Buscar usuario
-    const usuario = await prisma.usuario.findUnique({
-      where: { email: datos.email },
-    });
+    const usuario = await buscarUsuarioPorEmail(datos.email);
 
     if (!usuario) {
       return res.status(401).json({ error: 'Email o contraseña incorrectos' });
@@ -294,7 +315,27 @@ router.patch('/cambiar-password', autenticar, async (req, res, next) => {
 });
 
 // ── DELETE /api/auth/cuenta ───────────────────────────────
-// Elimina la cuenta y todos los datos del usuario
+// Elimina la cuenta y todos los datos del usuario.
+//
+// 🔴 Dos cosas que estaban mal hasta el 2026-08-17:
+//
+// 1. El `prisma.usuario.delete` del final NO borraba `pagos` ni `comprobantes`,
+//    y las dos tablas apuntan al usuario con una FK obligatoria (ON DELETE
+//    RESTRICT). Resultado: cualquier cliente que hubiera pagado alguna vez veía
+//    un error 500 al intentar borrar su cuenta, sin explicación.
+//
+// 2. Borrar esas filas TAMPOCO era la salida: el XML firmado y el CDR de cada
+//    comprobante hay que conservarlos 5 años (ver el modelo Comprobante). Un
+//    cliente no puede hacer desaparecer la contabilidad de la empresa pidiendo
+//    la baja de su cuenta.
+//
+// Por eso, cuando hay historial fiscal, la cuenta se ANONIMIZA en vez de
+// borrarse: se van los datos personales y el acceso, y queda la fila mínima que
+// sostiene los comprobantes. Es también lo que permite la Ley 29733: el derecho
+// de supresión cede ante una obligación legal de conservación, y lo correcto es
+// conservar lo justo y disociar el resto.
+//
+// Si el usuario nunca pagó no hay nada que conservar, así que se borra de verdad.
 router.delete('/cuenta', autenticar, async (req, res, next) => {
   try {
     const usuarioId = req.usuario.id;
@@ -326,8 +367,53 @@ router.delete('/cuenta', autenticar, async (req, res, next) => {
       await prisma.negocio.deleteMany({ where: { usuarioId } });
     }
 
-    await prisma.usuario.delete({ where: { id: usuarioId } });
-    res.json({ mensaje: 'Cuenta eliminada correctamente' });
+    // ¿Queda historial fiscal que la empresa está obligada a conservar?
+    const tieneHistorialFiscal =
+      (await prisma.pago.count({ where: { usuarioId } })) > 0 ||
+      (await prisma.comprobante.count({ where: { usuarioId } })) > 0;
+
+    if (!tieneHistorialFiscal) {
+      await prisma.usuario.delete({ where: { id: usuarioId } });
+      return res.json({ mensaje: 'Cuenta eliminada correctamente' });
+    }
+
+    // Anonimización. El correo se reemplaza por uno irrepetible dentro de un
+    // dominio reservado (RFC 2606) para no chocar contra el @unique ni poder
+    // colisionar jamás con un correo real, y la contraseña por una cadena que
+    // bcrypt nunca va a validar — no es un hash, así que ningún `compare`
+    // puede darle verdadero.
+    await prisma.usuario.update({
+      where: { id: usuarioId },
+      data: {
+        email: `eliminado-${usuarioId}@cuenta-eliminada.invalid`,
+        nombre: 'Cuenta eliminada',
+        password: 'CUENTA_ELIMINADA',
+        telefono: null,
+        googleId: null,
+        tokenVerificacion: null,
+        tokenVerificaExpira: null,
+        tokenResetHash: null,
+        tokenResetExpira: null,
+        emailVerificado: false,
+        suscripcionActiva: false,
+        suscripcionId: null,
+        fechaVencimiento: null,
+        plan: 'GRATIS',
+        prefsAlertas: null,
+        // Datos fiscales del receptor: se van de la cuenta, pero siguen
+        // congelados dentro de cada Comprobante ya emitido, que es donde la
+        // norma obliga a conservarlos.
+        docTipo: null,
+        docNumero: null,
+        razonSocial: null,
+        direccionFiscal: null,
+        paisFiscal: null,
+      },
+    });
+
+    res.json({
+      mensaje: 'Cuenta eliminada correctamente. Por obligación tributaria conservamos solo los comprobantes ya emitidos, sin tus datos personales.',
+    });
   } catch (error) { next(error); }
 });
 
@@ -347,23 +433,45 @@ router.post('/google', async (req, res, next) => {
       audience: process.env.GOOGLE_CLIENT_ID,
     });
     const payload = ticket.getPayload();
-    const { email, name, sub: googleId, picture } = payload;
+    const { name, sub: googleId, email_verified: emailVerificadoGoogle } = payload;
+    // Mismo criterio que el registro normal: el correo se guarda en minúsculas
+    const email = (payload.email || '').trim().toLowerCase();
 
-    // Buscar usuario existente por email o googleId
+    // 🔴 Sin correo verificado no se entra.
+    //
+    // Más abajo, si ya existe una cuenta con este correo, se le engancha el
+    // googleId — o sea que el token de Google vale como prueba de identidad. Eso
+    // solo es cierto si Google confirma que el correo está verificado. Un dominio
+    // de Workspace mal configurado puede emitir tokens con correos sin verificar,
+    // y ahí el enlace automático se convierte en una vía para tomar una cuenta
+    // ajena con solo saber su correo.
+    if (!email || emailVerificadoGoogle === false) {
+      return res.status(401).json({
+        error: 'Tu cuenta de Google no tiene el correo verificado. Verifícalo con Google o regístrate con correo y contraseña.',
+        tipo: 'GOOGLE_EMAIL_NO_VERIFICADO',
+      });
+    }
+
+    // Buscar usuario existente por email o googleId. El email va sin distinguir
+    // mayúsculas por las cuentas anteriores a la normalización (ver arriba).
     let usuario = await prisma.usuario.findFirst({
-      where: { OR: [{ email }, { googleId }] },
+      where: { OR: [{ email: { equals: email, mode: 'insensitive' } }, { googleId }] },
     });
 
     const esNuevo = !usuario;
 
     if (!usuario) {
-      // Crear nuevo usuario
+      // Crear nuevo usuario. Llega con el correo ya verificado por Google, así
+      // que no tiene sentido pedirle que verifique otra vez: sin esto, el panel
+      // le mostraba la franja amarilla de "verifica tu correo" a alguien que
+      // acababa de identificarse con Google.
       usuario = await prisma.usuario.create({
         data: {
           email,
           nombre: name || email.split('@')[0],
           password: '', // Sin contraseña para usuarios de Google
           googleId,
+          emailVerificado: true,
         },
       });
     } else if (!usuario.googleId) {
@@ -440,7 +548,7 @@ router.post('/recuperar-password', async (req, res, next) => {
       return res.status(400).json({ error: 'Email requerido' });
     }
 
-    const usuario = await prisma.usuario.findUnique({ where: { email: email.toLowerCase().trim() } });
+    const usuario = await buscarUsuarioPorEmail(email.toLowerCase().trim());
 
     // Solo enviamos si la cuenta existe y tiene contraseña (las cuentas creadas
     // solo con Google no tienen contraseña que restablecer).

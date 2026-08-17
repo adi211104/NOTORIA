@@ -1,0 +1,527 @@
+<title>Nueve ideas para Notoria</title>
+<style>
+  :root {
+    --ground:    #FCFCFA;
+    --raise:     #FFFFFF;
+    --sunk:      #F1F2ED;
+    --ink:       #10140F;
+    --ink-2:     #3D453B;
+    --ink-3:     #6E766A;
+    --hair:      #E1E4DC;
+    --hair-soft: #EDEFE9;
+    --green:     #0B7324;
+    --green-2:   #0E5C21;
+    --green-wash:#EAF2E9;
+    --numeral:   #DCE3D8;
+
+    --display: Georgia, "Times New Roman", Times, serif;
+    --body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:    #0B0E0C;
+      --raise:     #121713;
+      --sunk:      #171D19;
+      --ink:       #EAEFE9;
+      --ink-2:     #B7C0B6;
+      --ink-3:     #838C81;
+      --hair:      #232B25;
+      --hair-soft: #1B221D;
+      --green:     #5FA872;
+      --green-2:   #7FBE90;
+      --green-wash:#142418;
+      --numeral:   #1E261F;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:    #0B0E0C;
+    --raise:     #121713;
+    --sunk:      #171D19;
+    --ink:       #EAEFE9;
+    --ink-2:     #B7C0B6;
+    --ink-3:     #838C81;
+    --hair:      #232B25;
+    --hair-soft: #1B221D;
+    --green:     #5FA872;
+    --green-2:   #7FBE90;
+    --green-wash:#142418;
+    --numeral:   #1E261F;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 0 26px 110px;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 16.5px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 820px; margin: 0 auto; }
+  a { color: var(--green); text-underline-offset: 2px; }
+  a:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
+
+  /* ── Portada ──────────────────────────────── */
+  header { padding: 84px 0 0; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--green);
+    margin: 0 0 26px;
+  }
+  h1 {
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: clamp(40px, 7.5vw, 68px);
+    line-height: 1.02;
+    letter-spacing: -.02em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  h1 em { font-style: italic; color: var(--green); }
+  .standfirst {
+    font-size: 19px;
+    line-height: 1.58;
+    color: var(--ink-2);
+    max-width: 60ch;
+    margin: 28px 0 0;
+  }
+
+  .premise {
+    margin: 44px 0 0;
+    padding: 26px 0 0;
+    border-top: 2px solid var(--ink);
+  }
+  .premise p { margin: 0 0 14px; color: var(--ink-2); max-width: 64ch; }
+  .premise p:last-child { margin-bottom: 0; }
+  .premise strong { color: var(--ink); font-weight: 600; }
+
+  .assets {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 1px;
+    background: var(--hair);
+    border: 1px solid var(--hair);
+    margin: 32px 0 0;
+  }
+  .asset { background: var(--raise); padding: 16px 18px; }
+  .asset dt {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--green);
+    margin: 0 0 6px;
+  }
+  .asset dd { margin: 0; font-size: 14.5px; line-height: 1.5; color: var(--ink-2); }
+
+  /* ── Ideas ────────────────────────────────── */
+  .idea {
+    padding: 62px 0 0;
+    margin-top: 62px;
+    border-top: 1px solid var(--hair);
+  }
+  .idea:first-of-type { border-top: 2px solid var(--ink); }
+
+  .idea-head { display: flex; align-items: flex-start; gap: 22px; }
+  .numeral {
+    font-family: var(--display);
+    font-size: clamp(50px, 9vw, 78px);
+    line-height: .82;
+    color: var(--numeral);
+    font-variant-numeric: tabular-nums;
+    flex: 0 0 auto;
+    user-select: none;
+  }
+  .idea h2 {
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: clamp(27px, 4.4vw, 37px);
+    line-height: 1.12;
+    letter-spacing: -.012em;
+    margin: 0;
+    padding-top: 4px;
+    text-wrap: balance;
+  }
+  .idea-id {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: .14em;
+    color: var(--green);
+    display: block;
+    margin-bottom: 9px;
+    text-transform: uppercase;
+  }
+
+  .idea-body { margin-top: 26px; }
+  .idea-body p { margin: 0 0 16px; color: var(--ink-2); max-width: 63ch; }
+  .idea-body p:last-child { margin-bottom: 0; }
+  .idea-body strong { color: var(--ink); font-weight: 600; }
+
+  code {
+    font-family: var(--mono);
+    font-size: .85em;
+    background: var(--sunk);
+    border: 1px solid var(--hair-soft);
+    padding: 1px 5px;
+    white-space: nowrap;
+  }
+
+  .why {
+    margin: 26px 0 0;
+    padding: 20px 24px;
+    background: var(--green-wash);
+    border-left: 3px solid var(--green);
+  }
+  .why span {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--green);
+    display: block;
+    margin-bottom: 7px;
+  }
+  .why p {
+    font-family: var(--display);
+    font-style: italic;
+    font-size: 18px;
+    line-height: 1.5;
+    margin: 0;
+    color: var(--ink);
+    max-width: 58ch;
+  }
+
+  .caveat {
+    margin: 22px 0 0;
+    padding: 16px 20px;
+    border: 1px dashed var(--hair);
+    font-size: 14.5px;
+    color: var(--ink-3);
+    max-width: 63ch;
+  }
+  .caveat b { color: var(--ink-2); font-weight: 600; }
+
+  .ficha {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    margin: 26px 0 0;
+    border: 1px solid var(--hair);
+    background: var(--hair);
+  }
+  .ficha div {
+    background: var(--raise);
+    padding: 11px 16px;
+    flex: 1 1 155px;
+    margin: 0 1px 1px 0;
+  }
+  .ficha dt {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 3px;
+  }
+  .ficha dd { margin: 0; font-size: 14px; color: var(--ink); }
+
+  /* ── Cierre ───────────────────────────────── */
+  .close {
+    margin-top: 82px;
+    padding-top: 34px;
+    border-top: 2px solid var(--ink);
+  }
+  .close h2 {
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: clamp(26px, 4vw, 34px);
+    line-height: 1.14;
+    margin: 0 0 22px;
+    text-wrap: balance;
+  }
+  .close p { color: var(--ink-2); max-width: 64ch; margin: 0 0 16px; }
+  .close strong { color: var(--ink); font-weight: 600; }
+
+  .picks { list-style: none; padding: 0; margin: 28px 0 0; }
+  .picks li {
+    display: grid;
+    grid-template-columns: 62px 1fr;
+    gap: 0 18px;
+    padding: 15px 0;
+    border-bottom: 1px solid var(--hair-soft);
+    align-items: baseline;
+  }
+  .picks .tag {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: .08em;
+    color: var(--green);
+    font-weight: 600;
+  }
+  .picks b { display: block; font-weight: 600; }
+  .picks span { color: var(--ink-2); font-size: 15px; }
+
+  footer {
+    margin-top: 72px;
+    padding-top: 22px;
+    border-top: 1px solid var(--hair);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  @media (max-width: 600px) {
+    body { padding: 0 18px 80px; }
+    .idea-head { gap: 14px; }
+    .picks li { grid-template-columns: 1fr; gap: 6px 0; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Notoria · ideas de producto · 17 ago 2026</p>
+    <h1>Nueve cosas que <em>solo</em> Notoria puede hacer</h1>
+    <p class="standfirst">Ninguna de estas es «agregar testimonios» o «poner un chat». Todas salen de algo que Notoria ya tiene y la competencia no: una serie de tiempo cada 4 horas, acceso a cualquier ficha del Perú, y un cliente que no vive en el navegador.</p>
+
+    <div class="premise">
+      <p>La mayoría de ideas para un SaaS son intercambiables: se le pueden aplicar igual a Notoria que a una app de facturación. Estas no. Cada una nace de un activo concreto que ya está en la base de datos o en una API que ya se está pagando.</p>
+      <p><strong>Ese es el filtro que usé:</strong> si la idea funciona igual de bien para otro producto, no entró.</p>
+    </div>
+
+    <dl class="assets">
+      <div class="asset"><dt>Activo 1</dt><dd>Rating y número de reseñas de cada ficha, cada 4 horas, guardado desde el día uno. Nadie en el Perú tiene esta serie.</dd></div>
+      <div class="asset"><dt>Activo 2</dt><dd>Capacidad de consultar <em>cualquier</em> negocio del Perú con ficha en Maps, sea cliente o no.</dd></div>
+      <div class="asset"><dt>Activo 3</dt><dd>Un cliente que tiene una impresora y una pared, y que abre WhatsApp cuarenta veces al día.</dd></div>
+      <div class="asset"><dt>Activo 4</dt><dd>Un modelo de IA rápido y barato ya conectado, y una máquina de PDF ya construida.</dd></div>
+    </dl>
+  </header>
+
+  <!-- ══ 1 ══ -->
+  <article class="idea">
+    <div class="idea-head">
+      <span class="numeral">1</span>
+      <h2><span class="idea-id">I1 · El espejo</span>Tu ficha como la ve alguien que nunca te ha visitado</h2>
+    </div>
+    <div class="idea-body">
+      <p>Notoria pide las reseñas a Google con <code>reviews_sort: 'newest'</code> — en <code>google.scraper.js:35</code> y en el analizador público. Tiene sentido para vigilar. Pero <strong>no es lo que ve un cliente</strong>: Google, por defecto, ordena por relevancia, y a un desconocido le enseña otras cinco reseñas distintas.</p>
+      <p>La idea es pedir las dos listas —una llamada más— y enseñar la diferencia: «estas son las 5 reseñas que Google le muestra a alguien que busca tu restaurante ahora mismo. Dos son de 1★ y tienen ocho meses.» Ese dueño lleva meses respondiendo las reseñas nuevas mientras las que hunden su ficha son viejas y las tiene olvidadas.</p>
+      <p>Es un espejo incómodo, y por eso convence. Además es directamente accionable: te dice exactamente cuáles responder primero.</p>
+      <div class="why">
+        <span>Por qué nadie lo hace</span>
+        <p>Porque «lo más nuevo» parece obviamente lo correcto para una herramienta de monitoreo, y una vez que eliges ese orden ya no vuelves a mirarlo. Es una decisión que se toma en cinco segundos y no se revisa nunca.</p>
+      </div>
+      <dl class="ficha">
+        <div><dt>Costo</dt><dd>1 llamada extra por escaneo</dd></div>
+        <div><dt>Esfuerzo</dt><dd>2 días</dd></div>
+        <div><dt>Dónde</dt><dd>Panel + analizador del landing</dd></div>
+      </dl>
+    </div>
+  </article>
+
+  <!-- ══ 2 ══ -->
+  <article class="idea">
+    <div class="idea-head">
+      <span class="numeral">2</span>
+      <h2><span class="idea-id">I2 · El simulacro</span>Qué le pasa a tu negocio si mañana entran ocho reseñas de una estrella</h2>
+    </div>
+    <div class="idea-body">
+      <p>Todo el landing argumenta con estudios: Harvard, BrightLocal, Google. Datos ajenos sobre negocios ajenos. La versión que nadie ofrece es el mismo argumento <strong>con los números del propio local</strong>, calculado en vivo.</p>
+      <p>Un botón que dice: «simular un ataque». Y responde con aritmética exacta: «tienes 4.51★ con 212 reseñas. Ocho reseñas de 1★ te dejan en 4.38 — por debajo del 4.5 que filtra el 31% de los consumidores. Recuperar ese 4.5 te costaría 34 reseñas de cinco estrellas, o sea unas siete semanas a tu ritmo actual.»</p>
+      <p>Es la misma matemática del simulador de rating, girada del lado del miedo en vez del lado de la meta. Y el dato brutal no lo dice Notoria: lo dice la ficha del propio cliente.</p>
+      <div class="why">
+        <span>Por qué nadie lo hace</span>
+        <p>Porque asusta al cliente, y el instinto de todo producto es tranquilizarlo. Pero el que llega al analizador ya está preocupado — lo que le falta no es calma, es una cifra concreta que justifique gastar S/59 al mes.</p>
+      </div>
+      <dl class="ficha">
+        <div><dt>Costo</dt><dd>Cero — es aritmética</dd></div>
+        <div><dt>Esfuerzo</dt><dd>1 día</dd></div>
+        <div><dt>Dónde</dt><dd>Landing (sin registro) + panel</dd></div>
+      </dl>
+    </div>
+  </article>
+
+  <!-- ══ 3 ══ -->
+  <article class="idea">
+    <div class="idea-head">
+      <span class="numeral">3</span>
+      <h2><span class="idea-id">I3 · El enlace que ya sabe quién eres</span>Una landing distinta para cada restaurante del Perú</h2>
+    </div>
+    <div class="idea-body">
+      <p>Notoria puede consultar cualquier ficha del país. Eso permite algo que casi ningún SaaS puede: <strong>generar una página de venta por negocio, antes de que ese negocio exista como cliente</strong>.</p>
+      <p><code>usenotoria.app/para/&lt;ficha&gt;</code> abre con el nombre del local, su rating real, su posición frente a los tres competidores más cercanos y las reseñas sospechosas que ya se detectaron. No un landing genérico: el suyo.</p>
+      <p>Ese enlace es el arma de venta. Se manda por WhatsApp —que es donde vive este mercado— con una línea: «revisé la ficha de tu restaurante, mira esto». Y se puede generar de a quinientos: todos los restaurantes de Miraflores, todos los hoteles de Cusco. La prospección deja de ser fría.</p>
+      <div class="why">
+        <span>Por qué nadie lo hace</span>
+        <p>Porque hace falta tener el dato del prospecto <em>antes</em> de que se registre, y casi ningún SaaS lo tiene. Notoria sí, porque su materia prima es información pública. Es un privilegio raro y está sin usar.</p>
+      </div>
+      <div class="caveat"><b>Cuidado:</b> la página debe ser privada por defecto —sin indexar, sin listar— y borrarse si el negocio lo pide. Es material comercial dirigido a una persona, no una ficha publicada sobre un tercero.</div>
+      <dl class="ficha">
+        <div><dt>Costo</dt><dd>1 consulta por enlace generado</dd></div>
+        <div><dt>Esfuerzo</dt><dd>3–4 días</dd></div>
+        <div><dt>Efecto</dt><dd>Cambia cómo se vende</dd></div>
+      </dl>
+    </div>
+  </article>
+
+  <!-- ══ 4 ══ -->
+  <article class="idea">
+    <div class="idea-head">
+      <span class="numeral">4</span>
+      <h2><span class="idea-id">I4 · Estrellas a soles</span>Poner precio en soles a lo que ya está perdiendo</h2>
+    </div>
+    <div class="idea-body">
+      <p>El landing cita a Luca (Harvard): una estrella entera mueve entre 5% y 9% de los ingresos de un restaurante independiente. Es un dato excelente y está desperdiciado como estadística de fondo.</p>
+      <p>La idea es preguntar una sola cosa en el analizador gratuito —«¿cuánto factura al mes, aproximadamente?», por rangos, sin cifras exactas— y devolver el resultado en la moneda que el dueño piensa: «con 4.2★ frente al 4.6★ del líder de tu zona, la diferencia equivale a entre S/2,400 y S/4,300 al mes, según el estudio de Harvard citado abajo».</p>
+      <p>Nadie entiende «0.3 estrellas». Todos entienden «tres mil soles al mes». Y la regla que ya tiene el proyecto —ninguna cifra sin fuente pública— es justo lo que hace que esto sea defendible en vez de humo: se enseña la aritmética y el enlace al paper.</p>
+      <div class="why">
+        <span>Por qué nadie lo hace</span>
+        <p>Porque obliga a comprometerse con un número, y comprometerse con un número da miedo. Presentado como rango y con la fuente a la vista, deja de ser un riesgo y pasa a ser el argumento más fuerte de toda la web.</p>
+      </div>
+      <dl class="ficha">
+        <div><dt>Costo</dt><dd>Cero</dd></div>
+        <div><dt>Esfuerzo</dt><dd>1–2 días</dd></div>
+        <div><dt>Dónde</dt><dd>Analizador gratuito + PDF mensual</dd></div>
+      </dl>
+    </div>
+  </article>
+
+  <!-- ══ 5 ══ -->
+  <article class="idea">
+    <div class="idea-head">
+      <span class="numeral">5</span>
+      <h2><span class="idea-id">I5 · El afiche de la pared</span>Un reporte que no se abre en el navegador: se imprime y se cuelga en la cocina</h2>
+    </div>
+    <div class="idea-body">
+      <p>El dueño de un restaurante no vive en un panel. Entra la primera semana, se emociona, y a los veinte días deja de entrar. Ese es el patrón de churn de cualquier herramienta de monitoreo, y no se arregla con más notificaciones.</p>
+      <p>Se arregla saliendo de la pantalla. Un PDF de una página, tamaño A4, pensado para <strong>la pared del personal, no para el cliente</strong>: «esta semana — 4.3★ · 6 reseñas nuevas · la queja que más se repitió: demora en la cocina · meta de la semana: bajar el tiempo de pase». Se genera solo cada lunes y llega por correo listo para imprimir.</p>
+      <p>Convierte a Notoria en parte de la operación del local en vez de otra pestaña. Y cada semana hay un papel con la marca colgado donde trabajan quince personas.</p>
+      <div class="why">
+        <span>Por qué nadie lo hace</span>
+        <p>Porque todo el mundo que construye software asume que la solución a la falta de uso es más software. La idea de que el mejor formato sea papel es literalmente contraintuitiva para quien lo está programando.</p>
+      </div>
+      <dl class="ficha">
+        <div><dt>Costo</dt><dd>Cero — PDFKit ya está</dd></div>
+        <div><dt>Esfuerzo</dt><dd>2–3 días</dd></div>
+        <div><dt>Efecto</dt><dd>Retención</dd></div>
+      </dl>
+    </div>
+  </article>
+
+  <!-- ══ 6 ══ -->
+  <article class="idea">
+    <div class="idea-head">
+      <span class="numeral">6</span>
+      <h2><span class="idea-id">I6 · La constancia</span>Un papel de reputación verificable, para cuando alguien se lo pide</h2>
+    </div>
+    <div class="idea-body">
+      <p>En el Perú todo pasa por un documento. Un centro comercial que evalúa a quién le alquila un local, un franquiciante que revisa a un franquiciado, un banco que estudia un crédito, un inversionista que mira un traspaso: todos piden papeles, y ninguno tiene forma de acreditar la reputación online de un negocio.</p>
+      <p>Notoria ya tiene toda la maquinaria: genera PDFs, guarda series de tiempo y sabe emitir documentos numerados con código verificable. Una <strong>Constancia de Reputación Online</strong> —«al 17/08/2026: 4.5★, 312 reseñas, sin incidentes detectados en 90 días»— con un código consultable en <code>usenotoria.app/verificar/&lt;código&gt;</code> es un producto entero, y se puede vender suelto a quien no quiere una suscripción.</p>
+      <p>Además es la única de las nueve que crea demanda desde el otro lado: el día que un mall se la pida a un inquilino, ese inquilino se registra.</p>
+      <div class="why">
+        <span>Por qué nadie lo hace</span>
+        <p>Porque exige entender que el cliente peruano no compra un dashboard, compra un respaldo. Un producto pensado desde San Francisco jamás llega a esta idea; uno construido por alguien que ya peleó con SUNAT, sí.</p>
+      </div>
+      <dl class="ficha">
+        <div><dt>Costo</dt><dd>Cero</dd></div>
+        <div><dt>Esfuerzo</dt><dd>3–4 días</dd></div>
+        <div><dt>Modelo</dt><dd>Venta suelta, sin suscripción</dd></div>
+      </dl>
+    </div>
+  </article>
+
+  <!-- ══ 7 ══ -->
+  <article class="idea">
+    <div class="idea-head">
+      <span class="numeral">7</span>
+      <h2><span class="idea-id">I7 · El otro destinatario</span>Convertir las reseñas en instrucciones para el equipo, no en respuestas al cliente</h2>
+    </div>
+    <div class="idea-body">
+      <p>Todas las herramientas de reputación usan IA para lo mismo: redactar la respuesta pública. Notoria ya lo hace y funciona. Pero la respuesta pública es cosmética — no arregla el restaurante.</p>
+      <p>Lo que nadie genera es el mensaje hacia adentro. El mismo modelo, ya conectado y ya pagado, leyendo las reseñas de la semana y produciendo cuatro líneas para el grupo de WhatsApp del personal: «tres clientes mencionaron demora en la cocina entre viernes y domingo; dos elogiaron a Karina por nombre. Foco de la semana: tiempo de pase en hora punta.»</p>
+      <p>Eso cambia lo que es el producto. Deja de ser un vigilante de la reputación y pasa a ser una herramienta de gestión que resulta que se alimenta de reseñas. Y es un salto de categoría que cuesta un prompt distinto.</p>
+      <div class="why">
+        <span>Por qué nadie lo hace</span>
+        <p>Porque la categoría se llama «gestión de reputación», y ese nombre fija la mirada en el cliente que reclama. El equipo que provoca el reclamo queda fuera del encuadre, aunque sea donde está el problema de verdad.</p>
+      </div>
+      <dl class="ficha">
+        <div><dt>Costo</dt><dd>Cero — Groq ya está</dd></div>
+        <div><dt>Esfuerzo</dt><dd>2 días</dd></div>
+        <div><dt>Efecto</dt><dd>Cambia la categoría</dd></div>
+      </dl>
+    </div>
+  </article>
+
+  <!-- ══ 8 ══ -->
+  <article class="idea">
+    <div class="idea-head">
+      <span class="numeral">8</span>
+      <h2><span class="idea-id">I8 · El expediente</span>Para cuando la reseña negativa viene con un pedido de dinero</h2>
+    </div>
+    <div class="idea-body">
+      <p>Existe un patrón que todo dueño de restaurante conoce y del que no hay nada escrito en español para el Perú: alguien deja una reseña de 1★ y acto seguido escribe por privado ofreciendo quitarla a cambio de una comida gratis o de plata.</p>
+      <p>Notoria puede hacer dos cosas que nadie hace. La primera, <strong>armar el expediente</strong>: cuando el dueño marca una reseña como sospechosa de extorsión, generar un PDF con la reseña completa, su fecha exacta, las capturas de la conversación que él suba, y el historial de rating alrededor de esa fecha — que es justo lo que Google y una denuncia necesitan y que a mano nadie reúne bien.</p>
+      <p>La segunda, <strong>escribir la guía</strong>: qué reporta Google y qué no, cómo se presenta ante INDECOPI, qué figura del Código de Protección al Consumidor aplica. Es la página de contenido más buscada y menos escrita del rubro.</p>
+      <div class="why">
+        <span>Por qué nadie lo hace</span>
+        <p>Porque es un problema demasiado específico y demasiado local para que lo resuelva una herramienta global. Y porque asumen que es un caso raro — cualquiera que haya hablado con veinte dueños de restaurante en Lima sabe que no lo es.</p>
+      </div>
+      <div class="caveat"><b>Cuidado:</b> el producto arma la evidencia y explica el procedimiento. No da asesoría legal ni afirma que una reseña es falsa — eso lo decide Google o INDECOPI, y hay que decirlo así en la página.</div>
+      <dl class="ficha">
+        <div><dt>Costo</dt><dd>Cero</dd></div>
+        <div><dt>Esfuerzo</dt><dd>4–5 días</dd></div>
+        <div><dt>Doble uso</dt><dd>Función + captación por SEO</dd></div>
+      </dl>
+    </div>
+  </article>
+
+  <!-- ══ 9 ══ -->
+  <article class="idea">
+    <div class="idea-head">
+      <span class="numeral">9</span>
+      <h2><span class="idea-id">I9 · Quién subió más</span>El único ranking del Perú que no premia al que ya está arriba</h2>
+    </div>
+    <div class="idea-body">
+      <p>Rankings de «los mejores restaurantes de Miraflores» hay cien, y siempre ganan los mismos. Con la serie de tiempo cada 4 horas, Notoria puede publicar uno que nadie más puede calcular: <strong>quién más mejoró su reputación este mes</strong>.</p>
+      <p>Eso solo se puede hacer con historial propio — Google enseña la foto de hoy, no la película. Y tiene una propiedad rara para un ranking: es de suma positiva. Nadie queda mal, aparecen negocios pequeños que nunca salen en ninguna lista, y los que aparecen lo comparten porque los deja bien.</p>
+      <p>Es material de prensa gastronómica, es contenido que se enlaza solo, y de paso construye una página por distrito y por rubro que posiciona en búsquedas que hoy no captura nadie. La marca pasa de vender vigilancia a ser <em>la fuente</em> del dato de reputación en el Perú.</p>
+      <div class="why">
+        <span>Por qué nadie lo hace</span>
+        <p>Porque exige haber estado guardando mediciones durante meses antes de que sirvan para nada. Es una ventaja que no se compra ni se copia: o empezaste a medir hace un año, o no lo tienes.</p>
+      </div>
+      <div class="caveat"><b>Cuidado:</b> publicar solo lo positivo —los que suben, los mejores— y nunca un ranking de los peores. Y responder cualquier pedido de retiro sin discutir. Es dato público, pero eso no obliga a exhibirlo.</div>
+      <dl class="ficha">
+        <div><dt>Costo</dt><dd>Cero</dd></div>
+        <div><dt>Esfuerzo</dt><dd>1 semana</dd></div>
+        <div><dt>Requiere</dt><dd>Meses de historial acumulado</dd></div>
+      </dl>
+    </div>
+  </article>
+
+  <!-- ══ Cierre ══ -->
+  <section class="close">
+    <h2>Si tuviera que elegir tres</h2>
+    <p>Las nueve son baratas, pero no todas rinden igual de rápido. Estas tres cambian algo esta misma semana:</p>
+    <ul class="picks">
+      <li><span class="tag">I2</span><div><b>El simulacro</b><span>Un día de trabajo, cero costo, y le da al analizador gratuito del landing la única cosa que hoy le falta: una razón para registrarse. Hoy le dice al visitante «no hay patrones de ataque» y lo deja ir.</span></div></li>
+      <li><span class="tag">I3</span><div><b>El enlace que ya sabe quién eres</b><span>No mejora el producto: mejora la forma de venderlo, que es el cuello de botella real de un servicio poco conocido. Convierte cada mensaje de WhatsApp en una demo personalizada.</span></div></li>
+      <li><span class="tag">I5</span><div><b>El afiche de la pared</b><span>Es la respuesta al problema que ningún panel resuelve — que a los veinte días el cliente deja de entrar — y ataca la retención, que es lo que decide si un SaaS de S/59 sobrevive.</span></div></li>
+    </ul>
+    <p style="margin-top:26px"><strong>Y una que dejaría madurando:</strong> I9 no se puede hacer todavía porque necesita meses de mediciones acumuladas. Pero por eso mismo conviene decidir hoy que se va a hacer: cada semana que Notoria sigue guardando snapshots es una semana de ventaja que nadie puede alcanzar después.</p>
+  </section>
+
+  <footer>Notoria · nueve ideas · agosto 2026 · continúa la auditoría P1–P8</footer>
+
+</div>

@@ -2,8 +2,10 @@
 // Detecta patrones sospechosos en reseñas
 // MVP: lógica de reglas puras, sin ML. Efectivo para el 90% de los ataques reales.
 
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+// El singleton de lib/prisma, NO un `new PrismaClient()`: este archivo abría un
+// segundo pool de conexiones contra el mismo PostgreSQL sin ninguna razón, y
+// Railway tiene un tope de conexiones que se alcanza antes de lo que parece.
+const prisma = require('../lib/prisma');
 
 // Palabras que disparan alerta inmediata (reseña muy negativa)
 const PALABRAS_CRITICAS = [
