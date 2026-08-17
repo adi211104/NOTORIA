@@ -4,6 +4,7 @@ const prisma = require('../../lib/prisma');
 const { negocioPublico, negociosPublicos } = require('../../lib/negocioPublico');
 const { buscarNegocioEnGoogle, obtenerUbicacionNegocio, buscarCompetidoresCercanos, obtenerResenasVisibles } = require('../../scrapers/google.scraper');
 const { informeRating } = require('../../lib/rating');
+const { generarAfiche } = require('../../utils/afiche.generator');
 
 const router = express.Router();
 const { autenticar } = require('../middlewares/auth.middleware');
@@ -293,6 +294,62 @@ router.get('/:id/simulador', async (req, res, next) => {
     if (!informe) return res.status(409).json({ error: 'No hay datos suficientes para calcular el simulador.', codigo: 'SIN_DATOS' });
 
     res.json({ ...informe, medidoEn: snap.tomadoEn });
+  } catch (error) { next(error); }
+});
+
+// ── GET /api/negocios/:id/afiche.pdf ──────────────────────
+//
+// El afiche de la pared: un A4 para imprimir y colgar donde trabaja el equipo.
+// Ver la cabecera de utils/afiche.generator.js para el porqué — en corto: el
+// dueño deja de entrar al panel a las tres semanas, y un papel colgado donde
+// trabajan quince personas hace más por el uso del producto que otra alerta.
+//
+// Todo sale de la base: cero llamadas a Google, así que se puede regenerar las
+// veces que haga falta sin gastar cuota.
+router.get('/:id/afiche.pdf', async (req, res, next) => {
+  try {
+    const negocio = await prisma.negocio.findFirst({
+      where: { id: req.params.id, usuarioId: req.usuario.id },
+      select: {
+        id: true, nombre: true,
+        snapshots: { where: { plataforma: 'GOOGLE' }, orderBy: { tomadoEn: 'desc' }, take: 2 },
+      },
+    });
+    if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
+
+    const hace7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const [nuevasSemana, criticasSinResponder, negativas, alertaFicha] = await Promise.all([
+      prisma.resena.count({ where: { negocioId: negocio.id, detectadaEn: { gte: hace7d } } }),
+      prisma.resena.count({ where: { negocioId: negocio.id, rating: { lte: 3 }, respondida: false } }),
+      // Solo las negativas recientes CON texto: son las que alimentan la
+      // detección de la queja repetida (ver quejaMasRepetida).
+      prisma.resena.findMany({
+        where: { negocioId: negocio.id, rating: { lte: 3 }, detectadaEn: { gte: hace7d }, texto: { not: null } },
+        select: { texto: true }, take: 60,
+      }),
+      // ¿Hay un aviso vivo de ficha cerrada? Es lo único que desplaza a todo lo
+      // demás en el foco de la semana.
+      prisma.alerta.findFirst({
+        where: { negocioId: negocio.id, leida: false, plataforma: 'GOOGLE', detalle: { path: ['motivo'], equals: 'ficha_google' } },
+        select: { id: true },
+      }).catch(() => null),
+    ]);
+
+    const [actual, anterior] = negocio.snapshots;
+    const pdf = await generarAfiche(negocio, {
+      rating: actual?.ratingActual ?? 0,
+      totalResenas: actual?.totalResenas ?? 0,
+      nuevasSemana,
+      criticasSinResponder,
+      caidaRating: actual && anterior ? Math.max(0, anterior.ratingActual - actual.ratingActual) : 0,
+      fichaCerrada: !!alertaFicha,
+      negativas,
+    }, req.usuario.idioma || 'es');
+
+    res.setHeader('Content-Type', 'application/pdf');
+    const limpio = (negocio.nombre || 'negocio').replace(/[^\w-]+/g, '-').slice(0, 40);
+    res.setHeader('Content-Disposition', `attachment; filename="Notoria-afiche-${limpio}.pdf"`);
+    res.send(pdf);
   } catch (error) { next(error); }
 });
 

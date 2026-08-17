@@ -360,10 +360,34 @@ const HORAS_ESCANEO = { GRATIS: 24, NEGOCIO: 4, FRANQUICIA: 1 };
 // «faltan 20 segundos» y se saltaría la ronda entera hasta la hora siguiente.
 const MARGEN_ESCANEO_MS = 5 * 60 * 1000;
 
-const leTocaEscaneo = (negocio, ahora = Date.now()) => {
+// 🔴 `ultimoEscaneo` NO sirve para esto, aunque lo parezca.
+//
+// Esa columna es el reloj del botón «Escanear ahora» del panel. Si el cron la
+// escribiera —como hizo durante unas horas el 2026-08-17— se comería el cupo
+// manual del usuario: a un plan Gratis el cron le pisaría la marca cada 24 h y
+// el botón le saldría en cooldown SIEMPRE, sin haberlo usado nunca.
+//
+// El cron usa su propio reloj: la fecha del último Snapshot del negocio, que ya
+// se crea en cada escaneo. Es el registro real de «cuándo se miró esta ficha por
+// última vez», no hace falta ninguna columna nueva, y deja los dos relojes
+// independientes: el cron cumple el intervalo del plan y el botón conserva su
+// cupo.
+const leTocaEscaneo = (negocio, ultimoSnapshotEn, ahora = Date.now()) => {
   const horas = HORAS_ESCANEO[negocio.usuario?.plan] ?? HORAS_ESCANEO.GRATIS;
-  if (!negocio.ultimoEscaneo) return true;
-  return ahora - new Date(negocio.ultimoEscaneo).getTime() >= horas * 3600000 - MARGEN_ESCANEO_MS;
+  if (!ultimoSnapshotEn) return true;
+  return ahora - new Date(ultimoSnapshotEn).getTime() >= horas * 3600000 - MARGEN_ESCANEO_MS;
+};
+
+// Fecha del último snapshot de cada negocio, en UNA consulta agrupada en vez de
+// una por negocio. `groupBy` con `_max` lo resuelve del lado de PostgreSQL.
+const ultimosEscaneos = async (negocioIds) => {
+  if (!negocioIds.length) return new Map();
+  const filas = await prisma.snapshot.groupBy({
+    by: ['negocioId'],
+    where: { negocioId: { in: negocioIds } },
+    _max: { tomadoEn: true },
+  });
+  return new Map(filas.map((f) => [f.negocioId, f._max.tomadoEn]));
 };
 
 /**
@@ -391,20 +415,30 @@ const iniciarMonitoreo = () => {
       });
 
       const ahora = Date.now();
-      const toca = negocios.filter((n) => leTocaEscaneo(n, ahora));
+      const ultimos = await ultimosEscaneos(negocios.map((n) => n.id));
+      // El snapshot manda; `ultimoEscaneo` solo entra como reloj de reserva para
+      // los negocios sin ficha de Google, que nunca generan snapshot (ver abajo).
+      const toca = negocios.filter((n) => leTocaEscaneo(n, ultimos.get(n.id) ?? n.ultimoEscaneo, ahora));
       console.log(`[Worker] ${toca.length} de ${negocios.length} negocio(s) tocan en esta pasada`);
 
-      // Procesar secuencialmente para no saturar las APIs
+      // Procesar secuencialmente para no saturar las APIs.
+      //
+      // No se escribe `ultimoEscaneo`: es el reloj del botón manual, y el cron no
+      // debe gastárselo al usuario (ver la nota de leTocaEscaneo). El registro de
+      // esta pasada lo deja el propio Snapshot que crea `procesarNegocio`.
       for (const negocio of toca) {
         await procesarNegocio(negocio);
-        // `ultimoEscaneo` es lo que hace que el intervalo por plan se respete en
-        // la pasada siguiente. Lo escribe también el botón "Escanear ahora"
-        // (utils.routes.js), y está bien que compartan el reloj: un escaneo
-        // manual cuenta como el escaneo de ese periodo.
-        await prisma.negocio.update({
-          where: { id: negocio.id },
-          data: { ultimoEscaneo: new Date() },
-        }).catch((e) => console.error(`[Worker] No se pudo marcar el escaneo de ${negocio.nombre}: ${e.message}`));
+        // Excepción: un negocio SIN ficha de Google nunca genera un Snapshot, así
+        // que no tiene el otro reloj y sin esto se escanearía cada hora —
+        // machacando TikTok o Instagram si los tiene conectados. Solo en ese caso
+        // el cron escribe `ultimoEscaneo`. El botón manual de esos negocios sirve
+        // de poco de todas formas: sin ficha de Google no hay reseñas que traer.
+        if (!negocio.googlePlaceId) {
+          await prisma.negocio.update({
+            where: { id: negocio.id },
+            data: { ultimoEscaneo: new Date() },
+          }).catch((e) => console.error(`[Worker] No se pudo marcar el escaneo de ${negocio.nombre}: ${e.message}`));
+        }
         // Pausa de 1 segundo entre negocios para respetar rate limits
         await new Promise((r) => setTimeout(r, 1000));
       }

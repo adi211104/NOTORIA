@@ -415,6 +415,14 @@ const TEXTOS = {
       simColumna:'Tu rating quedaría en',
       simCoste:(v) => <>Hoy, una sola reseña de 1★ te mueve el rating <strong>{v.toFixed(3)}</strong> puntos.</>,
       simFuente:'El umbral de 4.5★ es de BrightLocal, Local Consumer Review Survey 2026: el 31% de los consumidores no entra a negocios por debajo.',
+      // El afiche va acá, en la misma pestaña que el espejo: las dos cosas
+      // responden a «cómo nos ven» y las dos salen de la pantalla.
+      aficheTitulo:'El afiche para tu equipo',
+      aficheDesc:'Una hoja A4 lista para imprimir y colgar donde trabaja tu gente: la nota de Google, las reseñas nuevas, las que faltan por responder y UNA sola cosa en la que enfocarse esta semana. Sin jerga, legible desde el otro lado de la cocina.',
+      aficheBtn:'Descargar el afiche (PDF)',
+      aficheGenerando:'Generando…',
+      aficheError:'No pudimos generar el afiche. Inténtalo de nuevo.',
+      aficheNota:'Cámbialo cada lunes: el número que se queda viejo en la pared deja de mirarse.',
     },
     resumen: {
       scoreTitulo:'Score de reputación Notoria',
@@ -816,6 +824,12 @@ const TEXTOS = {
       simColumna:'Your rating would be',
       simCoste:(v) => <>Today, a single one-star review moves your rating by <strong>{v.toFixed(3)}</strong> points.</>,
       simFuente:'The 4.5★ cut-off is from BrightLocal, Local Consumer Review Survey 2026: 31% of consumers rule out businesses below it.',
+      aficheTitulo:'The poster for your team',
+      aficheDesc:'A single A4 page, ready to print and hang where your staff works: the Google rating, new reviews, the ones still unanswered, and ONE thing to focus on this week. No jargon, readable from across the kitchen.',
+      aficheBtn:'Download the poster (PDF)',
+      aficheGenerando:'Generating…',
+      aficheError:'We could not generate the poster. Please try again.',
+      aficheNota:'Swap it every Monday: a number that goes stale on the wall stops being looked at.',
     },
     resumen: {
       scoreTitulo:'Notoria reputation score',
@@ -1176,6 +1190,7 @@ export default function DetallePage() {
   const [espejoError, setEspejoError] = useState('');
   const [espejoCargando, setEspejoCargando] = useState(false);
   const [simulador, setSimulador] = useState(null);
+  const [afiche, setAfiche] = useState('');   // '' | 'generando' | 'error'
   // Comentarios de redes en publicaciones propias (TikTok)
   const [comentarios, setComentarios] = useState(null);
   const [comResumen, setComResumen] = useState({ total:0, negativos:0, sinResponder:0 });
@@ -1365,6 +1380,28 @@ export default function DetallePage() {
       })
       .finally(() => setEspejoCargando(false));
   }, [tab, id]);
+
+  // El afiche va detrás del token, así que no sirve un <a href> directo: se pide
+  // con el header de sesión y se entrega como blob. Mismo patrón que la descarga
+  // de comprobantes en Facturación.
+  const descargarAfiche = async () => {
+    setAfiche('generando');
+    try {
+      const r = await fetch(`${API_URL}/api/negocios/${id}/afiche.pdf`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (!r.ok) throw new Error('http');
+      const url = URL.createObjectURL(await r.blob());
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Notoria-afiche-${(negocio?.nombre || 'negocio').replace(/[^\w-]+/g, '-').slice(0, 40)}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setAfiche('');
+    } catch {
+      setAfiche('error');
+    }
+  };
 
   // Popup único de "recomendación de escaneo" al llegar recién creado el negocio
   useEffect(() => {
@@ -2757,6 +2794,22 @@ export default function DetallePage() {
                     <p style={{ fontSize:10.5, color:'var(--text-3)', margin:'12px 0 0', lineHeight:1.5 }}>{t.espejo.simFuente}</p>
                   </>
                 )}
+              </Card>
+
+              {/* El afiche de la pared. Va en esta pestaña porque responde a la
+                  misma pregunta —cómo nos ven— pero para el otro público: el
+                  equipo, no el dueño. Ver utils/afiche.generator.js. */}
+              <Card>
+                <ST>{t.espejo.aficheTitulo}</ST>
+                <p style={{ color:'var(--text-2)', fontSize:12.5, lineHeight:1.6, margin:'0 0 14px' }}>{t.espejo.aficheDesc}</p>
+                <button onClick={descargarAfiche} disabled={afiche === 'generando'}
+                  style={{ display:'inline-flex', alignItems:'center', gap:8, background:'#0B7324', color:'#fff', border:'none', borderRadius:8, padding:'10px 18px', fontSize:13, fontWeight:600, cursor: afiche === 'generando' ? 'default' : 'pointer', opacity: afiche === 'generando' ? 0.6 : 1 }}>
+                  <Icon name="descargar" size={14} /> {afiche === 'generando' ? t.espejo.aficheGenerando : t.espejo.aficheBtn}
+                </button>
+                {afiche === 'error' && (
+                  <p style={{ color:'#ef4444', fontSize:12.5, margin:'10px 0 0' }}>{t.espejo.aficheError}</p>
+                )}
+                <p style={{ fontSize:11, color:'var(--text-3)', margin:'12px 0 0', lineHeight:1.5 }}>{t.espejo.aficheNota}</p>
               </Card>
             </>
           )}
