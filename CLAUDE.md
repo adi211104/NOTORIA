@@ -2827,3 +2827,42 @@ contiene el client ID que está en producción.
   (Play exige su facturación para suscripciones digitales; hoy el botón
   "Contratar plan" abre el checkout web). Detalle en `PENDIENTES.md` del repo
   `adi211104/APKNotoria`.
+
+### 24.3 Correo de la empresa: `usenotoria@gmail.com` (2026-08-17)
+
+El dueño creó **`usenotoria@gmail.com`** como cuenta de la empresa, para dejar de
+depender de `didierprincipe@gmail.com`, que es personal. **Todavía no se migró
+nada**: todo sigue operando con el correo viejo.
+
+🔴 **Orden obligatorio en Google Cloud, o se pierde el proyecto:** agregar
+`usenotoria@` como **propietario** del proyecto `798376364749` → cambiarlo en
+*Información de la marca → correo de asistencia* y en *Información de contacto
+del desarrollador* → **y recién entonces** quitar la cuenta personal. Borrar la
+personal antes se lleva el proyecto que contiene el `GOOGLE_CLIENT_ID` que está
+en producción, y con él el inicio de sesión con Google y la conexión de Google
+Business de todos los clientes.
+
+Confirmado que hoy usan el correo viejo: **Google Cloud** (proyecto y OAuth), el
+**caso `3-5553000040900`** de acceso a las GBP APIs —la respuesta de Google llega
+a ese buzón, así que conviene no perderlo de vista hasta que aprueben—, el
+**Perfil de Empresa en Google** (con su verificación aún pendiente) y **Railway**
+(sesión `didierprincipe@gmail.com`). Falta revisar con qué correo están
+**Vercel** y **GitHub** (usuario `adi211104`), **Culqi**, **Resend**, **Groq**,
+**Meta/Instagram**, **TikTok Developers** y **Search Console**.
+
+📌 **Play Console todavía no existe: abrirla directamente con `usenotoria@` y
+como organización.** Mover después una app de cuenta personal a cuenta de empresa
+es un trámite formal de transferencia con Google.
+
+### 24.4 La app ya no vende: los planes salen a la web (2026-08-17)
+
+La app Android **eliminó su pantalla de planes**. "Planes y precios" y todos los
+avisos de "esto es de plan superior" abren `usenotoria.app/precios`. Motivo:
+Google Play cobra comisión sobre las suscripciones digitales compradas dentro de
+la app, y el cobro ya vive en la web con Culqi.
+
+**Consecuencia para este repo:** `/precios` pasa a ser la única pantalla de venta
+del producto y ahora también recibe tráfico desde la app. Si se le cambia la ruta
+o se la renombra, **se rompe el botón de la app** (`abrirPlanes()` en
+`Navegacion.kt` del repo `adi211104/APKNotoria`). Los precios ya no están
+duplicados en el cliente Android: `lib/precios.js` vuelve a ser la única fuente.
