@@ -2943,3 +2943,237 @@ de destino de Google Ads, que también lee el HTML.
 ⚠️ **Regla:** no volver a poner un "cargando" global sobre una página pública.
 Si hace falta esperar la sesión, que espere solo el trozo que la usa.
 `/precios` ya lo hace bien (sirve 5.315 caracteres).
+
+---
+
+## Sesión 2026-08-17 — §25. Auditoría completa: seguridad, ciclo de cobro, detector y tres funciones nuevas
+
+Revisión de todo el repositorio + la API en producción + la web en vivo. Salieron
+tres problemas de fondo que no se veían desde la pantalla, y de ahí salieron tres
+funciones nuevas que se apoyan en datos que ya se estaban pagando.
+
+**Todo lo de esta sección está desplegado y verificado en producción el 2026-08-17.**
+Backend en Railway, frontend en Vercel. **Sin ningún cambio de schema:** nada de
+esto necesita `prisma db push`.
+
+Los dos informes de la auditoría están en `docs/`:
+- `docs/auditoria-notoria.html` — los hallazgos, cada uno con archivo y línea
+- `docs/ideas-notoria.html` — nueve ideas de producto, con su costo y su porqué
+
+### 25.1 — 🔴 S1: cualquier cuenta gratuita podía escanear TODA la plataforma
+
+`POST /api/utils/monitoreo-manual` aceptaba el cuerpo vacío. Sin `negocioId` se
+saltaba el bloque del cooldown **entero** y llamaba a `ejecutarAhora(null)`, que
+en el worker resuelve a `where: { activo: true }`: todos los negocios de todos los
+clientes.
+
+Es decir: cualquiera creaba una cuenta gratis en 30 segundos y con un POST de
+cuerpo vacío disparaba una consulta a Google Places por cada ficha y cada
+competidor de la base, correos de alerta a otros clientes, y auto-respuestas
+publicadas en las fichas de Google de terceros. El único freno era el límite
+global de 100 peticiones/15 min.
+
+**Arreglo.** `negocioId` es obligatorio y se comprueba la pertenencia antes de
+llamar al worker. Además `ejecutarAhora` ahora **exige `{ global: true }`** para
+el barrido completo, para que un `undefined` que se cuele no vuelva a bastar;
+`scripts/escanear.js` lo pasa explícito.
+
+⚠️ **Regla:** si algún día hace falta un escaneo global, va en un script de
+terminal. Nunca detrás de una sesión de usuario.
+
+### 25.2 — El ciclo de cobro estaba roto en las dos direcciones
+
+Tres fallos que se tapaban entre sí:
+
+| | Qué pasaba |
+|---|---|
+| **F1** | Un cargo rechazado hacía `suscripcionActiva: false` sin reintento y sin avisar. Y como la consulta exige `suscripcionActiva`, al día siguiente ese usuario **ya no volvía a entrar**: un bloqueo del banco de 24 h costaba el cliente entero |
+| **F2** | La consulta filtraba `fechaVencimiento` entre el inicio y el fin de HOY. Cualquier día que el cron no corriera (deploy a las 5:00, reinicio de Railway), esos vencimientos quedaban atrás **para siempre** |
+| **F3** | `plan` no bajaba **nunca** a GRATIS, y `suscripcionActiva:false` no bloquea nada por sí solo — `verificarPlan` solo mira `plan`, y `requiereSuscripcion` no se usa en ninguna ruta. Quien dejaba de pagar conservaba su plan completo indefinidamente |
+
+**Arreglo.** Tres intentos repartidos cada 3 días, con correo en cada uno
+(`enviarCobroFallido`); se cobra todo lo vencido y no solo lo de hoy; y al agotar
+los intentos el plan baja de verdad. Cron nuevo `iniciarBajadaDePlanes` (5:30 AM)
+para quien canceló y ya terminó su periodo pagado.
+
+**Los intentos se cuentan con las filas de `Pago` en estado `FALLIDO` posteriores
+al último `EXITOSO`** — por eso no hizo falta ninguna columna nueva. Efecto
+secundario bueno: los intentos fallidos salen en la pantalla de Facturación del
+cliente, que es justo donde tiene que verlos.
+
+El nuevo vencimiento se calcula **desde el anterior**, no desde hoy, para que un
+cobro retrasado por reintentos no le coma días de servicio ni le corra el
+aniversario en cada renovación.
+
+### 25.3 — F5: cancelar no existía, pero la página legal decía que sí
+
+`/devoluciones` dice textualmente *«desde tu panel, en **Configuración →
+Suscripción**»* y el FAQ del landing lo repite. Esa sección no existía y no había
+endpoint. Una obligación publicada en la página legal que el producto no cumplía,
+con un Libro de Reclamaciones montado al lado.
+
+Ahora existe `POST /api/pagos/cancelar` y la sección **Suscripción** en
+Configuración, con ese nombre exacto. Cancelar apaga la renovación y **conserva el
+plan hasta el final del periodo pagado**, que es lo que promete la página.
+
+### 25.4 — El detector corría con dos de las cinco señales que anunciaba
+
+El FAQ prometía «cuentas recién creadas, autores con una sola reseña, texto
+repetitivo o duplicado y picos inusuales». La realidad:
+
+| Señal anunciada | Estado |
+|---|---|
+| Cuentas recién creadas | **Imposible.** `detector.js` la evalúa sobre `autorResenasTotal`, y las cinco fuentes lo escriben `null` (google, facebook, google-business, tripadvisor, público). `CUENTAS_NUEVAS` nunca se ha creado |
+| Texto repetitivo | **No estaba implementado** |
+| Picos inusuales | Pedía ≥5 negativas en 24 h, pero **Places entrega 5 reseñas COMO MÁXIMO** |
+| Palabra crítica · 1★ sin texto | Funcionaban. Eran las dos únicas |
+
+Y **F7:** `CAIDA_RATING` comparaba contra `googleRatingBase`, que se fija al crear
+el negocio y no se actualiza nunca: en cuanto el rating caía 0.3 la alerta se
+recreaba **cada 4 horas, para siempre**, con el mismo texto. El cliente aprendía a
+ignorar los correos de Notoria, que es lo peor que le puede pasar a un producto de
+alertas. Ahora compara contra el snapshot anterior.
+
+**Lo que se agregó:**
+
+- **Texto duplicado.** Normaliza tildes, signos y mayúsculas (una campaña pegada
+  casi nunca es idéntica carácter a carácter) y exige 15 caracteres mínimos para
+  no marcar «malo» o «no vuelvo», que mucha gente escribe por su cuenta.
+- **Ráfagas por volumen** (`compararMediciones` + `ritmoHabitual`). No depende de
+  leer reseñas: compara el **total de reseñas** entre dos mediciones —un entero
+  exacto, sin margen de error— contra el ritmo habitual del propio negocio sacado
+  del historial de snapshots. Umbral relativo a propósito: 6 reseñas en 4 horas es
+  una catástrofe para quien recibe 2 al mes y un martes normal para quien recibe
+  15 a la semana.
+
+⚠️ **Sobre el promedio de las reseñas nuevas — leer antes de tocarlo.** Se puede
+despejar de `(R2*N2 - R1*N1)/k`, pero Google **redondea el rating a un decimal**,
+así que el margen queda en `0.05*(N1+N2)/k`. En una ficha de 212 reseñas con 8
+nuevas eso es **±2.7 estrellas**: el número no significa nada. Por eso la alerta
+dice el promedio exacto solo si el margen ≤ 0.5; si no, la **cota superior**
+(«calificaron 2.1★ como mucho»), que es rigurosamente cierta pase lo que pase con
+el redondeo; y si tampoco, solo la caída publicada. **Nunca un número inventado:
+una sola cifra falsa desacredita todas las demás alertas.**
+
+### 25.5 — F4: el escaneo no miraba el plan
+
+Había **un solo cron cada 4 horas** para todos los negocios. Rompía la oferta en
+las dos direcciones:
+
+- Franquicia paga S/179 por «un ataque se detecta en máximo 1 hora» y recibía 4.
+- Gratis anuncia 24 horas y recibía 4, o sea **seis veces más consultas a Places
+  de las prometidas**: ~180 al mes por negocio en vez de ~30, más las de su
+  competidor. Cada cuenta gratuita costaba seis veces lo que debía.
+
+Ahora el cron corre **cada hora** y elige a quién le toca según `HORAS_ESCANEO`
+(Gratis 24 · Negocio 4 · Franquicia 1). El cooldown del botón «Escanear ahora» se
+importa de esa misma constante en vez de repetir los números.
+
+### 25.6 — Tres funciones nuevas, ninguna con costo nuevo
+
+**P1 · Vigilancia de la ficha de Google.** Notoria vigilaba lo que la gente
+escribe, pero no la ficha en sí — y Google Maps deja que **cualquiera** sugiera
+que un local cerró. Un restaurante que aparece «Cerrado permanentemente» un
+viernes pierde el fin de semana entero y se entera días después.
+
+`business_status` se lee en la misma consulta a Place Details que ya se hacía: va
+en el grupo **Basic Data**, que esa llamada ya paga por pedir `reviews`/`rating`,
+**así que no cambia la factura**. El aviso se manda con `enviarAlertaEmail`
+directo y no por `notificar()`: ninguna preferencia debería poder silenciar «tu
+local aparece cerrado». Mismo criterio que la escalación de urgencias.
+
+⚠️ Va como `RESENA_MUY_NEGATIVA` por falta de un tipo propio: añadir un valor a
+`TipoAlerta` obliga a un `prisma db push`, **y Railway no lo corre en el deploy**,
+así que desplegar el enum nuevo sin haberlo empujado antes tumbaría la API. El
+tipo natural es `FICHA_ALTERADA` cuando se haga ese push.
+
+**I1 · El espejo** (`GET /api/negocios/:id/espejo`). El monitoreo pide
+`reviews_sort: 'newest'`, correcto para vigilar, pero **no es lo que ve un
+cliente**: por defecto Google ordena por relevancia y le enseña otras cinco.
+Probado contra una ficha real: las cinco que veía el público eran de hace 1, 3, 4,
+6 y 10 meses. El dueño llevaba meses respondiendo lo más reciente mientras su
+ficha la encabezaba otra cosa. Pestaña **«Cómo te ven»** en el panel, que además
+marca cuáles siguen sin respuesta.
+
+**I2/P3 · El simulador** (`src/lib/rating.js`, `GET /api/negocios/:id/simulador`).
+Aritmética pura, sin red y sin base: cuántas reseñas de 5★ faltan para cada meta,
+cuántas de 1★ hacen falta para caer por debajo de 4.5★ y cuánto mueve el rating
+una sola de 1★. Va en el panel **y en el analizador gratuito del landing**, que
+hasta ahora, cuando no había nada sospechoso —o sea casi siempre— decía «no
+detectamos patrones de ataque» y dejaba ir al visitante sin motivo para
+registrarse.
+
+### 25.7 — Seguridad: el resto
+
+| | Qué era |
+|---|---|
+| **S2** | La web no mandaba **ninguna** cabecera de seguridad (el backend sí, vía helmet). Sin CSP, sin X-Frame-Options, sin nosniff, sin Referrer-Policy — y el token de sesión vive en `localStorage`. Se agregó `headers()` en `next.config.ts` |
+| **S3** | El OAuth de Google Business firmaba el state con el `negocioId` que llegara por query **sin comprobar el dueño**, y el callback escribía sin filtrar por usuario: con un id ajeno se le pisaban los tokens de GBP a otro cliente |
+| **S4** | Registro y login no normalizaban el correo pero `recuperar-password` sí. Como el `@unique` de Postgres distingue mayúsculas, quien se registrara como `Juan@correo.com` **no podía recuperar su contraseña nunca**. Las búsquedas pasan a ser insensibles a mayúsculas para no dejar fuera a las cuentas ya creadas |
+| **S5** | `/api/auth/google` no miraba `email_verified` antes de enganchar el `googleId` a una cuenta existente |
+| **S7** | Dos borrados que daban 500. El de competidores no borraba sus snapshots (FK RESTRICT), así que **tras el primer ciclo del worker ningún competidor se podía eliminar**. El de cuenta no tocaba `pagos` ni `comprobantes`, así que fallaba para cualquiera que hubiera pagado |
+| **S8** | El QR de reseñas se pedía a `api.qrserver.com`, mandándole a un tercero el enlace de cada cliente. Ahora se genera en el navegador con `qrcode` |
+| **S9** | `detector.js` abría un segundo `PrismaClient` en vez de usar el singleton |
+
+⚠️ **Borrado de cuenta: ahora ANONIMIZA cuando hay historial fiscal.** El XML
+firmado y el CDR se conservan 5 años, así que un cliente no puede hacer
+desaparecer la contabilidad de la empresa pidiendo la baja. Si nunca pagó, se
+borra de verdad. Es lo que permite la Ley 29733: el derecho de supresión cede ante
+una obligación legal de conservación, y lo correcto es conservar lo justo y
+disociar el resto.
+
+### 25.8 — El landing decía cosas que el código no hacía
+
+Se quitaron las promesas sin respaldo y se anunciaron las que sí existen:
+
+- **«historial 7 / 90 días / ilimitado»** — no había retención ni gating por plan.
+- **«reportes PDF semanales» (Franquicia)** — solo existe el mensual.
+- **«panel ejecutivo multi-sede»** — no había vista distinta; se renombró a lo que
+  sí es cierto: Franquicia no tiene tope de negocios.
+- **«identifica cuentas nuevas»** y el FAQ de detección — describían cuatro
+  señales de las que dos no existían.
+
+Tocados: `page.js` (ES y EN), `lib/catalogo.js` (el catálogo de `/precios`) y
+`dashboard/planes/page.js`.
+
+⚠️ **Regla, anotada también en el propio archivo:** si una función no la ejecuta
+el worker, **no entra al landing**. Es la hermana de la regla que ya existía para
+las cifras («si no tiene URL pública que la sostenga, no entra»).
+
+### 25.9 — Pendientes que deja esta sesión
+
+Nada de esto bloquea lo que ya está desplegado.
+
+- [ ] **S6 — cambiar la contraseña no cierra las sesiones abiertas.** El JWT dura
+      7 días y no hay `tokenVersion`. Es el único hallazgo de la auditoría que
+      **exige un cambio de schema**, y por eso quedó fuera: Railway no corre
+      `prisma db push` en el deploy, así que hay que empujarlo a mano ANTES de
+      desplegar el código que lo use. Severidad baja.
+- [ ] **Tipo de alerta `FICHA_ALTERADA`.** Mismo motivo: es un valor nuevo del
+      enum `TipoAlerta`. Hoy la alerta de ficha cerrada viaja como
+      `RESENA_MUY_NEGATIVA` (ver §25.6).
+- [ ] **Vigilar también horario y teléfono de la ficha.** `opening_hours` y
+      `formatted_phone_number` son del grupo **Contact Data**, que sí tiene costo
+      extra por llamada. Conviene encenderlo **solo en planes de pago** — y de
+      paso da una diferencia real entre planes, que es de lo que falta.
+- [ ] **Revisión visual de la pestaña «Cómo te ven» en móvil (390 px).** Se
+      verificó en escritorio con datos reales; el móvil quedó sin mirar.
+- [ ] **Las cinco ideas restantes** del informe: el enlace de venta por negocio
+      (`/para/<ficha>`), el afiche imprimible para la pared del equipo, la
+      constancia de reputación verificable, sub-usuarios y modo agencia, y el
+      ranking «quién más subió este mes». Ver `docs/ideas-notoria.html`.
+
+### 25.10 — Cómo se desplegó
+
+```bash
+# Backend
+cd brand-shield && railway up --service api --detach
+
+# Frontend (NEXT_PUBLIC_* se incrusta en el BUILD, ver §21)
+cd brand-shield-web && vercel --prod --yes
+```
+
+Verificado en vivo tras el deploy: `/health` responde OK, el escaneo global
+devuelve 401 sin token, el analizador público ya trae el simulador, y
+`usenotoria.app` sirve CSP + X-Frame-Options + nosniff + Referrer-Policy +
+Permissions-Policy + HSTS.

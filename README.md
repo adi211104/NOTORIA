@@ -188,6 +188,52 @@ scripts ya reintentan solos.
 
 ---
 
+## 3-bis. Ciclo de cobro: qué pasa cuando una tarjeta falla o alguien cancela
+
+Reescrito el **2026-08-17** tras la auditoría. Antes de esa fecha el ciclo perdía
+dinero por los dos lados y conviene saber cómo quedó, porque afecta a lo que se
+le puede prometer a un cliente y a lo que aparece en la contabilidad.
+
+**Si el cobro de la renovación falla:**
+
+1. Se registra un **`Pago` en estado `FALLIDO`** — sí aparece en el historial de
+   Facturación del cliente, a propósito: es donde tiene que verlo.
+2. Se le manda un correo avisando, con el número de intento.
+3. Se reintenta a los **3 días**, hasta **3 intentos**. Durante todo ese tiempo
+   **conserva su plan**.
+4. Agotados los tres, la cuenta pasa a **GRATIS** y se le avisa por correo. No se
+   borra nada: sus negocios siguen monitoreados con los límites del plan gratuito
+   y su historial queda intacto.
+
+Antes, un solo rechazo desactivaba la suscripción en silencio y **nunca se volvía
+a intentar cobrar**: un bloqueo del banco de 24 horas costaba el cliente entero.
+
+**Si el cliente cancela** (`Configuración → Suscripción`, o `POST /api/pagos/cancelar`):
+
+- Se apaga la renovación automática, **no el servicio**. Conserva su plan hasta el
+  final del periodo que ya pagó, y ese día un cron lo baja solo a GRATIS.
+- Es exactamente lo que promete `/devoluciones`. Hasta el 2026-08-17 esa página lo
+  prometía **sin que existiera la pantalla ni el endpoint**.
+- No se toca nada en Culqi: no hay suscripción del lado de ellos, el cobro
+  recurrente lo hace nuestro cron con la tarjeta guardada. Dejar de cobrar es
+  dejar de llamar.
+
+**Reembolsos.** Siguen llegando por el webhook de Culqi (`refund.creation.succeeded`),
+que marca el `Pago` como `REEMBOLSADO` y desactiva la suscripción. Sin cambios.
+
+⚠️ **Para el contador:** desde esta fecha la tabla `pagos` contiene también filas
+en estado `FALLIDO`. **No son ingresos y no llevan comprobante** — solo los
+`EXITOSO` emiten. Al conciliar, filtrar por estado.
+
+⚠️ **Baja de cuenta y conservación.** Si un cliente pide eliminar su cuenta y ya
+se le emitieron comprobantes, la cuenta se **anonimiza** en vez de borrarse: se
+van sus datos personales y su acceso, y queda la fila mínima que sostiene los
+comprobantes, que hay que conservar **5 años**. Si nunca pagó, se borra de verdad.
+Es lo que permite la Ley 29733: el derecho de supresión cede ante una obligación
+legal de conservación, y lo correcto es conservar lo justo y disociar el resto.
+
+---
+
 ## 4. Pendientes
 
 **Banca** — resuelto, ver sección 3
