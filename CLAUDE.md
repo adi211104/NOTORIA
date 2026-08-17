@@ -3142,6 +3142,8 @@ las cifras («si no tiene URL pública que la sostenga, no entra»).
 
 ### 25.9 — Pendientes que deja esta sesión
 
+> ⚠️ **Lista superada** — la vigente está en §26.4. Se conserva por historia.
+
 Nada de esto bloquea lo que ya está desplegado.
 
 - [ ] **S6 — cambiar la contraseña no cierra las sesiones abiertas.** El JWT dura
@@ -3177,3 +3179,123 @@ Verificado en vivo tras el deploy: `/health` responde OK, el escaneo global
 devuelve 401 sin token, el analizador público ya trae el simulador, y
 `usenotoria.app` sirve CSP + X-Frame-Options + nosniff + Referrer-Policy +
 Permissions-Policy + HSTS.
+
+---
+
+## Sesión 2026-08-17 (tarde) — §26. El afiche de la pared, y una regresión propia
+
+Continuación de §25. **Desplegado y verificado en producción.** Sin cambios de
+schema.
+
+### 26.1 — 🔴 Regresión introducida en §25.5 y corregida el mismo día
+
+El escaneo por plan hizo que el cron escribiera `ultimoEscaneo`… que es **el reloj
+del botón «Escanear ahora» del panel**, no el del cron. A un plan Gratis el cron
+le pisaba la marca cada 24 h, así que el botón le salía en cooldown **siempre**,
+sin haberlo usado nunca.
+
+**Arreglo.** El cron usa su propio reloj: la fecha del **último `Snapshot`** del
+negocio, que ya se crea en cada escaneo. Es el registro real de «cuándo se miró
+esta ficha por última vez», no hace falta columna nueva, y deja los dos relojes
+independientes. Se resuelve con un solo `groupBy` en vez de una consulta por
+negocio.
+
+⚠️ **Única excepción:** un negocio **sin ficha de Google** nunca genera snapshot,
+así que no tiene ese reloj. Para esos —y solo esos— el cron sigue marcando
+`ultimoEscaneo`; si no, se escanearían cada hora machacando TikTok o Instagram.
+
+⚠️ **Regla:** `ultimoEscaneo` es del botón manual. Si el cron necesita saber
+cuándo escaneó, que lo saque de `Snapshot`.
+
+### 26.2 — El afiche de la pared (idea I5)
+
+`src/utils/afiche.generator.js` + `GET /api/negocios/:id/afiche.pdf`, con el botón
+en la pestaña «Cómo te ven».
+
+Un A4 para **imprimir y colgar donde trabaja el equipo**: la nota de Google a
+96 pt, las reseñas nuevas, las que faltan por responder, y **una sola cosa** en la
+que enfocarse esta semana.
+
+Existe porque el patrón de abandono de cualquier herramienta de monitoreo es que
+el dueño entra la primera semana, se emociona, y a los veinte días deja de entrar.
+Eso no se arregla con más notificaciones — se arregla **saliendo de la pantalla**.
+Un papel colgado donde trabajan quince personas hace más por el uso del producto
+que otra alerta que nadie abre.
+
+**El foco se elige solo, por prioridad:** ficha cerrada → críticas sin responder →
+rating bajando → la queja que más se repite → pocas reseñas → todo bien. Devolver
+varias cosas sería devolver ninguna.
+
+La queja sale de un **diccionario de temas** (demora, trato, temperatura,
+limpieza, precio, porción) y no de la IA, por dos razones: tiene que ser
+explicable al dueño («salió porque cuatro reseñas dicen "demora"») y no puede
+costar una llamada a Groq por cada afiche. Exige **2 menciones mínimo**: con una
+sola no es «lo que más se repite», es una opinión suelta.
+
+⚠️ **Trampa que costó una iteración — anotada también en el archivo:** nada de
+★ (U+2605) ni de ningún carácter fuera de **WinAnsi** en un PDF con fuentes
+estándar. PDFKit dibuja un **`&` literal** en su lugar. Se vio en el primer
+afiche: *«2 reseñas de 3& o menos»*. El reporte mensual nunca lo pisó porque no
+usa estrellas en el texto. Para meter ★ de verdad haría falta empaquetar un `.ttf`
+y llamar a `doc.registerFont` — peso y mantenimiento a cambio de un adorno. El
+archivo lleva un sanitizador (`seguro()`) como red de seguridad.
+
+### 26.3 — Ajuste en el espejo
+
+El aviso rojo de «sin responder» se reserva ahora para las reseñas **de 3★ o
+menos**. Marcar en rojo un 5★ sin respuesta era ruido —nadie contesta todos los
+elogios— y hacía que el resumen de arriba («1 reseña crítica sin responder»)
+pareciera equivocado al ver cinco insignias rojas debajo.
+
+### 26.4 — Pendientes actualizados
+
+Reemplaza la lista de §25.9.
+
+**Exigen `prisma db push` a mano** (Railway no lo corre en el deploy, así que hay
+que empujar el schema ANTES de desplegar el código que lo use):
+
+- [ ] **S6 — `tokenVersion`.** Cambiar la contraseña no cierra las sesiones
+      abiertas: el JWT dura 7 días y no hay forma de invalidarlo. Severidad baja.
+- [ ] **Tipo de alerta `FICHA_ALTERADA`.** Hoy la alerta de ficha cerrada viaja
+      como `RESENA_MUY_NEGATIVA` (§25.6), que además la deja expuesta al filtro de
+      preferencias si alguien apaga ese tipo.
+
+**Cuestan dinero o son decisión de negocio:**
+
+- [ ] **Vigilar horario y teléfono de la ficha.** `opening_hours` y
+      `formatted_phone_number` son del grupo **Contact Data**, con costo extra por
+      llamada. Encenderlo solo en planes de pago, que además da una diferencia
+      real entre planes.
+- [ ] **Sub-usuarios y modo agencia (idea I5 del informe).** Es el cambio que abre
+      el ticket más alto —una agencia con 15 restaurantes paga lo que 15 dueños
+      sueltos no pagarían— pero necesita tabla de miembros con rol y tocar todos
+      los `findFirst({ usuarioId })`. Decisión de producto, no solo código.
+
+**Se pueden hacer, pero necesitan tiempo o datos:**
+
+- [ ] **Ranking «quién subió más este mes».** La ventaja es que solo se puede
+      calcular con historial propio, pero por eso mismo hace falta acumular meses
+      de snapshots antes de que diga algo.
+- [ ] **Enlace de venta por negocio (`/para/<ficha>`).** Landing personalizada
+      para prospección por WhatsApp. Debe ir **sin indexar** y borrarse a petición:
+      es material comercial dirigido a una persona, no una ficha publicada sobre
+      un tercero.
+- [ ] **Constancia de reputación verificable.** PDF con código consultable, para
+      cuando un mall o un franquiciante lo pide. Se puede firmar con HMAC sin
+      guardar nada (mismo truco que `lib/oauthState.js`), así que tampoco
+      necesitaría schema.
+
+**Verificación que quedó sin hacer:**
+
+- [ ] **Revisión visual de «Cómo te ven» y del afiche en móvil (390 px).** No se
+      pudo: la ventana del navegador estaba maximizada y no aceptaba el resize
+      —`window.innerWidth` seguía en 1920 tras varios intentos—. Lo que sí se
+      comprobó por código: la barra de pestañas ya tenía `overflowX:auto` con
+      `flexShrink:0`, así que la pestaña nueva no la desborda; y el resto del
+      bloque usa `repeat(auto-fit,minmax(...))` y `flexWrap`, sin anchos fijos.
+
+### 26.5 — Cómo se desplegó
+
+Igual que §25.10: `railway up --service api --detach` y `vercel --prod --yes`.
+Verificado tras el deploy: `/health` OK, el afiche responde 401 sin token, y el
+landing sirve 200.
