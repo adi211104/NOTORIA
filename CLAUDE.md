@@ -3249,6 +3249,8 @@ pareciera equivocado al ver cinco insignias rojas debajo.
 
 ### 26.4 — Pendientes actualizados
 
+> ⚠️ **Lista superada** — la vigente está en §27.6. Se conserva por historia.
+
 Reemplaza la lista de §25.9.
 
 **Exigen `prisma db push` a mano** (Railway no lo corre en el deploy, así que hay
@@ -3299,3 +3301,144 @@ que empujar el schema ANTES de desplegar el código que lo use):
 Igual que §25.10: `railway up --service api --detach` y `vercel --prod --yes`.
 Verificado tras el deploy: `/health` OK, el afiche responde 401 sin token, y el
 landing sirve 200.
+
+---
+
+## Sesión 2026-08-17 (noche) — §27. El enlace de venta `/para/<ficha>`
+
+Continuación de §26. **Desplegado y verificado en producción.** Sin cambios de
+schema.
+
+### 27.1 — Qué es
+
+`usenotoria.app/para/<slug>~<placeId>` — la landing que se le manda a **un**
+prospecto por WhatsApp. En vez del discurso genérico, abre con el nombre de SU
+negocio, su rating real, cómo está frente a los vecinos de su rubro, qué reseña
+vieja sigue encabezando su ficha y la aritmética de su propio rating.
+
+**Es un Server Component, y eso no es un detalle técnico.** Media efectividad del
+enlace está en que, al pegarlo en el chat, el prospecto vea una tarjeta que ya
+dice el nombre de su restaurante y su nota. Eso son etiquetas Open Graph, y tienen
+que estar en el HTML que sale del servidor: un componente de cliente las generaría
+cuando el crawler de WhatsApp ya se fue.
+
+Verificado en producción:
+```
+<title>Central Restaurante — 4.6★ en Google — Notoria</title>
+<meta property="og:description" content="3498 reseñas. El promedio de tu zona es 4.4★ y el mejor está en 4.6★…">
+```
+
+El separador del segmento es `~` y no `-` **a propósito**: los place ID de Google
+llevan guiones dentro (`ChIJ01sth-G3BZER…`) pero nunca una virgulilla. El slug es
+decorativo, solo para que el enlace se lea bien en el chat.
+
+### 27.2 — Los tres frenos, y por qué existen
+
+Esto **no** es una publicación sobre un negocio ajeno: es material comercial
+dirigido a una persona. Todo lo que muestra es información pública de Google Maps
+—la misma que ve cualquiera que busque ese negocio, y la misma que ya devolvía el
+analizador gratuito del landing— pero eso no basta como excusa para publicarlo.
+
+1. `robots: { index: false, follow: false, nocache: true }` en la metadata, que
+   es lo que de verdad lo impide, y `/para/` en Disallow del `robots.txt`, que es
+   el refuerzo.
+2. **Lista de bloqueo** `PARA_BLOQUEADOS` (place IDs separados por comas). Se lee
+   **en cada petición**, así que retirar una ficha es cambiar una variable en
+   Railway sin desplegar nada — la diferencia entre atender a alguien el mismo día
+   o la semana siguiente. Responde `410`.
+3. Un aviso visible al pie: de dónde salen los datos y a qué correo escribir para
+   que se retire.
+
+### 27.3 — Dos trampas que costaron una iteración cada una
+
+**El limitador tumbaba el enlace para todo el mundo.** `publico.routes.js` aplicaba
+el limitador estricto (15 cada 15 min) con `router.use`. Pero la página se
+renderiza en el servidor de Vercel, así que **todas** las visitas llegan al backend
+desde la misma IP — la de Vercel, no la del visitante. Con ese cupo, el enlace se
+caía en cuanto se mandaba a un puñado de prospectos. Ahora el limitador estricto se
+aplica **por ruta** y `/ficha` lleva el suyo (300/15min), apoyado en el caché de 6 h:
+mil visitas al mismo enlace siguen siendo **una** consulta a Google.
+
+**Los vecinos salían de otro rubro.** Para elegir el `type` de Nearby Search se
+usaba «el primer tipo que no sea genérico». Google devuelve los tipos **en orden
+alfabético**, así que para un restaurante llegan
+`["establishment","food","point_of_interest","restaurant"]` y ese criterio elegía
+**`food`** — un cajón tan amplio que la comparación de Central Restaurante salió
+contra cuatro hoteles de Barranco. Un dueño que ve eso cierra la página, y con
+razón. Ahora hay lista blanca por prioridad (`TIPOS_COMPARABLES`) y salen Isolina,
+Cala, Rústica y Gran Chifa Chung Yion.
+
+### 27.4 — El script, que es lo que lo hace usable
+
+`scripts/enlaces-venta.js`. Sin esto la página no sirve para prospectar: habría
+que buscar el place ID de cada negocio a mano.
+
+```bash
+cd brand-shield
+node scripts/enlaces-venta.js "restaurantes Miraflores"
+node scripts/enlaces-venta.js "hoteles Cusco" --paginas 3 --csv > prospectos.csv
+```
+
+Ordena por **prioridad y no alfabéticamente**: primero los que están por debajo de
+4.5★ y, dentro de esos, los de más volumen — un negocio de 4.1 con 400 reseñas es
+mejor prospecto que uno de 4.1 con 6, porque tiene el problema *y* tiene con qué
+pagar la solución. Probado: 20 chifas de San Miguel, 19 por debajo del umbral.
+
+Cuesta 1 llamada a Places por página de 20 negocios. **Ninguna por negocio**: el
+detalle lo pide la página solo cuando el prospecto la abre.
+
+⚠️ Los enlaces nunca salen apuntando a `localhost` aunque el `.env` local lo diga
+—se mandan a otra persona—.
+
+### 27.5 — De paso
+
+El `robots.txt` apuntaba el sitemap a **`vigilio.app`**, el dominio anterior a la
+marca Notoria. Un sitemap en un host que no responde es un sitemap que Google
+descarta. Corregido a `usenotoria.app`.
+
+### 27.6 — Pendientes actualizados
+
+Reemplaza la lista de §26.4.
+
+**Exigen `prisma db push` a mano** (Railway no lo corre en el deploy, así que hay
+que empujar el schema ANTES de desplegar el código que lo use):
+
+- [ ] **S6 — `tokenVersion`.** Cambiar la contraseña no cierra las sesiones
+      abiertas: el JWT dura 7 días y no hay forma de invalidarlo. Severidad baja.
+- [ ] **Tipo de alerta `FICHA_ALTERADA`.** Hoy la alerta de ficha cerrada viaja
+      como `RESENA_MUY_NEGATIVA` (§25.6), lo que además la deja expuesta al filtro
+      de preferencias si alguien apaga ese tipo.
+
+**Cuestan dinero o son decisión de negocio:**
+
+- [ ] **Vigilar horario y teléfono de la ficha.** `opening_hours` y
+      `formatted_phone_number` son del grupo **Contact Data**, con costo extra por
+      llamada. Encenderlo solo en planes de pago, que además da una diferencia
+      real entre planes.
+- [ ] **Sub-usuarios y modo agencia.** El cambio que abre el ticket más alto —una
+      agencia con 15 restaurantes paga lo que 15 dueños sueltos no pagarían— pero
+      necesita tabla de miembros con rol y tocar todos los `findFirst({ usuarioId })`.
+
+**Se pueden hacer, pero necesitan tiempo o datos:**
+
+- [ ] **Ranking «quién subió más este mes».** Solo se puede calcular con historial
+      propio, y por eso mismo hace falta acumular meses de snapshots antes de que
+      diga algo.
+- [ ] **Constancia de reputación verificable.** PDF con código consultable, para
+      cuando un mall o un franquiciante lo pide. Se puede firmar con HMAC sin
+      guardar nada (mismo truco que `lib/oauthState.js`), así que tampoco
+      necesitaría schema.
+
+**Verificación que sigue sin hacer:**
+
+- [ ] **Revisión visual en móvil (390 px)** de «Cómo te ven», el afiche y la nueva
+      `/para`. No se pudo: la ventana del navegador estaba maximizada y no aceptaba
+      el resize —`window.innerWidth` seguía en 1920 tras varios intentos—. Lo
+      comprobado por código: la barra de pestañas ya tenía `overflowX:auto` con
+      `flexShrink:0`, y el resto usa `repeat(auto-fit,minmax(...))`, `flexWrap` y
+      `clamp()` sin anchos fijos. `/para` tiene `maxWidth:620` y una sola columna,
+      que es el caso fácil.
+
+**Hecho desde §25** (para no volver a abrirlo): S1–S9, F1–F7, el escaneo por plan,
+la cancelación, la vigilancia de ficha, el espejo, el simulador, el afiche y este
+enlace de venta.
