@@ -3398,6 +3398,8 @@ descarta. Corregido a `usenotoria.app`.
 
 ### 27.6 — Pendientes actualizados
 
+> ⚠️ **Lista superada** — la vigente está en §28.4. Se conserva por historia.
+
 Reemplaza la lista de §26.4.
 
 **Exigen `prisma db push` a mano** (Railway no lo corre en el deploy, así que hay
@@ -3442,3 +3444,155 @@ que empujar el schema ANTES de desplegar el código que lo use):
 **Hecho desde §25** (para no volver a abrirlo): S1–S9, F1–F7, el escaneo por plan,
 la cancelación, la vigilancia de ficha, el espejo, el simulador, el afiche y este
 enlace de venta.
+
+---
+
+## Sesión 2026-08-17 (cierre) — §28. Vigilancia de contacto y constancia verificable
+
+Continuación de §27. **Desplegado y verificado en producción.** Sin cambios de
+schema.
+
+### 28.1 — Vigilancia de teléfono, horario, nombre y dirección (planes de pago)
+
+`src/lib/fichaGoogle.js`. Completa la vigilancia de `business_status` de §25.6.
+
+Google Maps deja que **cualquiera** sugiera cambios sobre la ficha de un negocio
+ajeno, y los aplica sin avisarle al dueño. Un teléfono cambiado es un negocio que
+deja de recibir llamadas sin saber por qué; un horario cambiado son clientes que
+llegan y encuentran cerrado — y que además dejan una reseña de 1★ por el viaje
+perdido.
+
+⚠️ **Solo NEGOCIO y FRANQUICIA, y el motivo es la factura.**
+`formatted_phone_number` y `opening_hours` son del grupo **Contact Data**, que
+Places cobra aparte del Basic que la llamada ya paga. Esto **sí cuesta por
+escaneo**, a diferencia de `business_status`. El scraper pide esos campos solo
+cuando el plan los incluye (`obtenerResenasGoogle(placeId, { conContacto })`).
+
+**Dónde vive la referencia, y el precio que tiene.** Detectar un *cambio* exige
+recordar el valor anterior, y `Negocio` no tiene columna libre; añadirla obliga a
+un `prisma db push` que Railway no corre en el deploy. Así que la referencia vive
+en una **fila de `Alerta` marcada como de control** (`detalle.motivo =
+'ficha_control'`, `leida: true`).
+
+Es un compromiso consciente y ensucia una tabla que significa «cosas que contarle
+al dueño». Por eso el filtro `SIN_CONTROL` se exporta desde `lib/fichaGoogle.js` y
+se aplica en **los seis sitios que leen alertas**:
+
+| Dónde | Qué pasaría sin el filtro |
+|---|---|
+| `GET /api/alertas` | la fila de control aparece en la lista del panel |
+| `GET /api/negocios/:id` | y en el detalle del negocio |
+| `_count` de no leídas | no afecta: la fila va `leida: true` |
+| Resumen semanal/mensual por correo | entra: comparte el enum `RESENA_MUY_NEGATIVA` |
+| PDF mensual y reporte manual | entra por fecha |
+| Drip del día 5 | le cuenta al usuario una alerta que nunca ocurrió |
+
+⚠️ **Un valor que pasa de tener contenido a `null` NO se reporta como cambio.**
+Places omite campos de forma intermitente —sobre todo `opening_hours`— y avisar
+de «te borraron el horario» cada vez que Google tiene un mal día convertiría la
+alerta en ruido, que es lo único que la mataría.
+
+El aviso va por `enviarAlertaEmail` directo, saltándose las preferencias: igual
+que la ficha cerrada, ninguna preferencia debería poder silenciar «alguien te
+cambió el teléfono en Google».
+
+### 28.2 — Constancia de Reputación Online
+
+`src/lib/constancia.js` + `src/utils/constancia.pdf.js` +
+`GET /api/negocios/:id/constancia.pdf` (planes de pago) +
+`GET /api/publico/verificar/:codigo` + la página `/verificar/[codigo]`.
+
+El papel que pide un centro comercial antes de alquilar un local, un
+franquiciante antes de aprobar a un franquiciado, o un banco al evaluar un
+crédito. Y crea demanda desde el otro lado: **el día que un mall se la pida a un
+inquilino, ese inquilino se registra**.
+
+**No guarda nada.** Los datos viajan firmados dentro del código
+(`<payload base64url>.<HMAC-SHA256 con JWT_SECRET>`, el mismo mecanismo que
+`lib/oauthState.js`) y quien verifica **recalcula la firma** en vez de consultar
+un registro. Sin tabla nueva y sin `db push`. Falsificar una constancia exigiría
+el `JWT_SECRET`.
+
+⚠️ **Dos consecuencias de no guardar nada, y hay que tenerlas presentes:**
+1. **No se puede revocar** una constancia emitida, solo esperar a que caduque. De
+   ahí los **90 días** de vigencia — que además es cuando un dato de reputación
+   deja de acreditar nada.
+2. **Rotar `JWT_SECRET` invalida todas las constancias en circulación.** Ya era
+   una operación con consecuencias (states de OAuth, tokens de sesión); esta es
+   una más.
+
+El código mide ~152 caracteres, así que **nunca se teclea**: va dentro de un QR
+impreso en el PDF. Las claves del payload son de una letra por eso mismo, para no
+engordar el QR y no bajarle la tolerancia a un escaneo torcido.
+
+La página de verificación **distingue `VENCIDA` de firma inválida a propósito**:
+«venció» y «está falsificada» son cosas muy distintas para quien tiene el papel
+delante, y confundirlas sería acusar de fraude a alguien que solo tiene un
+documento viejo.
+
+Y el **alcance va en el documento Y en la página**, no escondido en letra
+pequeña: esto acredita información pública de Google Maps, no la calidad del
+servicio del establecimiento, ni su solvencia, ni tiene valor tributario. Una
+constancia que se pasa de lo que puede acreditar no vale nada.
+
+### 28.3 — 🔴 Bug encontrado en el afiche, que ya estaba desplegado
+
+El sanitizador del afiche filtraba por **latin1** (`[^\x00-\xFF]`). **WinAnsi no
+es latin1:** CP1252 añade en el rango 0x80–0x9F justo los caracteres tipográficos
+que aparecen solos en un texto en español — comillas curvas, guion largo, puntos
+suspensivos, apóstrofo tipográfico.
+
+Se estaba comiendo en silencio el guion largo del afiche y el apóstrofo de
+«THIS WEEK'S FOCUS» — y se habría comido el del nombre de un cliente llamado
+«Tito's». **Nada se rompía, y por eso costó verlo:** solo desaparecían letras, y
+un documento al que le faltan letras no lo reporta nadie.
+
+El sanitizador se movió a **`src/lib/winansi.js`**, corregido al conjunto WinAnsi
+real, y lo comparten los dos generadores de PDF. Comprobado: `Tito's`, `—` y
+`Café Ñandú·` sobreviven; `★` y los emoji desaparecen.
+
+⚠️ **Regla:** en un PDF con fuentes estándar, todo texto pasa por `seguro()`. Si
+algún día hace falta ★ de verdad, es empaquetar un `.ttf` y `doc.registerFont`.
+
+### 28.4 — Pendientes actualizados
+
+Reemplaza la lista de §27.6.
+
+**Exigen `prisma db push` a mano** (Railway no lo corre en el deploy, así que hay
+que empujar el schema ANTES de desplegar el código que lo use):
+
+- [ ] **S6 — `tokenVersion`.** Cambiar la contraseña no cierra las sesiones
+      abiertas: el JWT dura 7 días. Severidad baja.
+- [ ] **Tipo de alerta `FICHA_ALTERADA`.** Hoy las tres alertas de ficha —cerrada,
+      datos cambiados y la fila de control— comparten `RESENA_MUY_NEGATIVA`.
+- [ ] **Columna `fichaGoogleRef Json?` en `Negocio`.** Es el arreglo definitivo de
+      §28.1: saca la referencia de la tabla `Alerta` y con ella se puede borrar el
+      filtro `SIN_CONTROL` de los seis sitios donde hoy hace falta.
+
+**Decisión de negocio, no de código:**
+
+- [ ] **Sub-usuarios y modo agencia.** El cambio que abre el ticket más alto —una
+      agencia con 15 restaurantes paga lo que 15 dueños sueltos no— pero necesita
+      tabla de miembros con rol y tocar todos los `findFirst({ usuarioId })`.
+- [ ] **Anunciar la vigilancia de contacto y la constancia en el landing.** Las
+      dos están vivas y ninguna se menciona en `/precios` ni en la comparativa.
+      Son justo las dos que dan una diferencia real entre Gratis y de pago, que
+      es de lo que el catálogo anda escaso.
+
+**Necesitan tiempo o datos:**
+
+- [ ] **Ranking «quién subió más este mes».** Solo se puede calcular con historial
+      propio, así que hace falta acumular meses de snapshots.
+
+**Verificación que sigue sin hacer:**
+
+- [ ] **Revisión visual en móvil (390 px)** de «Cómo te ven», el afiche, `/para` y
+      `/verificar`. No se pudo: la ventana del navegador estaba maximizada y no
+      aceptaba el resize —`window.innerWidth` seguía en 1920 tras varios
+      intentos—. Comprobado por código: la barra de pestañas ya tenía
+      `overflowX:auto` con `flexShrink:0`, y el resto usa
+      `repeat(auto-fit,minmax(...))`, `flexWrap` y `clamp()` sin anchos fijos.
+
+**Hecho desde §25** (para no reabrirlo): S1–S9, F1–F7, el escaneo por plan, la
+cancelación, la vigilancia de ficha completa, el espejo, el simulador, el afiche,
+el enlace de venta `/para` y la constancia verificable.
