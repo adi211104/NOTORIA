@@ -78,6 +78,10 @@ export const auth = {
   cambiarPassword:  (d) => api('/api/auth/cambiar-password',  { method:'PATCH',  body:JSON.stringify(d) }),
   eliminarCuenta:   ()  => api('/api/auth/cuenta',            { method:'DELETE' }),
   reenviarVerificacion: () => api('/api/auth/reenviar-verificacion', { method:'POST' }),
+  // Invalida TODOS los tokens del usuario, incluido el de este navegador. Hasta
+  // ahora el botón del panel solo borraba el token local, que es justo la sesión
+  // que no preocupa.
+  cerrarSesiones:   ()  => api('/api/auth/cerrar-sesiones', { method:'POST' }),
 };
 
 export const negociosApi = {

@@ -829,8 +829,17 @@ export default function ConfiguracionPage() {
 
       {/* ZONA DE PELIGRO */}
       <Seccion titulo={t.peligro.titulo} descripcion={t.peligro.descripcion}>
+        {/* 🔴 Antes esto era `onClick={logout}`, que solo borra el token de ESTE
+            navegador. O sea que el botón decía «cerrar sesión en todos los
+            dispositivos» y la única sesión que no cerraba era la que preocupa: la
+            del teléfono perdido, la del computador prestado.
+            Ahora llama al backend, que incrementa `tokenVersion` e invalida todos
+            los tokens de golpe — este incluido, por eso después hace logout. */}
         <Campo label={t.peligro.cerrarSesionTodos}>
-          <button onClick={logout}
+          <button onClick={async () => {
+            try { await auth.cerrarSesiones(); } catch { /* da igual: igual se sale de aquí */ }
+            logout();
+          }}
             className="text-sm border hover:border-red-500/50 px-4 py-1.5 rounded-lg transition"
             style={{ borderColor: 'var(--border-c)', color: 'var(--text-2)' }}>
             {t.peligro.cerrarSesion}

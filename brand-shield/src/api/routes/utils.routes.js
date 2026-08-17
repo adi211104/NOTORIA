@@ -4,7 +4,6 @@ const { autenticar } = require('../middlewares/auth.middleware');
 const { buscarNegocioEnGoogle } = require('../../scrapers/google.scraper');
 const { ejecutarAhora, HORAS_ESCANEO } = require('../../workers/monitoreo.worker');
 const prisma = require('../../lib/prisma');
-const { SIN_CONTROL } = require('../../lib/fichaGoogle');
 
 const router = express.Router();
 
@@ -159,7 +158,7 @@ router.post('/generar-reporte', autenticar, async (req, res, next) => {
           where: { usuarioId: req.usuario.id, activo: true },
           include: {
             snapshots: { orderBy: { tomadoEn: 'desc' }, take: 30 },
-            alertas: { where: { ...SIN_CONTROL, creadaEn: { gte: new Date(new Date().setDate(1)) } } },
+            alertas: { where: { creadaEn: { gte: new Date(new Date().setDate(1)) } } },
             resenas: { where: { detectadaEn: { gte: new Date(new Date().setDate(1)) } } },
           },
         });

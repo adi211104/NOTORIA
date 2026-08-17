@@ -8,7 +8,7 @@ const { obtenerResenasGoogle, buscarNegocioEnGoogle } = require('../scrapers/goo
 const { obtenerRatingFacebook, obtenerResenasFacebook } = require('../scrapers/facebook.scraper');
 const { analizarResena, detectarAnomalias } = require('../nlp/detector');
 const { notificar, enviarAlertaEmail } = require('../alerts/notificador');
-const { revisarDatosDeFicha, puedeVigilarFicha, SIN_CONTROL } = require('../lib/fichaGoogle');
+const { revisarDatosDeFicha, puedeVigilarFicha } = require('../lib/fichaGoogle');
 
 // Intenta publicar la auto-respuesta aprobada por el usuario para una reseña
 // positiva (4-5★) recién detectada. Requiere que el negocio tenga Google
@@ -114,14 +114,7 @@ const revisarFichaGoogle = async (negocio, datos) => {
 
   const alerta = await prisma.alerta.create({
     data: {
-      // ⚠️ Va como RESENA_MUY_NEGATIVA por falta de un tipo propio: añadir un
-      // valor al enum TipoAlerta obliga a un `prisma db push` contra la base de
-      // producción, y Railway no lo corre en el deploy — desplegar el enum nuevo
-      // sin haberlo empujado antes tumbaría la API. Cuando se haga ese push, el
-      // tipo natural es FICHA_ALTERADA. Mientras tanto este enum ya se usa como
-      // cajón de "urgente" (la conexión de Facebook vencida también entra por
-      // aquí), así que no se está inventando un precedente.
-      tipo: 'RESENA_MUY_NEGATIVA',
+      tipo: 'FICHA_ALTERADA',
       plataforma: 'GOOGLE',
       descripcion,
       detalle: { motivo: 'ficha_google', estadoNegocio: estado, nombreEnGoogle: datos.nombreEnGoogle || null },
@@ -137,7 +130,7 @@ const revisarFichaGoogle = async (negocio, datos) => {
   await enviarAlertaEmail({
     usuario: negocio.usuario,
     negocio,
-    alerta: { tipo: 'RESENA_MUY_NEGATIVA', plataforma: 'GOOGLE', descripcion },
+    alerta: { tipo: 'FICHA_ALTERADA', plataforma: 'GOOGLE', descripcion },
   });
   console.log(`[Ficha] ${negocio.nombre}: ${estado} — alerta ${alerta.id} enviada`);
 };
@@ -160,9 +153,7 @@ const revisarCambiosDeContacto = async (negocio, datos) => {
 
   const alerta = await prisma.alerta.create({
     data: {
-      // Mismo enum que la ficha cerrada y por el mismo motivo: un valor nuevo en
-      // TipoAlerta exige `prisma db push`, que Railway no corre en el deploy.
-      tipo: 'RESENA_MUY_NEGATIVA',
+      tipo: 'FICHA_ALTERADA',
       plataforma: 'GOOGLE',
       descripcion,
       detalle: { motivo: 'ficha_datos', cambios: cambios.map((c) => c.campo) },
@@ -176,7 +167,7 @@ const revisarCambiosDeContacto = async (negocio, datos) => {
   await enviarAlertaEmail({
     usuario: negocio.usuario,
     negocio,
-    alerta: { tipo: 'RESENA_MUY_NEGATIVA', plataforma: 'GOOGLE', descripcion },
+    alerta: { tipo: 'FICHA_ALTERADA', plataforma: 'GOOGLE', descripcion },
   });
   console.log(`[Ficha] ${negocio.nombre}: cambió ${cambios.map((c) => c.campo).join(', ')} — alerta ${alerta.id}`);
 };
@@ -880,7 +871,7 @@ const iniciarReportesMensuales = () => {
       include: {
         usuario: { select: { id: true, email: true, nombre: true, idioma: true } },
         snapshots: { orderBy: { tomadoEn: 'desc' }, take: 30 },
-        alertas: { where: { ...SIN_CONTROL, creadaEn: { gte: new Date(new Date().setDate(1)) } } },
+        alertas: { where: { creadaEn: { gte: new Date(new Date().setDate(1)) } } },
         resenas: { where: { detectadaEn: { gte: new Date(new Date().setDate(1)) } } },
       },
     });
@@ -919,15 +910,11 @@ const iniciarResumenesAlertas = () => {
         if (!tocaSemanal && !tocaMensual) continue;
 
         const desde = new Date(Date.now() - (tocaSemanal ? 7 : 30) * 24 * 60 * 60 * 1000);
-        const tiposActivos = ['PICO_RESENAS_NEGATIVAS', 'CAIDA_RATING', 'CUENTAS_NUEVAS', 'RESENA_MUY_NEGATIVA', 'MENCION_NEGATIVA', 'COMENTARIO_NEGATIVO']
+        const tiposActivos = ['PICO_RESENAS_NEGATIVAS', 'CAIDA_RATING', 'CUENTAS_NUEVAS', 'RESENA_MUY_NEGATIVA', 'MENCION_NEGATIVA', 'COMENTARIO_NEGATIVO', 'FICHA_ALTERADA']
           .filter(t => !prefs?.tipos || prefs.tipos[t] !== false);
 
         const alertasPendientes = await prisma.alerta.findMany({
           where: {
-            // Sin esto, la fila de control de la vigilancia de ficha entraría en
-            // el resumen por correo: comparte el enum RESENA_MUY_NEGATIVA, que
-            // está entre los tipos activos. Ver lib/fichaGoogle.js.
-            ...SIN_CONTROL,
             creadaEn: { gte: desde },
             tipo: { in: tiposActivos },
             negocio: { usuarioId: u.id, activo: true },

@@ -41,6 +41,7 @@ const ETIQUETAS = {
     RESENA_MUY_NEGATIVA: 'Reseña crítica',
     MENCION_NEGATIVA: 'Mención negativa',
     COMENTARIO_NEGATIVO: 'Comentario negativo',
+    FICHA_ALTERADA: 'Tu ficha de Google',
   },
   en: {
     PICO_RESENAS_NEGATIVAS: 'Spike of negative reviews',
@@ -49,6 +50,7 @@ const ETIQUETAS = {
     RESENA_MUY_NEGATIVA: 'Critical review',
     MENCION_NEGATIVA: 'Negative mention',
     COMENTARIO_NEGATIVO: 'Negative comment',
+    FICHA_ALTERADA: 'Your Google listing',
   },
 };
 

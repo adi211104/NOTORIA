@@ -8,11 +8,6 @@ const { autenticar } = require('../middlewares/auth.middleware');
 
 router.use(autenticar);
 
-// La vigilancia de datos de ficha guarda su referencia en una fila de esta misma
-// tabla (ver lib/fichaGoogle.js). Esa fila NO es una alerta: es estado interno, y
-// no puede aparecer en la lista ni contar como "sin leer".
-const { SIN_CONTROL } = require('../../lib/fichaGoogle');
-
 // ── GET /api/alertas ──────────────────────────────────────
 // Todas las alertas del usuario (de todos sus negocios)
 router.get('/', async (req, res, next) => {
@@ -20,7 +15,6 @@ router.get('/', async (req, res, next) => {
     const alertas = await prisma.alerta.findMany({
       where: {
         negocio: { usuarioId: req.usuario.id },
-        ...SIN_CONTROL,
       },
       include: {
         negocio: { select: { id: true, nombre: true, tipo: true } },

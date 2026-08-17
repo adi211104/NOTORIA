@@ -31,6 +31,19 @@ model Usuario {
   // el token es aleatorio de 256 bits, la colisión es prácticamente imposible.
   tokenResetHash       String?
   tokenResetExpira     DateTime?
+  // Versión de las sesiones. Va dentro del JWT como `v`; si el token trae una
+  // versión distinta de esta, `auth.middleware` lo rechaza.
+  //
+  // Sirve para lo que un JWT no puede hacer por sí solo: caducar antes de tiempo.
+  // Hasta ahora, cambiar la contraseña NO expulsaba a nadie — quien te hubiera
+  // robado la sesión seguía dentro 7 días más, que es justo el caso en el que
+  // cambias la contraseña. Se incrementa al cambiarla, al restablecerla y al
+  // pulsar "cerrar sesión en todos los dispositivos".
+  //
+  // ⚠️ Los tokens emitidos ANTES de esta columna no llevan `v`. El middleware los
+  // trata como versión 0, que es este default: así el despliegue no echa a nadie,
+  // y en cuanto alguien cambia su contraseña sus sesiones viejas mueren.
+  tokenVersion         Int           @default(0)
   plan                 Plan          @default(GRATIS)
   suscripcionId        String?
   suscripcionActiva    Boolean       @default(false)
@@ -218,9 +231,9 @@ model Comprobante {
 model ResumenSunat {
   id String @id @default(cuid())
 
-  tipo          String // "RC" resumen diario de boletas · "RA" comunicación de baja
-  identificador String @unique // "RC-20260806-1" — es también el nombre del archivo
-  correlativo   Int
+  tipo            String // "RC" resumen diario de boletas · "RA" comunicación de baja
+  identificador   String   @unique // "RC-20260806-1" — es también el nombre del archivo
+  correlativo     Int
   // Día de emisión de los comprobantes que agrupa. Un resumen informa un solo
   // día: es lo que viaja en cbc:ReferenceDate.
   fechaReferencia DateTime
@@ -286,6 +299,20 @@ model Negocio {
   // las fuentes ya traen su propio guard, así que sin credenciales no hace nada.
   mencionesActivas Boolean @default(true)
 
+  // Última foto de los datos de la ficha de Google que vigilamos: teléfono,
+  // horario, nombre y dirección. Es la referencia contra la que se compara en
+  // cada escaneo para detectar que alguien la alteró (ver lib/fichaGoogle.js).
+  //
+  // Forma: { telefono, direccion, nombre, horarioHash, horarioTexto }
+  //
+  // ⚠️ Esto vivía en una fila de `Alerta` marcada como de control, porque añadir
+  // esta columna exigía un `prisma db push` que Railway no corre en el deploy.
+  // Funcionaba, pero ensuciaba una tabla que significa "cosas que contarle al
+  // dueño" y obligaba a filtrarla en SEIS consultas distintas — la lista del
+  // panel, el contador, el detalle, el resumen por correo, el PDF y el drip. Un
+  // solo sitio que se olvidara y el cliente veía una alerta que no existía.
+  fichaGoogleRef Json?
+
   googlePlaceId    String?
   googleNombre     String?
   googleRatingBase Float?
@@ -320,10 +347,10 @@ model Negocio {
   // cuatro campos solo crearía dos versiones que se contradicen.
   // El @ solo se llena con el scope user.info.profile (que la Accounts API sí
   // tiene concedido; la Display no).
-  tiktokNombre       String?
-  tiktokAvatar       String?
-  tiktokUsername     String?
-  tiktokPerfilUrl    String?
+  tiktokNombre    String?
+  tiktokAvatar    String?
+  tiktokUsername  String?
+  tiktokPerfilUrl String?
 
   // TripAdvisor (Content API) — pendiente de API key. No usa OAuth por negocio,
   // solo el locationId público (ver src/scrapers/tripadvisor.scraper.js)
@@ -450,6 +477,15 @@ enum TipoAlerta {
   // Comentario negativo en una publicación propia del negocio. Distinto de
   // MENCION_NEGATIVA porque este SÍ se puede responder desde Notoria.
   COMENTARIO_NEGATIVO
+  // Alguien tocó la FICHA de Google, no las reseñas: la marcó como cerrada, o le
+  // cambió el teléfono, el horario, el nombre o la dirección. Google acepta esas
+  // sugerencias de cualquiera y las aplica sin avisar al dueño.
+  //
+  // Hasta el 2026-08-17 esto viajaba como RESENA_MUY_NEGATIVA por no poder añadir
+  // un valor al enum sin un `prisma db push`. Era mentira en la etiqueta del
+  // panel y, peor, quedaba expuesto a que alguien apagara "reseña crítica" en sus
+  // preferencias y dejara de enterarse de que su local aparece cerrado.
+  FICHA_ALTERADA
 }
 
 model Competidor {
@@ -504,9 +540,9 @@ model ComentarioSocial {
   publicacionId     String?
   publicacionTitulo String?
 
-  sentimiento String?
-  respondida  Boolean @default(false)
-  respuesta   String?
+  sentimiento         String?
+  respondida          Boolean @default(false)
+  respuesta           String?
   // Id que TikTok le dio a NUESTRA respuesta. Sin él no se puede borrar: es el
   // único identificador con el que la plataforma la reconoce. Queda null en las
   // respuestas anteriores al 2026-08-06, que por eso no se pueden retirar desde
@@ -515,16 +551,16 @@ model ComentarioSocial {
   // Moderación hecha en la plataforma (§15-octies). Se guardan para que los
   // botones del panel muestren el estado real al recargar; el worker los
   // resincroniza en cada escaneo por si el dueño moderó desde la app de TikTok.
-  oculto      Boolean @default(false)
-  fijado      Boolean @default(false)
-  vista       Boolean @default(false)
+  oculto              Boolean @default(false)
+  fijado              Boolean @default(false)
+  vista               Boolean @default(false)
   // Evita re-alertar el mismo comentario en cada ciclo del worker
-  notificada  Boolean @default(false)
+  notificada          Boolean @default(false)
 
   fechaComentario DateTime?
   negocioId       String
-  negocio         Negocio  @relation(fields: [negocioId], references: [id])
-  detectadoEn     DateTime @default(now())
+  negocio         Negocio   @relation(fields: [negocioId], references: [id])
+  detectadoEn     DateTime  @default(now())
 
   @@index([negocioId, detectadoEn])
   @@map("comentarios_sociales")
@@ -590,20 +626,20 @@ model Reclamacion {
   numero String @unique
 
   // ── Consumidor ──
-  nombre     String
-  documento  String  // DNI / CE / pasaporte
-  docTipo    String  @default("DNI")
-  domicilio  String
-  email      String
-  telefono   String
+  nombre    String
+  documento String // DNI / CE / pasaporte
+  docTipo   String  @default("DNI")
+  domicilio String
+  email     String
+  telefono  String
   // La norma obliga a identificar al apoderado cuando el consumidor es menor
-  esMenor    Boolean @default(false)
-  apoderado  String?
+  esMenor   Boolean @default(false)
+  apoderado String?
 
   // ── Bien contratado ──
-  tipoBien    String  @default("SERVICIO") // PRODUCTO | SERVICIO
-  descripcion String  // qué se contrató
-  montoS      Int?    // monto reclamado en céntimos, opcional
+  tipoBien    String @default("SERVICIO") // PRODUCTO | SERVICIO
+  descripcion String // qué se contrató
+  montoS      Int? // monto reclamado en céntimos, opcional
 
   // ── Detalle ──
   // RECLAMO = disconformidad con el servicio · QUEJA = malestar con la atención.
@@ -614,8 +650,8 @@ model Reclamacion {
 
   // ── Respuesta del proveedor ──
   // El plazo legal de respuesta es de 15 días hábiles desde la recepción.
-  estado      String    @default("PENDIENTE") // PENDIENTE | RESPONDIDO
-  respuesta   String?
+  estado       String    @default("PENDIENTE") // PENDIENTE | RESPONDIDO
+  respuesta    String?
   respondidoEn DateTime?
 
   creadoEn DateTime @default(now())

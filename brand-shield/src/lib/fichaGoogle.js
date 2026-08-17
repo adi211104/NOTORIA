@@ -19,25 +19,23 @@
 // Encenderlo para todos multiplicaría la factura del plan Gratis, que ya se
 // arregló una vez por lo mismo (§25.5). Va en NEGOCIO y FRANQUICIA.
 //
-// ── Dónde se guarda la referencia, y por qué ahí ────────────────────────────
-// Detectar un CAMBIO exige recordar el valor anterior, y no hay columna libre en
-// `Negocio` para eso. Añadirla obligaría a un `prisma db push` contra la base de
-// producción **antes** de desplegar, y Railway no lo corre en el deploy: el
-// código nuevo se estrellaría contra una tabla sin la columna.
+// ── Dónde se guarda la referencia ───────────────────────────────────────────
+// Detectar un CAMBIO exige recordar el valor anterior, y desde el 2026-08-18 eso
+// vive en `Negocio.fichaGoogleRef`, que es su sitio.
 //
-// Así que la referencia vive en una fila de `Alerta` marcada como de control
-// (`detalle.motivo = 'ficha_control'`), que se crea una sola vez por negocio y
-// después se actualiza en cada lectura. Se excluye de todo lo que el usuario ve.
+// Hasta entonces vivía en una fila de la tabla `Alerta` marcada como de control,
+// porque añadir la columna exigía un `prisma db push` que Railway no corre en el
+// deploy. Funcionaba, pero tenía un precio que se pagaba en seis sitios: había
+// que excluir esa fila de la lista del panel, del contador, del detalle del
+// negocio, del resumen por correo, del PDF mensual y del correo del día 5 del
+// drip. Un solo sitio que se olvidara —y pasó con el drip, que usaba el filtro
+// sin importarlo— y el cliente veía una alerta que no existía.
 //
-// Es un compromiso consciente y tiene su precio: ensucia una tabla que significa
-// "cosas que contarle al dueño". El arreglo definitivo es una columna
-// `fichaGoogleRef Json?` en `Negocio`; queda anotado en los pendientes de
-// CLAUDE.md junto con los otros cambios que esperan un `db push`.
+// La migración de las filas viejas la hace `scripts/migrar-ficha-ref.js`.
 
 const crypto = require('crypto');
 const prisma = require('./prisma');
 
-const MOTIVO_CONTROL = 'ficha_control';
 const PLANES_CON_VIGILANCIA = ['NEGOCIO', 'FRANQUICIA'];
 
 const puedeVigilarFicha = (plan) => PLANES_CON_VIGILANCIA.includes(plan);
@@ -107,45 +105,16 @@ const compararFichas = (antes, ahora) => {
   return cambios;
 };
 
-// La fila de control del negocio, si existe.
-const leerReferencia = async (negocioId) => {
-  const fila = await prisma.alerta.findFirst({
-    where: { negocioId, detalle: { path: ['motivo'], equals: MOTIVO_CONTROL } },
-    orderBy: { creadaEn: 'desc' },
-    select: { id: true, detalle: true },
-  });
-  if (!fila) return { id: null, foto: null };
-  const { motivo, ...foto } = fila.detalle || {};
-  return { id: fila.id, foto };
-};
-
-const guardarReferencia = async (negocioId, id, foto) => {
-  const detalle = { motivo: MOTIVO_CONTROL, ...foto };
-  if (id) {
-    await prisma.alerta.update({ where: { id }, data: { detalle } });
-    return;
-  }
-  await prisma.alerta.create({
-    data: {
-      // Va con el mismo enum que la alerta de ficha cerrada por el mismo motivo:
-      // añadir un valor a TipoAlerta exige `db push`. Da igual cuál sea, porque
-      // esta fila nunca se le muestra al usuario.
-      tipo: 'RESENA_MUY_NEGATIVA',
-      plataforma: 'GOOGLE',
-      descripcion: '(control interno de la ficha de Google — no se muestra)',
-      detalle,
-      negocioId,
-      leida: true,
-      notificada: true,
-    },
-  });
-};
-
 /**
  * Revisa la ficha y devuelve los cambios detectados. Guarda la nueva referencia.
  *
  * La PRIMERA vez que corre no devuelve nada: solo deja la foto inicial. Avisar
  * de un "cambio" la primera vez sería avisar de que existe un teléfono.
+ *
+ * `negocio.fichaGoogleRef` puede venir sin cargar si el llamador no la pidió en
+ * su `select`; por eso se lee de la fila cuando no está, en vez de dar por hecho
+ * que un `undefined` significa «nunca se ha medido» — eso volvería a poner la
+ * referencia a cero en cada ciclo y la detección no dispararía jamás.
  */
 const revisarDatosDeFicha = async (negocio, resultadoPlaces) => {
   if (!puedeVigilarFicha(negocio.usuario?.plan)) return [];
@@ -154,24 +123,26 @@ const revisarDatosDeFicha = async (negocio, resultadoPlaces) => {
   // Sin ningún dato de contacto no hay nada que vigilar ni que guardar
   if (!ahora.telefono && !ahora.horarioHash && !ahora.direccion) return [];
 
-  const { id, foto: antes } = await leerReferencia(negocio.id);
-  await guardarReferencia(negocio.id, id, ahora);
+  const antes = negocio.fichaGoogleRef !== undefined
+    ? negocio.fichaGoogleRef
+    : (await prisma.negocio.findUnique({
+        where: { id: negocio.id },
+        select: { fichaGoogleRef: true },
+      }))?.fichaGoogleRef;
+
+  await prisma.negocio.update({
+    where: { id: negocio.id },
+    data: { fichaGoogleRef: ahora },
+  });
 
   if (!antes) return []; // primera lectura: solo se establece la referencia
   return compararFichas(antes, ahora);
 };
 
-// 🔴 Filtro obligatorio en TODA consulta a `alerta` cuyo resultado vea el
-// usuario: la lista del panel, los contadores, el resumen por correo y el PDF.
-//
-// La fila de control no es una alerta, es estado interno. Si se cuela, el cliente
-// ve una alerta con el texto «(control interno de la ficha de Google…)» y deja de
-// confiar en las demás.
-//
-// Va acá y no en cada ruta para que un call-site nuevo lo importe en vez de
-// redescubrirlo — y para que el día que la referencia se mude a su propia
-// columna, esto se borre de un solo sitio.
-const SIN_CONTROL = { NOT: { detalle: { path: ['motivo'], equals: MOTIVO_CONTROL } } };
+// `SIN_CONTROL` vivía acá y ya no existe: era el filtro que había que aplicar en
+// seis consultas distintas para esconder la fila de control de la tabla `Alerta`.
+// Con la referencia en `Negocio.fichaGoogleRef` no hay nada que esconder, así que
+// esas seis consultas volvieron a ser lo que dicen ser.
 
 module.exports = {
   revisarDatosDeFicha,
@@ -179,6 +150,4 @@ module.exports = {
   fotoDeFicha,
   puedeVigilarFicha,
   CAMPOS_CONTACTO,
-  MOTIVO_CONTROL,
-  SIN_CONTROL,
 };

@@ -23,11 +23,29 @@ const autenticar = async (req, res, next) => {
         nombre: true,
         plan: true,
         suscripcionActiva: true,
+        tokenVersion: true,
       },
     });
 
     if (!usuario) {
       return res.status(401).json({ error: 'Usuario no encontrado' });
+    }
+
+    // 🔴 Corte de sesiones. Es lo que un JWT no sabe hacer solo: caducar antes de
+    // tiempo. Cambiar la contraseña incrementa `tokenVersion`, y desde ese
+    // momento todos los tokens emitidos antes dejan de valer — que es justo lo
+    // que se espera al cambiarla, y lo que hasta ahora NO pasaba: quien te
+    // hubiera robado la sesión seguía dentro los 7 días que dura el token.
+    //
+    // ⚠️ `decoded.v ?? 0` no es un descuido: los tokens emitidos antes de que
+    // existiera esta columna no llevan `v`, y tratarlos como versión 0 —que es el
+    // default de la columna— hace que el despliegue no eche a nadie de golpe.
+    // En cuanto esa persona cambie su contraseña, sus sesiones viejas mueren.
+    if ((decoded.v ?? 0) !== usuario.tokenVersion) {
+      return res.status(401).json({
+        error: 'Tu sesión se cerró porque la contraseña cambió. Vuelve a iniciar sesión.',
+        tipo: 'SESION_REVOCADA',
+      });
     }
 
     req.usuario = usuario;

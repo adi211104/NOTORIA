@@ -51,6 +51,20 @@ const schemaLogin = z.object({
 const buscarUsuarioPorEmail = (email) =>
   prisma.usuario.findFirst({ where: { email: { equals: email, mode: 'insensitive' } } });
 
+// 🔴 ÚNICO sitio que firma tokens de sesión. No volver a llamar a `jwt.sign`
+// suelto desde una ruta.
+//
+// El motivo es `v`, la versión de sesión del usuario (ver auth.middleware.js).
+// Había TRES `jwt.sign` repartidos —registro, login y Google— y basta que uno se
+// olvide de incluirla para que ese camino emita sesiones que el corte de
+// sesiones no puede revocar. Y no fallaría nada a la vista: simplemente cambiar
+// la contraseña no echaría a quien entró por ahí.
+const firmarSesion = (usuario) => jwt.sign(
+  { id: usuario.id, v: usuario.tokenVersion ?? 0 },
+  process.env.JWT_SECRET,
+  { expiresIn: process.env.JWT_EXPIRES_IN || '7d' },
+);
+
 // ── POST /api/auth/registro ───────────────────────────────
 router.post('/registro', async (req, res, next) => {
   try {
@@ -80,15 +94,14 @@ router.post('/registro', async (req, res, next) => {
         nombre: true,
         email: true,
         plan: true,
+        // Lo necesita `firmarSesion`. En una cuenta recién creada siempre vale 0,
+        // pero se pide igual para no depender de eso.
+        tokenVersion: true,
       },
     });
 
     // Generar token
-    const token = jwt.sign(
-      { id: usuario.id },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-    );
+    const token = firmarSesion(usuario);
 
     // Enviar emails en segundo plano (no bloquea la respuesta)
     setImmediate(async () => {
@@ -144,11 +157,7 @@ router.post('/login', async (req, res, next) => {
     }
 
     // Generar token
-    const token = jwt.sign(
-      { id: usuario.id },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-    );
+    const token = firmarSesion(usuario);
 
     res.json({
       token,
@@ -359,7 +368,14 @@ router.post('/confirmar-cambio-password', async (req, res, next) => {
 
     await prisma.usuario.update({
       where: { id: usuario.id },
-      data: { password: datos.hashNuevo },
+      data: {
+        password: datos.hashNuevo,
+        // Corta TODAS las sesiones abiertas, incluida la de quien pidió el
+        // cambio. Es lo que la gente da por hecho al cambiar su contraseña y
+        // hasta ahora no pasaba: el token viejo seguía valiendo 7 días, así que
+        // si alguien te había robado la sesión, cambiarla no lo echaba.
+        tokenVersion: { increment: 1 },
+      },
     });
 
     setImmediate(async () => {
@@ -539,9 +555,7 @@ router.post('/google', async (req, res, next) => {
       });
     }
 
-    const token = jwt.sign({ id: usuario.id }, process.env.JWT_SECRET, {
-      expiresIn: process.env.JWT_EXPIRES_IN || '7d',
-    });
+    const token = firmarSesion(usuario);
 
     res.json({
       token,
@@ -658,7 +672,15 @@ router.post('/resetear-password', async (req, res, next) => {
     const hash = await bcrypt.hash(String(password), 12);
     await prisma.usuario.update({
       where: { id: usuario.id },
-      data: { password: hash, tokenResetHash: null, tokenResetExpira: null },
+      data: {
+        password: hash,
+        tokenResetHash: null,
+        tokenResetExpira: null,
+        // Aquí importa todavía más que en el cambio normal: quien restablece su
+        // contraseña suele hacerlo porque sospecha que alguien entró. Dejar vivas
+        // las sesiones anteriores sería dejar dentro justo a quien se quiere echar.
+        tokenVersion: { increment: 1 },
+      },
     });
 
     setImmediate(async () => {
@@ -667,6 +689,29 @@ router.post('/resetear-password', async (req, res, next) => {
     });
 
     res.json({ mensaje: 'Contraseña restablecida correctamente. Ya puedes iniciar sesión.' });
+  } catch (error) { next(error); }
+});
+
+// ── POST /api/auth/cerrar-sesiones ───────────────────────
+//
+// 🔴 El panel lleva desde siempre un botón «Cerrar sesión en todos los
+// dispositivos» que solo borraba el token del navegador donde se pulsaba. O sea
+// que la única sesión que NO cerraba era la que preocupaba: la del teléfono
+// perdido, la del computador del cibercafé.
+//
+// Con `tokenVersion` ya se puede cumplir de verdad. Incrementarla invalida todos
+// los tokens emitidos hasta ahora, este incluido — el cliente se queda sin
+// sesión y vuelve al login, que es lo correcto: si estás cerrando todo, también
+// aquí.
+router.post('/cerrar-sesiones', autenticar, async (req, res, next) => {
+  try {
+    await prisma.usuario.update({
+      where: { id: req.usuario.id },
+      data: { tokenVersion: { increment: 1 } },
+    });
+    res.json({
+      mensaje: 'Cerramos la sesión en todos los dispositivos, incluido este. Vuelve a entrar con tu contraseña.',
+    });
   } catch (error) { next(error); }
 });
 

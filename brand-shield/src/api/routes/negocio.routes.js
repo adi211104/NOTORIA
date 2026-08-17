@@ -5,7 +5,6 @@ const { negocioPublico, negociosPublicos } = require('../../lib/negocioPublico')
 const { buscarNegocioEnGoogle, obtenerUbicacionNegocio, buscarCompetidoresCercanos, obtenerResenasVisibles } = require('../../scrapers/google.scraper');
 const { informeRating } = require('../../lib/rating');
 const { generarAfiche } = require('../../utils/afiche.generator');
-const { SIN_CONTROL } = require('../../lib/fichaGoogle');
 const { emitirCodigo, VIGENCIA_DIAS } = require('../../lib/constancia');
 const { generarConstancia } = require('../../utils/constancia.pdf');
 
@@ -100,9 +99,7 @@ router.get('/:id', async (req, res, next) => {
     const negocio = await prisma.negocio.findFirst({
       where: { id: req.params.id, usuarioId: req.usuario.id },
       include: {
-        // SIN_CONTROL: la fila de referencia de la vigilancia de ficha vive en
-        // esta tabla y no es una alerta (ver lib/fichaGoogle.js).
-        alertas: { where: SIN_CONTROL, orderBy: { creadaEn: 'desc' }, take: 20 },
+        alertas: { orderBy: { creadaEn: 'desc' }, take: 20 },
         snapshots: { orderBy: { tomadoEn: 'desc' }, take: 30 },
         resenas: { orderBy: { detectadaEn: 'desc' }, take: 20 },
         competidores: { include: { snapshots: { orderBy: { tomadoEn: 'desc' }, take: 5 } } },
@@ -395,11 +392,9 @@ router.get('/:id/constancia.pdf', verificarPlan(['NEGOCIO', 'FRANQUICIA']), asyn
     const desde = primero?.tomadoEn || negocio.creadoEn;
     const diasVigilado = Math.max(0, Math.floor((Date.now() - new Date(desde).getTime()) / 86400000));
 
-    // Incidencias del periodo. Se excluye la fila de control (SIN_CONTROL) y las
     // alertas de comentarios y menciones, que no son incidencias de la ficha.
     const incidentes = await prisma.alerta.count({
       where: {
-        ...SIN_CONTROL,
         negocioId: negocio.id,
         creadaEn: { gte: desde },
         tipo: { in: ['PICO_RESENAS_NEGATIVAS', 'CAIDA_RATING', 'CUENTAS_NUEVAS'] },
