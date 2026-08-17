@@ -2,12 +2,18 @@ const express = require('express');
 const axios = require('axios');
 const { autenticar } = require('../middlewares/auth.middleware');
 const { buscarNegocioEnGoogle } = require('../../scrapers/google.scraper');
-const { ejecutarAhora } = require('../../workers/monitoreo.worker');
+const { ejecutarAhora, HORAS_ESCANEO } = require('../../workers/monitoreo.worker');
 const prisma = require('../../lib/prisma');
 
 const router = express.Router();
 
-const COOLDOWN_MINUTOS = { GRATIS: 1440, NEGOCIO: 240, FRANQUICIA: 60 };
+// El cooldown del botón "Escanear ahora" es el MISMO intervalo con el que el
+// cron escanea ese plan (ver HORAS_ESCANEO en monitoreo.worker.js). Antes estaba
+// duplicado acá como números sueltos; se importa para que cambiar la oferta de
+// un plan no exija acordarse de tocar dos archivos.
+const COOLDOWN_MINUTOS = Object.fromEntries(
+  Object.entries(HORAS_ESCANEO).map(([plan, horas]) => [plan, horas * 60])
+);
 
 // Notoria opera solo en Perú por ahora, así que las búsquedas de Google Places
 // van fijadas a PE. Se mantiene el mecanismo de region + post-filtro (y no un

@@ -85,9 +85,24 @@ const procesarNegocio = async (negocio) => {
         },
       });
 
+      // Reseñas ya guardadas de este negocio, para la detección de texto
+      // duplicado (ver analizarResena). Se piden UNA vez por ciclo y no por
+      // reseña. El tope de 200 y la ventana de 90 días acotan el costo: una
+      // campaña coordinada llega junta, no repartida a lo largo de años.
+      const hace90d = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+      const previas = await prisma.resena.findMany({
+        where: { negocioId: negocio.id, detectadaEn: { gte: hace90d }, texto: { not: null } },
+        orderBy: { detectadaEn: 'desc' },
+        take: 200,
+        select: { externalId: true, texto: true },
+      });
+
       // Guardar reseñas nuevas (ignorar duplicados por el unique constraint)
       for (const resena of datos.resenas) {
-        const analisis = analizarResena(resena);
+        // Las reseñas de ESTA misma tanda también cuentan: un ataque suele traer
+        // varias copias del mismo texto de golpe, y si solo se comparara contra
+        // lo ya guardado, la primera de cada tanda nunca se marcaría.
+        const analisis = analizarResena(resena, [...previas, ...datos.resenas.filter(r => r.externalId !== resena.externalId)]);
         const yaExistia = await prisma.resena.findUnique({
           where: { plataforma_externalId: { plataforma: 'GOOGLE', externalId: resena.externalId } },
         });
@@ -241,12 +256,40 @@ const procesarNegocio = async (negocio) => {
   }
 };
 
+// Cada cuántas horas se escanea, según el plan del dueño del negocio.
+//
+// 🔴 Esto no existía hasta el 2026-08-17: había UN solo cron cada 4 horas que
+// escaneaba todos los negocios por igual, sin mirar el plan. Eso rompía la
+// oferta en las dos direcciones a la vez:
+//
+//   · Franquicia paga S/179 por «un ataque se detecta en máximo 1 hora» y
+//     recibía 4 — la promesa publicada en /precios no se cumplía.
+//   · Gratis anuncia 24 horas y recibía 4, o sea 6 veces más consultas a Google
+//     Places de las prometidas: ~180 al mes por negocio en vez de ~30, más las
+//     de su competidor. Cada cuenta gratuita costaba seis veces lo que debía.
+//
+// Ahora el cron corre CADA HORA y en cada pasada elige a quién le toca según su
+// plan. Es una sola consulta por hora en vez de tres crons peleándose.
+const HORAS_ESCANEO = { GRATIS: 24, NEGOCIO: 4, FRANQUICIA: 1 };
+
+// ¿Le toca a este negocio? Le toca si nunca se escaneó, o si ya pasó el intervalo
+// de su plan. Se deja un margen de 5 minutos porque el cron nunca dispara en el
+// segundo exacto: sin él, un ciclo que arranca 20 segundos tarde encontraría que
+// «faltan 20 segundos» y se saltaría la ronda entera hasta la hora siguiente.
+const MARGEN_ESCANEO_MS = 5 * 60 * 1000;
+
+const leTocaEscaneo = (negocio, ahora = Date.now()) => {
+  const horas = HORAS_ESCANEO[negocio.usuario?.plan] ?? HORAS_ESCANEO.GRATIS;
+  if (!negocio.ultimoEscaneo) return true;
+  return ahora - new Date(negocio.ultimoEscaneo).getTime() >= horas * 3600000 - MARGEN_ESCANEO_MS;
+};
+
 /**
- * Inicia el cron job que corre cada 4 horas
- * '0 *\/4 * * *' = a las 0:00, 4:00, 8:00, 12:00, 16:00 y 20:00
+ * Cron del monitoreo. Corre cada hora y en cada pasada escanea solo los negocios
+ * a los que les toca según el plan de su dueño (ver HORAS_ESCANEO).
  */
 const iniciarMonitoreo = () => {
-  cron.schedule('0 */4 * * *', async () => {
+  cron.schedule('0 * * * *', async () => {
     console.log(`\n[Worker] ⏰ Iniciando ciclo de monitoreo — ${new Date().toISOString()}`);
 
     try {
@@ -265,11 +308,21 @@ const iniciarMonitoreo = () => {
         },
       });
 
-      console.log(`[Worker] Procesando ${negocios.length} negocio(s)...`);
+      const ahora = Date.now();
+      const toca = negocios.filter((n) => leTocaEscaneo(n, ahora));
+      console.log(`[Worker] ${toca.length} de ${negocios.length} negocio(s) tocan en esta pasada`);
 
       // Procesar secuencialmente para no saturar las APIs
-      for (const negocio of negocios) {
+      for (const negocio of toca) {
         await procesarNegocio(negocio);
+        // `ultimoEscaneo` es lo que hace que el intervalo por plan se respete en
+        // la pasada siguiente. Lo escribe también el botón "Escanear ahora"
+        // (utils.routes.js), y está bien que compartan el reloj: un escaneo
+        // manual cuenta como el escaneo de ese periodo.
+        await prisma.negocio.update({
+          where: { id: negocio.id },
+          data: { ultimoEscaneo: new Date() },
+        }).catch((e) => console.error(`[Worker] No se pudo marcar el escaneo de ${negocio.nombre}: ${e.message}`));
         // Pausa de 1 segundo entre negocios para respetar rate limits
         await new Promise((r) => setTimeout(r, 1000));
       }
@@ -280,7 +333,7 @@ const iniciarMonitoreo = () => {
     }
   });
 
-  console.log('[Worker] Cron job configurado: cada 4 horas');
+  console.log('[Worker] Cron job configurado: cada hora, con intervalo por plan (Gratis 24h · Negocio 4h · Franquicia 1h)');
 };
 
 // Permite ejecutar el monitoreo manualmente (útil para pruebas y scripts).
@@ -1035,7 +1088,8 @@ const iniciarAvisoReclamaciones = () => {
 };
 
 module.exports = {
-  iniciarMonitoreo, ejecutarAhora, iniciarReportesMensuales, iniciarResumenesAlertas,
+  iniciarMonitoreo, ejecutarAhora, HORAS_ESCANEO, leTocaEscaneo,
+  iniciarReportesMensuales, iniciarResumenesAlertas,
   iniciarRenovacionesCulqi, iniciarBajadaDePlanes, iniciarEscalacionUrgencias, revisarEscalacionesUrgentes,
   iniciarAvisoReclamaciones, revisarPlazosReclamaciones,
   procesarMenciones, procesarComentariosSociales,

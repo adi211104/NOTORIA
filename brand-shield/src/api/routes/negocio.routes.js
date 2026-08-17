@@ -15,7 +15,13 @@ const PLANTILLAS_AUTO_RESPUESTA = {
   disculpa: 'Gracias por tu reseña, {{autor}}. Nos alegra que en general la experiencia haya sido positiva y tomamos nota de cualquier detalle a mejorar para la próxima. ¡Te esperamos pronto!',
 };
 
-const COOLDOWN_MINUTOS = { GRATIS: 1440, NEGOCIO: 240, FRANQUICIA: 60 };
+// Mismo intervalo con el que el cron escanea cada plan — ver HORAS_ESCANEO en
+// workers/monitoreo.worker.js. Se importa en vez de repetir los números para que
+// el panel y el worker no puedan contar cosas distintas.
+const { HORAS_ESCANEO } = require('../../workers/monitoreo.worker');
+const COOLDOWN_MINUTOS = Object.fromEntries(
+  Object.entries(HORAS_ESCANEO).map(([plan, horas]) => [plan, horas * 60])
+);
 
 const TIPOS_NEGOCIO = [
   'RESTAURANTE', 'BAR', 'CAFETERIA', 'HOTEL', 'PELUQUERIA', 'SPA',
