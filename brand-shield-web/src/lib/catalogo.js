@@ -65,8 +65,8 @@ export const CATALOGO = [
     imagen: 'negocio',
     destacado: true,
     descripcion:
-      'Monitoreo de hasta 5 negocios con escaneo cada 4 horas. Incluye 100 usos de IA a la semana para respuestas y análisis, 5 competidores vigilados por negocio con análisis IA de sus puntos débiles, conexión de TikTok, detección de reseñas copiadas y de picos anormales, alertas por email y notificaciones en la app de Android, reporte PDF mensual automático y boleta o factura electrónica a tu RUC. Cobro mensual, se renueva cada 30 días.',
-    incluye: ['Hasta 5 negocios', 'Escaneo cada 4 horas', 'Alertas por email y app', 'Reporte PDF mensual', 'Aviso si tu ficha aparece cerrada'],
+      'Monitoreo de hasta 5 negocios con escaneo cada 4 horas. Incluye 100 usos de IA a la semana para respuestas y análisis, 5 competidores vigilados por negocio con análisis IA de sus puntos débiles, conexión de TikTok, detección de reseñas copiadas y de picos anormales, aviso si te cambian el teléfono o el horario en tu ficha de Google, constancia de reputación con código verificable, alertas por email y notificaciones en la app de Android, reporte PDF mensual automático y boleta o factura electrónica a tu RUC. Cobro mensual, se renueva cada 30 días.',
+    incluye: ['Hasta 5 negocios', 'Escaneo cada 4 horas', 'Alertas por email y app', 'Reporte PDF mensual', 'Aviso si te alteran la ficha'],
     comprable: true,
   },
   {

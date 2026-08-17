@@ -12,6 +12,27 @@ import Link from 'next/link';
 const G = '#0B7324';
 
 // Único lugar donde viven los datos de contacto públicos. Si cambian, cambian acá.
+//
+// ⚠️ DÓNDE PUEDE Y DÓNDE NO PUEDE APARECER EL RUC.
+//
+// El RUC abre la ficha pública de SUNAT, y ahí está el domicilio fiscal del
+// titular — que en una E.I.R.L. suele ser su casa. No es un dato decorativo para
+// rellenar pies de página.
+//
+// La **Ley 32080** (2 de julio de 2024) eliminó la obligación —que existía desde
+// 2023— de consignar el RUC y la denominación social en los medios digitales
+// donde se ofertan bienes o servicios. O sea que en el landing ya no pinta nada,
+// y de ahí se quitó el 2026-08-17.
+//
+// Dónde SÍ se queda, porque ahí identifica al proveedor y es lo que miran Culqi
+// e INDECOPI: Términos, Privacidad, Contacto, Devoluciones y el Libro de
+// Reclamaciones. Y en los comprobantes, donde sigue siendo obligatorio de verdad
+// — pero esos van al cliente que compró, no a la pantalla de todos.
+//
+// ⚠️ Lo que el código NO puede arreglar: mientras el domicilio fiscal en SUNAT
+// sea una casa particular, quien tenga el RUC llega a esa dirección aunque la web
+// no la muestre. El arreglo de fondo es cambiar el domicilio fiscal, no esconder
+// el número.
 export const CONTACTO = {
   razonSocial: 'NOTORIA E.I.R.L.',
   ruc: '20616239466',

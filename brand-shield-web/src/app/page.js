@@ -207,7 +207,7 @@ const TEXTOS = {
           si:['1 negocio monitoreado','Escaneo cada 24 horas','Aviso si tu ficha aparece cerrada en Google','Score de reputación 0-100','QR y enlace para pedir reseñas','30 plantillas de respuesta','5 respuestas con IA a la semana','1 competidor monitoreado','Alertas por email y en la app Android'],
           no:['Conexión de TikTok','Respuestas con IA ilimitadas','Análisis de competencia con IA','Reportes PDF','Soporte prioritario'] },
         { n:'Negocio', p:59, badge:true,
-          si:['Hasta 5 negocios','Escaneo cada 4 horas','100 usos de IA a la semana (respuestas y análisis)','5 competidores por negocio','Conexión de TikTok (perfil y videos)','Reporte PDF mensual','Boleta o factura electrónica a tu RUC','Alertas por email y en la app Android','Todo lo del plan Gratuito'],
+          si:['Hasta 5 negocios','Escaneo cada 4 horas','100 usos de IA a la semana (respuestas y análisis)','5 competidores por negocio','Aviso si te cambian el teléfono, el horario o la dirección en Google','Constancia de reputación verificable','Conexión de TikTok (perfil y videos)','Reporte PDF mensual','Boleta o factura electrónica a tu RUC','Alertas por email y en la app Android','Todo lo del plan Gratuito'],
           no:[] },
         { n:'Franquicia', p:179,
           si:['Negocios ilimitados','Escaneo cada hora','300 usos de IA a la semana','15 competidores por negocio','Conexión de TikTok (perfil y videos)','Reporte PDF mensual','Alertas por email y en la app Android','Soporte prioritario por correo','Todo lo del plan Negocio'],
@@ -224,6 +224,8 @@ const TEXTOS = {
         { label:'Negocios monitoreados', valores:['1','Hasta 5','Ilimitados'] },
         { label:'Un ataque se detecta en máximo', valores:['24 horas','4 horas','1 hora'] },
         { label:'Aviso si tu ficha aparece cerrada en Google', valores:[true,true,true] },
+        { label:'Aviso si te cambian el teléfono, el horario o la dirección en Google', valores:[false,true,true] },
+        { label:'Constancia de reputación con código verificable', valores:[false,true,true] },
         { label:'Ver tu ficha como la ve un cliente nuevo', valores:[true,true,true] },
         { label:'Historial de rating desde que te registras', valores:[true,true,true] },
         { grupo:'Inteligencia artificial' },
@@ -399,7 +401,7 @@ const TEXTOS = {
           si:['1 monitored business','Scan every 24 hours','0-100 reputation score','QR and link to request reviews','30 reply templates','5 AI replies per week','1 monitored competitor','Email and Android app alerts','Alert if your listing shows as closed on Google'],
           no:['TikTok connection','Unlimited AI replies','AI competitor analysis','PDF reports','Priority support'] },
         { n:'Business', p:59, badge:true,
-          si:['Up to 5 businesses','Scan every 4 hours','100 AI uses per week (replies and analysis)','5 competitors per business','TikTok connection (profile and videos)','Monthly PDF report','Automatic electronic invoice (SUNAT)','Email and Android app alerts','Everything in Free'],
+          si:['Up to 5 businesses','Scan every 4 hours','100 AI uses per week (replies and analysis)','5 competitors per business','Alert if your phone, hours or address change on Google','Reputation certificate with a verifiable code','TikTok connection (profile and videos)','Monthly PDF report','Automatic electronic invoice (SUNAT)','Email and Android app alerts','Everything in Free'],
           no:[] },
         { n:'Franchise', p:179,
           si:['Unlimited businesses','Scan every hour','300 AI uses per week','15 competitors per business','TikTok connection (profile and videos)','Monthly PDF report','Email and Android app alerts','Priority email support','Everything in Business'],
@@ -416,6 +418,8 @@ const TEXTOS = {
         { label:'Monitored businesses', valores:['1','Up to 5','Unlimited'] },
         { label:'An attack is detected within', valores:['24 hours','4 hours','1 hour'] },
         { label:'Alert if your listing shows as closed on Google', valores:[true,true,true] },
+        { label:'Alert if your phone, hours or address change on Google', valores:[false,true,true] },
+        { label:'Reputation certificate with a verifiable code', valores:[false,true,true] },
         { label:'See your listing like a new customer does', valores:[true,true,true] },
         { label:'Rating history from the day you sign up', valores:[true,true,true] },
         { grupo:'Artificial intelligence' },
@@ -1262,7 +1266,19 @@ export default function LandingPage() {
                 estén visibles en la web, y que el libro esté dentro del sitio. */}
             <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:24, marginBottom:20, display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))', gap:24, alignItems:'start' }}>
               <div style={{ fontSize:12.5, color:C.text3, lineHeight:1.9 }}>
-                <div style={{ fontWeight:700, color:C.text2, marginBottom:4 }}>{CONTACTO.razonSocial} · RUC {CONTACTO.ruc}</div>
+                {/* 🔴 Sin RUC en el landing, y no es capricho.
+                    El RUC es la llave de la ficha pública de SUNAT: con ese
+                    número cualquiera consulta el domicilio fiscal del titular,
+                    que en una E.I.R.L. suele ser su casa. En la página que más
+                    tráfico frío recibe, eso es repartir la dirección del dueño.
+                    Y ya no hace falta: la Ley 32080 (2 jul 2024) eliminó la
+                    obligación —introducida en 2023— de consignar RUC y
+                    denominación social en los medios digitales donde se ofertan
+                    bienes o servicios.
+                    Sigue estando donde identifica al proveedor y ahí sí toca:
+                    Términos, Privacidad, Contacto, Devoluciones y el Libro de
+                    Reclamaciones. Y en los comprobantes, donde es obligatorio. */}
+                <div style={{ fontWeight:700, color:C.text2, marginBottom:4 }}>{CONTACTO.razonSocial}</div>
                 <div>{CONTACTO.direccion}</div>
                 <div>
                   <a href={`tel:${CONTACTO.telefonoLink}`} style={{ color:C.green, textDecoration:'none' }}>{CONTACTO.telefono}</a>
