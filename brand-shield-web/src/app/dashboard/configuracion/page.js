@@ -7,7 +7,7 @@ import Icon from '../../../components/Icons';
 import { useIdioma } from '../../../context/IdiomaContext';
 import BloqueoPlan from '../../../components/BloqueoPlan';
 
-import { API_URL, auth, negociosApi } from '../../../lib/api';
+import { API_URL, auth, negociosApi, pagos } from '../../../lib/api';
 const getToken = () => localStorage.getItem('bs_token');
 
 const TEXTOS = {
@@ -81,6 +81,27 @@ const TEXTOS = {
       idioma: 'Idioma',
       fuente: 'Fuente', fuenteGeorgia: 'Georgia (predeterminada)', fuenteSistema: 'Fuente del sistema',
     },
+    // Se llama "Suscripción" a propósito: es exactamente el nombre que la página
+    // /devoluciones lleva prometiendo desde antes de que la sección existiera
+    // («desde tu panel, en Configuración → Suscripción»).
+    suscripcion: {
+      titulo: 'Suscripción', descripcion: 'Tu plan, la renovación y cómo cancelarla',
+      planActual: 'Plan actual',
+      renovacion: 'Renovación automática',
+      activa: 'Activa', cancelada: 'Cancelada',
+      proximoCobro: 'Próximo cobro',
+      activoHasta: 'Activo hasta',
+      gratis: 'Estás en el plan Gratuito: no hay ninguna renovación que cancelar.',
+      verPlanes: 'Ver planes →',
+      cancelarBtn: 'Cancelar renovación',
+      cancelando: 'Cancelando...',
+      yaCancelada: 'Ya cancelaste la renovación. No se te volverá a cobrar y conservas tu plan hasta la fecha de arriba.',
+      msgOk: (f) => `Listo. No se te volverá a cobrar y tu plan sigue activo hasta el ${f}.`,
+      msgError: 'No pudimos cancelar la renovación. Inténtalo de nuevo.',
+      modalTitulo: '¿Cancelar la renovación?',
+      modalTexto: (f) => (<>No se te volverá a cobrar. <strong style={{ color:'var(--text)' }}>Tu plan sigue activo hasta el {f}</strong>, y ese día tu cuenta pasa sola al plan Gratuito. No se borra ningún dato y tus negocios siguen monitoreados.</>),
+      modalVolver: 'Mejor no', modalConfirmar: 'Sí, cancelar renovación',
+    },
     peligro: {
       titulo: 'Zona de peligro', descripcion: 'Acciones irreversibles sobre tu cuenta',
       cerrarSesionTodos: 'Cerrar sesión en todos los dispositivos', cerrarSesion: 'Cerrar sesión',
@@ -92,6 +113,10 @@ const TEXTOS = {
       texto: (<>Esta acción es <strong className="text-red-400">permanente e irreversible</strong>. Se eliminarán todos tus datos.</>),
       escribe: (<>Escribe <strong style={{ color: 'var(--text)' }}>ELIMINAR</strong> para confirmar:</>),
       cancelar: 'Cancelar', confirmar: 'Eliminar cuenta',
+      // Se avisa ANTES de borrar: si ya se le emitieron comprobantes, la empresa
+      // está obligada a conservarlos 5 años y la cuenta se anonimiza en vez de
+      // borrarse. Prometer un borrado total que no ocurre sería mentir.
+      notaFiscal: 'Si ya emitimos comprobantes a tu nombre, por obligación tributaria conservamos únicamente esos documentos, sin tus datos personales.',
     },
   },
   en: {
@@ -164,6 +189,24 @@ const TEXTOS = {
       idioma: 'Language',
       fuente: 'Font', fuenteGeorgia: 'Georgia (default)', fuenteSistema: 'System font',
     },
+    suscripcion: {
+      titulo: 'Subscription', descripcion: 'Your plan, renewal and how to cancel it',
+      planActual: 'Current plan',
+      renovacion: 'Automatic renewal',
+      activa: 'Active', cancelada: 'Cancelled',
+      proximoCobro: 'Next charge',
+      activoHasta: 'Active until',
+      gratis: "You're on the Free plan: there is no renewal to cancel.",
+      verPlanes: 'View plans →',
+      cancelarBtn: 'Cancel renewal',
+      cancelando: 'Cancelling...',
+      yaCancelada: "You already cancelled the renewal. You won't be charged again and you keep your plan until the date above.",
+      msgOk: (f) => `Done. You won't be charged again and your plan stays active until ${f}.`,
+      msgError: "We couldn't cancel the renewal. Please try again.",
+      modalTitulo: 'Cancel the renewal?',
+      modalTexto: (f) => (<>You won&apos;t be charged again. <strong style={{ color:'var(--text)' }}>Your plan stays active until {f}</strong>, and on that day your account moves to the Free plan on its own. No data is deleted and your businesses stay monitored.</>),
+      modalVolver: 'Never mind', modalConfirmar: 'Yes, cancel renewal',
+    },
     peligro: {
       titulo: 'Danger zone', descripcion: 'Irreversible actions on your account',
       cerrarSesionTodos: 'Sign out of all devices', cerrarSesion: 'Sign out',
@@ -175,6 +218,7 @@ const TEXTOS = {
       texto: (<>This action is <strong className="text-red-400">permanent and irreversible</strong>. All your data will be deleted.</>),
       escribe: (<>Type <strong style={{ color: 'var(--text)' }}>ELIMINAR</strong> to confirm:</>),
       cancelar: 'Cancel', confirmar: 'Delete account',
+      notaFiscal: 'If we already issued invoices in your name, tax law requires us to keep only those documents, without your personal data.',
     },
   },
 };
@@ -252,6 +296,36 @@ export default function ConfiguracionPage() {
   const [modalEliminar, setModalEliminar] = useState(false);
   const [confirmTexto, setConfirmTexto] = useState('');
   const rippleRef = useRef(null);
+
+  // ── Suscripción ──────────────────────────────────────────
+  // El estado viene del backend y no de `usuario` del contexto porque la
+  // cancelación cambia `suscripcionActiva` y `fechaVencimiento`, y el perfil
+  // cacheado no se entera hasta recargar.
+  const [suscripcion, setSuscripcion] = useState(null);
+  const [modalCancelar, setModalCancelar] = useState(false);
+  const [cancelando, setCancelando] = useState(false);
+
+  useEffect(() => {
+    pagos.estado().then(setSuscripcion).catch(() => {});
+  }, []);
+
+  const fechaLegible = (f) => f
+    ? new Date(f).toLocaleDateString(idioma === 'en' ? 'en-US' : 'es-PE', { day: 'numeric', month: 'long', year: 'numeric' })
+    : '—';
+
+  const cancelarSuscripcion = async () => {
+    setCancelando(true);
+    try {
+      const r = await pagos.cancelar();
+      setSuscripcion(s => ({ ...s, suscripcionActiva: false, fechaVencimiento: r.activoHasta }));
+      setModalCancelar(false);
+      mostrarMensaje('suscripcion', t.suscripcion.msgOk(fechaLegible(r.activoHasta)), 'ok');
+    } catch (e) {
+      mostrarMensaje('suscripcion', e.message || t.suscripcion.msgError, 'err');
+    } finally {
+      setCancelando(false);
+    }
+  };
 
   // ── Automatizaciones ─────────────────────────────────────
   const [negocios, setNegocios] = useState([]);
@@ -702,6 +776,52 @@ export default function ConfiguracionPage() {
         </Campo>
       </Seccion>
 
+      {/* SUSCRIPCIÓN — la sección que /devoluciones lleva prometiendo por nombre */}
+      <Seccion titulo={t.suscripcion.titulo} descripcion={t.suscripcion.descripcion}>
+        {suscripcion?.plan && suscripcion.plan !== 'GRATIS' ? (
+          <>
+            <Campo label={t.suscripcion.planActual}>
+              <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+                {t.perfil.planNombre(suscripcion.plan)}
+              </span>
+            </Campo>
+            <Campo label={t.suscripcion.renovacion}>
+              <span className="text-xs px-2.5 py-1 rounded-full font-medium"
+                style={suscripcion.suscripcionActiva
+                  ? { background: 'rgba(11,115,36,0.14)', color: '#3AA857', border: '1px solid rgba(11,115,36,0.35)' }
+                  : { background: 'rgba(148,163,184,0.14)', color: 'var(--text-2)', border: '1px solid var(--border-c)' }}>
+                {suscripcion.suscripcionActiva ? t.suscripcion.activa : t.suscripcion.cancelada}
+              </span>
+            </Campo>
+            <Campo label={suscripcion.suscripcionActiva ? t.suscripcion.proximoCobro : t.suscripcion.activoHasta}>
+              <span className="text-sm" style={{ color: 'var(--text-2)' }}>{fechaLegible(suscripcion.fechaVencimiento)}</span>
+            </Campo>
+            <Campo label={suscripcion.suscripcionActiva ? t.suscripcion.cancelarBtn : ''}>
+              {suscripcion.suscripcionActiva ? (
+                <button onClick={() => setModalCancelar(true)}
+                  className="text-sm border px-4 py-1.5 rounded-lg transition hover:border-red-500/50"
+                  style={{ borderColor: 'var(--border-c)', color: 'var(--text-2)' }}>
+                  {t.suscripcion.cancelarBtn}
+                </button>
+              ) : (
+                <span className="text-sm" style={{ color: 'var(--text-2)' }}>{t.suscripcion.yaCancelada}</span>
+              )}
+            </Campo>
+          </>
+        ) : (
+          <Campo label={t.suscripcion.gratis}>
+            <Link href="/dashboard/planes" className="text-sm" style={{ color: '#3AA857' }}>
+              {t.suscripcion.verPlanes}
+            </Link>
+          </Campo>
+        )}
+        {mensajes.suscripcion && (
+          <p className="text-sm mt-3" style={{ color: mensajes.suscripcion.tipo === 'ok' ? '#3AA857' : '#f87171' }}>
+            {mensajes.suscripcion.texto}
+          </p>
+        )}
+      </Seccion>
+
       {/* ZONA DE PELIGRO */}
       <Seccion titulo={t.peligro.titulo} descripcion={t.peligro.descripcion}>
         <Campo label={t.peligro.cerrarSesionTodos}>
@@ -758,13 +878,41 @@ export default function ConfiguracionPage() {
         </div>
       )}
 
+      {/* Modal cancelar renovación.
+          El texto NO dramatiza: cancelar no borra nada ni corta el servicio hoy,
+          y decirlo así evita el ticket de soporte de "¿pierdo mis datos?". */}
+      {modalCancelar && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: '1rem' }}>
+          <div className="rounded-2xl p-6 max-w-sm w-full border" style={{ background: 'var(--surface)', borderColor: 'var(--border-c)' }}>
+            <h3 className="text-lg font-bold mb-2" style={{ color: 'var(--text)' }}>{t.suscripcion.modalTitulo}</h3>
+            <p className="text-sm mb-5 leading-relaxed" style={{ color: 'var(--text-2)' }}>
+              {t.suscripcion.modalTexto(fechaLegible(suscripcion?.fechaVencimiento))}
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setModalCancelar(false)}
+                className="flex-1 py-2 rounded-lg text-sm transition bg-green-800 hover:bg-green-700 text-white">
+                {t.suscripcion.modalVolver}
+              </button>
+              <button onClick={cancelarSuscripcion} disabled={cancelando}
+                className="flex-1 border py-2 rounded-lg text-sm transition disabled:opacity-40"
+                style={{ borderColor: 'var(--border-c)', color: 'var(--text-2)' }}>
+                {cancelando ? t.suscripcion.cancelando : t.suscripcion.modalConfirmar}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal eliminar */}
       {modalEliminar && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: '1rem' }}>
           <div className="border border-red-500/30 rounded-2xl p-6 max-w-sm w-full" style={{ background: 'var(--surface)' }}>
             <h3 className="text-lg font-bold mb-2" style={{ color: 'var(--text)' }}>{t.modal.titulo}</h3>
-            <p className="text-sm mb-4 leading-relaxed" style={{ color: 'var(--text-2)' }}>
+            <p className="text-sm mb-3 leading-relaxed" style={{ color: 'var(--text-2)' }}>
               {t.modal.texto}
+            </p>
+            <p className="text-xs mb-4 leading-relaxed" style={{ color: 'var(--text-3)' }}>
+              {t.modal.notaFiscal}
             </p>
             <p className="text-sm mb-2" style={{ color: 'var(--text-2)' }}>{t.modal.escribe}</p>
             <input value={confirmTexto} onChange={e => setConfirmTexto(e.target.value)} placeholder="ELIMINAR"

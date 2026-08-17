@@ -479,4 +479,60 @@ const enviarAvisoPlazoReclamaciones = async (pendientes) => {
   return res;
 };
 
-module.exports = { enviarBienvenida, enviarVerificacion, enviarConfirmacionContrasena, enviarRecuperacionContrasena, enviarAlertaCritica, enviarResumenAlertas, enviarResumenSemanal, enviarResumenSemanalConsolidado, enviarComprobante, enviarDrip, enviarCargoReclamacion, enviarAvisoReclamacionInterno, enviarRespuestaReclamacion, enviarAvisoPlazoReclamaciones, getResend, FROM, base, h1, p, btn, hr };
+// ── Cobro fallido (dunning) ───────────────────────────────
+//
+// Hasta el 2026-08-17 un cargo rechazado desactivaba la suscripción en silencio:
+// sin reintento y sin avisarle a nadie. El cliente se enteraba —si acaso— cuando
+// notaba que le faltaban funciones. Este es el correo que más dinero recupera de
+// todo el producto, porque la mayoría de los rechazos no son voluntarios: es una
+// tarjeta vencida o un bloqueo del banco que se arregla en dos minutos.
+//
+// `intento` y `maxIntentos` van en el texto a propósito: saber que quedan dos
+// intentos más es lo que hace que el cliente actúe hoy en vez de dejarlo pasar.
+const enviarCobroFallido = async (usuario, { intento, maxIntentos, monto, moneda, proximoIntento }) => {
+  const importe = `${moneda === 'PEN' ? 'S/' : ''}${(monto / 100).toFixed(2)}`;
+  const ultimo = intento >= maxIntentos;
+  const res = await getResend().emails.send({
+    from: FROM(), to: usuario.email,
+    subject: ultimo
+      ? 'No pudimos cobrar tu plan de Notoria — último aviso'
+      : `No pudimos cobrar tu plan de Notoria (intento ${intento} de ${maxIntentos})`,
+    html: base(`
+      ${h1(ultimo ? 'Tu plan pasó al Gratuito' : 'No pudimos cobrar tu plan')}
+      ${p(`Hola ${usuario.nombre.split(' ')[0]}, intentamos cobrar <strong>${importe}</strong> de tu plan ${usuario.plan} y el banco rechazó el cargo.`)}
+      ${p('Casi siempre es una tarjeta vencida, un límite de compras por internet o un bloqueo temporal del banco. Se arregla en dos minutos actualizando la tarjeta.')}
+      ${hr()}
+      ${ultimo
+        ? p('Tu cuenta pasó al plan Gratuito. <strong>No perdiste nada</strong>: tus negocios siguen monitoreados y todo tu historial está intacto. Al actualizar tu tarjeta recuperas tu plan al instante.')
+        : p(`Lo volveremos a intentar el <strong>${proximoIntento}</strong>. Mientras tanto tu plan sigue activo con normalidad.`)}
+      ${btn('Actualizar mi tarjeta →', `${FRONT()}/dashboard/planes`)}
+      ${p('<span style="font-size:12px;color:#9C9B96;">Si ya la actualizaste, ignora este correo.</span>')}
+    `),
+  });
+  console.log(`[Cobro] Aviso de cobro fallido enviado a ${usuario.email} (intento ${intento}/${maxIntentos})`);
+  return res;
+};
+
+// ── Confirmación de cancelación ───────────────────────────
+// El plan sigue activo hasta el final del periodo ya pagado, y eso es lo primero
+// que hay que decir: es la duda que trae a soporte a quien cancela.
+const enviarCancelacion = async (usuario, fechaFin) => {
+  const hasta = new Date(fechaFin).toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' });
+  const res = await getResend().emails.send({
+    from: FROM(), to: usuario.email,
+    subject: 'Cancelaste la renovación de tu plan Notoria',
+    html: base(`
+      ${h1('Listo, no te volveremos a cobrar')}
+      ${p(`Hola ${usuario.nombre.split(' ')[0]}, cancelaste la renovación automática de tu plan ${usuario.plan}.`)}
+      ${hr()}
+      ${p(`<strong>Tu plan sigue activo hasta el ${hasta}</strong>, que es el final del periodo que ya pagaste. Ese día tu cuenta pasa sola al plan Gratuito.`)}
+      ${p('Tus negocios siguen monitoreados y no se borra nada de tu historial. Puedes reactivar el plan cuando quieras.')}
+      ${btn('Ver mis planes →', `${FRONT()}/dashboard/planes`)}
+      ${p('<span style="font-size:12px;color:#9C9B96;">Si cancelaste por algo que podamos mejorar, respóndenos a este correo: lo leemos todo.</span>')}
+    `),
+  });
+  console.log(`[Cobro] Confirmación de cancelación enviada a ${usuario.email}`);
+  return res;
+};
+
+module.exports = { enviarBienvenida, enviarVerificacion, enviarConfirmacionContrasena, enviarRecuperacionContrasena, enviarAlertaCritica, enviarResumenAlertas, enviarResumenSemanal, enviarResumenSemanalConsolidado, enviarComprobante, enviarDrip, enviarCargoReclamacion, enviarAvisoReclamacionInterno, enviarRespuestaReclamacion, enviarAvisoPlazoReclamaciones, enviarCobroFallido, enviarCancelacion, getResend, FROM, base, h1, p, btn, hr };

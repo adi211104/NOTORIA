@@ -7,6 +7,7 @@ const prisma = require('../../lib/prisma');
 const culqi = require('../../lib/culqi');
 const tributario = require('../../lib/tributario');
 const { emitirComprobante, pdfDeComprobante } = require('../../services/comprobante.service');
+const { enviarCancelacion } = require('../../utils/emails');
 const { autenticar } = require('../middlewares/auth.middleware');
 
 const router = express.Router();
@@ -320,6 +321,61 @@ router.get('/estado', async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+// ── POST /api/pagos/cancelar ──────────────────────────────
+//
+// 🔴 Esto tenía que existir desde el primer cobro. La página /devoluciones dice
+// textualmente «puedes cancelar tu suscripción en cualquier momento desde tu
+// panel, en Configuración → Suscripción», y el FAQ del landing lo repite — pero
+// no había endpoint ni pantalla. Era una obligación publicada en la página legal
+// que el producto no cumplía, con un Libro de Reclamaciones montado al lado.
+//
+// Cancelar NO corta el servicio: apaga la renovación automática y el plan sigue
+// vivo hasta el final del periodo ya pagado. El cron `iniciarBajadaDePlanes`
+// (monitoreo.worker.js) es el que baja a GRATIS cuando llega esa fecha.
+//
+// No se toca Culqi: no hay suscripción del lado de ellos, el cobro recurrente lo
+// hace nuestro cron con la tarjeta guardada. Dejar de cobrar es dejar de llamar.
+router.post('/cancelar', async (req, res, next) => {
+  try {
+    const usuario = await prisma.usuario.findUnique({
+      where: { id: req.usuario.id },
+      select: { id: true, email: true, nombre: true, plan: true, suscripcionActiva: true, fechaVencimiento: true },
+    });
+
+    if (usuario.plan === 'GRATIS') {
+      return res.status(400).json({ error: 'Tu cuenta ya está en el plan Gratuito.' });
+    }
+    if (!usuario.suscripcionActiva) {
+      return res.json({
+        mensaje: 'Tu renovación ya estaba cancelada.',
+        activoHasta: usuario.fechaVencimiento,
+        yaEstaba: true,
+      });
+    }
+
+    // Si por lo que sea no hay fecha de vencimiento, se cierra al final del mes
+    // en curso en vez de cortar hoy: ante la duda, a favor del cliente.
+    const activoHasta = usuario.fechaVencimiento || new Date(Date.now() + 30 * 86400000);
+
+    await prisma.usuario.update({
+      where: { id: usuario.id },
+      // `plan` NO se toca: el cliente pagó hasta `activoHasta` y hasta ahí lo usa.
+      data: { suscripcionActiva: false, fechaVencimiento: activoHasta },
+    });
+
+    setImmediate(() => {
+      enviarCancelacion(usuario, activoHasta)
+        .catch(e => console.error('[Cobro] No se pudo enviar la confirmación de cancelación:', e.message));
+    });
+
+    res.json({
+      mensaje: 'Cancelamos la renovación automática. No se te volverá a cobrar.',
+      activoHasta,
+      plan: usuario.plan,
+    });
+  } catch (error) { next(error); }
 });
 
 // ── GET /api/pagos/historial ──────────────────────────────

@@ -725,21 +725,66 @@ const iniciarResumenesAlertas = () => {
   console.log('[Resumen] Cron diario configurado: 8:00 AM');
 };
 
-// ── Renovación mensual de suscripciones (Culqi) ───────────
-// Corre todos los días a las 5:00 AM; cobra a quienes vencen hoy usando la
-// tarjeta guardada (ver src/lib/culqi.js). Si el cobro falla, se desactiva
-// la suscripción y el usuario vuelve a ver los límites del plan Gratis.
+// ── Renovación de suscripciones (Culqi) ───────────────────
+//
+// Corre todos los días a las 5:00 AM y cobra con la tarjeta guardada
+// (ver src/lib/culqi.js).
+//
+// 🔴 Reescrito el 2026-08-17. Antes tenía tres fallos que se tapaban entre sí y
+// que juntos hacían que el producto perdiera clientes que pagaban y regalara el
+// producto a los que no:
+//
+//   1. La consulta filtraba `fechaVencimiento` entre el inicio y el fin de HOY.
+//      O sea que solo cobraba a quien vencía exactamente ese día. Cualquier día
+//      en que el cron no llegara a correr —un deploy a las 5:00, un reinicio de
+//      Railway, el contenedor dormido— esos vencimientos quedaban atrás y NUNCA
+//      volvían a entrar en la consulta. Ahora se cobra todo lo vencido hasta hoy.
+//
+//   2. Un cargo rechazado desactivaba la suscripción de inmediato, sin reintento
+//      y sin avisar. Un bloqueo del banco de 24 horas costaba el cliente entero.
+//      Ahora hay tres intentos repartidos en una semana, con correo en cada uno.
+//
+//   3. `plan` no bajaba nunca a GRATIS, y `suscripcionActiva:false` no bloquea
+//      nada (verificarPlan solo mira `plan`). Así que quien dejaba de pagar
+//      conservaba su plan completo para siempre. Ahora, agotados los intentos,
+//      el plan baja de verdad.
+//
+// Los intentos se cuentan con las filas de `Pago` en estado FALLIDO posteriores
+// al último cobro exitoso — no hizo falta ninguna columna nueva. Y tiene un
+// efecto secundario bueno: los intentos fallidos aparecen en la pantalla de
+// Facturación del cliente, que es justo donde tiene que verlos.
+const MAX_INTENTOS_COBRO = 3;
+const DIAS_ENTRE_INTENTOS = 3;
+
+// Cuántos rechazos lleva encima esta renovación. Se miran solo los FALLIDO
+// posteriores al último EXITOSO: si el mes pasado falló y luego pagó, ese
+// historial viejo no debe contar para el ciclo de ahora.
+const intentosFallidosDelCiclo = async (usuarioId) => {
+  const ultimoExitoso = await prisma.pago.findFirst({
+    where: { usuarioId, estado: 'EXITOSO' },
+    orderBy: { creadoEn: 'desc' },
+    select: { creadoEn: true },
+  });
+  return prisma.pago.count({
+    where: {
+      usuarioId,
+      estado: 'FALLIDO',
+      ...(ultimoExitoso ? { creadoEn: { gt: ultimoExitoso.creadoEn } } : {}),
+    },
+  });
+};
+
 const iniciarRenovacionesCulqi = () => {
   cron.schedule('0 5 * * *', async () => {
     const culqi = require('../lib/culqi');
     const { emitirComprobante } = require('../services/comprobante.service');
+    const { enviarCobroFallido } = require('../utils/emails');
     if (!culqi.configurado()) return;
 
     // Misma fuente que el alta de suscripción (pago.routes.js). Estos valores
     // estaban duplicados acá y se desincronizaron una vez; ahora se importan.
     const { MONEDA, PRECIOS } = require('../lib/precios');
 
-    const inicioHoy = new Date(); inicioHoy.setHours(0, 0, 0, 0);
     const finHoy = new Date(); finHoy.setHours(23, 59, 59, 999);
 
     const usuarios = await prisma.usuario.findMany({
@@ -747,7 +792,8 @@ const iniciarRenovacionesCulqi = () => {
         suscripcionActiva: true,
         suscripcionId: { not: null },
         plan: { in: ['NEGOCIO', 'FRANQUICIA'] },
-        fechaVencimiento: { gte: inicioHoy, lte: finHoy },
+        // Sin `gte`: todo lo vencido, no solo lo de hoy. Es el arreglo del punto 1.
+        fechaVencimiento: { lte: finHoy },
       },
     });
 
@@ -773,7 +819,15 @@ const iniciarRenovacionesCulqi = () => {
           descripcion: `Notoria — Renovación plan ${usuario.plan} (${periodo})${enPromo ? ' — promo 50% bienvenida' : ''}`,
         });
 
-        const fechaVencimiento = new Date();
+        // El nuevo vencimiento se calcula desde el ANTERIOR, no desde hoy: si un
+        // cobro se retrasó tres días por reintentos, el cliente no debe perder
+        // esos tres días de servicio ni correrse el aniversario cada vez. El
+        // `max` con hoy evita que una cuenta muy atrasada quede con el
+        // vencimiento todavía en el pasado y se le vuelva a cobrar mañana.
+        const base = usuario.fechaVencimiento && usuario.fechaVencimiento > new Date()
+          ? new Date(usuario.fechaVencimiento)
+          : new Date();
+        const fechaVencimiento = new Date(base);
         fechaVencimiento.setMonth(fechaVencimiento.getMonth() + (periodo === 'anual' ? 12 : 1));
         await prisma.usuario.update({
           where: { id: usuario.id },
@@ -802,13 +856,92 @@ const iniciarRenovacionesCulqi = () => {
 
         console.log(`[Culqi] Renovación cobrada a ${usuario.email}`);
       } catch (error) {
-        console.error(`[Culqi] Falló la renovación de ${usuario.email}:`, error.response?.data?.user_message || error.message);
-        await prisma.usuario.update({ where: { id: usuario.id }, data: { suscripcionActiva: false } });
+        const motivo = error.response?.data?.user_message || error.message;
+        console.error(`[Culqi] Falló la renovación de ${usuario.email}:`, motivo);
+
+        const periodo = usuario.periodoFacturacion === 'anual' ? 'anual' : 'mensual';
+        const precioBase = PRECIOS[usuario.plan]?.[periodo] ?? 0;
+        const enPromo = periodo === 'mensual' && usuario.mesesPromoRestantes > 0;
+        const monto = enPromo ? Math.round(precioBase / 2) : precioBase;
+
+        // El intento queda registrado como Pago FALLIDO. Es lo que cuenta los
+        // reintentos (sin columna nueva) y además le da al cliente, en su
+        // pantalla de Facturación, la explicación de por qué perdió el plan.
+        await prisma.pago.create({
+          data: {
+            usuarioId: usuario.id, plan: usuario.plan, periodo, tipo: 'RENOVACION',
+            estado: 'FALLIDO', monto, moneda: MONEDA, titular: usuario.nombre,
+          },
+        }).catch(e => console.error('[Facturación] No se pudo registrar el intento fallido:', e.message));
+
+        const intento = await intentosFallidosDelCiclo(usuario.id);
+        const seRinde = intento >= MAX_INTENTOS_COBRO;
+
+        if (seRinde) {
+          // Recién acá se pierde el plan — y se baja `plan` de verdad, no solo
+          // `suscripcionActiva`, que no bloqueaba nada por sí solo.
+          await prisma.usuario.update({
+            where: { id: usuario.id },
+            data: { plan: 'GRATIS', suscripcionActiva: false, suscripcionId: null, periodoFacturacion: null },
+          });
+          console.log(`[Culqi] ${usuario.email} agotó los ${MAX_INTENTOS_COBRO} intentos — pasa a GRATIS`);
+        } else {
+          // Se corre el vencimiento unos días y la suscripción sigue activa: el
+          // cliente conserva su plan mientras arregla la tarjeta. El próximo
+          // ciclo del cron lo vuelve a tomar por la misma consulta.
+          const proximo = new Date();
+          proximo.setDate(proximo.getDate() + DIAS_ENTRE_INTENTOS);
+          await prisma.usuario.update({ where: { id: usuario.id }, data: { fechaVencimiento: proximo } });
+          console.log(`[Culqi] Reintento ${intento}/${MAX_INTENTOS_COBRO} para ${usuario.email} el ${proximo.toISOString().slice(0, 10)}`);
+        }
+
+        // El correo nunca puede tumbar el cron: si Resend falla, el cobro ya
+        // quedó registrado y el reintento sigue programado igual.
+        const proximoIntento = new Date(Date.now() + DIAS_ENTRE_INTENTOS * 86400000)
+          .toLocaleDateString('es-PE', { day: 'numeric', month: 'long' });
+        await enviarCobroFallido(usuario, {
+          intento, maxIntentos: MAX_INTENTOS_COBRO, monto, moneda: MONEDA, proximoIntento,
+        }).catch(e => console.error('[Cobro] No se pudo avisar del cobro fallido:', e.message));
       }
       await new Promise(r => setTimeout(r, 1000));
     }
   });
   console.log('[Culqi] Cron de renovaciones configurado: 5:00 AM diario');
+};
+
+// ── Bajada de plan al terminar un periodo cancelado ───────
+//
+// Cancelar NO corta el servicio: el cliente pagó hasta cierta fecha y hasta esa
+// fecha conserva su plan (es lo que promete /devoluciones). Lo que hace cancelar
+// es apagar `suscripcionActiva`, así que el cron de renovación deja de tomarlo.
+//
+// Este cron es el que cierra el círculo: cuando esa fecha llega, baja el plan a
+// GRATIS. Sin él, `plan` se quedaba en NEGOCIO o FRANQUICIA para siempre —que
+// era el hallazgo F3— y el cliente seguía usando funciones de pago sin pagar.
+const iniciarBajadaDePlanes = () => {
+  cron.schedule('30 5 * * *', async () => {
+    try {
+      const vencidos = await prisma.usuario.findMany({
+        where: {
+          suscripcionActiva: false,
+          plan: { in: ['NEGOCIO', 'FRANQUICIA'] },
+          fechaVencimiento: { lte: new Date() },
+        },
+        select: { id: true, email: true, plan: true },
+      });
+      for (const u of vencidos) {
+        await prisma.usuario.update({
+          where: { id: u.id },
+          data: { plan: 'GRATIS', suscripcionId: null, periodoFacturacion: null, fechaVencimiento: null },
+        });
+        console.log(`[Planes] ${u.email} terminó su periodo ${u.plan} — pasa a GRATIS`);
+      }
+      if (vencidos.length) console.log(`[Planes] ${vencidos.length} cuenta(s) bajadas a GRATIS`);
+    } catch (e) {
+      console.error('[Planes] Falló la bajada de planes vencidos:', e.message);
+    }
+  });
+  console.log('[Planes] Cron de bajada de planes configurado: 5:30 AM diario');
 };
 
 // ── Recordatorio de urgencia (Negocio+) ───────────────────
@@ -903,7 +1036,7 @@ const iniciarAvisoReclamaciones = () => {
 
 module.exports = {
   iniciarMonitoreo, ejecutarAhora, iniciarReportesMensuales, iniciarResumenesAlertas,
-  iniciarRenovacionesCulqi, iniciarEscalacionUrgencias, revisarEscalacionesUrgentes,
+  iniciarRenovacionesCulqi, iniciarBajadaDePlanes, iniciarEscalacionUrgencias, revisarEscalacionesUrgentes,
   iniciarAvisoReclamaciones, revisarPlazosReclamaciones,
   procesarMenciones, procesarComentariosSociales,
   // Lo usa el webhook de Instagram para guardar un comentario suelto por el
