@@ -479,6 +479,31 @@ const enviarAvisoPlazoReclamaciones = async (pendientes) => {
   return res;
 };
 
+// ── Confirmar un cambio de contraseña ─────────────────────
+//
+// Este correo es la barrera, no un aviso: hasta que alguien abra el enlace, la
+// contraseña NO cambia (ver lib/cambioPassword.js). De ahí que el texto sea
+// explícito en las dos direcciones — qué hacer si fuiste tú, y qué significa si
+// no fuiste tú, que es el caso en el que este correo salva la cuenta.
+const enviarConfirmacionCambioPassword = async (usuario, token) => {
+  const enlace = `${FRONT()}/confirmar-cambio/${encodeURIComponent(token)}`;
+  const res = await getResend().emails.send({
+    from: FROM(), to: usuario.email,
+    subject: 'Confirma el cambio de tu contraseña de Notoria',
+    html: base(`
+      ${h1('Confirma el cambio')}
+      ${p(`Hola ${usuario.nombre.split(' ')[0]}, alguien pidió cambiar la contraseña de tu cuenta de Notoria.`)}
+      ${p('<strong>Tu contraseña todavía NO ha cambiado.</strong> Solo cambia si abres este enlace:')}
+      ${btn('Sí, cambiar mi contraseña', enlace)}
+      ${p('<span style="font-size:12px;color:#9C9B96;">El enlace vale 30 minutos y se puede usar una sola vez.</span>')}
+      ${hr()}
+      ${p('<strong>¿No fuiste tú?</strong> No abras el enlace y no hace falta que hagas nada más: sin ese clic la contraseña sigue siendo la de siempre. Aun así, quien lo pidió conocía tu contraseña actual, así que conviene que la cambies tú desde la app y revises dónde tienes la sesión abierta.')}
+    `),
+  });
+  console.log(`[Seguridad] Confirmación de cambio de contraseña enviada a ${usuario.email}`);
+  return res;
+};
+
 // ── Cobro fallido (dunning) ───────────────────────────────
 //
 // Hasta el 2026-08-17 un cargo rechazado desactivaba la suscripción en silencio:
@@ -535,4 +560,4 @@ const enviarCancelacion = async (usuario, fechaFin) => {
   return res;
 };
 
-module.exports = { enviarBienvenida, enviarVerificacion, enviarConfirmacionContrasena, enviarRecuperacionContrasena, enviarAlertaCritica, enviarResumenAlertas, enviarResumenSemanal, enviarResumenSemanalConsolidado, enviarComprobante, enviarDrip, enviarCargoReclamacion, enviarAvisoReclamacionInterno, enviarRespuestaReclamacion, enviarAvisoPlazoReclamaciones, enviarCobroFallido, enviarCancelacion, getResend, FROM, base, h1, p, btn, hr };
+module.exports = { enviarBienvenida, enviarVerificacion, enviarConfirmacionContrasena, enviarRecuperacionContrasena, enviarAlertaCritica, enviarResumenAlertas, enviarResumenSemanal, enviarResumenSemanalConsolidado, enviarComprobante, enviarDrip, enviarCargoReclamacion, enviarAvisoReclamacionInterno, enviarRespuestaReclamacion, enviarAvisoPlazoReclamaciones, enviarConfirmacionCambioPassword, enviarCobroFallido, enviarCancelacion, getResend, FROM, base, h1, p, btn, hr };

@@ -29,10 +29,14 @@ router.get('/', async (req, res, next) => {
       where: { usuarioId: req.usuario.id, activo: true },
       select: {
         id: true, nombre: true, tipo: true, pais: true,
-        snapshots: { orderBy: { tomadoEn: 'desc' }, take: 1 },
+        // Dos snapshots y no uno: con el anterior se puede decir si la brecha
+        // con la competencia se está abriendo o cerrando, que es lo único que
+        // convierte una comparación en algo accionable. Una foto suelta solo
+        // dice dónde estás; dos dicen hacia dónde vas.
+        snapshots: { orderBy: { tomadoEn: 'desc' }, take: 2 },
         competidores: {
           orderBy: { creadoEn: 'asc' },
-          include: { snapshots: { orderBy: { tomadoEn: 'desc' }, take: 1 } },
+          include: { snapshots: { orderBy: { tomadoEn: 'desc' }, take: 2 } },
         },
       },
       orderBy: { creadoEn: 'asc' },

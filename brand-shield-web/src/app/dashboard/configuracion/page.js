@@ -37,13 +37,16 @@ const TEXTOS = {
     },
     seguridad: {
       titulo: 'Seguridad', descripcion: 'Cambia tu contraseña de acceso',
+      // La barrera se explica ANTES de los campos: si no, la persona pulsa el
+      // botón, lee «revisa tu correo» y no sabe si funcionó o si falló algo.
+      aviso: 'Por seguridad la contraseña no cambia en el acto: te mandamos un correo y solo cambia cuando abres el enlace. Así, una sesión abierta un minuto en una computadora ajena no basta para quitarte la cuenta.',
       actual: 'Contraseña actual',
       nueva: 'Nueva contraseña', nuevaPlaceholder: 'Mínimo 8 caracteres',
       confirmar: 'Confirmar nueva', confirmarPlaceholder: 'Repite la contraseña',
-      cambiando: 'Cambiando...', cambiarBtn: 'Cambiar contraseña',
+      cambiando: 'Enviando...', cambiarBtn: 'Enviarme el correo de confirmación',
       msgCorta: 'La contraseña debe tener al menos 8 caracteres',
       msgNoCoincide: 'Las contraseñas no coinciden',
-      msgCambiada: 'Contraseña cambiada correctamente',
+      msgCambiada: 'Te enviamos un correo. Abre el enlace para que el cambio se aplique — hasta entonces tu contraseña sigue igual.',
       msgError: 'Error al cambiar',
     },
     notif: {
@@ -145,13 +148,14 @@ const TEXTOS = {
     },
     seguridad: {
       titulo: 'Security', descripcion: 'Change your access password',
+      aviso: 'For security, your password does not change right away: we email you a link and it only changes when you open it. That way a session left open for a minute on someone else’s computer is not enough to take your account.',
       actual: 'Current password',
       nueva: 'New password', nuevaPlaceholder: 'At least 8 characters',
       confirmar: 'Confirm new password', confirmarPlaceholder: 'Repeat the password',
-      cambiando: 'Changing...', cambiarBtn: 'Change password',
+      cambiando: 'Sending...', cambiarBtn: 'Email me the confirmation link',
       msgCorta: 'The password must be at least 8 characters',
       msgNoCoincide: 'Passwords do not match',
-      msgCambiada: 'Password changed successfully',
+      msgCambiada: 'We sent you an email. Open the link to apply the change — until then your password stays the same.',
       msgError: 'Error changing password',
     },
     notif: {
@@ -626,6 +630,7 @@ export default function ConfiguracionPage() {
 
       {/* CONTRASEÑA */}
       <Seccion titulo={t.seguridad.titulo} descripcion={t.seguridad.descripcion}>
+        <p className="text-sm mb-4 leading-relaxed" style={{ color: 'var(--text-2)' }}>{t.seguridad.aviso}</p>
         <div className="flex flex-col gap-3">
           <div>
             <label className="text-xs mb-1 block" style={{ color: 'var(--text-3)' }}>{t.seguridad.actual}</label>

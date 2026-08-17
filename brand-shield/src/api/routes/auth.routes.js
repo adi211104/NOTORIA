@@ -3,7 +3,8 @@
 
 const express = require('express');
 const crypto = require('crypto');
-const { enviarBienvenida, enviarVerificacion, enviarConfirmacionContrasena, enviarRecuperacionContrasena } = require('../../utils/emails');
+const { enviarBienvenida, enviarVerificacion, enviarConfirmacionContrasena, enviarRecuperacionContrasena, enviarConfirmacionCambioPassword } = require('../../utils/emails');
+const { firmarCambio, verificarCambio } = require('../../lib/cambioPassword');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { z } = require('zod');
@@ -279,6 +280,19 @@ router.patch('/preferencias-alertas', autenticar, async (req, res, next) => {
 });
 
 // ── PATCH /api/auth/cambiar-password ─────────────────────
+//
+// 🔴 Ya NO cambia la contraseña: pide confirmación por correo.
+//
+// Antes bastaba con saber la contraseña actual y el cambio era inmediato. Eso
+// deja un hueco real —un teléfono desbloqueado un minuto sobre una mesa, una
+// sesión abierta en una computadora compartida— y quien aprovechara ese minuto
+// se quedaba con la cuenta, porque cambiar la contraseña también expulsa al
+// dueño. El correo que se mandaba era un aviso *a posteriori*: llegaba cuando ya
+// no se podía hacer nada.
+//
+// Ahora se comprueba la contraseña actual, se firma el cambio (ver
+// lib/cambioPassword.js) y se manda un enlace. La contraseña no se toca hasta
+// que alguien abre ese enlace, así que hace falta también el buzón.
 router.patch('/cambiar-password', autenticar, async (req, res, next) => {
   try {
     const { passwordActual, passwordNueva } = req.body;
@@ -295,22 +309,65 @@ router.patch('/cambiar-password', autenticar, async (req, res, next) => {
     if (!valida) {
       return res.status(401).json({ error: 'La contraseña actual es incorrecta' });
     }
+    if (await bcrypt.compare(passwordNueva, usuario.password)) {
+      return res.status(400).json({ error: 'La nueva contraseña tiene que ser distinta de la actual.' });
+    }
 
-    const hash = await bcrypt.hash(passwordNueva, 12);
+    // Se hashea ANTES de firmar: el token viaja con el hash, nunca con la
+    // contraseña en claro. Cuesta unos 200 ms de bcrypt aquí en vez de al
+    // confirmar, y a cambio el correo no lleva nada reutilizable.
+    const hashNuevo = await bcrypt.hash(passwordNueva, 12);
+    const token = firmarCambio({ usuarioId: usuario.id, hashNuevo });
+
+    await enviarConfirmacionCambioPassword(usuario, token);
+
+    res.json({
+      mensaje: 'Te enviamos un correo para confirmar el cambio. La contraseña no cambia hasta que abras ese enlace.',
+      requiereConfirmacion: true,
+      correo: usuario.email,
+    });
+  } catch (error) { next(error); }
+});
+
+// ── POST /api/auth/confirmar-cambio-password ─────────────
+//
+// Lo abre el enlace del correo, así que va SIN sesión: quien confirma puede
+// estar en otro dispositivo o haber cerrado la app. La prueba de identidad es la
+// firma del token, no la cookie.
+router.post('/confirmar-cambio-password', async (req, res, next) => {
+  try {
+    const { token } = req.body || {};
+    let datos;
+    try {
+      datos = verificarCambio(token);
+    } catch (e) {
+      return res.status(400).json({ error: e.message, tipo: e.codigo || 'TOKEN_INVALIDO' });
+    }
+
+    const usuario = await prisma.usuario.findUnique({
+      where: { id: datos.usuarioId },
+      select: { id: true, nombre: true, email: true, password: true },
+    });
+    if (!usuario) return res.status(400).json({ error: 'El enlace no es válido.', tipo: 'TOKEN_INVALIDO' });
+
+    // Si la contraseña ya es la del token, el enlace ya se usó. Se responde OK y
+    // no un error: el caso normal es alguien que vuelve a tocar el enlace del
+    // correo, y decirle «inválido» le haría pensar que su cambio no se aplicó.
+    if (usuario.password === datos.hashNuevo) {
+      return res.json({ mensaje: 'Tu contraseña ya estaba cambiada.', yaAplicado: true });
+    }
+
     await prisma.usuario.update({
-      where: { id: req.usuario.id },
-      data: { password: hash },
+      where: { id: usuario.id },
+      data: { password: datos.hashNuevo },
     });
 
-    // Notificación de seguridad en segundo plano
     setImmediate(async () => {
-      try {
-        const u = await prisma.usuario.findUnique({ where:{ id:req.usuario.id }, select:{ nombre:true, email:true } });
-        if (u) await enviarConfirmacionContrasena(u);
-      } catch(e) { console.error('[Email] Error enviando confirmación contraseña:', e.message); }
+      try { await enviarConfirmacionContrasena({ nombre: usuario.nombre, email: usuario.email }); }
+      catch (e) { console.error('[Email] Error enviando aviso de contraseña cambiada:', e.message); }
     });
 
-    res.json({ mensaje: 'Contraseña actualizada correctamente' });
+    res.json({ mensaje: 'Contraseña actualizada correctamente. Ya puedes entrar con la nueva.' });
   } catch (error) { next(error); }
 });
 
