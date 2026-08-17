@@ -5,6 +5,9 @@ const { negocioPublico, negociosPublicos } = require('../../lib/negocioPublico')
 const { buscarNegocioEnGoogle, obtenerUbicacionNegocio, buscarCompetidoresCercanos, obtenerResenasVisibles } = require('../../scrapers/google.scraper');
 const { informeRating } = require('../../lib/rating');
 const { generarAfiche } = require('../../utils/afiche.generator');
+const { SIN_CONTROL } = require('../../lib/fichaGoogle');
+const { emitirCodigo, VIGENCIA_DIAS } = require('../../lib/constancia');
+const { generarConstancia } = require('../../utils/constancia.pdf');
 
 const router = express.Router();
 const { autenticar } = require('../middlewares/auth.middleware');
@@ -97,7 +100,9 @@ router.get('/:id', async (req, res, next) => {
     const negocio = await prisma.negocio.findFirst({
       where: { id: req.params.id, usuarioId: req.usuario.id },
       include: {
-        alertas: { orderBy: { creadaEn: 'desc' }, take: 20 },
+        // SIN_CONTROL: la fila de referencia de la vigilancia de ficha vive en
+        // esta tabla y no es una alerta (ver lib/fichaGoogle.js).
+        alertas: { where: SIN_CONTROL, orderBy: { creadaEn: 'desc' }, take: 20 },
         snapshots: { orderBy: { tomadoEn: 'desc' }, take: 30 },
         resenas: { orderBy: { detectadaEn: 'desc' }, take: 20 },
         competidores: { include: { snapshots: { orderBy: { tomadoEn: 'desc' }, take: 5 } } },
@@ -349,6 +354,83 @@ router.get('/:id/afiche.pdf', async (req, res, next) => {
     res.setHeader('Content-Type', 'application/pdf');
     const limpio = (negocio.nombre || 'negocio').replace(/[^\w-]+/g, '-').slice(0, 40);
     res.setHeader('Content-Disposition', `attachment; filename="Notoria-afiche-${limpio}.pdf"`);
+    res.send(pdf);
+  } catch (error) { next(error); }
+});
+
+// ── GET /api/negocios/:id/constancia.pdf ──────────────────
+//
+// La Constancia de Reputación Online: el papel que pide un centro comercial
+// antes de alquilar un local, un franquiciante antes de aprobar a un
+// franquiciado, o un banco al evaluar un crédito. Ver lib/constancia.js.
+//
+// Es de planes de pago: el valor está en poder acreditar un HISTORIAL, y eso solo
+// existe si el negocio lleva tiempo monitoreado de verdad.
+router.get('/:id/constancia.pdf', verificarPlan(['NEGOCIO', 'FRANQUICIA']), async (req, res, next) => {
+  try {
+    const negocio = await prisma.negocio.findFirst({
+      where: { id: req.params.id, usuarioId: req.usuario.id },
+      select: {
+        id: true, nombre: true, direccion: true, googlePlaceId: true, creadoEn: true,
+        snapshots: { where: { plataforma: 'GOOGLE' }, orderBy: { tomadoEn: 'desc' }, take: 1 },
+      },
+    });
+    if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
+
+    const snap = negocio.snapshots?.[0];
+    if (!snap?.totalResenas) {
+      return res.status(409).json({
+        error: 'Todavía no tenemos datos de tu ficha. Escanea el negocio y vuelve a intentarlo.',
+        codigo: 'SIN_DATOS',
+      });
+    }
+
+    // Días bajo monitoreo: desde el primer snapshot real, no desde que se creó la
+    // cuenta. Es lo único que la constancia puede afirmar honestamente.
+    const primero = await prisma.snapshot.findFirst({
+      where: { negocioId: negocio.id, plataforma: 'GOOGLE' },
+      orderBy: { tomadoEn: 'asc' },
+      select: { tomadoEn: true },
+    });
+    const desde = primero?.tomadoEn || negocio.creadoEn;
+    const diasVigilado = Math.max(0, Math.floor((Date.now() - new Date(desde).getTime()) / 86400000));
+
+    // Incidencias del periodo. Se excluye la fila de control (SIN_CONTROL) y las
+    // alertas de comentarios y menciones, que no son incidencias de la ficha.
+    const incidentes = await prisma.alerta.count({
+      where: {
+        ...SIN_CONTROL,
+        negocioId: negocio.id,
+        creadaEn: { gte: desde },
+        tipo: { in: ['PICO_RESENAS_NEGATIVAS', 'CAIDA_RATING', 'CUENTAS_NUEVAS'] },
+      },
+    });
+
+    const codigo = emitirCodigo({
+      nombre: negocio.nombre,
+      rating: snap.ratingActual,
+      totalResenas: snap.totalResenas,
+      diasVigilado,
+      incidentes,
+      placeId: negocio.googlePlaceId || '',
+    });
+
+    const front = (process.env.FRONTEND_URL || 'https://usenotoria.app').replace(/\/+$/, '');
+    const emitida = new Date();
+    const pdf = await generarConstancia({
+      nombre: negocio.nombre,
+      direccion: negocio.direccion,
+      rating: snap.ratingActual,
+      totalResenas: snap.totalResenas,
+      diasVigilado,
+      incidentes,
+      emitida,
+      vence: new Date(emitida.getTime() + VIGENCIA_DIAS * 86400000),
+    }, `${front}/verificar/${codigo}`);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    const limpio = (negocio.nombre || 'negocio').replace(/[^\w-]+/g, '-').slice(0, 40);
+    res.setHeader('Content-Disposition', `attachment; filename="Notoria-constancia-${limpio}.pdf"`);
     res.send(pdf);
   } catch (error) { next(error); }
 });

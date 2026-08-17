@@ -21,6 +21,10 @@
 const cron = require('node-cron');
 const prismaReal = require('../lib/prisma');
 const emails = require('../utils/emails');
+// La fila de control de la vigilancia de ficha vive en la tabla `alerta` y no es
+// una alerta: sin este filtro, el correo del día 5 le contaría al usuario una
+// alerta que nunca ocurrió. Ver lib/fichaGoogle.js.
+const { SIN_CONTROL } = require('../lib/fichaGoogle');
 
 const DIA_MS = 24 * 60 * 60 * 1000;
 const DIAS = { 1: 2, 2: 5, 3: 7 };
@@ -67,7 +71,7 @@ const procesarDrip = async (deps = {}) => {
           const ids = u.negocios.map((n) => n.id);
           const [resenas, alertas] = await Promise.all([
             prisma.resena.count({ where: { negocioId: { in: ids } } }),
-            prisma.alerta.count({ where: { negocioId: { in: ids } } }),
+            prisma.alerta.count({ where: { ...SIN_CONTROL, negocioId: { in: ids } } }),
           ]);
           await enviarDrip(u, 'valor', { resenas, alertas });
           enviados++;

@@ -423,6 +423,11 @@ const TEXTOS = {
       aficheGenerando:'Generando…',
       aficheError:'No pudimos generar el afiche. Inténtalo de nuevo.',
       aficheNota:'Cámbialo cada lunes: el número que se queda viejo en la pared deja de mirarse.',
+      constTitulo:'Constancia de reputación',
+      constDesc:'Un documento con código verificable que acredita el estado de tu ficha en una fecha concreta. Para cuando un centro comercial, un franquiciante o un banco te pide papeles: quien lo recibe escanea el QR y comprueba que salió de Notoria y que nadie lo tocó. Válida 90 días.',
+      constBtn:'Descargar la constancia (PDF)',
+      constPago:'Disponible desde el plan Negocio: acredita un historial, y para eso el negocio tiene que llevar tiempo monitoreado.',
+      constError:'No pudimos emitir la constancia. Escanea el negocio y vuelve a intentarlo.',
     },
     resumen: {
       scoreTitulo:'Score de reputación Notoria',
@@ -830,6 +835,11 @@ const TEXTOS = {
       aficheGenerando:'Generating…',
       aficheError:'We could not generate the poster. Please try again.',
       aficheNota:'Swap it every Monday: a number that goes stale on the wall stops being looked at.',
+      constTitulo:'Reputation certificate',
+      constDesc:'A document with a verifiable code certifying your listing status on a given date. For when a mall, a franchisor or a bank asks for paperwork: whoever receives it scans the QR and confirms it came from Notoria untouched. Valid for 90 days.',
+      constBtn:'Download the certificate (PDF)',
+      constPago:'Available from the Business plan: it certifies a track record, and that needs time under monitoring.',
+      constError:'We could not issue the certificate. Scan the business and try again.',
     },
     resumen: {
       scoreTitulo:'Notoria reputation score',
@@ -1191,6 +1201,7 @@ export default function DetallePage() {
   const [espejoCargando, setEspejoCargando] = useState(false);
   const [simulador, setSimulador] = useState(null);
   const [afiche, setAfiche] = useState('');   // '' | 'generando' | 'error'
+  const [constancia, setConstancia] = useState('');
   // Comentarios de redes en publicaciones propias (TikTok)
   const [comentarios, setComentarios] = useState(null);
   const [comResumen, setComResumen] = useState({ total:0, negativos:0, sinResponder:0 });
@@ -1403,6 +1414,26 @@ export default function DetallePage() {
     }
   };
 
+  // Mismo patrón que el afiche: el PDF va detrás del token, así que se pide con
+  // el header de sesión y se entrega como blob.
+  const descargarConstancia = async () => {
+    setConstancia('generando');
+    try {
+      const r = await fetch(`${API_URL}/api/negocios/${id}/constancia.pdf`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (!r.ok) throw new Error('http');
+      const url = URL.createObjectURL(await r.blob());
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Notoria-constancia-${(negocio?.nombre || 'negocio').replace(/[^w-]+/g, '-').slice(0, 40)}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setConstancia('');
+    } catch {
+      setConstancia('error');
+    }
+  };
   // Popup único de "recomendación de escaneo" al llegar recién creado el negocio
   useEffect(() => {
     if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('bienvenida') === '1') {
@@ -2810,6 +2841,30 @@ export default function DetallePage() {
                   <p style={{ color:'#ef4444', fontSize:12.5, margin:'10px 0 0' }}>{t.espejo.aficheError}</p>
                 )}
                 <p style={{ fontSize:11, color:'var(--text-3)', margin:'12px 0 0', lineHeight:1.5 }}>{t.espejo.aficheNota}</p>
+              </Card>
+
+              {/* La constancia: el papel para cuando se lo piden. Va en planes de
+                  pago porque lo que acredita es un HISTORIAL, y eso solo existe si
+                  el negocio lleva tiempo monitoreado de verdad. */}
+              <Card>
+                <ST>{t.espejo.constTitulo}</ST>
+                <p style={{ color:'var(--text-2)', fontSize:12.5, lineHeight:1.6, margin:'0 0 14px' }}>{t.espejo.constDesc}</p>
+                {usuario?.plan === 'GRATIS' ? (
+                  <p style={{ color:'var(--text-3)', fontSize:12.5, lineHeight:1.6, margin:0 }}>
+                    {t.espejo.constPago}{' '}
+                    <Link href="/dashboard/planes" style={{ color:'#3AA857' }}>Ver planes</Link>
+                  </p>
+                ) : (
+                  <>
+                    <button onClick={descargarConstancia} disabled={constancia === 'generando'}
+                      style={{ display:'inline-flex', alignItems:'center', gap:8, background:'var(--surface2)', border:'1px solid var(--border-c)', color:'var(--text)', borderRadius:8, padding:'10px 18px', fontSize:13, fontWeight:600, cursor: constancia === 'generando' ? 'default' : 'pointer', opacity: constancia === 'generando' ? 0.6 : 1 }}>
+                      <Icon name="descargar" size={14} /> {constancia === 'generando' ? t.espejo.aficheGenerando : t.espejo.constBtn}
+                    </button>
+                    {constancia === 'error' && (
+                      <p style={{ color:'#ef4444', fontSize:12.5, margin:'10px 0 0' }}>{t.espejo.constError}</p>
+                    )}
+                  </>
+                )}
               </Card>
             </>
           )}

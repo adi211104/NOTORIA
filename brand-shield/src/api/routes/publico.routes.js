@@ -13,6 +13,7 @@ const axios = require('axios');
 const rateLimit = require('express-rate-limit');
 const { analizarResena } = require('../../nlp/detector');
 const { informeRating } = require('../../lib/rating');
+const { verificarCodigo } = require('../../lib/constancia');
 
 const router = express.Router();
 
@@ -337,6 +338,40 @@ router.get('/ficha', fichaLimiter, async (req, res, next) => {
     cacheFicha.set(placeId, { data: resultado, ts: Date.now() });
     res.json(resultado);
   } catch (error) { next(error); }
+});
+
+// ── GET /api/publico/verificar/:codigo ────────────────────
+//
+// Comprueba una Constancia de Reputación Online. La usa quien RECIBE el
+// documento —un centro comercial, un franquiciante, un banco— así que es pública
+// por definición: exigirle registro a quien solo quiere comprobar un papel sería
+// absurdo.
+//
+// No consulta ninguna tabla: los datos viajan firmados dentro del código y acá
+// solo se recalcula el HMAC (ver lib/constancia.js). Si cuadra, esos números
+// salieron de Notoria en esa fecha y nadie los tocó.
+//
+// Lleva el limitador estricto: es el único endpoint público donde tendría sentido
+// que alguien probara códigos a lo bruto.
+router.get('/verificar/:codigo', publicoLimiter, (req, res) => {
+  const { valida, motivo, datos } = verificarCodigo(req.params.codigo);
+
+  if (valida) return res.json({ valida: true, ...datos });
+
+  // El motivo se distingue a propósito: «venció» y «está falsificada» son cosas
+  // muy distintas para quien tiene el papel delante, y confundirlas sería
+  // acusar de fraude a alguien que solo tiene un documento viejo.
+  const mensajes = {
+    VENCIDA: 'Esta constancia venció. Los datos que muestra eran correctos al emitirla, pero ya no acreditan el estado actual.',
+    FIRMA: 'No pudimos verificar esta constancia: el código no corresponde a ningún documento emitido por Notoria, o fue alterado.',
+    FORMATO: 'El código no tiene un formato válido. Revisa que se haya copiado completo.',
+  };
+  res.status(motivo === 'VENCIDA' ? 200 : 404).json({
+    valida: false,
+    motivo,
+    mensaje: mensajes[motivo] || mensajes.FORMATO,
+    ...(datos || {}),
+  });
 });
 
 module.exports = router;

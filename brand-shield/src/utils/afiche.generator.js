@@ -33,9 +33,10 @@ const PDFDocument = require('pdfkit');
 // papel que se lee de pie y a dos metros, "3 estrellas o menos" se entiende
 // igual de bien.
 //
-// Este sanitizador es la red de seguridad: si alguien vuelve a colar un carácter
-// raro, se cae en silencio en vez de imprimir basura en la pared de un cliente.
-const seguro = (texto) => String(texto ?? '').replace(/[^\x00-\xFF]/g, '');
+// La red de seguridad, compartida con la constancia: si alguien vuelve a colar
+// un carácter raro, desaparece en vez de imprimirse como basura en la pared de
+// un cliente. Ver lib/winansi.js — ojo, WinAnsi NO es latin1.
+const { seguro } = require('../lib/winansi');
 
 // Paleta de marca, la misma del reporte mensual
 const INK = '#141413';

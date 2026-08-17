@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { CAMPOS_CONTACTO } = require('../lib/fichaGoogle');
 const BASE_URL = 'https://maps.googleapis.com/maps/api/place';
 
 const buscarNegocioEnGoogle = async (placeId) => {
@@ -37,16 +38,24 @@ const mapearResenas = (reviews) => (reviews || []).map((r) => ({
   fechaResena: new Date(r.time * 1000),
 }));
 
-const obtenerResenasGoogle = async (placeId) => {
+// `conContacto` añade teléfono, horario y dirección a la consulta.
+//
+// ⚠️ Ese es el ÚNICO parámetro de esta función que cuesta dinero:
+// `formatted_phone_number` y `opening_hours` son del grupo **Contact Data**, que
+// Places factura aparte del Basic que la llamada ya paga. Por eso lo decide el
+// worker según el plan del dueño (ver lib/fichaGoogle.js) y no está encendido por
+// defecto: activarlo para todos multiplicaría la factura del plan Gratis, que ya
+// se arregló una vez por lo mismo.
+const obtenerResenasGoogle = async (placeId, { conContacto = false } = {}) => {
   try {
     const { data } = await axios.get(`${BASE_URL}/details/json`, {
       params: {
         place_id: placeId,
-        // `business_status` y `name` se piden desde el 2026-08-17 para la
-        // vigilancia de la ficha (ver detectarCambiosDeFicha en el worker).
-        // Van en el grupo Basic Data, que esta llamada YA está pagando por
-        // pedir `reviews`/`rating`: añadirlos no cambia la factura.
-        fields: 'reviews,rating,user_ratings_total,business_status,name',
+        // `business_status` y `name` van en el grupo Basic Data, que esta
+        // llamada YA está pagando por pedir `reviews`/`rating`: añadirlos no
+        // cambia la factura.
+        fields: 'reviews,rating,user_ratings_total,business_status,name'
+          + (conContacto ? `,${CAMPOS_CONTACTO}` : ''),
         key: process.env.GOOGLE_PLACES_API_KEY,
         language: 'es',
         reviews_sort: 'newest',
@@ -61,6 +70,9 @@ const obtenerResenasGoogle = async (placeId) => {
       // OPERATIONAL | CLOSED_TEMPORARILY | CLOSED_PERMANENTLY
       estadoNegocio: resultado.business_status || null,
       nombreEnGoogle: resultado.name || null,
+      // El resultado crudo, para que la vigilancia de datos de ficha compare sin
+      // que este scraper tenga que conocer sus campos. Solo viaja si se pidió.
+      crudo: conContacto ? resultado : null,
     };
   } catch (error) {
     console.error(`[Google] Error obteniendo reseñas: ${error.message}`);

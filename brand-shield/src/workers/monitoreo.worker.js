@@ -8,6 +8,7 @@ const { obtenerResenasGoogle, buscarNegocioEnGoogle } = require('../scrapers/goo
 const { obtenerRatingFacebook, obtenerResenasFacebook } = require('../scrapers/facebook.scraper');
 const { analizarResena, detectarAnomalias } = require('../nlp/detector');
 const { notificar, enviarAlertaEmail } = require('../alerts/notificador');
+const { revisarDatosDeFicha, puedeVigilarFicha, SIN_CONTROL } = require('../lib/fichaGoogle');
 
 // Intenta publicar la auto-respuesta aprobada por el usuario para una reseña
 // positiva (4-5★) recién detectada. Requiere que el negocio tenga Google
@@ -141,6 +142,45 @@ const revisarFichaGoogle = async (negocio, datos) => {
   console.log(`[Ficha] ${negocio.nombre}: ${estado} — alerta ${alerta.id} enviada`);
 };
 
+// Cambios en los DATOS de la ficha: teléfono, horario, nombre, dirección.
+//
+// Es la otra mitad de la vigilancia de ficha, y la que solo tienen los planes de
+// pago porque cuesta dinero por escaneo (ver lib/fichaGoogle.js). Un teléfono
+// cambiado es un negocio que deja de recibir llamadas sin saber por qué; un
+// horario cambiado son clientes que llegan y encuentran cerrado — y que además
+// dejan una reseña de 1★ por el viaje perdido.
+const revisarCambiosDeContacto = async (negocio, datos) => {
+  if (!datos?.crudo) return; // no se pidieron los campos de contacto
+  const cambios = await revisarDatosDeFicha(negocio, datos.crudo);
+  if (!cambios.length) return;
+
+  const descripcion = cambios.length === 1
+    ? `${cambios[0].texto} Si no fuiste tú, corrígelo en tu ficha de Google: cualquiera puede sugerir cambios y Google los aplica sin avisarte.`
+    : `Cambiaron ${cambios.length} datos de tu ficha de Google. ${cambios.map((c) => c.texto).join(' ')} Si no fuiste tú, corrígelos en tu ficha: cualquiera puede sugerir cambios y Google los aplica sin avisarte.`;
+
+  const alerta = await prisma.alerta.create({
+    data: {
+      // Mismo enum que la ficha cerrada y por el mismo motivo: un valor nuevo en
+      // TipoAlerta exige `prisma db push`, que Railway no corre en el deploy.
+      tipo: 'RESENA_MUY_NEGATIVA',
+      plataforma: 'GOOGLE',
+      descripcion,
+      detalle: { motivo: 'ficha_datos', cambios: cambios.map((c) => c.campo) },
+      negocioId: negocio.id,
+      notificada: true,
+    },
+  });
+
+  // Directo por correo, igual que la ficha cerrada: ninguna preferencia debería
+  // poder silenciar «alguien te cambió el teléfono en Google».
+  await enviarAlertaEmail({
+    usuario: negocio.usuario,
+    negocio,
+    alerta: { tipo: 'RESENA_MUY_NEGATIVA', plataforma: 'GOOGLE', descripcion },
+  });
+  console.log(`[Ficha] ${negocio.nombre}: cambió ${cambios.map((c) => c.campo).join(', ')} — alerta ${alerta.id}`);
+};
+
 /**
  * Procesa un negocio: obtiene reseñas, guarda nuevas, detecta anomalías y notifica
  */
@@ -149,13 +189,23 @@ const procesarNegocio = async (negocio) => {
 
   // ── GOOGLE ────────────────────────────────────────────────
   if (negocio.googlePlaceId) {
-    const datos = await obtenerResenasGoogle(negocio.googlePlaceId);
+    // Los datos de contacto (teléfono, horario, dirección) solo se piden en los
+    // planes que los incluyen: son del grupo Contact Data de Places y se
+    // facturan aparte. Ver lib/fichaGoogle.js.
+    const datos = await obtenerResenasGoogle(negocio.googlePlaceId, {
+      conContacto: puedeVigilarFicha(negocio.usuario?.plan),
+    });
     if (datos) {
       // Lo primero, antes que las reseñas: que la ficha exista y esté abierta es
       // más urgente que cualquier reseña que haya en ella. Va con su propio
       // catch para que un fallo acá no impida guardar el snapshot del ciclo.
       await revisarFichaGoogle(negocio, datos)
         .catch((e) => console.error(`[Ficha] Error revisando ${negocio.nombre}: ${e.message}`));
+
+      // Y después, si el plan lo incluye, si alguien le tocó el teléfono, el
+      // horario, el nombre o la dirección.
+      await revisarCambiosDeContacto(negocio, datos)
+        .catch((e) => console.error(`[Ficha] Error comparando datos de ${negocio.nombre}: ${e.message}`));
 
       // Guardar snapshot del estado actual
       await prisma.snapshot.create({
@@ -830,7 +880,7 @@ const iniciarReportesMensuales = () => {
       include: {
         usuario: { select: { id: true, email: true, nombre: true, idioma: true } },
         snapshots: { orderBy: { tomadoEn: 'desc' }, take: 30 },
-        alertas: { where: { creadaEn: { gte: new Date(new Date().setDate(1)) } } },
+        alertas: { where: { ...SIN_CONTROL, creadaEn: { gte: new Date(new Date().setDate(1)) } } },
         resenas: { where: { detectadaEn: { gte: new Date(new Date().setDate(1)) } } },
       },
     });
@@ -874,6 +924,10 @@ const iniciarResumenesAlertas = () => {
 
         const alertasPendientes = await prisma.alerta.findMany({
           where: {
+            // Sin esto, la fila de control de la vigilancia de ficha entraría en
+            // el resumen por correo: comparte el enum RESENA_MUY_NEGATIVA, que
+            // está entre los tipos activos. Ver lib/fichaGoogle.js.
+            ...SIN_CONTROL,
             creadaEn: { gte: desde },
             tipo: { in: tiposActivos },
             negocio: { usuarioId: u.id, activo: true },
