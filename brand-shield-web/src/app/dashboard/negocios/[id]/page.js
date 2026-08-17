@@ -385,9 +385,36 @@ const TEXTOS = {
       alertas:(n) => `Alertas${n>0?` (${n})`:''}`,
       competencia:(n) => `Competencia${n>0?` (${n})`:''}`,
       competenciaAuto:'Comparación automática',
+      espejo:'Cómo te ven',
       crecer:'Pedir reseñas',
       consejos:'Consejos',
       config:'Ajustes',
+    },
+    // «Cómo te ven»: el espejo (las reseñas que Google le enseña al público, que
+    // NO son las que vigila el panel) y el simulador de rating.
+    espejo: {
+      titulo:'Las 5 reseñas que ve un cliente nuevo',
+      sub:'El panel vigila lo último que entra. Google, en cambio, le muestra a quien te busca las que considera más relevantes — y suelen ser otras. Estas son esas.',
+      cargando:'Consultando tu ficha en Google…',
+      error:'No pudimos consultar tu ficha ahora mismo. Inténtalo en unos minutos.',
+      sinFicha:'Asigna una ficha de Google Maps a este negocio para ver esta sección.',
+      pendientes:(n) => n === 0
+        ? 'Ninguna reseña crítica de las que ve el público está sin responder. Bien ahí.'
+        : `${n} reseña${n === 1 ? '' : 's'} de 3★ o menos ${n === 1 ? 'está' : 'están'} entre lo primero que ve un cliente nuevo y sigue${n === 1 ? '' : 'n'} sin respuesta. ${n === 1 ? 'Es la que' : 'Son las que'} más te cuesta${n === 1 ? '' : 'n'}.`,
+      sinResponder:'Sin responder',
+      respondida:'Respondida',
+      antiguedad:(d) => d < 30 ? `hace ${d} día${d === 1 ? '' : 's'}` : d < 365 ? `hace ${Math.round(d/30)} meses` : `hace ${Math.floor(d/365)} año${Math.floor(d/365) === 1 ? '' : 's'}`,
+      simTitulo:'La matemática de tu rating',
+      simSub:'Tu rating es un promedio simple, así que se puede calcular exactamente cuánto falta para subir y cuánto aguanta antes de caer.',
+      simMedido:(f) => `Medido el ${f}`,
+      simSinDatos:'Todavía no tenemos el conteo de reseñas de tu ficha. Escanea el negocio y vuelve a entrar.',
+      simMeta:(n,o) => <>Para llegar a <strong>{o.toFixed(1)}★</strong> necesitas <strong>{n}</strong> reseñas de 5★.</>,
+      simUmbral:(n) => <>Te bastan <strong>{n}</strong> reseña{n===1?'':'s'} de 1★ para caer por debajo de 4.5★.</>,
+      simAtaque:'Si mañana te caen reseñas de 1★',
+      simCuantas:(n) => `${n} reseñas`,
+      simColumna:'Tu rating quedaría en',
+      simCoste:(v) => <>Hoy, una sola reseña de 1★ te mueve el rating <strong>{v.toFixed(3)}</strong> puntos.</>,
+      simFuente:'El umbral de 4.5★ es de BrightLocal, Local Consumer Review Survey 2026: el 31% de los consumidores no entra a negocios por debajo.',
     },
     resumen: {
       scoreTitulo:'Score de reputación Notoria',
@@ -761,9 +788,34 @@ const TEXTOS = {
       alertas:(n) => `Alerts${n>0?` (${n})`:''}`,
       competencia:(n) => `Competitors${n>0?` (${n})`:''}`,
       competenciaAuto:'Automatic comparison',
+      espejo:'How they see you',
       crecer:'Request reviews',
       consejos:'Tips',
       config:'Settings',
+    },
+    espejo: {
+      titulo:'The 5 reviews a new customer sees',
+      sub:'The panel watches what comes in last. Google, instead, shows whoever searches for you the ones it considers most relevant — and they are usually different. These are those.',
+      cargando:'Checking your Google listing…',
+      error:'We could not check your listing right now. Try again in a few minutes.',
+      sinFicha:'Assign a Google Maps listing to this business to see this section.',
+      pendientes:(n) => n === 0
+        ? 'None of the critical reviews the public sees is unanswered. Nice.'
+        : `${n} review${n === 1 ? '' : 's'} of 3★ or less ${n === 1 ? 'is' : 'are'} among the first things a new customer sees and still ${n === 1 ? 'has' : 'have'} no reply. ${n === 1 ? "That's the one" : 'Those are the ones'} that cost you most.`,
+      sinResponder:'Unanswered',
+      respondida:'Answered',
+      antiguedad:(d) => d < 30 ? `${d} day${d === 1 ? '' : 's'} ago` : d < 365 ? `${Math.round(d/30)} months ago` : `${Math.floor(d/365)} year${Math.floor(d/365) === 1 ? '' : 's'} ago`,
+      simTitulo:'The math behind your rating',
+      simSub:'Your rating is a simple average, so it can be calculated exactly how much you need to go up and how much you can take before dropping.',
+      simMedido:(f) => `Measured on ${f}`,
+      simSinDatos:"We don't have your listing's review count yet. Scan the business and come back.",
+      simMeta:(n,o) => <>To reach <strong>{o.toFixed(1)}★</strong> you need <strong>{n}</strong> five-star reviews.</>,
+      simUmbral:(n) => <>It only takes <strong>{n}</strong> one-star review{n===1?'':'s'} to drop below 4.5★.</>,
+      simAtaque:'If one-star reviews hit you tomorrow',
+      simCuantas:(n) => `${n} reviews`,
+      simColumna:'Your rating would be',
+      simCoste:(v) => <>Today, a single one-star review moves your rating by <strong>{v.toFixed(3)}</strong> points.</>,
+      simFuente:'The 4.5★ cut-off is from BrightLocal, Local Consumer Review Survey 2026: 31% of consumers rule out businesses below it.',
     },
     resumen: {
       scoreTitulo:'Notoria reputation score',
@@ -1117,6 +1169,13 @@ export default function DetallePage() {
   const [errorAccion, setErrorAccion] = useState('');
   const [errorEliminar, setErrorEliminar] = useState('');
   const [copiado, setCopiado] = useState('');
+  // «Cómo te ven»: el espejo sí gasta una consulta a Google, así que se pide solo
+  // al abrir la pestaña y se conserva mientras dure la página. El simulador no
+  // gasta nada (sale del último snapshot), pero se pide junto por comodidad.
+  const [espejo, setEspejo] = useState(null);
+  const [espejoError, setEspejoError] = useState('');
+  const [espejoCargando, setEspejoCargando] = useState(false);
+  const [simulador, setSimulador] = useState(null);
   // Comentarios de redes en publicaciones propias (TikTok)
   const [comentarios, setComentarios] = useState(null);
   const [comResumen, setComResumen] = useState({ total:0, negativos:0, sinResponder:0 });
@@ -1288,6 +1347,24 @@ export default function DetallePage() {
       .catch(err => setCompetenciaAutoError(err.message || t.competenciaAuto.error))
       .finally(() => setCompetenciaAutoCargando(false));
   }, [tab, usuario?.plan, id]);
+
+  // ── «Cómo te ven»: espejo + simulador ────────────────────────────────────
+  // Se cargan al abrir la pestaña y no antes: el espejo consume una consulta a
+  // Google Places, y no tiene sentido gastarla en quien nunca abre la sección.
+  useEffect(() => {
+    if (tab !== 'espejo' || espejo || espejoCargando) return;
+    setEspejoCargando(true);
+    setEspejoError('');
+    // En paralelo y con `allSettled`: el simulador no depende de la red y no
+    // debe quedarse sin pintar porque Google tarde o falle.
+    Promise.allSettled([negociosApi.espejo(id), negociosApi.simulador(id)])
+      .then(([esp, sim]) => {
+        if (esp.status === 'fulfilled') setEspejo(esp.value);
+        else setEspejoError(esp.reason?.message || t.espejo.error);
+        if (sim.status === 'fulfilled') setSimulador(sim.value);
+      })
+      .finally(() => setEspejoCargando(false));
+  }, [tab, id]);
 
   // Popup único de "recomendación de escaneo" al llegar recién creado el negocio
   useEffect(() => {
@@ -1532,6 +1609,7 @@ export default function DetallePage() {
     { id:'alertas', label:t.tabs.alertas(alertasNL) },
     { id:'competencia', label:t.tabs.competencia(competidores.length) },
     ...(usuario?.plan === 'FRANQUICIA' ? [{ id:'competenciaAuto', label:t.tabs.competenciaAuto }] : []),
+    { id:'espejo', label:t.tabs.espejo },
     { id:'crecer', label:t.tabs.crecer },
     { id:'consejos', label:t.tabs.consejos },
     { id:'config', label:t.tabs.config },
@@ -2562,6 +2640,125 @@ export default function DetallePage() {
                 </>
               ) : null}
             </Card>
+          )}
+        </div>
+      )}
+
+      {/* TAB Cómo te ven — el espejo + la matemática del rating */}
+      {tab==='espejo' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:14, maxWidth:760 }}>
+          {!negocio.googlePlaceId ? (
+            <Card style={{ textAlign:'center', padding:36 }}>
+              <p style={{ color:'var(--text-2)', fontSize:13.5, margin:0 }}>{t.espejo.sinFicha}</p>
+            </Card>
+          ) : (
+            <>
+              <Card>
+                <ST>{t.espejo.titulo}</ST>
+                <p style={{ color:'var(--text-2)', fontSize:12.5, lineHeight:1.6, margin:'0 0 14px' }}>{t.espejo.sub}</p>
+
+                {espejoCargando && <p style={{ color:'var(--text-3)', fontSize:13, margin:0 }}>{t.espejo.cargando}</p>}
+                {!espejoCargando && espejoError && <p style={{ color:'#ef4444', fontSize:13, margin:0 }}>{espejoError}</p>}
+
+                {espejo && (
+                  <>
+                    <div style={{
+                      padding:'9px 12px', borderRadius:8, marginBottom:12,
+                      background: espejo.pendientesCriticas > 0 ? 'rgba(239,68,68,0.08)' : 'var(--accent-t)',
+                      border: `1px solid ${espejo.pendientesCriticas > 0 ? 'rgba(239,68,68,0.3)' : 'var(--accent-b)'}`,
+                    }}>
+                      <p style={{ margin:0, fontSize:13, lineHeight:1.55, color: espejo.pendientesCriticas > 0 ? '#ef4444' : 'var(--text-2)', fontWeight: espejo.pendientesCriticas > 0 ? 600 : 400 }}>
+                        {t.espejo.pendientes(espejo.pendientesCriticas)}
+                      </p>
+                    </div>
+
+                    <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                      {espejo.resenas.map((r) => (
+                        <div key={r.externalId} style={{ padding:'11px 13px', background:'var(--surface2)', border:'1px solid var(--border-c)', borderRadius:9 }}>
+                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:10, flexWrap:'wrap', marginBottom:5 }}>
+                            <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>
+                              <span style={{ color:'#E8A33D' }}>{'★'.repeat(r.rating)}{'☆'.repeat(5-r.rating)}</span>
+                              {'  '}{r.autorNombre}
+                            </span>
+                            <span style={{ display:'flex', alignItems:'center', gap:8 }}>
+                              <span style={{ fontSize:11, color:'var(--text-3)' }}>{t.espejo.antiguedad(r.antiguedadDias)}</span>
+                              {/* El aviso en rojo se reserva para las críticas sin
+                                  responder. Marcar en rojo un 5★ sin respuesta era
+                                  ruido —nadie contesta todos los elogios— y hacía
+                                  que el resumen de arriba pareciera equivocado. */}
+                              {(r.respondida || r.rating <= 3) && (
+                                <span style={{
+                                  fontSize:10.5, padding:'2px 7px', borderRadius:99,
+                                  color: r.respondida ? '#3AA857' : '#ef4444',
+                                  background: r.respondida ? 'rgba(58,168,87,0.12)' : 'rgba(239,68,68,0.12)',
+                                  border: `1px solid ${r.respondida ? 'rgba(58,168,87,0.35)' : 'rgba(239,68,68,0.35)'}`,
+                                }}>
+                                  {r.respondida ? t.espejo.respondida : t.espejo.sinResponder}
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                          {r.texto && (
+                            <p style={{ margin:0, fontSize:12.5, color:'var(--text-2)', lineHeight:1.6 }}>
+                              {r.texto.length > 320 ? `${r.texto.slice(0,320)}…` : r.texto}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </Card>
+
+              <Card>
+                <ST>{t.espejo.simTitulo}</ST>
+                <p style={{ color:'var(--text-2)', fontSize:12.5, lineHeight:1.6, margin:'0 0 14px' }}>{t.espejo.simSub}</p>
+
+                {!simulador ? (
+                  <p style={{ color:'var(--text-3)', fontSize:13, margin:0 }}>
+                    {espejoCargando ? t.espejo.cargando : t.espejo.simSinDatos}
+                  </p>
+                ) : (
+                  <>
+                    <ul style={{ margin:'0 0 16px', padding:0, listStyle:'none', display:'flex', flexDirection:'column', gap:8 }}>
+                      {simulador.paraCaerDelUmbral != null && (
+                        <li style={{ fontSize:13.5, color:'var(--text-2)', lineHeight:1.6 }}>{t.espejo.simUmbral(simulador.paraCaerDelUmbral)}</li>
+                      )}
+                      {simulador.metas?.map((m) => (
+                        <li key={m.objetivo} style={{ fontSize:13.5, color:'var(--text-2)', lineHeight:1.6 }}>{t.espejo.simMeta(m.resenas, m.objetivo)}</li>
+                      ))}
+                      {simulador.costeUnaEstrella && (
+                        <li style={{ fontSize:13.5, color:'var(--text-2)', lineHeight:1.6 }}>{t.espejo.simCoste(Math.abs(simulador.costeUnaEstrella.exacto))}</li>
+                      )}
+                    </ul>
+
+                    {/* La rejilla se oculta si ninguna ráfaga mueve el rating.
+                        Pasa en fichas con miles de reseñas: tres tarjetas con el
+                        mismo número se leen como un fallo, cuando en realidad
+                        significan que ese negocio aguanta. Ahí la cifra que sí
+                        dice algo es `paraCaerDelUmbral`, que ya está arriba. */}
+                    {simulador.ataques?.some((a) => a.cambio !== 0) && (<>
+                    <p style={{ fontSize:11, letterSpacing:'.08em', textTransform:'uppercase', color:'var(--text-3)', margin:'0 0 8px' }}>{t.espejo.simAtaque}</p>
+                    <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(120px,1fr))', gap:8 }}>
+                      {simulador.ataques?.map((a) => (
+                        <div key={a.cuantas} style={{ padding:'10px 12px', background:'var(--surface2)', border:'1px solid var(--border-c)', borderRadius:9, textAlign:'center' }}>
+                          <div style={{ fontSize:11.5, color:'var(--text-3)', marginBottom:4 }}>{t.espejo.simCuantas(a.cuantas)}</div>
+                          <div style={{ fontSize:22, fontWeight:700, fontFamily:'Georgia,serif', color: a.cambio <= -0.2 ? '#ef4444' : a.cambio < 0 ? '#f59e0b' : 'var(--text)' }}>
+                            {a.ratingDespues.toFixed(1)}★
+                          </div>
+                          {a.cambio !== 0 && (
+                            <div style={{ fontSize:11.5, color: a.cambio <= -0.2 ? '#ef4444' : '#f59e0b', marginTop:2 }}>{a.cambio.toFixed(1)}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    </>)}
+
+                    <p style={{ fontSize:10.5, color:'var(--text-3)', margin:'12px 0 0', lineHeight:1.5 }}>{t.espejo.simFuente}</p>
+                  </>
+                )}
+              </Card>
+            </>
           )}
         </div>
       )}

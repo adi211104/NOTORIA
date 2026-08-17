@@ -27,6 +27,13 @@ const TEXTOS = {
     cta: 'Ver el informe completo gratis',
     ctaSub: 'Monitoreo continuo, historial completo y alertas — el plan Gratuito no pide tarjeta.',
     otro: 'Analizar otro negocio',
+    simTitulo: 'Qué tan expuesto estás ahora mismo',
+    simCaida: (n, antes, despues) => <>Con <strong>{n} reseñas de 1★</strong> tu ficha pasa de {antes.toFixed(1)}★ a <strong>{despues.toFixed(1)}★</strong>.</>,
+    simUmbral: (n) => <>Te bastan <strong>{n} reseña{n === 1 ? '' : 's'} de 1★</strong> para caer por debajo de 4.5★, el filtro con el que el 31% de los consumidores descarta un negocio.</>,
+    simBajoUmbral: (n) => <>Estás por debajo de 4.5★. Para volver a cruzarlo necesitas <strong>{n} reseñas de 5★</strong>.</>,
+    simMeta: (n, o) => <>Para llegar a {o.toFixed(1)}★ necesitas <strong>{n} reseñas de 5★</strong>.</>,
+    simFuente: 'Cálculo sobre el rating y el número de reseñas de tu propia ficha. El umbral de 4.5★ es de BrightLocal, Local Consumer Review Survey 2026.',
+    fichaCerrada: 'Tu ficha aparece como CERRADA en Google Maps. Mientras diga eso, dejas de salir a quien busca en tu zona.',
   },
   en: {
     placeholder: 'Type your restaurant or hotel name…',
@@ -44,6 +51,13 @@ const TEXTOS = {
     cta: 'See the full report for free',
     ctaSub: 'Continuous monitoring, full history and alerts — the Free plan needs no card.',
     otro: 'Analyze another business',
+    simTitulo: 'How exposed you are right now',
+    simCaida: (n, antes, despues) => <>With <strong>{n} one-star reviews</strong> your listing goes from {antes.toFixed(1)}★ to <strong>{despues.toFixed(1)}★</strong>.</>,
+    simUmbral: (n) => <>It only takes <strong>{n} one-star review{n === 1 ? '' : 's'}</strong> to drop below 4.5★, the cut-off 31% of consumers use to rule a business out.</>,
+    simBajoUmbral: (n) => <>You are below 4.5★. To cross it again you need <strong>{n} five-star reviews</strong>.</>,
+    simMeta: (n, o) => <>To reach {o.toFixed(1)}★ you need <strong>{n} five-star reviews</strong>.</>,
+    simFuente: 'Calculated from the rating and review count of your own listing. The 4.5★ cut-off is from BrightLocal, Local Consumer Review Survey 2026.',
+    fichaCerrada: 'Your listing shows as CLOSED on Google Maps. While it says that, you stop appearing to people searching in your area.',
   },
 };
 
@@ -200,6 +214,59 @@ export default function AnalisisGratis({ idioma = 'es' }) {
           ) : (
             <div style={{ background: 'var(--accent-t)', border: '1px solid var(--accent-b)', borderRadius: 6, padding: '10px 12px' }}>
               <p style={{ fontSize: 13, color: 'var(--text-2)', margin: 0, lineHeight: 1.6 }}>{t.limpias}</p>
+            </div>
+          )}
+
+          {/* La ficha marcada como cerrada va por delante de todo: es la peor
+              noticia posible y la que el dueño ni siquiera sabe que puede pasarle. */}
+          {resultado.estadoFicha && (
+            <div style={{ background: 'rgba(200,60,50,0.12)', border: '1px solid rgba(200,60,50,0.45)', borderRadius: 6, padding: '10px 12px', marginTop: 8 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#C43C32', margin: 0, lineHeight: 1.6 }}>⚠ {t.fichaCerrada}</p>
+            </div>
+          )}
+
+          {/* El simulacro.
+              Antes, cuando no había nada sospechoso —que es la mayoría de las
+              veces— este widget decía «no detectamos patrones» y el visitante se
+              iba sin ningún motivo para registrarse. Esto le da sus propios
+              números: cuántas reseñas de 1★ lo sacan del filtro de 4.5 y cuántas
+              de 5★ le faltan para subir. Es la pregunta que traía. */}
+          {resultado.simulador && (
+            <div style={{ marginTop: 10, padding: '11px 13px', background: 'var(--surface2)', border: '1px solid var(--border-c)', borderRadius: 6 }}>
+              <p style={{ fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text-3)', margin: '0 0 7px' }}>
+                {t.simTitulo}
+              </p>
+              <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {resultado.simulador.paraCaerDelUmbral && (
+                  <li style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.55 }}>
+                    {t.simUmbral(resultado.simulador.paraCaerDelUmbral)}
+                  </li>
+                )}
+                {!resultado.simulador.sobreUmbral && resultado.simulador.metas.find((m) => m.objetivo === 4.5) && (
+                  <li style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.55 }}>
+                    {t.simBajoUmbral(resultado.simulador.metas.find((m) => m.objetivo === 4.5).resenas)}
+                  </li>
+                )}
+                {/* Solo si la ráfaga mueve algo. En una ficha con miles de
+                    reseñas el cambio redondeado es 0, y "pasa de 4.6★ a 4.6★" se
+                    lee como un error del widget en vez de como lo que es: que ese
+                    negocio aguanta bien. Para esos casos ya está la línea del
+                    umbral, que sí dice algo ("te bastan 100 reseñas de 1★"). */}
+                {(() => {
+                  const a = resultado.simulador.ataques?.find((x) => x.cambio !== 0);
+                  return a ? (
+                    <li style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.55 }}>
+                      {t.simCaida(a.cuantas, a.ratingAntes, a.ratingDespues)}
+                    </li>
+                  ) : null;
+                })()}
+                {resultado.simulador.sobreUmbral && resultado.simulador.metas[0] && (
+                  <li style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.55 }}>
+                    {t.simMeta(resultado.simulador.metas[0].resenas, resultado.simulador.metas[0].objetivo)}
+                  </li>
+                )}
+              </ul>
+              <p style={{ fontSize: 10.5, color: 'var(--text-3)', margin: '9px 0 0', lineHeight: 1.5 }}>{t.simFuente}</p>
             </div>
           )}
 

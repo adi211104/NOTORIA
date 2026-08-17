@@ -91,6 +91,12 @@ export const negociosApi = {
   configurar: (id, d) => api(`/api/negocios/${id}/configuracion`, { method:'PATCH', body:JSON.stringify(d) }),
   configurarAutoRespuesta: (id, d) => api(`/api/negocios/${id}/auto-respuesta/configurar`, { method:'POST', body:JSON.stringify(d) }),
   competencia: (id) => api(`/api/negocios/${id}/competencia`),
+  // Las 5 reseñas que Google le enseña a un desconocido (orden por relevancia),
+  // que no son las mismas que vigila el panel (orden por fecha).
+  espejo:    (id)     => api(`/api/negocios/${id}/espejo`),
+  // Aritmética del rating: cuántas reseñas faltan para cada meta y qué pasa ante
+  // una ráfaga de 1★. No gasta cuota de Google: sale del último snapshot.
+  simulador: (id)     => api(`/api/negocios/${id}/simulador`),
 };
 
 export const alertas = {

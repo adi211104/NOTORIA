@@ -24,12 +24,29 @@ const buscarNegocioEnGoogle = async (placeId) => {
   }
 };
 
+// Convierte el array `reviews` de Places al formato interno
+const mapearResenas = (reviews) => (reviews || []).map((r) => ({
+  externalId: `google_${r.time}_${r.author_url?.split('/').pop() || 'anon'}`,
+  rating: r.rating,
+  texto: r.text || '',
+  autorNombre: r.author_name || 'Anónimo',
+  autorFoto: r.profile_photo_url || null,
+  // Places no devuelve el historial del autor. Se deja explícito porque de este
+  // null depende que la señal `cuenta_nueva` del detector no pueda dispararse.
+  autorResenasTotal: null,
+  fechaResena: new Date(r.time * 1000),
+}));
+
 const obtenerResenasGoogle = async (placeId) => {
   try {
     const { data } = await axios.get(`${BASE_URL}/details/json`, {
       params: {
         place_id: placeId,
-        fields: 'reviews,rating,user_ratings_total',
+        // `business_status` y `name` se piden desde el 2026-08-17 para la
+        // vigilancia de la ficha (ver detectarCambiosDeFicha en el worker).
+        // Van en el grupo Basic Data, que esta llamada YA está pagando por
+        // pedir `reviews`/`rating`: añadirlos no cambia la factura.
+        fields: 'reviews,rating,user_ratings_total,business_status,name',
         key: process.env.GOOGLE_PLACES_API_KEY,
         language: 'es',
         reviews_sort: 'newest',
@@ -37,22 +54,52 @@ const obtenerResenasGoogle = async (placeId) => {
     });
     if (data.status !== 'OK') return null;
     const resultado = data.result;
-    const resenas = (resultado.reviews || []).map((r) => ({
-      externalId: `google_${r.time}_${r.author_url?.split('/').pop() || 'anon'}`,
-      rating: r.rating,
-      texto: r.text || '',
-      autorNombre: r.author_name || 'Anónimo',
-      autorFoto: r.profile_photo_url || null,
-      autorResenasTotal: null,
-      fechaResena: new Date(r.time * 1000),
-    }));
     return {
       ratingActual: resultado.rating || 0,
       totalResenas: resultado.user_ratings_total || 0,
-      resenas,
+      resenas: mapearResenas(resultado.reviews),
+      // OPERATIONAL | CLOSED_TEMPORARILY | CLOSED_PERMANENTLY
+      estadoNegocio: resultado.business_status || null,
+      nombreEnGoogle: resultado.name || null,
     };
   } catch (error) {
     console.error(`[Google] Error obteniendo reseñas: ${error.message}`);
+    return null;
+  }
+};
+
+// ── El espejo: las reseñas que Google le enseña a un desconocido ──
+//
+// `obtenerResenasGoogle` pide `reviews_sort: 'newest'`, que es lo correcto para
+// vigilar: queremos lo último que entró. Pero NO es lo que ve un cliente: por
+// defecto Google ordena por relevancia, y a alguien que busca el negocio le
+// muestra otras cinco reseñas, que pueden ser de hace meses.
+//
+// Esa diferencia es información que el dueño no tiene por ningún otro medio.
+// Lleva meses respondiendo lo más reciente mientras la ficha que ve un cliente
+// nuevo la encabeza una queja de hace ocho meses que nadie contestó.
+//
+// Es una llamada aparte porque `reviews_sort` no admite pedir los dos órdenes a
+// la vez. Se usa a demanda desde el panel, no en cada ciclo del worker.
+const obtenerResenasVisibles = async (placeId) => {
+  try {
+    const { data } = await axios.get(`${BASE_URL}/details/json`, {
+      params: {
+        place_id: placeId,
+        fields: 'reviews,rating,user_ratings_total',
+        key: process.env.GOOGLE_PLACES_API_KEY,
+        language: 'es',
+        // Sin `reviews_sort` → Google usa most_relevant, que es lo que ve el público
+      },
+    });
+    if (data.status !== 'OK') return null;
+    return {
+      ratingActual: data.result.rating || 0,
+      totalResenas: data.result.user_ratings_total || 0,
+      resenas: mapearResenas(data.result.reviews),
+    };
+  } catch (error) {
+    console.error(`[Google] Error obteniendo reseñas visibles: ${error.message}`);
     return null;
   }
 };
@@ -126,6 +173,7 @@ const buscarCompetidoresCercanos = async ({ lat, lng, tipo, placeIdExcluir }) =>
 module.exports = {
   buscarNegocioEnGoogle,
   obtenerResenasGoogle,
+  obtenerResenasVisibles,
   obtenerUbicacionNegocio,
   buscarCompetidoresCercanos,
 };

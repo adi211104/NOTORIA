@@ -2,7 +2,8 @@ const express = require('express');
 const { z } = require('zod');
 const prisma = require('../../lib/prisma');
 const { negocioPublico, negociosPublicos } = require('../../lib/negocioPublico');
-const { buscarNegocioEnGoogle, obtenerUbicacionNegocio, buscarCompetidoresCercanos } = require('../../scrapers/google.scraper');
+const { buscarNegocioEnGoogle, obtenerUbicacionNegocio, buscarCompetidoresCercanos, obtenerResenasVisibles } = require('../../scrapers/google.scraper');
+const { informeRating } = require('../../lib/rating');
 
 const router = express.Router();
 const { autenticar } = require('../middlewares/auth.middleware');
@@ -196,6 +197,102 @@ router.get('/:id/competencia', verificarPlan(['FRANQUICIA']), async (req, res, n
       competidores,
       promedioCompetencia,
     });
+  } catch (error) { next(error); }
+});
+
+// ── GET /api/negocios/:id/espejo ──────────────────────────
+//
+// «Así te ve alguien que nunca te ha visitado.»
+//
+// El monitoreo pide las reseñas con `reviews_sort: 'newest'`, que es lo correcto
+// para vigilar. Pero NO es lo que ve un cliente: por defecto Google ordena por
+// relevancia, y a quien busca el negocio le enseña otras cinco reseñas, que
+// pueden ser de hace meses.
+//
+// Esa diferencia es información que el dueño no tiene por ningún otro medio.
+// Lleva meses contestando lo más reciente mientras la ficha que ve un cliente
+// nuevo la encabeza una queja de hace ocho meses que nadie respondió.
+//
+// Se marca cuáles de esas reseñas visibles siguen sin respuesta, porque ese es
+// el trabajo concreto que sale de mirar esto.
+router.get('/:id/espejo', async (req, res, next) => {
+  try {
+    const negocio = await prisma.negocio.findFirst({
+      where: { id: req.params.id, usuarioId: req.usuario.id },
+      select: { id: true, googlePlaceId: true },
+    });
+    if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
+    if (!negocio.googlePlaceId) {
+      return res.status(400).json({ error: 'Este negocio no tiene una ficha de Google Maps asignada.' });
+    }
+
+    const visibles = await obtenerResenasVisibles(negocio.googlePlaceId);
+    if (!visibles) return res.status(502).json({ error: 'No pudimos consultar tu ficha en Google. Intenta de nuevo.' });
+
+    // ¿Cuáles de las que ve el público ya están respondidas? Se cruza por
+    // externalId contra lo guardado; las que no estén en la base es que nunca
+    // pasaron por el panel, así que tampoco están respondidas.
+    const ids = visibles.resenas.map((r) => r.externalId);
+    const guardadas = ids.length
+      ? await prisma.resena.findMany({
+          where: { negocioId: negocio.id, externalId: { in: ids } },
+          select: { externalId: true, respondida: true },
+        })
+      : [];
+    const respondidas = new Map(guardadas.map((r) => [r.externalId, r.respondida]));
+
+    const resenas = visibles.resenas.map((r) => ({
+      externalId: r.externalId,
+      rating: r.rating,
+      texto: r.texto,
+      autorNombre: r.autorNombre,
+      autorFoto: r.autorFoto,
+      fechaResena: r.fechaResena,
+      respondida: respondidas.get(r.externalId) === true,
+      // Meses que lleva publicada. Es el dato que hace ver el problema: una
+      // reseña de 1★ que Google sigue mostrando primero un año después.
+      antiguedadDias: Math.floor((Date.now() - new Date(r.fechaResena).getTime()) / 86400000),
+    }));
+
+    res.json({
+      rating: visibles.ratingActual,
+      totalResenas: visibles.totalResenas,
+      resenas,
+      // Lo que hay que atender: negativas visibles y sin respuesta
+      pendientesCriticas: resenas.filter((r) => r.rating <= 3 && !r.respondida).length,
+    });
+  } catch (error) { next(error); }
+});
+
+// ── GET /api/negocios/:id/simulador ───────────────────────
+//
+// Aritmética pura sobre el rating (ver lib/rating.js): cuántas reseñas de 5★
+// faltan para cada meta, y qué le pasa al rating si mañana entran 3, 5 o 10 de
+// una estrella. Sin llamadas de red: sale del último snapshot que ya está en la
+// base, así que se puede pedir todas las veces que haga falta sin gastar cuota.
+router.get('/:id/simulador', async (req, res, next) => {
+  try {
+    const negocio = await prisma.negocio.findFirst({
+      where: { id: req.params.id, usuarioId: req.usuario.id },
+      select: {
+        id: true, googleRatingBase: true,
+        snapshots: { where: { plataforma: 'GOOGLE' }, orderBy: { tomadoEn: 'desc' }, take: 1 },
+      },
+    });
+    if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
+
+    const snap = negocio.snapshots?.[0];
+    if (!snap?.totalResenas) {
+      return res.status(409).json({
+        error: 'Todavía no tenemos el conteo de reseñas de tu ficha. Escanea el negocio y vuelve a intentarlo.',
+        codigo: 'SIN_DATOS',
+      });
+    }
+
+    const informe = informeRating({ rating: snap.ratingActual, totalResenas: snap.totalResenas });
+    if (!informe) return res.status(409).json({ error: 'No hay datos suficientes para calcular el simulador.', codigo: 'SIN_DATOS' });
+
+    res.json({ ...informe, medidoEn: snap.tomadoEn });
   } catch (error) { next(error); }
 });
 

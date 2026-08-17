@@ -12,6 +12,7 @@ const express = require('express');
 const axios = require('axios');
 const rateLimit = require('express-rate-limit');
 const { analizarResena } = require('../../nlp/detector');
+const { informeRating } = require('../../lib/rating');
 
 const router = express.Router();
 
@@ -101,7 +102,9 @@ router.get('/analizar', async (req, res, next) => {
     const { data } = await axios.get('https://maps.googleapis.com/maps/api/place/details/json', {
       params: {
         place_id: placeId,
-        fields: 'name,rating,user_ratings_total,reviews',
+        // `business_status` va en el grupo Basic Data, que esta llamada ya paga
+        // por pedir `reviews`: añadirlo no cambia la factura.
+        fields: 'name,rating,user_ratings_total,reviews,business_status',
         key: process.env.GOOGLE_PLACES_API_KEY,
         language: 'es',
         reviews_sort: 'newest',
@@ -138,6 +141,17 @@ router.get('/analizar', async (req, res, next) => {
       sospechosas: sospechosas.length,
       negativasRecientes: negativas.length,
       muestra,
+      // El simulacro. Es lo único de esta respuesta que dice algo cuando NO hay
+      // nada sospechoso, que es la mayoría de las veces: antes, el visitante
+      // recibía «no detectamos patrones de ataque» y se iba sin motivo para
+      // registrarse. Ahora se lleva sus propios números —cuántas reseñas de 1★
+      // lo sacan del filtro de 4.5, y cuántas de 5★ le faltan para subir— que es
+      // la pregunta que traía. Es aritmética sobre datos que ya pedimos: no
+      // cuesta ni una llamada más.
+      simulador: informeRating({ rating: r.rating, totalResenas: r.user_ratings_total }),
+      // La ficha marcada como cerrada es la peor noticia posible y se ve gratis
+      // en el mismo Place Details. Si aparece, va delante de todo lo demás.
+      estadoFicha: r.business_status && r.business_status !== 'OPERATIONAL' ? r.business_status : null,
     };
 
     if (cacheAnalisis.size >= CACHE_MAX) {

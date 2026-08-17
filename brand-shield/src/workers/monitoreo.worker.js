@@ -65,6 +65,82 @@ const intentarAutoRespuesta = async (negocio, resenaCreada) => {
 };
 
 
+// ── Vigilancia de la ficha de Google ──────────────────────
+//
+// Notoria vigilaba lo que la gente ESCRIBE sobre el negocio, pero no la ficha en
+// sí. Y Google Maps deja que cualquiera sugiera cambios sobre la ficha de un
+// negocio ajeno, incluido marcarla como cerrada. Un local que aparece «Cerrado
+// permanentemente» un viernes deja de recibir gente todo el fin de semana, y el
+// dueño se entera días después porque nadie mira su propia ficha a diario.
+//
+// El dato viene en `business_status`, que ya llega en la misma consulta a Place
+// Details que se hacía para las reseñas: es del grupo Basic Data, que esa
+// llamada ya paga. Detectarlo no cuesta nada.
+//
+// No hace falta guardar el estado anterior: la condición de alarma es el estado
+// actual, no el cambio. Si Google dice que está cerrado, hay que avisar, se haya
+// cerrado hoy o ayer. Lo único que hay que evitar es repetir el aviso en cada
+// pasada, y eso se resuelve mirando si ya hay una alerta igual sin leer.
+const ESTADOS_FICHA = {
+  CLOSED_PERMANENTLY: {
+    titulo: 'aparece como CERRADO PERMANENTEMENTE',
+    consejo: 'Si sigues abierto, entra a tu ficha en Google Maps y corrígelo hoy mismo: mientras diga eso, Google deja de mostrarte a quien busca en la zona.',
+  },
+  CLOSED_TEMPORARILY: {
+    titulo: 'aparece como CERRADO TEMPORALMENTE',
+    consejo: 'Si sigues abierto, corrígelo en tu ficha de Google Maps: con ese estado pierdes visibilidad en las búsquedas y en el mapa.',
+  },
+};
+
+const revisarFichaGoogle = async (negocio, datos) => {
+  const estado = datos?.estadoNegocio;
+  if (!estado || estado === 'OPERATIONAL') return;
+
+  const problema = ESTADOS_FICHA[estado];
+  if (!problema) return;
+
+  const descripcion = `Tu ficha de Google ${problema.titulo}. ${problema.consejo}`;
+
+  // Dedupe: si ya hay una alerta con este mismo texto sin leer, no se repite.
+  // Se mira "sin leer" y no una ventana de tiempo porque el problema sigue vivo
+  // hasta que el dueño lo arregla; una vez que la marca como leída y el estado
+  // persiste, volver a avisar es correcto.
+  const yaAvisada = await prisma.alerta.findFirst({
+    where: { negocioId: negocio.id, plataforma: 'GOOGLE', descripcion, leida: false },
+    select: { id: true },
+  });
+  if (yaAvisada) return;
+
+  const alerta = await prisma.alerta.create({
+    data: {
+      // ⚠️ Va como RESENA_MUY_NEGATIVA por falta de un tipo propio: añadir un
+      // valor al enum TipoAlerta obliga a un `prisma db push` contra la base de
+      // producción, y Railway no lo corre en el deploy — desplegar el enum nuevo
+      // sin haberlo empujado antes tumbaría la API. Cuando se haga ese push, el
+      // tipo natural es FICHA_ALTERADA. Mientras tanto este enum ya se usa como
+      // cajón de "urgente" (la conexión de Facebook vencida también entra por
+      // aquí), así que no se está inventando un precedente.
+      tipo: 'RESENA_MUY_NEGATIVA',
+      plataforma: 'GOOGLE',
+      descripcion,
+      detalle: { motivo: 'ficha_google', estadoNegocio: estado, nombreEnGoogle: datos.nombreEnGoogle || null },
+      negocioId: negocio.id,
+      notificada: true,
+    },
+  });
+
+  // Se manda por `enviarAlertaEmail` directo y NO por `notificar()`, a propósito:
+  // ninguna preferencia de alertas debería poder silenciar "tu local aparece
+  // cerrado". Quien eligió resumen semanal quiere igual enterarse de esto hoy.
+  // Es el mismo criterio que usa la escalación de urgencias.
+  await enviarAlertaEmail({
+    usuario: negocio.usuario,
+    negocio,
+    alerta: { tipo: 'RESENA_MUY_NEGATIVA', plataforma: 'GOOGLE', descripcion },
+  });
+  console.log(`[Ficha] ${negocio.nombre}: ${estado} — alerta ${alerta.id} enviada`);
+};
+
 /**
  * Procesa un negocio: obtiene reseñas, guarda nuevas, detecta anomalías y notifica
  */
@@ -75,6 +151,12 @@ const procesarNegocio = async (negocio) => {
   if (negocio.googlePlaceId) {
     const datos = await obtenerResenasGoogle(negocio.googlePlaceId);
     if (datos) {
+      // Lo primero, antes que las reseñas: que la ficha exista y esté abierta es
+      // más urgente que cualquier reseña que haya en ella. Va con su propio
+      // catch para que un fallo acá no impida guardar el snapshot del ciclo.
+      await revisarFichaGoogle(negocio, datos)
+        .catch((e) => console.error(`[Ficha] Error revisando ${negocio.nombre}: ${e.message}`));
+
       // Guardar snapshot del estado actual
       await prisma.snapshot.create({
         data: {
