@@ -62,7 +62,7 @@ const prismaFake = {
 const notificaciones = [];
 const notificadorFake = {
   notificar: async (payload) => { notificaciones.push(payload); },
-  enviarAlertaTelegram: async () => {},
+  enviarAlertaEmail: async () => {},
 };
 
 const originalLoad = Module._load;

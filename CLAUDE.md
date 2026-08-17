@@ -20,7 +20,7 @@ Vigilio/
 │   │   ├── scrapers/      ← Google, Facebook, Instagram*, TikTok*, TripAdvisor* (base sin cablear, ver sección de pendientes)
 │   │   ├── nlp/           ← detector.js (reseñas con rating), sentimiento.js (menciones sin rating)
 │   │   ├── workers/       ← monitoreo.worker.js (cron), reportes
-│   │   ├── alerts/        ← notificador.js (email + Telegram)
+│   │   ├── alerts/        ← notificador.js (email — canal único desde el 2026-08-16, §24)
 │   │   ├── utils/         ← emails.js (Resend), reporte.generator.js (PDFKit)
 │   │   └── index.js       ← Entry point, CORS, rutas
 │   └── prisma/schema.prisma
@@ -47,11 +47,12 @@ Vigilio/
 | IA | Groq API — modelo `openai/gpt-oss-20b` |
 | PDF | PDFKit |
 | Auth | JWT + Google Sign-In (OAuth) |
-| Alertas | Email (Resend) + Telegram Bot |
+| Alertas | **Email (Resend), canal único.** El aviso inmediato lo da la app Android (§24) |
 | Pagos | Culqi — **comercio APROBADO y llaves LIVE en producción (2026-08-14)**. Cobra dinero real desde ya. Ver §2 y §21 |
 | Social | Instagram Graph API — pendiente de credenciales · **TikTok — perfil y videos funcionando en producción (2026-07-30)**, ver §15 y §15-quater. Los **comentarios NO están en la Display API** (§15-quinquies): solicitud enviada a la API for Business, en revisión (§15-sexies) |
 | Menciones | **Motor y panel completos (2026-07-29)**, ver §18. Sin fuente de datos: requiere un proveedor externo de pago (decisión de negocio). Hoy la sección no se muestra en el panel |
-| WhatsApp | **Meta WhatsApp Cloud API** — migración **hecha** (`src/lib/whatsappMeta.js`); Twilio eliminado. Falta la plantilla aprobada y las credenciales |
+| WhatsApp | ❌ **Eliminado como canal de alerta el 2026-08-16** (§24). Sigue vivo solo como contacto comercial (botón de ventas, /contacto) |
+| App Android | `C:\Users\Admin\Downloads\NotoriaApp` — Kotlin + Compose, cliente de este mismo API. Es el único canal que "suena" (§24) |
 
 ---
 
@@ -105,14 +106,14 @@ CULQI_SECRET_KEY=                            # Railway: sk_live_ (2026-08-14). E
 CULQI_WEBHOOK_SECRET=                        # CARGADA en Railway — protege /api/pagos/culqi/webhook. Va en la query de la URL que se registra en CulqiPanel (§21)
 EMAIL_RECLAMACIONES=                         # opcional — destino de los avisos del Libro de Reclamaciones (default hola@usenotoria.app)
 PROMO_HASH_SECRET=                           # CARGADA en Railway y .env local (2026-08-05, con promo_tarjetas vacía). NO rotar sin vaciar esa tabla
-META_WHATSAPP_PHONE_NUMBER_ID=               # pendiente — WhatsApp Business Cloud API (mismo Meta App que Instagram)
-META_WHATSAPP_ACCESS_TOKEN=                  # pendiente — token permanente del System User de ese Meta App
-META_WHATSAPP_TEMPLATE=                      # nombre de la plantilla aprobada (default: notoria_alerta_urgente)
-META_WHATSAPP_TEMPLATE_LANG=                 # idioma de la plantilla (default: es_PE)
-META_WHATSAPP_TEXTO_LIBRE=                   # solo pruebas: "true" manda texto plano en vez de plantilla
 META_GRAPH_VERSION=                          # opcional, default v21.0
+# (Se fueron el 2026-08-16 con los canales que las usaban — ver §24:
+#  TELEGRAM_BOT_TOKEN y todas las META_WHATSAPP_*. Ya no se leen en ningún sitio.)
 ```
 
+> ⚠️ **OBSOLETO desde el 2026-08-16 — se conserva por historia, ver §24.** WhatsApp dejó de ser
+> canal de alerta y `src/lib/whatsappMeta.js` fue eliminado. Lo de abajo describe cómo estaba antes.
+>
 > **Decisión (2026-07-05): WhatsApp usará Meta, no Twilio.** Para minimizar costos, las alertas
 > urgentes por WhatsApp (plan Franquicia) se implementarán con la **WhatsApp Business Cloud API
 > de Meta** — reutiliza el mismo Meta App que ya se registró para Instagram (`META_APP_ID`/
@@ -153,7 +154,7 @@ NEXT_PUBLIC_WHATSAPP_VENTAS=51955599041      # botón flotante de ventas del lan
 - [x] Scraper de Facebook Reviews (stub funcional)
 - [x] Monitoreo automático con node-cron (cada hora en prod)
 - [x] Sistema de alertas: detección de bots, picos, caídas de rating
-- [x] Notificador: email (Resend) + Telegram Bot
+- [x] Notificador: email (Resend) — canal único desde el 2026-08-16 (§24)
 - [x] Preferencias de alertas por usuario (tipos, umbral, frecuencia, día)
 - [x] Resúmenes periódicos de alertas (cron diario a las 8:00 AM)
 - [x] IA de respuestas: Groq API, límites por plan (Gratis=3, Negocio=100, Franquicia=300)
@@ -180,7 +181,7 @@ NEXT_PUBLIC_WHATSAPP_VENTAS=51955599041      # botón flotante de ventas del lan
 - [x] Conexión Google Business Profile con OAuth
 - [x] Planes: listas completas con ✓ y ✗, toggle mensual/anual
 - [x] Alertas configurables (tipos, umbral, frecuencia, día)
-- [x] Configuración: perfil, email, contraseña, Telegram, apariencia, idioma
+- [x] Configuración: perfil, email, contraseña, apariencia, idioma
 - [x] Reportes PDF: vista previa interactiva, descarga para planes de pago
 - [x] LAN access: `resolverApiUrl()` detecta host y CORS permite IPs locales
 - [x] Verificación de email con banner persistente
@@ -189,7 +190,7 @@ NEXT_PUBLIC_WHATSAPP_VENTAS=51955599041      # botón flotante de ventas del lan
 - [x] Gating por plan: middleware `verificarPlan` (`api/middlewares/verificarPlan.middleware.js`), usado en los 3 endpoints nuevos de abajo
 - [x] Resumen semanal por negocio (domingo 8am hora Lima, `workers/resumenSemanal.worker.js`): cifras crudas en Gratis, + insight IA en Negocio/Franquicia, email consolidado si Franquicia tiene +1 negocio. Toggle `resumenSemanalActivo` vía `PATCH /api/negocios/:id/configuracion`
 - [x] Auto-respuesta a reseñas positivas (4-5★, Negocio/Franquicia): plantilla aprobada por el usuario (`POST /api/negocios/:id/auto-respuesta/configurar`), 3 tonos en Franquicia; se publica sola en Google Maps vía GBP si el negocio tiene GBP conectado (si no, se omite con log interno)
-- [x] Escalación de urgencia (Negocio/Franquicia): cron cada 4h (`iniciarEscalacionUrgencias`) reenvía por Telegram (y WhatsApp si Franquicia) las reseñas negativas sin responder tras 24h — el canal de WhatsApp pasará de Twilio a Meta (ver "Pendiente antes de producción")
+- [x] Escalación de urgencia (Negocio/Franquicia): cron cada 4h (`iniciarEscalacionUrgencias`) manda un recordatorio por correo de las reseñas negativas sin responder tras 24h. Antes escalaba a Telegram/WhatsApp; desde el 2026-08-16 el correo es el único canal (§24) y el aviso que suena lo da la app Android
 - [x] Comparación automática con competencia (Franquicia): `GET /api/negocios/:id/competencia`, Google Places Nearby Search (2km, mismo tipo) — independiente de la tabla `Competidor` (manual, todos los planes)
 
 ### Frontend — landing (2026-07-05)
@@ -216,7 +217,7 @@ y reinicies el backend, empiezan a funcionar sin tocar código.
 | **Meta / Instagram** | Código listo, sin aprobación | Agregar `META_APP_ID` y `META_APP_SECRET` en `.env`; registrar el redirect URI `https://api.usenotoria.app/api/redes/instagram/callback` en Meta for Developers |
 | **TikTok — perfil, videos, comentarios, respuestas y moderación** | ✅ **COMPLETO en producción (2026-08-06)** — vía la **Accounts API**, ver **§15-octies** | Nada pendiente. Conexión única desde Conexiones. La app **NO está en Sandbox** (ese es otro entorno, con otro dominio): opera cuentas de clientes reales |
 | **TikTok — Display API** | Conservada como **respaldo**, sin usarse | `tiktok.scraper.js` sigue intacto por si hiciera falta una cuenta personal, pero no lee comentarios y ya no es la conexión principal |
-| **Meta WhatsApp** (alertas urgentes Franquicia) | **Código listo (2026-07-28)** — `src/lib/whatsappMeta.js`, ya usado por `monitoreo.worker.js`. Twilio eliminado. Falta la plantilla y las credenciales | 1) Habilitar el producto WhatsApp en el mismo Meta App de Instagram, 2) **crear la plantilla en Meta Business Manager**: categoría **UTILITY**, un solo parámetro en el cuerpo (ej. `"Notoria: {{1}}"`), y esperar aprobación, 3) agregar `META_WHATSAPP_PHONE_NUMBER_ID`, `META_WHATSAPP_ACCESS_TOKEN` y `META_WHATSAPP_TEMPLATE` en Railway. Probar con `node scripts/prueba-whatsapp-meta.js` |
+| ~~**Meta WhatsApp** (alertas urgentes Franquicia)~~ | ❌ **CANCELADO el 2026-08-16** — el canal se eliminó del producto junto con Telegram (§24). `src/lib/whatsappMeta.js` y su script de prueba se borraron; no hay plantilla que crear ni credenciales que cargar | — |
 | **TripAdvisor** (2026-07-06) | Solo base preparada a propósito — decisión de negocio de no activarlo hasta tener buena cantidad de clientes, no solo falta de API key | Ver subsección dedicada más abajo antes de continuar |
 | **Menciones (TikTok)** | Motor, panel y alertas listos; **falta la fuente de datos** | Decisión de negocio: contratar un proveedor externo (§18). No se resuelve escribiendo código — TikTok no expone búsqueda de videos ajenos a apps comerciales. **Comprobado el 2026-07-30:** `business/mention/list/` tampoco existe en la API for Business, así que esa vía queda descartada (§15-sexies). El candidato que queda es el permiso *Discovery Search* de TikTok Accounts, que exigiría una segunda solicitud con la función declarada. Mientras no haya proveedor, la sección no aparece en el panel |
 
@@ -2188,7 +2189,8 @@ tocarlas.
 - El landing (`app/page.js`) se pinta en el cliente: su HTML va casi vacío. No
   afecta a Culqi (el revisor usa navegador) pero sí al SEO.
 - Integraciones sin credenciales: Instagram/Meta, comentarios de TikTok (en
-  revisión), plantilla de WhatsApp, proveedor de menciones.
+  revisión), proveedor de menciones. (La plantilla de WhatsApp ya no aplica: el
+  canal se eliminó el 2026-08-16, §24.)
 
 ### Decisiones de hoy que NO hay que deshacer
 
@@ -2702,3 +2704,126 @@ apuntar al MISMO origen para que la sesión de `localStorage` valga.
 ya está **incrustado**. Para apuntar el frontend local al backend de producción
 hay que usar `next dev` con la variable, o rehacer la build — con `next start` a
 secas sale "Sin conexión al servidor".
+
+---
+
+## Sesión 2026-08-16 — §24. Canal único de alerta (solo correo) + app Android
+
+**Decisión de producto del usuario: Notoria avisa por CORREO y por nada más.
+Quien quiera un aviso que suene, instala la app de Android.**
+
+### Qué se eliminó y por qué
+
+| Se fue | Dónde vivía |
+|---|---|
+| **Telegram** | `POST /api/auth/telegram`, `enviarAlertaTelegram()` en `alerts/notificador.js`, el toggle + Chat ID en `dashboard/configuracion`, `TELEGRAM_BOT_TOKEN` |
+| **WhatsApp como canal de alerta** | `src/lib/whatsappMeta.js` y `scripts/prueba-whatsapp-meta.js` (**borrados**), la escalación de urgencias del worker, todas las `META_WHATSAPP_*` |
+
+Motivo: eran tres integraciones que fallan cada una por su cuenta (token de bot,
+plantilla aprobada por Meta, ventana de 24h que **no aplicaba** a alertas
+proactivas — error 131047) para entregar exactamente el mismo texto que el
+correo. El correo se queda porque no depende de nadie más.
+
+`revisarEscalacionesUrgentes()` sigue existiendo: ahora manda un **recordatorio
+por correo** de las reseñas de ≤2★ sin responder tras 24h. Llama a
+`enviarAlertaEmail()` directo y **no** a `notificar()`, a propósito: ese aviso no
+debe filtrarse por `prefsAlertas.frecuencia` (quien eligió resumen semanal igual
+quiere enterarse de una reseña de 1★ que lleva un día sin contestar).
+
+⚠️ **La columna `Usuario.telegramChatId` sigue en la BD.** Nadie la lee ni la
+escribe y está marcada como obsoleta en `schema.prisma`; borrarla exige
+`prisma db push --accept-data-loss` contra producción, que es decisión del dueño.
+
+### Dónde se tocó el texto de cara al cliente
+
+Planes del panel (ES+EN), landing (`app/page.js`: features, 3 planes, tabla
+comparativa —se cayó la fila "Alertas al instante por"—, FAQ), el **FAQ
+duplicado en el JSON-LD de `layout.js`** (mantenerlos en sincronía), `lib/catalogo.js`,
+`components/MockupsLanding.js`, `privacidad` (se quitó "número de chat de
+Telegram" de los datos recopilados), `lib/blog.js` y los correos de bienvenida y
+drip. "Soporte prioritario por WhatsApp" → "por correo". **El botón de ventas de
+WhatsApp y los datos de `/contacto` se quedan**: eso es contacto comercial, no
+canal de alerta.
+
+### La app Android
+
+`C:\Users\Admin\Downloads\NotoriaApp` — Kotlin + Jetpack Compose, paquete
+`com.notoria.app`, cliente de **este mismo API** (sin lógica de negocio
+duplicada ni base local). Tiene su propio README con el detalle. Cubre login,
+registro, recuperar contraseña, resumen, negocios (buscar en Google Maps, crear,
+eliminar), detalle con pestañas (Resumen · Reseñas con IA · Comentarios ·
+Competencia · Ajustes), alertas y sus preferencias, menciones, competencia
+consolidada, reportes, planes, facturación con PDF del comprobante, conexiones y
+configuración.
+
+Lo que hay que saber al tocarla:
+- **Sondea `/api/alertas` cada 15 min con WorkManager** y publica notificaciones
+  del sistema. No usa FCM: obligaría a un proyecto de Firebase y a guardar un
+  token por dispositivo acá. El escaneo del servidor corre como mucho cada hora,
+  así que el retraso real lo pone el escaneo, no el sondeo.
+- **El primer arranque no notifica el histórico** (marca en 0 = "recién entré"),
+  y abrir la pantalla de Alertas también adelanta la marca, para que el sondeo no
+  vuelva a avisar por la barra de estado algo ya leído dentro de la app.
+- **Pago y OAuth salen al navegador** (Custom Tabs): Culqi tokeniza la tarjeta en
+  su propio formulario y meterla en la app obligaría a cumplir PCI-DSS.
+- Los 403 por plan y los 404 de "función no disponible" se muestran como lo que
+  son (límite del plan / la función no existe para ti), nunca como error de red.
+
+### 24.1 Google Cloud: lo que estaba mal y el bloqueo real de GBP (2026-08-16)
+
+**El proyecto de Google Cloud de Notoria es "My First Project"** (id
+`project-f1e03c17-f209-453e-a09`, **número 798376364749**), en la cuenta
+**didierprincipe@gmail.com**. Ese número es el prefijo del `GOOGLE_CLIENT_ID` de
+Railway: así se identifica cuál es. ⚠️ **`padkar4@gmail.com` NO tiene acceso** —
+con esa cuenta la consola responde "Necesitas acceso adicional" o **cae en otro
+proyecto sin avisar**, que es la forma más fácil de perder media hora.
+
+Arreglado:
+- Nombre de la app OAuth `brandshield` → **Notoria**. El cliente lo veía tal cual
+  en la pantalla de consentimiento ("Ir a brandshield").
+- Se llenaron página principal, privacidad y condiciones (estaban vacías) y se
+  agregó el redirect URI de desarrollo
+  `http://localhost:3000/api/auth/google-business/callback`, que el backend usa
+  por defecto en local (`GOOGLE_REDIRECT_URI` sin setear) y daba
+  `redirect_uri_mismatch`.
+- 🔴 **La app OAuth estaba en modo PRUEBA**, o sea que **solo el único usuario de
+  prueba podía usar "Continuar con Google" o conectar Google Business**: todo
+  cliente real quedaba bloqueado y nadie lo había notado porque el dueño ERA el
+  usuario de prueba. Pasada a **En producción**.
+- Se declaró `.../auth/business.manage` en *Acceso a los datos*. **Google lo
+  clasifica como NO sensible**, así que no hay verificación de app que hacer ni
+  pantalla de "app no verificada" — al revés de lo que se suele suponer.
+
+🔴 **El bloqueo que queda NO es código.** `mybusinessaccountmanagement` y
+`mybusinessbusinessinformation` **no estaban habilitadas** (ya se habilitaron),
+pero quedan con **cuota `Requests per minute = 0`**, que es la señal documentada
+de que **Google no ha concedido acceso a las GBP APIs**; y
+`mybusiness.googleapis.com` (la v4 que lee y responde reseñas, `GBP_BASE` en
+`google-business.scraper.js`) **ni aparece en la Biblioteca**. Con cuota 0, el
+callback autoriza y después revienta en `listarCuentas` → el usuario ve
+`?gbp_error=callback_failed`. **Solicitud de acceso enviada el 2026-08-16, caso
+de asistencia `3-5553000040900`, plazo informado de 7 a 10 días hábiles.** Al
+aprobarse: comprobar que la cuota deje de ser 0, habilitar
+`mybusiness.googleapis.com` y recién ahí probar el flujo entero.
+
+**Places API sí está habilitada y en uso** en ese mismo proyecto (71 llamadas y 0
+errores el día de la revisión), así que la búsqueda de negocios y el escaneo de
+reseñas públicas no dependen de nada de lo anterior.
+
+**Cuando exista el correo de la empresa:** agregarlo como **propietario** del
+proyecto, cambiarlo en *Información de la marca → correo de asistencia* y en
+*Información de contacto del desarrollador*, y **recién después** quitar la
+cuenta personal. Borrar la personal antes se lleva por delante el proyecto que
+contiene el client ID que está en producción.
+
+### 24.2 Pendientes que dejó esta sesión
+
+- ⏳ Borrar la columna obsoleta `Usuario.telegramChatId` (exige
+  `prisma db push --accept-data-loss` contra prod — decisión del dueño).
+- ⏳ Acceso a las GBP APIs (caso `3-5553000040900`) y verificación del Perfil de
+  Empresa de `didierprincipe@gmail.com`.
+- ⏳ La app Android: `targetSdk` 34 no pasa el filtro de Play, falta keystore de
+  release, ficha de tienda y decidir **planes informativos vs Play Billing**
+  (Play exige su facturación para suscripciones digitales; hoy el botón
+  "Contratar plan" abre el checkout web). Detalle en `PENDIENTES.md` del repo
+  `adi211104/APKNotoria`.

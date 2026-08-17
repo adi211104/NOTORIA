@@ -65,8 +65,8 @@ export const CATALOGO = [
     imagen: 'negocio',
     destacado: true,
     descripcion:
-      'Monitoreo de hasta 5 negocios con escaneo cada 4 horas. Incluye 100 usos de IA a la semana para respuestas y análisis, 5 competidores vigilados por negocio con análisis IA de sus puntos débiles, conexión de TikTok, detección avanzada de bots, alertas por email y Telegram, reporte PDF mensual automático, 90 días de historial y boleta o factura electrónica a tu RUC. Cobro mensual, se renueva cada 30 días.',
-    incluye: ['Hasta 5 negocios', 'Escaneo cada 4 horas', 'Email + Telegram', 'Reporte PDF mensual', '90 días de historial'],
+      'Monitoreo de hasta 5 negocios con escaneo cada 4 horas. Incluye 100 usos de IA a la semana para respuestas y análisis, 5 competidores vigilados por negocio con análisis IA de sus puntos débiles, conexión de TikTok, detección avanzada de bots, alertas por email y notificaciones en la app de Android, reporte PDF mensual automático, 90 días de historial y boleta o factura electrónica a tu RUC. Cobro mensual, se renueva cada 30 días.',
+    incluye: ['Hasta 5 negocios', 'Escaneo cada 4 horas', 'Alertas por email y app', 'Reporte PDF mensual', '90 días de historial'],
     comprable: true,
   },
   {
@@ -91,8 +91,8 @@ export const CATALOGO = [
     unidad: 'por mes',
     imagen: 'franquicia',
     descripcion:
-      'Para cadenas y grupos hoteleros: negocios ilimitados con escaneo cada hora. Incluye 300 usos de IA a la semana, 15 competidores por negocio con descubrimiento automático de rivales cercanos, conexión de TikTok, alertas por email, Telegram y WhatsApp, reportes PDF semanales y mensuales, panel de control ejecutivo multi-sede, historial ilimitado y soporte prioritario por WhatsApp. Cobro mensual.',
-    incluye: ['Negocios ilimitados', 'Escaneo cada hora', 'Email + Telegram + WhatsApp', 'Panel multi-sede', 'Historial ilimitado'],
+      'Para cadenas y grupos hoteleros: negocios ilimitados con escaneo cada hora. Incluye 300 usos de IA a la semana, 15 competidores por negocio con descubrimiento automático de rivales cercanos, conexión de TikTok, alertas por email y notificaciones en la app de Android, reportes PDF semanales y mensuales, panel de control ejecutivo multi-sede, historial ilimitado y soporte prioritario por correo. Cobro mensual.',
+    incluye: ['Negocios ilimitados', 'Escaneo cada hora', 'Alertas por email y app', 'Panel multi-sede', 'Historial ilimitado'],
     comprable: true,
   },
   {

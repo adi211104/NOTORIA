@@ -415,7 +415,9 @@ scripts ya reintentan solos.
       💡 El panel se autodetecta en inglés según el navegador y hay selector en
       Ajustes, así que el screencast puede grabarse en inglés y evitar el
       requisito de subtítulos de Meta
-- [ ] WhatsApp Cloud API en la misma app: plantilla UTILITY + credenciales en Railway
+- [x] ~~WhatsApp Cloud API~~ — **cancelado el 16/08/2026**: el canal se eliminó del producto
+      junto con Telegram. Notoria avisa solo por correo y el aviso inmediato lo da la
+      **app Android** (`C:\Users\Admin\Downloads\NotoriaApp`). Ver `CLAUDE.md` §24
 
 **Instagram OCULTO mientras dura la revisión (16/08/2026)** — `CLAUDE.md` §22.1
 Con los permisos en acceso estándar, solo quien tiene rol en la app puede

@@ -60,7 +60,7 @@ const TEXTOS = {
       motivo: 'Cuenta creada hace 2 días · 1 sola reseña',
       sospechosa: 'Sospechosa',
       mas: '+7 reseñas de 1★ en las últimas 6 horas',
-      canales: 'Email · Telegram · WhatsApp',
+      canales: 'Email · App Android',
     },
     score: {
       etiqueta: 'Score de reputación',
@@ -73,7 +73,7 @@ const TEXTOS = {
       pasos: [
         { t: 'Vigila',    d: 'Revisa tu ficha de Google cada hora' },
         { t: 'Detecta',   d: 'Marca las reseñas con patrón de bot' },
-        { t: 'Te alerta', d: 'Email, Telegram o WhatsApp al instante' },
+        { t: 'Te alerta', d: 'Correo y notificación en la app al instante' },
         { t: 'Respondes', d: 'Con plantillas o con la respuesta de la IA' },
       ],
     },
@@ -98,7 +98,7 @@ const TEXTOS = {
       motivo: 'Account created 2 days ago · single review',
       sospechosa: 'Suspicious',
       mas: '+7 one-star reviews in the last 6 hours',
-      canales: 'Email · Telegram · WhatsApp',
+      canales: 'Email · Android app',
     },
     score: {
       etiqueta: 'Reputation score',
@@ -111,7 +111,7 @@ const TEXTOS = {
       pasos: [
         { t: 'Watches',  d: 'Checks your Google listing every hour' },
         { t: 'Detects',  d: 'Flags reviews with bot patterns' },
-        { t: 'Alerts',   d: 'Email, Telegram or WhatsApp instantly' },
+        { t: 'Alerts',   d: 'Email and app notification instantly' },
         { t: 'You reply', d: 'With templates or the AI-written answer' },
       ],
     },

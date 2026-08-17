@@ -48,17 +48,12 @@ const TEXTOS = {
     },
     notif: {
       titulo: 'Notificaciones', descripcion: 'Cómo y dónde recibes las alertas',
-      email: 'Alertas por email', telegram: 'Alertas por Telegram',
+      email: 'Alertas por email',
       emailSiempre: 'Siempre activas',
       masControlNota: 'Elige qué tipo de alertas recibir y con qué frecuencia desde',
       masControlLink: 'Alertas →',
-      paso1: (<>1. Abre Telegram y busca <strong style={{ color: 'var(--text)' }}>@NotoriaBot</strong></>),
-      paso2: (<>2. Escribe <strong style={{ color: 'var(--text)' }}>/start</strong> y copia el Chat ID</>),
-      paso3: '3. Pégalo aquí abajo',
-      telegramPlaceholder: 'Ej: 123456789',
-      guardando: 'Guardando...', guardarBtn: 'Guardar notificaciones',
-      msgGuardado: 'Notificaciones guardadas',
-      msgError: 'Error al guardar',
+      appTitulo: 'Notificaciones al instante',
+      appTexto: 'El correo es el único canal de alerta de Notoria. Si quieres que te suene el teléfono en el momento en que aparece una reseña sospechosa, instala la app de Android: revisa tus alertas en segundo plano y te avisa con una notificación del sistema.',
     },
     automatizaciones: {
       titulo: 'Automatizaciones', descripcion: 'Deja que Notoria trabaje sola por ti',
@@ -136,17 +131,12 @@ const TEXTOS = {
     },
     notif: {
       titulo: 'Notifications', descripcion: 'How and where you receive alerts',
-      email: 'Email alerts', telegram: 'Telegram alerts',
+      email: 'Email alerts',
       emailSiempre: 'Always on',
       masControlNota: 'Choose which alert types you get and how often from',
       masControlLink: 'Alerts →',
-      paso1: (<>1. Open Telegram and search for <strong style={{ color: 'var(--text)' }}>@NotoriaBot</strong></>),
-      paso2: (<>2. Type <strong style={{ color: 'var(--text)' }}>/start</strong> and copy the Chat ID</>),
-      paso3: '3. Paste it below',
-      telegramPlaceholder: 'E.g: 123456789',
-      guardando: 'Saving...', guardarBtn: 'Save notifications',
-      msgGuardado: 'Notifications saved',
-      msgError: 'Error saving',
+      appTitulo: 'Instant notifications',
+      appTexto: 'Email is the only alert channel in Notoria. If you want your phone to ring the moment a suspicious review shows up, install the Android app: it checks your alerts in the background and notifies you through the system.',
     },
     automatizaciones: {
       titulo: 'Automations', descripcion: 'Let Notoria work on its own for you',
@@ -256,11 +246,8 @@ export default function ConfiguracionPage() {
   const [pwActual, setPwActual] = useState('');
   const [pwNueva, setPwNueva] = useState('');
   const [pwConfirm, setPwConfirm] = useState('');
-  const [notifTelegram, setNotifTelegram] = useState(false);
-  const [telegramId, setTelegramId] = useState('');
   const [guardandoPerfil, setGuardandoPerfil] = useState(false);
   const [guardandoPw, setGuardandoPw] = useState(false);
-  const [guardandoNotif, setGuardandoNotif] = useState(false);
   const [mensajes, setMensajes] = useState({});
   const [modalEliminar, setModalEliminar] = useState(false);
   const [confirmTexto, setConfirmTexto] = useState('');
@@ -366,8 +353,6 @@ export default function ConfiguracionPage() {
   useEffect(() => {
     if (usuario) {
       setNombre(usuario.nombre || '');
-      setNotifTelegram(!!usuario.telegramChatId);
-      setTelegramId(usuario.telegramChatId || '');
     }
   }, [usuario]);
 
@@ -469,21 +454,6 @@ export default function ConfiguracionPage() {
       mostrarMensaje('pw', t.seguridad.msgCambiada);
     } catch (e) { mostrarMensaje('pw', e.message || t.seguridad.msgError, 'err'); }
     finally { setGuardandoPw(false); }
-  };
-
-  const guardarNotificaciones = async () => {
-    setGuardandoNotif(true);
-    try {
-      if (telegramId) {
-        await fetch(`${API_URL}/api/auth/telegram`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-          body: JSON.stringify({ chatId: telegramId }),
-        });
-      }
-      mostrarMensaje('notif', t.notif.msgGuardado);
-    } catch { mostrarMensaje('notif', t.notif.msgError, 'err'); }
-    finally { setGuardandoNotif(false); }
   };
 
   const eliminarCuenta = async () => {
@@ -622,28 +592,15 @@ export default function ConfiguracionPage() {
         <p className="text-xs" style={{ color: 'var(--text-3)', margin: '2px 0 12px' }}>
           {t.notif.masControlNota} <Link href="/dashboard/alertas" style={{ color: '#4CAF66' }}>{t.notif.masControlLink}</Link>
         </p>
-        <Campo label={t.notif.telegram}>
-          <Toggle activo={notifTelegram} onChange={setNotifTelegram} />
-        </Campo>
-        {notifTelegram && (
-          <div className="mt-3 rounded-lg p-4" style={{ background: 'var(--surface2)' }}>
-            <p className="text-sm mb-2" style={{ color: 'var(--text-2)' }}>
-              {t.notif.paso1}<br />
-              {t.notif.paso2}<br />
-              {t.notif.paso3}
-            </p>
-            <input value={telegramId} onChange={e => setTelegramId(e.target.value)} placeholder={t.notif.telegramPlaceholder}
-              className="w-full rounded-lg px-3 py-2 text-sm border focus:outline-none focus:border-green-700"
-              style={{ background: 'var(--surface)', borderColor: 'var(--border-c)', color: 'var(--text)' }} />
-          </div>
-        )}
-        <div className="mt-4 flex justify-end">
-          <button onClick={guardarNotificaciones} disabled={guardandoNotif}
-            className="bg-green-800 hover:bg-green-700 disabled:opacity-50 text-white text-sm px-5 py-2 rounded-lg transition">
-            {guardandoNotif ? t.notif.guardando : t.notif.guardarBtn}
-          </button>
+        {/* Telegram vivía acá y se eliminó del producto el 2026-08-16. No queda
+            nada que guardar en esta sección: el correo es fijo y las preferencias
+            de qué alertas recibir se editan en /dashboard/alertas. Por eso ya no
+            hay botón "Guardar notificaciones" — un botón que no guarda nada es
+            peor que no tenerlo. */}
+        <div className="mt-3 rounded-lg p-4" style={{ background: 'var(--surface2)' }}>
+          <p className="text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>{t.notif.appTitulo}</p>
+          <p className="text-xs" style={{ color: 'var(--text-2)', lineHeight: 1.6, margin: 0 }}>{t.notif.appTexto}</p>
         </div>
-        <Mensaje clave="notif" />
       </Seccion>
 
       {/* AUTOMATIZACIONES */}

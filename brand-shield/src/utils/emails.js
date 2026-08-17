@@ -50,7 +50,7 @@ const enviarBienvenida = async (usuario) => {
       ${h1(`Bienvenido, ${usuario.nombre.split(' ')[0]}.`)}
       ${p('Tu cuenta está lista. En 5 minutos puedes tener tu negocio monitoreado.')}
       ${hr()}
-      ${['Agrega tu restaurante u hotel desde Google Maps.','Conecta Google Business para ver todas tus reseñas.','Activa alertas por email o Telegram.'].map((s,i)=>`<div style="display:flex;gap:10px;margin-bottom:8px;"><span style="color:#0B7324;font-weight:700;">${i+1}.</span><p style="color:#5C5B57;font-size:13px;margin:0;line-height:1.5;">${s}</p></div>`).join('')}
+      ${['Agrega tu restaurante u hotel desde Google Maps.','Conecta Google Business para ver todas tus reseñas.','Elige qué alertas quieres recibir por correo.'].map((s,i)=>`<div style="display:flex;gap:10px;margin-bottom:8px;"><span style="color:#0B7324;font-weight:700;">${i+1}.</span><p style="color:#5C5B57;font-size:13px;margin:0;line-height:1.5;">${s}</p></div>`).join('')}
       ${hr()}
       ${btn('Ir al dashboard →', `${FRONT()}/dashboard`)}
     `),
@@ -316,7 +316,7 @@ const DRIP = {
       asunto: () => 'Tu descuento de bienvenida vence pronto',
       cuerpo: () => `
         ${h1('50% de descuento tus primeros 2 meses.')}
-        ${p('Por ser cuenta nueva, el plan Negocio te cuesta la mitad los primeros 2 meses: escaneo cada 4 horas, historial de 90 días, 100 usos de IA a la semana y alertas por Telegram.')}
+        ${p('Por ser cuenta nueva, el plan Negocio te cuesta la mitad los primeros 2 meses: escaneo cada 4 horas, historial de 90 días, 100 usos de IA a la semana y reporte PDF mensual.')}
         ${p('La promo es exclusiva para cuentas recién creadas — después ya no aparece.')}
         ${btn('Ver planes →', `${FRONT()}/dashboard/planes`)}`,
     },
@@ -349,7 +349,7 @@ const DRIP = {
       asunto: () => 'Your welcome discount expires soon',
       cuerpo: () => `
         ${h1('50% off your first 2 months.')}
-        ${p('As a new account, the Business plan costs half price for your first 2 months: scans every 4 hours, 90-day history, 100 AI uses per week and Telegram alerts.')}
+        ${p('As a new account, the Business plan costs half price for your first 2 months: scans every 4 hours, 90-day history, 100 AI uses per week and a monthly PDF report.')}
         ${p('The promo is exclusive to newly created accounts — it will not show up later.')}
         ${btn('See plans →', `${FRONT()}/dashboard/planes`)}`,
     },

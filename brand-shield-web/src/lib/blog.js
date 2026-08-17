@@ -78,7 +78,7 @@ export const ARTICULOS = [
       { tipo: 'p', texto: 'Mientras Google procesa el reporte, tu mejor defensa es el volumen: pide reseñas a tus clientes reales de esta semana. Un QR en la mesa o en la boleta con el enlace directo convierte más de lo que crees. Diez reseñas auténticas de 5 estrellas diluyen el efecto de tres falsas mucho antes de que Google las borre.' },
       { tipo: 'h2', texto: 'Paso 4: monitorea para que la próxima no te agarre dormido' },
       { tipo: 'p', texto: 'El daño real de un ataque no son las estrellas: es el tiempo que pasa sin que lo notes. Un ataque el viernes por la noche que descubres el lunes ya te costó el fin de semana completo de clientes que miraron tu ficha y eligieron otro local.' },
-      { tipo: 'destacado', texto: 'Notoria escanea tus reseñas automáticamente, marca las sospechosas con el motivo exacto (cuenta nueva, sin texto, pico inusual) y te alerta al instante por email o Telegram. <a href="/#hero">Analiza tu negocio gratis</a> — te decimos en 10 segundos si tienes reseñas sospechosas ahora mismo.' },
+      { tipo: 'destacado', texto: 'Notoria escanea tus reseñas automáticamente, marca las sospechosas con el motivo exacto (cuenta nueva, sin texto, pico inusual) y te alerta al instante por email (y con una notificación en la app de Android). <a href="/#hero">Analiza tu negocio gratis</a> — te decimos en 10 segundos si tienes reseñas sospechosas ahora mismo.' },
     ],
   },
   {

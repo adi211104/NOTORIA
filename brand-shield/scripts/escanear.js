@@ -4,7 +4,7 @@
 // Hace exactamente lo mismo que ese botón: reseñas de Google/Facebook,
 // comentarios de TikTok e Instagram, menciones, competidores y las alertas que
 // correspondan.
-// ⚠️ Manda las notificaciones de verdad (correo/Telegram) si detecta algo nuevo.
+// ⚠️ Manda las notificaciones de verdad (correo) si detecta algo nuevo.
 //
 // Correr:
 //   cd brand-shield

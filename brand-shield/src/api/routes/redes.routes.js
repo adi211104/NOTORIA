@@ -44,7 +44,7 @@ const primerEscaneo = async (negocioId, red) => {
     const negocio = await prisma.negocio.findUnique({
       where: { id: negocioId },
       include: {
-        usuario: { select: { id: true, email: true, nombre: true, telegramChatId: true, prefsAlertas: true, plan: true } },
+        usuario: { select: { id: true, email: true, nombre: true, prefsAlertas: true, plan: true } },
       },
     });
     if (!negocio) return;

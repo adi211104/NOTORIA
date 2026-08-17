@@ -7,8 +7,7 @@ const prisma = require('../lib/prisma');
 const { obtenerResenasGoogle, buscarNegocioEnGoogle } = require('../scrapers/google.scraper');
 const { obtenerRatingFacebook, obtenerResenasFacebook } = require('../scrapers/facebook.scraper');
 const { analizarResena, detectarAnomalias } = require('../nlp/detector');
-const { notificar, enviarAlertaTelegram } = require('../alerts/notificador');
-const whatsapp = require('../lib/whatsappMeta');
+const { notificar, enviarAlertaEmail } = require('../alerts/notificador');
 
 // Intenta publicar la auto-respuesta aprobada por el usuario para una reseña
 // positiva (4-5★) recién detectada. Requiere que el negocio tenga Google
@@ -259,7 +258,6 @@ const iniciarMonitoreo = () => {
               id: true,
               email: true,
               nombre: true,
-              telegramChatId: true,
               prefsAlertas: true,
               plan: true,
             },
@@ -292,7 +290,7 @@ const ejecutarAhora = async (negocioId = null) => {
   const negocios = await prisma.negocio.findMany({
     where,
     include: {
-      usuario: { select: { id: true, email: true, nombre: true, telegramChatId: true, prefsAlertas: true, plan: true } },
+      usuario: { select: { id: true, email: true, nombre: true, prefsAlertas: true, plan: true } },
     },
   });
   for (const negocio of negocios) {
@@ -457,7 +455,7 @@ const guardarComentarioSocial = async (negocio, fuente, crudo) => {
 
   // Un comentario negativo que el dueño YA respondió por su cuenta no
   // necesita alerta: la alerta existe para que reaccione, y ya reaccionó.
-  // Mandarla igual sería avisarle por correo y WhatsApp de algo que acaba
+  // Mandarla igual sería avisarle por correo y por la app de algo que acaba
   // de resolver, que es la clase de ruido que hace que la gente empiece a
   // ignorar las notificaciones.
   if (sentimiento === 'negativo' && !fila.respondida) {
@@ -804,9 +802,15 @@ const iniciarRenovacionesCulqi = () => {
 
 // ── Recordatorio de urgencia (Negocio+) ───────────────────
 // Corre cada 4 horas: busca reseñas negativas (rating <= 2) sin responder hace
-// más de 24h y escala el aviso a un canal adicional — Telegram si el usuario lo
-// configuró, y además WhatsApp (Meta Cloud API) si es plan Franquicia. Se envía una sola
-// vez por reseña (`escaladaUrgencia`).
+// más de 24h y manda un recordatorio por correo. Se envía una sola vez por
+// reseña (`escaladaUrgencia`).
+//
+// 🔴 Antes esto escalaba a un canal DISTINTO del correo (Telegram, y WhatsApp
+// para Franquicia) porque la idea era "el correo ya lo mandamos y no lo leyó".
+// Los dos canales se eliminaron del producto el 2026-08-16 (ver notificador.js).
+// El recordatorio sigue teniendo sentido en correo — es otro mensaje, con otro
+// asunto, 24h después — y quien quiera un aviso que suene tiene la app Android,
+// que notifica desde las alertas del panel sin depender de terceros.
 const revisarEscalacionesUrgentes = async () => {
   const hace24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
@@ -820,7 +824,7 @@ const revisarEscalacionesUrgentes = async () => {
     },
     include: {
       negocio: {
-        include: { usuario: { select: { id: true, email: true, nombre: true, telefono: true, telegramChatId: true, plan: true } } },
+        include: { usuario: { select: { id: true, email: true, nombre: true, telefono: true, idioma: true, plan: true } } },
       },
     },
   });
@@ -832,25 +836,14 @@ const revisarEscalacionesUrgentes = async () => {
     const { usuario } = negocio;
     const descripcion = `Una reseña de ${resena.rating}★ en ${negocio.nombre} lleva más de 24h sin respuesta${resena.autorNombre ? ` (de ${resena.autorNombre})` : ''}.`;
 
-    let escalada = false;
-
-    if (usuario.telegramChatId) {
-      const ok = await enviarAlertaTelegram({
-        chatId: usuario.telegramChatId, negocio,
-        alerta: { tipo: 'RESENA_MUY_NEGATIVA', plataforma: resena.plataforma, descripcion },
-      });
-      escalada = escalada || ok;
-    }
-
-    if (usuario.plan === 'FRANQUICIA' && usuario.telefono && whatsapp.configurado()) {
-      try {
-        await whatsapp.enviarWhatsApp({ to: usuario.telefono, mensaje: `Notoria — ${descripcion}` });
-        escalada = true;
-      } catch (error) {
-        // whatsappMeta ya devuelve el detalle de Meta legible en error.message.
-        console.error(`[Escalación] Error enviando WhatsApp a ${usuario.email}: ${error.message}`);
-      }
-    }
+    // Se llama al enviador de correo directamente y no a `notificar()` a
+    // propósito: este aviso NO debe filtrarse por prefsAlertas.frecuencia
+    // (quien eligió resumen semanal igual quiere enterarse de una reseña de 1★
+    // que lleva un día sin contestar) y tampoco cuenta como alerta nueva.
+    const escalada = await enviarAlertaEmail({
+      usuario, negocio,
+      alerta: { tipo: 'RESENA_MUY_NEGATIVA', plataforma: resena.plataforma, descripcion },
+    });
 
     if (escalada) {
       await prisma.resena.update({ where: { id: resena.id }, data: { escaladaUrgencia: true } });

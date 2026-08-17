@@ -40,7 +40,6 @@ export default function PrivacidadPage() {
         <ul style={{ margin:'0 0 14px', paddingLeft:20 }}>
           <Li>Nombre y dirección de email al registrarte</Li>
           <Li>Contraseña (almacenada con cifrado bcrypt, nunca en texto plano)</Li>
-          <Li>Número de chat de Telegram (opcional, para alertas)</Li>
           <Li>Datos de pago procesados por Culqi (no almacenamos datos de tarjetas)</Li>
         </ul>
         <P><strong>Datos recopilados automáticamente:</strong></P>

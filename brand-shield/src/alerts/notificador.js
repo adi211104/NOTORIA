@@ -1,7 +1,18 @@
 // brand-shield/src/alerts/notificador.js
-// Envía alertas por email (Resend) y Telegram Bot
+// Envía alertas por email (Resend).
+//
+// 🔴 Canal único a propósito (2026-08-16). Antes había un segundo canal por
+// Telegram y una escalación por WhatsApp (Meta Cloud API) para plan Franquicia.
+// Ambos se eliminaron del producto: mantener tres canales significaba tres
+// integraciones que fallan por su cuenta (bot token, plantilla aprobada por
+// Meta, ventana de 24h) para entregar exactamente el mismo texto. El correo se
+// queda porque no depende de nadie más, y el aviso inmediato pasó a ser la app
+// Android (notificaciones del sistema): quien quiera que le suene el teléfono
+// instala la app, que lee las mismas alertas de /api/alertas.
+//
+// Si algún día vuelve un canal, va acá y respetando el mismo filtro de
+// preferencias de abajo — no en el worker.
 
-const axios = require('axios');
 const { enviarAlertaCritica } = require('../utils/emails');
 
 // ─── EMAIL ────────────────────────────────────────────────
@@ -17,44 +28,9 @@ const enviarAlertaEmail = async ({ usuario, negocio, alerta }) => {
   }
 };
 
-// ─── TELEGRAM ─────────────────────────────────────────────
-
-const enviarAlertaTelegram = async ({ chatId, negocio, alerta }) => {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token || !chatId) return false;
-
-  try {
-    const mensaje = [
-      `*Alerta Notoria — ${negocio.nombre}*`,
-      ``,
-      alerta.descripcion,
-      ``,
-      `Plataforma: ${alerta.plataforma}`,
-      `Detectado: ${new Date().toLocaleString('es-PE', { timeZone: 'America/Lima' })}`,
-      ``,
-      `Ver dashboard: ${process.env.FRONTEND_URL || 'http://localhost:3001'}/dashboard`,
-    ].join('\n');
-
-    await axios.post(
-      `https://api.telegram.org/bot${token}/sendMessage`,
-      {
-        chat_id: chatId,
-        text: mensaje,
-        parse_mode: 'Markdown',
-      }
-    );
-
-    console.log(`[Notificador] Telegram enviado a chatId ${chatId}`);
-    return true;
-  } catch (error) {
-    console.error(`[Notificador] Error enviando Telegram: ${error.message}`);
-    return false;
-  }
-};
-
 /**
- * Función principal: envía la alerta por todos los canales disponibles del usuario,
- * respetando sus preferencias (tipos activados, umbral y frecuencia).
+ * Función principal: envía la alerta respetando las preferencias del usuario
+ * (tipos activados, umbral y frecuencia).
  */
 const notificar = async ({ usuario, negocio, alerta }) => {
   const prefs = usuario.prefsAlertas || null;
@@ -68,21 +44,7 @@ const notificar = async ({ usuario, negocio, alerta }) => {
   // Frecuencia resumen: no enviar email inmediato — el cron semanal/mensual lo agrupa
   if (prefs?.frecuencia && prefs.frecuencia !== 'INMEDIATA') return;
 
-  const promesas = [];
-
-  // Siempre por email
-  promesas.push(enviarAlertaEmail({ usuario, negocio, alerta }));
-
-  // Telegram solo si el usuario lo configuró
-  if (usuario.telegramChatId) {
-    promesas.push(enviarAlertaTelegram({
-      chatId: usuario.telegramChatId,
-      negocio,
-      alerta,
-    }));
-  }
-
-  await Promise.allSettled(promesas);
+  await enviarAlertaEmail({ usuario, negocio, alerta });
 };
 
-module.exports = { notificar, enviarAlertaTelegram };
+module.exports = { notificar, enviarAlertaEmail };

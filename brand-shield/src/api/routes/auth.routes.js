@@ -162,7 +162,6 @@ router.get('/perfil', autenticar, async (req, res, next) => {
         suscripcionActiva: true,
         fechaVencimiento: true,
         promoBienvenidaUsada: true,
-        telegramChatId: true,
         prefsAlertas: true,
         // Datos de facturación: el checkout los necesita para saber si tiene que
         // pedirlos antes de cobrar (obligatorios desde S/700, ver tributario.js)
@@ -191,25 +190,12 @@ router.get('/perfil', autenticar, async (req, res, next) => {
   }
 });
 
-// ── POST /api/auth/telegram ───────────────────────────────
-// Vincula el chat de Telegram del usuario para recibir alertas
-router.post('/telegram', autenticar, async (req, res, next) => {
-  try {
-    const { chatId } = req.body;
-    if (!chatId) {
-      return res.status(400).json({ error: 'chatId de Telegram requerido' });
-    }
-
-    await prisma.usuario.update({
-      where: { id: req.usuario.id },
-      data: { telegramChatId: String(chatId) },
-    });
-
-    res.json({ mensaje: 'Telegram vinculado correctamente' });
-  } catch (error) {
-    next(error);
-  }
-});
+// El endpoint POST /api/auth/telegram vivía acá. Se eliminó el 2026-08-16 junto
+// con el canal entero (ver src/alerts/notificador.js): las alertas van por
+// correo, y el aviso inmediato lo da la app Android. La columna
+// `Usuario.telegramChatId` sigue en el schema por ahora — dejar de escribirla es
+// gratis, borrarla obliga a un `prisma db push --accept-data-loss` contra la BD
+// de producción, que es una decisión del dueño y no un efecto secundario de esto.
 
 module.exports = router;
 

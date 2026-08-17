@@ -44,7 +44,7 @@ El servidor corre en `http://localhost:3000`
 | POST | /api/auth/registro | Crear cuenta |
 | POST | /api/auth/login | Iniciar sesión |
 | GET | /api/auth/perfil | Ver perfil (auth) |
-| POST | /api/auth/telegram | Vincular Telegram (auth) |
+| PATCH | /api/auth/preferencias-alertas | Qué alertas recibir y con qué frecuencia (auth) |
 
 ### Negocios
 | Método | Ruta | Descripción |
