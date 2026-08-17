@@ -2866,3 +2866,46 @@ del producto y ahora también recibe tráfico desde la app. Si se le cambia la r
 o se la renombra, **se rompe el botón de la app** (`abrirPlanes()` en
 `Navegacion.kt` del repo `adi211104/APKNotoria`). Los precios ya no están
 duplicados en el cliente Android: `lib/precios.js` vuelve a ser la única fuente.
+
+### 24.5 El correo era la MISMA cuenta, y la verificación de marca falló por el landing (2026-08-17)
+
+**`usenotoria@gmail.com` no es una cuenta nueva: es la misma, renombrada.**
+Verificado en `myaccount.google.com`: *Dirección de la Cuenta de Google* =
+`usenotoria@gmail.com`, recuperación `padkar4@gmail.com`, y
+`didierprincipe@gmail.com` quedó como dirección **alternativa** (sigue
+recibiendo correo). El nombre de la cuenta ahora es "Notoria".
+
+Por eso **no hubo migración que hacer**: IAM identifica por ID interno, no por el
+texto del correo, y el proyecto `798376364749` ya lista a `usenotoria@gmail.com`
+como Propietario. Lo mismo vale para el caso `3-5553000040900`. Lo único que sí
+había que corregir a mano, porque son cadenas guardadas: el **correo de asistencia
+del OAuth** (era el que veía el cliente en la pantalla de consentimiento) y el
+contacto del desarrollador. Ambos ya en `usenotoria@gmail.com`. Los servicios que
+no son de Google (Railway, Vercel, GitHub, Culqi, Resend, Groq, Meta, TikTok)
+guardan el correo viejo como texto y **no se rompe nada**, porque esa dirección
+sigue entregando en el mismo buzón: cambiarlos es identidad de marca, no urgencia.
+
+🔴 **VERIFICACIÓN DE MARCA FALLIDA — y la culpa es de este repo, no de la
+consola.** Al pasar la app OAuth a producción, Google pide verificar la
+información de marca antes de mostrarla a los usuarios. La verificación corrió y
+devolvió un solo problema: *"En la página principal, no se explica el propósito
+de la app"*. La causa está medida: **`https://usenotoria.app` sirve 38 caracteres
+de texto en el HTML** (solo el `<title>`; la `<meta name="description">` sí está,
+pero el cuerpo va vacío). Es exactamente el efecto ya documentado de que
+`app/page.js` sea `'use client'`: el contenido aparece recién cuando corre el
+JavaScript, y el robot de Google no lo ve.
+
+**Arreglo propuesto:** convertir `app/page.js` en **componente de servidor** que
+renderice un bloque descriptivo real (encabezado + párrafo explicando qué hace
+Notoria) y dentro monte el landing cliente actual. No es solo para Google: la
+misma carencia es la que castiga el SEO (ya anotado como pendiente) y la que mira
+Google Ads al revisar la página de destino. Después hay que volver a *Google Auth
+Platform → Información de la marca → Verificar la marca*. **Mientras no pase, la
+pantalla de consentimiento no muestra "Notoria" ni los enlaces a los usuarios.**
+
+**Estado fiscal verificado el mismo día:** en Railway `SUNAT_EMISION_ACTIVA=true`
+y `SUNAT_ENTORNO=produccion`, con certificado y credenciales SOL cargadas — o sea
+que la emisión real **ya está encendida**. Consulta de solo lectura contra la BD
+de producción: **0 comprobantes y 0 pagos exitosos**. Traducción: el primer
+cliente que pague va a ser también la primera factura real que se le manda a
+SUNAT. Conviene probar ese circuito antes de gastar en publicidad, no después.
