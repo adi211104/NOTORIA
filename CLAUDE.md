@@ -3701,6 +3701,8 @@ necesita. Sin desplegar código: es una variable.
 
 ### 29.5 — Pendientes actualizados
 
+> ⚠️ **Lista superada** — la vigente está en §30.5. Se conserva por historia.
+
 Reemplaza la lista de §28.4.
 
 **Exigen `prisma db push` a mano:**
@@ -3730,3 +3732,132 @@ Reemplaza la lista de §28.4.
   solo Perú y cobra en soles, así que hoy no hay usuarios en inglés y traducir
   obligaría a mantener 379 cadenas en dos idiomas para siempre. El ajuste de
   Idioma queda diciendo lo que de verdad controla: correos y reportes.
+
+---
+
+## Sesión 2026-08-18 — §30. Los tres cambios de schema
+
+Los que llevaban tres sesiones esperando un `prisma db push`. **Empujado y
+desplegado el 2026-08-18**, verificado contra producción.
+
+### 30.1 — El orden, que no admite inversión
+
+⚠️ **Railway NO corre `prisma db push` en el deploy** (solo `prisma generate`, por
+el `postinstall`). Así que:
+
+```bash
+# 1. cerrar el backend local — en Windows Prisma da EPERM si está corriendo
+# 2. el push va contra PRODUCCIÓN: el .env local apunta ahí
+cd brand-shield && npx prisma db push && npx prisma generate
+# 3. mover las filas viejas (en seco por defecto)
+node scripts/migrar-ficha-ref.js            # dice qué haría
+node scripts/migrar-ficha-ref.js --aplicar  # lo hace
+# 4. recién ahora, desplegar
+railway up --service api --detach
+```
+
+**Al revés se cae la API entera**, no solo la función nueva: el cliente de Prisma
+selecciona columnas que la base no tiene y falla cualquier `findMany` sobre esa
+tabla. En este sentido no pasa nada — añadir columnas con default o valores de
+enum es compatible con el código viejo, que sigue corriendo mientras tanto.
+
+### 30.2 — `tokenVersion`: el corte de sesiones (cierra S6)
+
+Un JWT no sabe caducar antes de tiempo. Hasta ahora **cambiar la contraseña no
+expulsaba a nadie**: quien te hubiera robado la sesión seguía dentro los 7 días
+que dura el token — que es exactamente el caso en el que uno cambia la contraseña.
+
+El token lleva ahora `v` y el middleware lo compara contra la columna. Se
+incrementa al cambiar la contraseña, al restablecerla y al cerrar sesiones.
+
+⚠️ **Los tokens emitidos antes no llevan `v`.** El middleware los trata como
+versión 0, que es el default de la columna, así que el despliegue **no echó a
+nadie**. Mueren en cuanto esa persona cambie su contraseña.
+
+⚠️ **Los tres `jwt.sign` sueltos se unificaron en `firmarSesion`.** Era el riesgo
+real: registro, login y Google firmaban cada uno por su cuenta, y bastaba que a
+uno se le olvidara incluir la versión para que ese camino emitiera sesiones que el
+corte no puede revocar — sin que nada fallara a la vista. **No volver a llamar a
+`jwt.sign` suelto desde una ruta.**
+
+**De paso: el botón «Cerrar sesión en todos los dispositivos» dejó de mentir.**
+Era `onClick={logout}`, que solo borra el token de ESE navegador. O sea que la
+única sesión que no cerraba era justo la que preocupa: la del teléfono perdido, la
+del computador prestado. Ahora hay `POST /api/auth/cerrar-sesiones`.
+
+Verificado en producción: un token con la versión correcta entra (200); uno con
+versión desfasada recibe 401 y `tipo: SESION_REVOCADA`.
+
+### 30.3 — `FICHA_ALTERADA`: el tipo de alerta propio
+
+Las alertas de ficha —cerrada, teléfono cambiado, horario cambiado— viajaban como
+`RESENA_MUY_NEGATIVA` por no poder añadir un valor al enum. Eso estaba mal en dos
+niveles: la etiqueta del panel y de la app mentían, y —peor— quedaban expuestas a
+que alguien apagara «reseña crítica» en sus preferencias y **dejara de enterarse
+de que su local aparece cerrado en Google**.
+
+⚠️ El tipo nuevo **no aparece en las preferencias de alertas, a propósito**: no se
+puede apagar. Que tu local salga como cerrado no es una preferencia. Sí entra en
+la lista de `tiposActivos` del resumen por correo, para que aparezca en los
+digests semanales.
+
+Etiquetas añadidas en `web/src/lib/alertas.js` (ES/EN) y en `Modelos.kt` de la app.
+
+### 30.4 — `fichaGoogleRef`: la referencia sale de la tabla de alertas
+
+La última foto de los datos de la ficha vivía en una fila de `alertas` marcada con
+`detalle.motivo = 'ficha_control'`. Funcionaba, pero se pagaba en **seis** sitios:
+había que excluirla de la lista del panel, del contador, del detalle del negocio,
+del resumen por correo, del PDF mensual y del correo del día 5 del drip.
+
+🔴 **Y ya había fallado uno.** `drip.worker.js` usaba el filtro `SIN_CONTROL`
+**sin importarlo** — `node --check` pasaba porque es válido sintácticamente, y el
+módulo cargaba porque el cuerpo del cron no se ejecuta al arrancar. Habría
+reventado con `ReferenceError` la primera vez que se disparara el correo del día 5.
+Es exactamente el fallo que un filtro repartido en seis sitios acaba produciendo.
+
+Ahora es `Negocio.fichaGoogleRef` y `SIN_CONTROL` **ya no existe**. Las seis
+consultas volvieron a ser lo que dicen ser.
+
+`scripts/migrar-ficha-ref.js` movió las filas viejas y las borró; corre en seco por
+defecto y exige `--aplicar`. Verificado: 0 filas de control restantes.
+
+### 30.5 — Pendientes actualizados
+
+Reemplaza la lista de §29.5. **Ya no queda nada esperando un `db push`.**
+
+**Decisión de negocio, no de código:**
+- [ ] **Sub-usuarios y modo agencia.** El cambio que más sube el techo: una agencia
+      con 15 restaurantes paga lo que 15 dueños sueltos no pagarían, y trae sus
+      clientes puestos. Necesita tabla de miembros con rol y cambiar todos los
+      `findFirst({ usuarioId })` por una comprobación de pertenencia.
+
+**Fuera del código:**
+- [ ] **Cambiar el domicilio fiscal en SUNAT.** Es el único arreglo real de la
+      exposición de la dirección: mientras sea una casa particular, quien tenga el
+      RUC llega ahí aunque la web no lo muestre (§29.2).
+- [ ] **Play Console** con `usenotoria@gmail.com` y como organización, y subir la
+      APK de release firmada. Lo que hay en el teléfono es un build de debug.
+- [ ] **Encender la emisión SUNAT** (`SUNAT_EMISION_ACTIVA=true`) cuando el
+      contador lo confirme — ver §2 del README.
+
+**Necesitan tiempo o datos:**
+- [ ] **Ranking «quién subió más este mes».** Solo se puede calcular con historial
+      propio, así que hace falta acumular meses de snapshots. Cada semana que pasa
+      es ventaja acumulada que nadie puede alcanzar después.
+
+**Verificación:**
+- [ ] **Revisión visual en móvil (390 px)** de «Cómo te ven», el afiche, `/para` y
+      `/verificar`. La ventana del navegador estaba maximizada y no aceptaba el
+      resize. Lo comprobado por código: la barra de pestañas ya tenía
+      `overflowX:auto`, y el resto usa `auto-fit`, `flexWrap` y `clamp()`.
+
+**Descartado, no pendiente:**
+- ~~Traducir la app al inglés~~ — decisión del dueño (2026-08-17). Ver §29.5.
+
+### 30.6 — El despliegue lo hago yo
+
+A partir del 2026-08-18 el dueño autoriza desplegar sin preguntar cada vez:
+`railway up --service api --detach` y `vercel --prod --yes`, verificando después
+en vivo. **La excepción sigue siendo `prisma db push`**: eso altera el schema de
+la base de producción, va antes del deploy y se avisa aparte.
