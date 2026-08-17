@@ -4,4 +4,13 @@ Disallow: /dashboard/
 Disallow: /onboarding
 Disallow: /api/
 
-Sitemap: https://vigilio.app/sitemap.xml
+# Enlaces de venta personalizados (/para/<ficha>). Son material comercial
+# dirigido a UNA persona, no páginas publicadas sobre un negocio ajeno: se
+# mandan por WhatsApp y no deben aparecer en ningún buscador. La página además
+# manda `noindex` en su propia metadata, que es lo que de verdad lo impide —
+# esto es el cinturón, aquello los tirantes.
+Disallow: /para/
+
+# Ojo: esto decía vigilio.app, el dominio anterior a la marca Notoria. Un
+# sitemap en un host que no responde es un sitemap que Google descarta.
+Sitemap: https://usenotoria.app/sitemap.xml
