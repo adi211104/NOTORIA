@@ -3556,6 +3556,8 @@ algún día hace falta ★ de verdad, es empaquetar un `.ttf` y `doc.registerFon
 
 ### 28.4 — Pendientes actualizados
 
+> ⚠️ **Lista superada** — la vigente está en §29.5. Se conserva por historia.
+
 Reemplaza la lista de §27.6.
 
 **Exigen `prisma db push` a mano** (Railway no lo corre en el deploy, así que hay
@@ -3596,3 +3598,135 @@ que empujar el schema ANTES de desplegar el código que lo use):
 **Hecho desde §25** (para no reabrirlo): S1–S9, F1–F7, el escaneo por plan, la
 cancelación, la vigilancia de ficha completa, el espejo, el simulador, el afiche,
 el enlace de venta `/para` y la constancia verificable.
+
+---
+
+## Sesión 2026-08-17 (noche) — §29. Cambio de contraseña con confirmación, y el RUC fuera de la vista
+
+Salió de un repaso de la app Android pedido por el dueño; dos de los once puntos
+tocaban el backend y la web. El detalle completo de la app está en
+`NotoriaApp/PENDIENTES.md`.
+
+### 29.1 — 🔴 Cambiar la contraseña era demasiado fácil
+
+Bastaba con saber la contraseña actual: el cambio era inmediato y el correo
+llegaba **después**, como aviso. Eso deja un hueco real —un teléfono desbloqueado
+un minuto sobre una mesa, una sesión abierta en una computadora compartida— y
+quien aprovechara ese minuto se quedaba con la cuenta, porque cambiar la
+contraseña también expulsa al dueño. El aviso llegaba cuando ya no se podía hacer
+nada.
+
+**Ahora `PATCH /api/auth/cambiar-password` no cambia nada:** comprueba la
+contraseña actual, firma el cambio y manda un enlace. La contraseña no se toca
+hasta que alguien abre ese enlace, así que hace falta **también el buzón**.
+
+`POST /api/auth/confirmar-cambio-password` lo aplica. Va **sin sesión** a
+propósito: quien confirma puede estar en otro dispositivo o haber cerrado la app,
+y la prueba de identidad es la firma del token, no la cookie.
+
+**No guarda nada** (`src/lib/cambioPassword.js`). El token lleva dentro el **hash
+bcrypt** de la contraseña nueva, firmado con HMAC-SHA256 — mismo mecanismo que
+`oauthState` y `constancia`. Sin columna nueva, que además obligaría a un
+`prisma db push` que Railway no corre en el deploy.
+
+⚠️ El token lleva un **hash, no la contraseña**: aunque alguien interceptara el
+correo, de ahí no sale nada reutilizable en otro sitio. Lo que sí podría hacer es
+aplicar el cambio, que es exactamente lo que el enlace autoriza — por eso la
+ventana es de **30 minutos**.
+
+⚠️ **La página `/confirmar-cambio/[token]` confirma con un BOTÓN, no al cargar.**
+Los clientes de correo y los antivirus corporativos abren los enlaces por su
+cuenta para analizarlos; si el cambio se aplicara solo con visitar la URL, un
+escáner podría consumir el enlace antes de que el dueño lo viera y dejarlo con una
+contraseña que nunca llegó a confirmar.
+
+⚠️ **Reintentar el mismo enlace responde OK, no error.** El caso normal es alguien
+que vuelve a tocarlo en el correo, y decirle «inválido» le haría pensar que su
+cambio no se aplicó.
+
+Afecta también al panel web: es el mismo endpoint, así que un solo cambio
+endurece los dos clientes. Los textos de Configuración explican la barrera
+**antes** de los campos.
+
+### 29.2 — El RUC ya no es obligatorio a la vista
+
+**Investigado a petición del dueño, y la respuesta es NO.** La **Ley 32080**,
+publicada el **2 de julio de 2024**, eliminó la obligación —introducida en julio
+de 2023— de que los proveedores incluyan su RUC y su denominación social en los
+documentos donde ofertan bienes o servicios, **incluidos plataformas de comercio
+electrónico, redes sociales, páginas web y aplicaciones móviles**. Verificado en
+dos fuentes independientes.
+
+Importa porque **el RUC es la llave de la ficha pública de SUNAT**: con ese número
+cualquiera consulta la razón social *y el domicilio fiscal* del titular, que en
+una E.I.R.L. suele ser su casa.
+
+| Dónde | Qué se hizo |
+|---|---|
+| Pie del landing | **Quitado.** Es la página con más tráfico frío |
+| Menú de la app | **Quitado** |
+| Términos, Privacidad, Contacto, Devoluciones, Libro de Reclamaciones | **Se queda** — ahí identifica al proveedor y es lo que miran Culqi e INDECOPI |
+| Comprobantes | **Se queda** — sigue siendo obligatorio, y van al cliente que compró |
+
+🔴 **Lo que el código NO puede arreglar, y hay que decirlo:** mientras el
+domicilio fiscal en SUNAT sea una casa particular, quien tenga el RUC llega a esa
+dirección aunque la web no la muestre. **El arreglo de fondo es cambiar el
+domicilio fiscal ante SUNAT.**
+
+⚠️ **La dirección se dejó en el pie del landing a propósito.** Es justo lo que
+Culqi exigió ver cuando observó la web; quitarla sin avisarles sería arriesgar una
+observación nueva sobre una integración de cobro que ya está en vivo. La decisión
+de moverla es del dueño, no un efecto secundario de esto.
+
+La regla está anotada en `components/PieLegal.js`, que es donde vive `CONTACTO`.
+
+### 29.3 — Al landing: lo que ya estaba vivo y no se decía
+
+La vigilancia de contacto (§28.1) y la constancia verificable (§28.2) llevaban
+desplegadas desde la tarde y no se mencionaban en ningún sitio. Y son justo las
+dos que dan una **diferencia real entre Gratis y de pago**, que es de lo que el
+catálogo andaba escaso.
+
+Añadidas a la comparativa (ES y EN), a la lista del plan Negocio y al catálogo de
+`/precios`:
+- «Aviso si te cambian el teléfono, el horario o la dirección en Google»
+- «Constancia de reputación con código verificable»
+
+### 29.4 — Instagram, fuera de la lista de prueba
+
+`INSTAGRAM_CUENTAS_PRUEBA` en Railway tenía el correo personal del dueño además
+del de la revisión, así que a él le seguía apareciendo Instagram en Conexiones.
+Queda solo `revisormeta@usenotoria.app`, que es la que el revisor de Meta
+necesita. Sin desplegar código: es una variable.
+
+### 29.5 — Pendientes actualizados
+
+Reemplaza la lista de §28.4.
+
+**Exigen `prisma db push` a mano:**
+- [ ] **S6 — `tokenVersion`.** Cambiar la contraseña no cierra las sesiones ya
+      abiertas. Ojo: con §29.1 el cambio es más difícil de forzar, pero una vez
+      cambiada la contraseña las sesiones viejas siguen vivas 7 días.
+- [ ] **Tipo de alerta `FICHA_ALTERADA`.**
+- [ ] **Columna `fichaGoogleRef Json?` en `Negocio`** — saca la referencia de la
+      vigilancia de ficha de la tabla `Alerta` y permite borrar el filtro
+      `SIN_CONTROL` de los seis sitios donde hoy hace falta.
+
+**Fuera del código:**
+- [ ] **Cambiar el domicilio fiscal en SUNAT** — el único arreglo real de la
+      exposición de la dirección (§29.2).
+- [ ] **Play Console** con `usenotoria@gmail.com` y como organización, y subir la
+      APK de release firmada.
+
+**Decisión de negocio:**
+- [ ] **Sub-usuarios y modo agencia** — el que más cambia el techo del negocio.
+
+**Necesitan tiempo o datos:**
+- [ ] **Ranking «quién subió más este mes»** — hace falta acumular meses de
+      snapshots.
+
+**Descartado, no pendiente:**
+- ~~Traducir la app al inglés~~ — decisión del dueño el 2026-08-17: el servicio es
+  solo Perú y cobra en soles, así que hoy no hay usuarios en inglés y traducir
+  obligaría a mantener 379 cadenas en dos idiomas para siempre. El ajuste de
+  Idioma queda diciendo lo que de verdad controla: correos y reportes.
