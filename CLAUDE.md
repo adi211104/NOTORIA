@@ -3824,6 +3824,11 @@ defecto y exige `--aplicar`. Verificado: 0 filas de control restantes.
 
 ### 30.5 — Pendientes actualizados
 
+> ⚠️ **Lista superada** — la vigente está en §32.6, ordenada por quién desbloquea
+> cada cosa. Dos entradas de aquí ya caducaron: sub-usuarios (hecho en §31) y
+> encender la emisión SUNAT (se encendió el 2026-08-17, §24.5). Se conserva por
+> historia.
+
 Reemplaza la lista de §29.5. **Ya no queda nada esperando un `db push`.**
 
 **Decisión de negocio, no de código:**
@@ -4211,3 +4216,80 @@ probarlo con un cobro pequeño antes de gastar en publicidad.
 
 El pendiente de §30.5 que decía «encender la emisión SUNAT cuando el contador lo
 confirme» estaba **desactualizado**: se encendió el 2026-08-17 (§24.5).
+
+### 32.6 — Pendientes, ordenados por QUIÉN los desbloquea
+
+Reemplaza la lista de §30.5, que tenía dos entradas ya caducadas (sub-usuarios,
+hecho en §31; y la emisión SUNAT, encendida el 2026-08-17). Se ordena por quién
+puede moverlos, que es lo único que importa para saber a qué esperar.
+
+#### A. Esperando a un tercero — no hay nada que hacer salvo vigilar el correo
+
+| Qué | Desde | Qué bloquea |
+|---|---|---|
+| **Meta — App Review de Instagram** (5 permisos) | enviado 2026-08-15 | Instagram para clientes reales, la sección **Menciones** entera (Instagram es su única fuente) y los webhooks de comentarios, que exigen Acceso Avanzado |
+| **Google — acceso a las GBP APIs**, caso `3-5553000040900` | 2026-08-16, plazo informado 7-10 días hábiles | Conectar Google Business. Hoy la cuota es `Requests per minute = 0`: el OAuth autoriza y luego revienta con `?gbp_error=callback_failed` |
+| **Google — verificación del Perfil de Empresa** | pendiente | Que algunos cambios de la ficha se vean |
+
+**Al aprobar Meta**, en este orden: poner `INSTAGRAM_ACTIVO=true` en Railway (se
+abre para todos sin desplegar) → comprobar si los eventos del webhook llegan sin
+`suscribirWebhookInstagram()`, y si llegan **borrar esa llamada**, que hoy solo
+escupe un warning (§19-quinquies) → enviar la **segunda** solicitud con
+`business_management`, que quedó fuera porque su botón de acceso avanzado seguía
+deshabilitado al enviar.
+
+**Al aprobar Google**: verificar que la cuota deje de ser 0, habilitar
+`mybusiness.googleapis.com` (la v4, que ni aparece en la Biblioteca) y recién ahí
+probar el flujo entero.
+
+#### B. Solo las puede hacer el dueño (fuera del código)
+
+1. 🔴 **Probar un cobro real pequeño.** La emisión a SUNAT está **encendida** y
+   nunca ha corrido contra producción (0 pagos, 0 comprobantes, series sin
+   iniciar). El primer cliente que pague será también la primera factura real.
+   Probarlo antes de gastar en publicidad, no después.
+2. 🔴 **Cambiar el domicilio fiscal en SUNAT.** Mientras sea una casa
+   particular, quien tenga el RUC llega a esa dirección aunque la web ya no lo
+   muestre (§29.2). Es el único arreglo real de esa exposición.
+3. **Play Console**: abrirla con `usenotoria@gmail.com` y **como organización**
+   (piden D-U-N-S y tarda; mover después una app de cuenta personal es un trámite
+   de transferencia). US$25 pago único. Falta ficha de tienda, formulario de
+   Seguridad de los Datos y clasificación. El AAB firmado ya existe.
+   🔴 **Respaldar `notoria-upload.jks` y su contraseña fuera de esta PC**: sin
+   Play App Signing, perderlo significa no poder actualizar la app nunca.
+4. **Comprobar que el reenvío de `hola@usenotoria.app` llega de verdad**
+   (Cloudflare Email Routing). Ahí caen los avisos del Libro de Reclamaciones, y
+   el plazo legal son 15 días hábiles improrrogables: si el reenvío no llega,
+   se pasa sin que nadie se entere.
+5. **Rotar `META_APP_SECRET`** — se compartió por chat (§19.3). Al rotarlo hay
+   que volver a cargarlo en Railway o el OAuth deja de funcionar con un error
+   genérico que no menciona el secreto.
+6. **Habilitar Web Analytics en Vercel** (proyecto `notoria-web` → Analytics →
+   Enable). El paquete está montado desde §19 pero no recolecta nada sin eso.
+7. **Probar el circuito de invitación de equipo** de punta a punta con una
+   dirección propia: invitación → correo → registro → aceptar. La lógica tiene 48
+   pruebas, pero Resend y la pantalla del invitado no se han visto en vivo.
+8. **Webhook de Culqi**: solo un reembolso real puede confirmarlo. Culqi no
+   expone la configuración por API ni dispara ping de prueba; el endpoint registra
+   también los rechazos, así que el primer reembolso lo dirá pase lo que pase.
+9. **DMARC**, hacia septiembre 2026: si los reportes vienen limpios, subir
+   `p=none` → `p=quarantine`.
+
+#### C. Decisiones de negocio, no de código
+
+- **Proveedor de datos para las menciones de TikTok** (~US$100/mes). Sería el
+  primer costo variable por cliente de Notoria. Sin él, TikTok no aporta
+  menciones y no hay código que lo arregle (§18).
+- **Facebook Reviews**: el scraper es un stub y **no existe ninguna ruta para
+  conectar una página**, así que `facebookPageId` no se llena nunca. Ya se retiró
+  de todas las páginas públicas. Preguntado y sin respuesta desde §19.
+- **TripAdvisor**: base preparada a propósito, activar cuando haya masa de
+  hoteles (§3).
+- **Borrar `Usuario.telegramChatId`**, obsoleta desde §24. Exige
+  `prisma db push --accept-data-loss` contra producción.
+
+#### D. Se pueden hacer solas, pero necesitan tiempo o datos
+
+- **Ranking «quién subió más este mes»**: solo se calcula con historial propio,
+  así que hay que dejar pasar meses de snapshots. Cada semana que pasa es ventaja
+  acumulada que nadie puede alcanzar después.
