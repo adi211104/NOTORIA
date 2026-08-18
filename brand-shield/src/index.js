@@ -18,6 +18,7 @@ const comentarioRoutes = require('./api/routes/comentario.routes');
 const publicoRoutes = require('./api/routes/publico.routes');
 const reclamacionRoutes = require('./api/routes/reclamacion.routes');
 const webhooksRoutes = require('./api/routes/webhooks.routes');
+const equipoRoutes = require('./api/routes/equipo.routes');
 
 const { iniciarMonitoreo, iniciarReportesMensuales, iniciarResumenesAlertas, iniciarRenovacionesCulqi, iniciarBajadaDePlanes, iniciarEscalacionUrgencias, iniciarAvisoReclamaciones } = require('./workers/monitoreo.worker');
 const { iniciarResumenSemanal } = require('./workers/resumenSemanal.worker');
@@ -65,7 +66,11 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
-  allowedHeaders: ['Content-Type','Authorization'],
+  // X-Cuenta: en qué cuenta está trabajando el usuario cuando alguien le
+  // compartió la suya. Sin declararlo aquí el navegador lo bloquea en el
+  // preflight y el panel volvería siempre a la cuenta propia — un fallo que
+  // solo aparece en producción, porque en local el CORS no llega a molestar.
+  allowedHeaders: ['Content-Type','Authorization','X-Cuenta'],
 }));
 
 const limiter = rateLimit({
@@ -107,6 +112,19 @@ app.use([
   '/api/auth/resetear-password',
 ], authLimiter);
 
+// Lectura pública de una invitación de equipo. Es la única ruta sin sesión que
+// devuelve el nombre de una empresa a cambio de un token, así que lleva su
+// propio freno: el token son 256 bits aleatorios y adivinarlo es inviable, pero
+// un cupo alto y suelto invita a usar el endpoint como sonda. 30 cada 15 min es
+// de sobra para alguien que abre su correo y pulsa el enlace.
+app.use('/api/equipo/invitacion', rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiados intentos. Espera unos minutos.' },
+}));
+
 // ─── Webhooks ─────────────────────────────────────────────
 // VA ANTES del body parser JSON a propósito: Meta firma los bytes exactos del
 // cuerpo, así que esta ruta necesita el buffer crudo. Si `express.json()` lo
@@ -131,6 +149,7 @@ app.use('/api/menciones',   mencionRoutes);
 app.use('/api/comentarios', comentarioRoutes);
 app.use('/api/publico',     publicoRoutes);
 app.use('/api/reclamaciones', reclamacionRoutes);
+app.use('/api/equipo',      equipoRoutes);
 app.use('/api/auth/google-business', gbpRoutes);
 app.use('/api/negocios-gbp', gbpRoutes);
 

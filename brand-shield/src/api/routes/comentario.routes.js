@@ -9,7 +9,8 @@
 
 const express = require('express');
 const prisma = require('../../lib/prisma');
-const { autenticar } = require('../middlewares/auth.middleware');
+const { autenticar, permitir } = require('../middlewares/auth.middleware');
+const { dondeNegocio, registrar } = require('../../lib/equipo');
 const { verificarPlan } = require('../middlewares/verificarPlan.middleware');
 const tiktok = require('../../scrapers/tiktok.scraper');
 const { tokenTikTokVigente, estadoConexionTikTok } = require('../../lib/tiktokToken');
@@ -62,14 +63,16 @@ const conexionTikTok = async (negocio) => {
   return { modo: 'display', token: await tokenTikTokVigente(negocio), businessId: null };
 };
 
-const negocioDelUsuario = (negocioId, usuarioId) =>
-  prisma.negocio.findFirst({ where: { id: negocioId, usuarioId } });
+// Toma la cuenta activa y el alcance del miembro, no la persona: dentro de una
+// cuenta compartida el negocio es de la empresa, no de quien mira.
+const negocioDeLaCuenta = (req, negocioId) =>
+  prisma.negocio.findFirst({ where: dondeNegocio(req, { id: negocioId }) });
 
 // GET /api/comentarios/:negocioId
 // ?sentimiento=negativo|positivo|neutro &plataforma=TIKTOK &pendientes=1 &limite=
 router.get('/:negocioId', async (req, res, next) => {
   try {
-    const negocio = await negocioDelUsuario(req.params.negocioId, req.usuario.id);
+    const negocio = await negocioDeLaCuenta(req, req.params.negocioId);
     if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
 
     const { sentimiento, plataforma, pendientes } = req.query;
@@ -229,7 +232,7 @@ router.get('/:negocioId', async (req, res, next) => {
 // la vista pública sin borrarlo ni avisarle a su autor. Borrar existe en la API
 // pero NO se expone: es irreversible y suele escalar el conflicto, así que no
 // queremos que esté a un clic de distancia en un panel.
-router.post('/:id/moderar', async (req, res, next) => {
+router.post('/:id/moderar', permitir('actuar'), async (req, res, next) => {
   try {
     const { accion } = req.body || {};
     const activar = req.body?.activar !== false;
@@ -238,7 +241,7 @@ router.post('/:id/moderar', async (req, res, next) => {
     }
 
     const comentario = await prisma.comentarioSocial.findFirst({
-      where: { id: req.params.id, negocio: { usuarioId: req.usuario.id } },
+      where: { id: req.params.id, negocio: dondeNegocio(req) },
       include: { negocio: true },
     });
     if (!comentario) return res.status(404).json({ error: 'Comentario no encontrado' });
@@ -275,15 +278,19 @@ router.post('/:id/moderar', async (req, res, next) => {
       ? await prisma.comentarioSocial.update({ where: { id: comentario.id }, data: { [campo]: activar } })
       : comentario;
 
+    await registrar(req, `moderar_${accion.toLowerCase()}`, {
+      negocioId: comentario.negocioId,
+      detalle: { negocio: comentario.negocio.nombre, autor: comentario.autor, activar },
+    });
     res.json({ ok: true, comentario: actualizado });
   } catch (error) { next(error); }
 });
 
 // POST /api/comentarios/:id/responder — { respuesta }
-router.post('/:id/responder', async (req, res, next) => {
+router.post('/:id/responder', permitir('actuar'), async (req, res, next) => {
   try {
     const comentario = await prisma.comentarioSocial.findFirst({
-      where: { id: req.params.id, negocio: { usuarioId: req.usuario.id } },
+      where: { id: req.params.id, negocio: dondeNegocio(req) },
       include: { negocio: true },
     });
     if (!comentario) return res.status(404).json({ error: 'Comentario no encontrado' });
@@ -368,6 +375,10 @@ router.post('/:id/responder', async (req, res, next) => {
         respuestaExternalId: r.id || null,
       },
     });
+    await registrar(req, 'responder_comentario', {
+      negocioId: comentario.negocioId,
+      detalle: { negocio: comentario.negocio.nombre, plataforma: comentario.plataforma, autor: comentario.autor },
+    });
     res.json({ mensaje: 'Respuesta publicada', comentario: actualizado });
   } catch (error) { next(error); }
 });
@@ -381,10 +392,10 @@ router.post('/:id/responder', async (req, res, next) => {
 // está Ocultar, que lo retira de la vista pública sin borrarlo ni avisarle a su
 // autor. Borrar la crítica de un cliente es irreversible y suele escalar el
 // conflicto, así que no existe ese botón.
-router.delete('/:id/respuesta', async (req, res, next) => {
+router.delete('/:id/respuesta', permitir('actuar'), async (req, res, next) => {
   try {
     const comentario = await prisma.comentarioSocial.findFirst({
-      where: { id: req.params.id, negocio: { usuarioId: req.usuario.id } },
+      where: { id: req.params.id, negocio: dondeNegocio(req) },
       include: { negocio: true },
     });
     if (!comentario) return res.status(404).json({ error: 'Comentario no encontrado' });
@@ -432,15 +443,19 @@ router.delete('/:id/respuesta', async (req, res, next) => {
       where: { id: comentario.id },
       data: { respondida: false, respuesta: null, respuestaExternalId: null },
     });
+    await registrar(req, 'borrar_respuesta', {
+      negocioId: comentario.negocioId,
+      detalle: { negocio: comentario.negocio.nombre, autor: comentario.autor },
+    });
     res.json({ mensaje: 'Respuesta eliminada', comentario: actualizado });
   } catch (error) { next(error); }
 });
 
 // PATCH /api/comentarios/:id — { vista }
-router.patch('/:id', async (req, res, next) => {
+router.patch('/:id', permitir('actuar'), async (req, res, next) => {
   try {
     const comentario = await prisma.comentarioSocial.findFirst({
-      where: { id: req.params.id, negocio: { usuarioId: req.usuario.id } },
+      where: { id: req.params.id, negocio: dondeNegocio(req) },
     });
     if (!comentario) return res.status(404).json({ error: 'Comentario no encontrado' });
 

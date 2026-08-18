@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { negociosApi, comentariosApi } from '../../../../lib/api';
+import { negociosApi, comentariosApi, cabecerasAuth } from '../../../../lib/api';
 import { iconoParaTipo, labelParaTipo } from '../../../../lib/tiposNegocio';
 import { textoAlerta, etiquetaAlerta } from '../../../../lib/alertas';
 import { useAuth } from '../../../../context/AuthContext';
@@ -1169,7 +1169,10 @@ const TEXTOS = {
 export default function DetallePage() {
   const { id } = useParams();
   const router = useRouter();
-  const { usuario } = useAuth();
+  const { usuario, puede } = useAuth();
+  // Solo lectura: el rol LECTOR ve todo pero no responde ni escanea. Se esconden
+  // los botones que el backend rechazaría con 403 (permitir('actuar')).
+  const soloLectura = !puede('actuar');
   const { idioma } = useIdioma();
   const t = TEXTOS[idioma] || TEXTOS.es;
   const [negocio, setNegocio] = useState(null);
@@ -1250,7 +1253,7 @@ export default function DetallePage() {
 
 
     fetch(`${API_URL}/api/negocios/${id}/cooldown`, {
-      headers: { Authorization:`Bearer ${getToken()}` }
+      headers: { ...cabecerasAuth() }
     }).then(r => r.json()).then(cd => {
       setCooldown(cd);
       // Iniciar timer de cooldown solo una vez
@@ -1281,7 +1284,7 @@ export default function DetallePage() {
 
   // ── Competidores ────────────────────────────────────────
   const cargarCompetidores = () => {
-    fetch(`${API_URL}/api/competidores/${id}`, { headers:{ Authorization:`Bearer ${getToken()}` } })
+    fetch(`${API_URL}/api/competidores/${id}`, { headers:{ ...cabecerasAuth() } })
       .then(r => r.json())
       .then(data => { if (Array.isArray(data)) setCompetidores(data); })
       .catch(() => {});
@@ -1399,7 +1402,7 @@ export default function DetallePage() {
     setAfiche('generando');
     try {
       const r = await fetch(`${API_URL}/api/negocios/${id}/afiche.pdf`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
+        headers: { ...cabecerasAuth() },
       });
       if (!r.ok) throw new Error('http');
       const url = URL.createObjectURL(await r.blob());
@@ -1420,7 +1423,7 @@ export default function DetallePage() {
     setConstancia('generando');
     try {
       const r = await fetch(`${API_URL}/api/negocios/${id}/constancia.pdf`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
+        headers: { ...cabecerasAuth() },
       });
       if (!r.ok) throw new Error('http');
       const url = URL.createObjectURL(await r.blob());
@@ -1474,7 +1477,7 @@ export default function DetallePage() {
       setCompBuscando(true); setCompError('');
       try {
         const res = await fetch(`${API_URL}/api/utils/buscar-negocio?q=${encodeURIComponent(compBusqueda)}&tipo=${negocio?.tipo || 'RESTAURANTE'}&region=${negocio.pais}`, {
-          headers:{ Authorization:`Bearer ${getToken()}` },
+          headers:{ ...cabecerasAuth() },
         });
         const data = await res.json();
         if (!res.ok) { setCompResultados([]); setCompError(data.error || t.competencia.errorConexion); return; }
@@ -1488,7 +1491,7 @@ export default function DetallePage() {
     setCompAgregando(true); setCompError('');
     try {
       const res = await fetch(`${API_URL}/api/competidores/${id}`, {
-        method:'POST', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${getToken()}` },
+        method:'POST', headers:{ 'Content-Type':'application/json', ...cabecerasAuth() },
         body: JSON.stringify({ googlePlaceId: r.placeId }),
       });
       const data = await res.json();
@@ -1501,7 +1504,7 @@ export default function DetallePage() {
 
   const eliminarCompetidor = async (compId) => {
     await fetch(`${API_URL}/api/competidores/${compId}`, {
-      method:'DELETE', headers:{ Authorization:`Bearer ${getToken()}` },
+      method:'DELETE', headers:{ ...cabecerasAuth() },
     }).catch(() => {});
     cargarCompetidores();
   };
@@ -1512,7 +1515,7 @@ export default function DetallePage() {
     setAnalisisComp(prev => ({ ...prev, [compId]: { cargando: true } }));
     try {
       const res = await fetch(`${API_URL}/api/ia/analisis-competidor`, {
-        method:'POST', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${getToken()}` },
+        method:'POST', headers:{ 'Content-Type':'application/json', ...cabecerasAuth() },
         body: JSON.stringify({ negocioId: id, competidorId: compId }),
       });
       const data = await res.json();
@@ -1529,7 +1532,7 @@ export default function DetallePage() {
   // ── Conectar Google Business (reutilizado en Reseñas y Ajustes) ──
   const conectarGBP = () => {
     const t = getToken();
-    fetch(`${API_URL}/api/auth/perfil`, { headers:{ Authorization:`Bearer ${t}` } })
+    fetch(`${API_URL}/api/auth/perfil`, { headers:{ ...cabecerasAuth() } })
       .then(r => {
         if (r.status === 401 || r.ok) {
           window.location.href = `${API_URL}/api/auth/google-business/iniciar?negocioId=${id}&token=${t}`;
@@ -1547,7 +1550,7 @@ export default function DetallePage() {
   const guardarNombre = async (nuevoNombre) => {
     await fetch(`${API_URL}/api/negocios/${id}/configuracion`, {
       method:'PATCH',
-      headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${getToken()}` },
+      headers:{ 'Content-Type':'application/json', ...cabecerasAuth() },
       body: JSON.stringify({ nombre: nuevoNombre }),
     }).catch(() => {});
     cargar();
@@ -1558,7 +1561,7 @@ export default function DetallePage() {
     setNegocio(prev => ({ ...prev, colorEtiqueta: c }));
     await fetch(`${API_URL}/api/negocios/${id}/configuracion`, {
       method:'PATCH',
-      headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${getToken()}` },
+      headers:{ 'Content-Type':'application/json', ...cabecerasAuth() },
       body: JSON.stringify({ colorEtiqueta: c }),
     }).catch(() => {});
   };
@@ -1570,7 +1573,7 @@ export default function DetallePage() {
     scanIntervalRef.current = setInterval(() => { p += Math.random()*8; if(p>90) p=90; setProgreso(Math.round(p)); }, 300);
     try {
       const res = await fetch(`${API_URL}/api/utils/monitoreo-manual`, {
-        method:'POST', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${getToken()}` },
+        method:'POST', headers:{ 'Content-Type':'application/json', ...cabecerasAuth() },
         body: JSON.stringify({ negocioId: id }),
       });
       const data = await res.json();
@@ -1603,7 +1606,7 @@ export default function DetallePage() {
   const abrirResponder = (r) => {
     setRespModal(r); setTextoResp(r.respuesta || ''); setMsgResp(''); setIaError('');
     // Cargar el estado de usos de IA al abrir el panel
-    fetch(`${API_URL}/api/ia/estado`, { headers:{ Authorization:`Bearer ${getToken()}` } })
+    fetch(`${API_URL}/api/ia/estado`, { headers:{ ...cabecerasAuth() } })
       .then(res => res.json()).then(data => { if (data.limite != null) setIaEstado(data); })
       .catch(() => {});
   };
@@ -1613,7 +1616,7 @@ export default function DetallePage() {
     setIaGenerando(true); setIaError('');
     try {
       const res = await fetch(`${API_URL}/api/ia/respuesta`, {
-        method:'POST', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${getToken()}` },
+        method:'POST', headers:{ 'Content-Type':'application/json', ...cabecerasAuth() },
         body: JSON.stringify({ negocioId: id, autor: respModal.autorNombre, rating: respModal.rating, texto: respModal.texto }),
       });
       const data = await res.json();
@@ -1629,7 +1632,7 @@ export default function DetallePage() {
     setEnviandoResp(true);
     try {
       const res = await fetch(`${API_URL}/api/negocios/${id}/responder-resena`, {
-        method:'POST', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${getToken()}` },
+        method:'POST', headers:{ 'Content-Type':'application/json', ...cabecerasAuth() },
         body: JSON.stringify({ resenaId: respModal.id, respuesta: textoResp }),
       });
       const data = await res.json();
@@ -1777,6 +1780,7 @@ export default function DetallePage() {
                   .btn-escanear-listo::after { animation: none; display: none; }
                 }
               `}</style>
+              {!soloLectura && (
               <button onClick={escanear} disabled={!puedeEscanear||escaneando}
                 className={puedeEscanear&&!escaneando ? 'btn-escanear-listo' : ''}
                 title={fechaDisp?t.header.seReestablece(fechaDisp.dia,fechaDisp.hora):t.header.escanear}
@@ -1785,6 +1789,7 @@ export default function DetallePage() {
                   <span style={{ display:'inline-flex', alignItems:'center', gap:9 }}><Icon name="buscar" size={17} strokeWidth={2} /> {t.header.escanear}</span>
                 )}
               </button>
+              )}
               {fechaDisp&&!escaneando && <div style={{ fontSize:11, color:'var(--text-3)', marginTop:5 }}>{t.header.seReestablece(fechaDisp.dia,fechaDisp.hora)}</div>}
               {!fechaDisp&&!escaneando && <div style={{ fontSize:11, color:'#22c55e', marginTop:5, fontWeight:600 }}>{t.header.disponibleAhora}</div>}
             </div>
@@ -1996,9 +2001,11 @@ export default function DetallePage() {
                     </div>
                   </div>
                   <div style={{ display:'flex', flexDirection:'column', gap:6, flexShrink:0, height:'fit-content' }}>
-                    <button onClick={() => abrirResponder(r)} style={{ background:'#0B7324', color:'#fff', border:'none', borderRadius:8, padding:'8px 14px', fontSize:12, fontWeight:500, cursor:'pointer' }}>
-                      <span style={{ display:'inline-flex', alignItems:'center', gap:6 }}><Icon name={r.respondida?'editar':'chat'} size={12} /> {r.respondida?t.resenas.editar:t.resenas.responder}</span>
-                    </button>
+                    {!soloLectura && (
+                      <button onClick={() => abrirResponder(r)} style={{ background:'#0B7324', color:'#fff', border:'none', borderRadius:8, padding:'8px 14px', fontSize:12, fontWeight:500, cursor:'pointer' }}>
+                        <span style={{ display:'inline-flex', alignItems:'center', gap:6 }}><Icon name={r.respondida?'editar':'chat'} size={12} /> {r.respondida?t.resenas.editar:t.resenas.responder}</span>
+                      </button>
+                    )}
                     {/* Reportar venía de la pestaña Sospechosas; sin esto la fusión
                         habría perdido la única acción propia de esas reseñas. */}
                     {r.esSospechosa && linkMaps && (
@@ -2418,7 +2425,7 @@ export default function DetallePage() {
                               "TikTok" fijo y el mismo botón se usa en Instagram,
                               así que al borrar una respuesta de Instagram el aviso
                               hablaba de otra red. */}
-                          {c.respuestaExternalId && (
+                          {c.respuestaExternalId && !soloLectura && (
                             <button title={tc.borrarRespuestaAyuda(nombreRed(c.plataforma))} disabled={comModerando === c.id}
                               onClick={() => (comBorrando === c.id ? borrarRespuesta(c.id) : setComBorrando(c.id))}
                               onBlur={() => setComBorrando(b => (b === c.id ? null : b))}
@@ -2432,7 +2439,7 @@ export default function DetallePage() {
                             </button>
                           )}
                         </div>
-                      ) : !c.publicacionId ? (
+                      ) : soloLectura ? null : !c.publicacionId ? (
                         <p style={{ color:'var(--text-3)', fontSize:11.5, margin:'10px 0 0', fontStyle:'italic' }}>
                           {tc.sinVideoOrigen}
                         </p>
@@ -2474,7 +2481,7 @@ export default function DetallePage() {
                           video_id. Borrar NO se expone: es irreversible y suele
                           escalar el conflicto; ocultar consigue lo mismo sin que
                           el autor se entere. */}
-                      {c.plataforma === 'TIKTOK' && c.publicacionId && (
+                      {c.plataforma === 'TIKTOK' && c.publicacionId && !soloLectura && (
                         <div style={{ display:'flex', gap:7, marginTop:9, flexWrap:'wrap' }}>
                           {[
                             { accion:'ocultar', activo:c.oculto, on:tc.mostrar, off:tc.ocultar, ayuda:tc.ocultarAyuda },

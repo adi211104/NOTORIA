@@ -7,7 +7,8 @@ const prisma = require('../../lib/prisma');
 const { buscarNegocioEnGoogle } = require('../../scrapers/google.scraper');
 
 const router = express.Router();
-const { autenticar } = require('../middlewares/auth.middleware');
+const { autenticar, permitir } = require('../middlewares/auth.middleware');
+const { dondeNegocio, alcanza, registrar } = require('../../lib/equipo');
 
 router.use(autenticar);
 
@@ -26,7 +27,7 @@ const LIMITE_COMPETIDORES = {
 router.get('/', async (req, res, next) => {
   try {
     const negocios = await prisma.negocio.findMany({
-      where: { usuarioId: req.usuario.id, activo: true },
+      where: dondeNegocio(req, { activo: true }),
       select: {
         id: true, nombre: true, tipo: true, pais: true,
         // Dos snapshots y no uno: con el anterior se puede decir si la brecha
@@ -49,7 +50,7 @@ router.get('/', async (req, res, next) => {
 router.get('/:negocioId', async (req, res, next) => {
   try {
     const negocio = await prisma.negocio.findFirst({
-      where: { id: req.params.negocioId, usuarioId: req.usuario.id },
+      where: dondeNegocio(req, { id: req.params.negocioId }),
     });
     if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
 
@@ -66,15 +67,15 @@ router.get('/:negocioId', async (req, res, next) => {
 });
 
 // POST /api/competidores/:negocioId
-router.post('/:negocioId', async (req, res, next) => {
+router.post('/:negocioId', permitir('actuar'), async (req, res, next) => {
   try {
     const negocio = await prisma.negocio.findFirst({
-      where: { id: req.params.negocioId, usuarioId: req.usuario.id },
+      where: dondeNegocio(req, { id: req.params.negocioId }),
     });
     if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
 
     // Verificar límite según plan
-    const limite = LIMITE_COMPETIDORES[req.usuario.plan] || 1;
+    const limite = LIMITE_COMPETIDORES[req.cuenta.plan] || 1;
     const total = await prisma.competidor.count({
       where: { negocioId: req.params.negocioId },
     });
@@ -107,14 +108,14 @@ router.post('/:negocioId', async (req, res, next) => {
 });
 
 // DELETE /api/competidores/:id
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', permitir('actuar'), async (req, res, next) => {
   try {
     const competidor = await prisma.competidor.findFirst({
       where: { id: req.params.id },
       include: { negocio: true },
     });
 
-    if (!competidor || competidor.negocio.usuarioId !== req.usuario.id) {
+    if (!competidor || competidor.negocio.usuarioId !== req.cuenta.id || !alcanza(req, competidor.negocioId)) {
       return res.status(404).json({ error: 'Competidor no encontrado' });
     }
 

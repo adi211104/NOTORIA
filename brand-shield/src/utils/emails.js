@@ -560,4 +560,72 @@ const enviarCancelacion = async (usuario, fechaFin) => {
   return res;
 };
 
-module.exports = { enviarBienvenida, enviarVerificacion, enviarConfirmacionContrasena, enviarRecuperacionContrasena, enviarAlertaCritica, enviarResumenAlertas, enviarResumenSemanal, enviarResumenSemanalConsolidado, enviarComprobante, enviarDrip, enviarCargoReclamacion, enviarAvisoReclamacionInterno, enviarRespuestaReclamacion, enviarAvisoPlazoReclamaciones, enviarConfirmacionCambioPassword, enviarCobroFallido, enviarCancelacion, getResend, FROM, base, h1, p, btn, hr };
+// ── 18. Invitación al equipo ──────────────────────────────
+//
+// El enlace lleva el token en claro; en la base solo vive su hash (ver
+// lib/equipo.js y el modelo Invitacion). El correo dice explícitamente CON QUÉ
+// dirección hay que entrar: la invitación está atada a ese correo y aceptarla
+// desde otra cuenta falla, así que decirlo aquí evita el 90% de los "no me deja".
+const enviarInvitacionEquipo = async ({ email, cuenta, invitadoPor, rol, token, negocios }) => {
+  const r = getResend();
+  const url = `${FRONT()}/invitacion/${token}`;
+  const queHace = rol === 'GESTOR'
+    ? 'Podrás responder reseñas y comentarios, usar la IA y gestionar las alertas.'
+    : 'Podrás ver las reseñas, las alertas y los reportes, sin modificar nada.';
+  const alcance = negocios && negocios.length
+    ? p(`Tu acceso será solo a: <strong>${negocios.join(', ')}</strong>.`)
+    : '';
+
+  return r.emails.send({
+    from: FROM(), to: email,
+    subject: `${invitadoPor} te invitó a gestionar ${cuenta} en Notoria`,
+    html: base(`
+      ${h1(`Te invitaron a ${cuenta}`)}
+      ${p(`<strong>${invitadoPor}</strong> quiere que le ayudes a cuidar la reputación de <strong>${cuenta}</strong> en Notoria.`)}
+      ${p(`Entrarás como <strong>${rol === 'GESTOR' ? 'Gestor' : 'Solo lectura'}</strong>. ${queHace}`)}
+      ${alcance}
+      ${btn('Aceptar la invitación →', url)}
+      ${hr()}
+      ${p(`Acepta con esta dirección de correo: <strong>${email}</strong>. Si aún no tienes cuenta en Notoria, el enlace te deja crearla — es gratis y no te pide tarjeta.`)}
+      ${p('La invitación vence en 7 días. Si no esperabas este correo, puedes ignorarlo.')}
+    `),
+  });
+};
+
+// ── 19. Alguien aceptó la invitación ──────────────────────
+// Le llega al propietario. Es la contrapartida de dar acceso a una cuenta: quien
+// la paga tiene que enterarse el día que alguien entra, no descubrirlo después.
+const enviarAvisoNuevoMiembro = async ({ propietario, miembro, rol }) => {
+  const r = getResend();
+  return r.emails.send({
+    from: FROM(), to: propietario.email,
+    subject: `${miembro.nombre} ya tiene acceso a tu cuenta de Notoria`,
+    html: base(`
+      ${h1('Se sumó alguien a tu equipo')}
+      ${p(`<strong>${miembro.nombre}</strong> (${miembro.email}) aceptó tu invitación y ya puede entrar como <strong>${rol === 'GESTOR' ? 'Gestor' : 'Solo lectura'}</strong>.`)}
+      ${p('A partir de ahora verás en Equipo qué hace cada persona: quién respondió cada reseña y cuándo.')}
+      ${btn('Ver mi equipo →', `${FRONT()}/dashboard/equipo`)}
+      ${p('Si no reconoces a esta persona, quítale el acceso desde esa misma pantalla.')}
+    `),
+  });
+};
+
+// ── 20. Te quitaron el acceso ─────────────────────────────
+// Se avisa a propósito. Perder el acceso sin explicación se lee como una avería
+// del producto, y la persona acaba escribiendo a soporte por algo que fue una
+// decisión deliberada del dueño.
+const enviarSalidaEquipo = async ({ miembro, cuenta }) => {
+  const r = getResend();
+  return r.emails.send({
+    from: FROM(), to: miembro.email,
+    subject: `Ya no tienes acceso a ${cuenta} en Notoria`,
+    html: base(`
+      ${h1('Se cerró tu acceso')}
+      ${p(`El propietario de <strong>${cuenta}</strong> retiró tu acceso a esa cuenta en Notoria.`)}
+      ${p('Tu cuenta personal sigue intacta: puedes entrar y, si quieres, monitorear tu propio negocio gratis.')}
+      ${btn('Entrar a Notoria →', `${FRONT()}/dashboard`)}
+    `),
+  });
+};
+
+module.exports = { enviarBienvenida, enviarVerificacion, enviarConfirmacionContrasena, enviarRecuperacionContrasena, enviarAlertaCritica, enviarResumenAlertas, enviarResumenSemanal, enviarResumenSemanalConsolidado, enviarComprobante, enviarDrip, enviarCargoReclamacion, enviarAvisoReclamacionInterno, enviarRespuestaReclamacion, enviarAvisoPlazoReclamaciones, enviarConfirmacionCambioPassword, enviarCobroFallido, enviarCancelacion, enviarInvitacionEquipo, enviarAvisoNuevoMiembro, enviarSalidaEquipo, getResend, FROM, base, h1, p, btn, hr };

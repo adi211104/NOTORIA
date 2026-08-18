@@ -28,6 +28,14 @@ const evaluarPassword = (pass) => {
 export default function RegistroPage() {
   const { registro } = useAuth();
   const [form, setForm] = useState({ nombre:'', email:'', password:'' });
+  // Prellenado desde ?email= — lo manda la página de invitación. La invitación
+  // está atada a un correo concreto, así que dejar que lo escriban a mano es
+  // regalar el error más caro: cuenta creada con otra dirección y enlace
+  // inservible.
+  useEffect(() => {
+    const e = new URLSearchParams(window.location.search).get('email');
+    if (e) setForm((f) => (f.email ? f : { ...f, email: e }));
+  }, []);
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
   const [aceptaTerminos, setAceptaTerminos] = useState(false);
@@ -36,6 +44,15 @@ export default function RegistroPage() {
   const googleInitialized = useRef(false);
 
   const { criterios, nivel } = evaluarPassword(form.password);
+
+  // ?next=/ruta — a dónde volver tras crear la cuenta. Lo usa la invitación de
+  // equipo: quien llega por un enlace de "te invitaron a X" no tiene cuenta, y
+  // sin esto acabaría en el onboarding sin rastro de la invitación que venía a
+  // aceptar. Se lee de window.location (igual que en /login) para no tener que
+  // envolver la página en un <Suspense>. La validación de que sea una ruta
+  // interna la hace `rutaSegura` en AuthContext.
+  const destinoActual = () =>
+    typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('next');
 
   const handleGoogleResponse = useCallback(async (response) => {
     setError('');
@@ -48,7 +65,10 @@ export default function RegistroPage() {
       if (!res.ok) throw new Error(data.error || 'Error con Google');
       localStorage.setItem('bs_token', data.token);
       localStorage.removeItem('bs_onboarding');
-      window.location.href = data.esNuevo ? '/onboarding' : '/dashboard';
+      const next = new URLSearchParams(window.location.search).get('next');
+      window.location.href = (next && /^\/(?!\/)/.test(next))
+        ? next
+        : (data.esNuevo ? '/onboarding' : '/dashboard');
     } catch (e) { setError(e.message); }
   }, []);
 
@@ -80,7 +100,7 @@ export default function RegistroPage() {
     e.preventDefault(); setError(''); setCargando(true);
     if (form.password.length < 8) { setError('La contraseña debe tener al menos 8 caracteres'); setCargando(false); return; }
     if (!aceptaTerminos) { setError('Debes aceptar los Términos y la Política de Privacidad para continuar.'); setCargando(false); return; }
-    try { await registro(form.nombre, form.email, form.password); }
+    try { await registro(form.nombre, form.email, form.password, destinoActual()); }
     catch (err) { setError(err.message || 'Error al crear la cuenta'); }
     finally { setCargando(false); }
   };

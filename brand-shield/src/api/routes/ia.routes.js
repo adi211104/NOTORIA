@@ -4,7 +4,8 @@
 const express = require('express');
 const axios = require('axios');
 const prisma = require('../../lib/prisma');
-const { autenticar } = require('../middlewares/auth.middleware');
+const { autenticar, permitir } = require('../middlewares/auth.middleware');
+const { dondeNegocio } = require('../../lib/equipo');
 const { verificarPlan } = require('../middlewares/verificarPlan.middleware');
 const { obtenerResenasGoogle } = require('../../scrapers/google.scraper');
 
@@ -51,13 +52,13 @@ const obtenerUsos = async (usuarioId) => {
 // ── GET /api/ia/estado ────────────────────────────────────
 router.get('/estado', async (req, res, next) => {
   try {
-    const { plan, usados, limite } = await obtenerUsos(req.usuario.id);
+    const { plan, usados, limite } = await obtenerUsos(req.cuenta.id);
     res.json({ plan, usados, limite, restantes: Math.max(0, limite - usados) });
   } catch (error) { next(error); }
 });
 
 // ── POST /api/ia/respuesta ────────────────────────────────
-router.post('/respuesta', async (req, res, next) => {
+router.post('/respuesta', permitir('actuar'), async (req, res, next) => {
   try {
     if (!process.env.GROQ_API_KEY) {
       return res.status(500).json({ error: 'IA no configurada. Agrega GROQ_API_KEY al .env del backend.' });
@@ -67,12 +68,12 @@ router.post('/respuesta', async (req, res, next) => {
     if (!negocioId || !rating) return res.status(400).json({ error: 'negocioId y rating son requeridos' });
 
     const negocio = await prisma.negocio.findFirst({
-      where: { id: negocioId, usuarioId: req.usuario.id },
+      where: dondeNegocio(req, { id: negocioId }),
       select: { nombre: true, tipo: true },
     });
     if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
 
-    const { usados, limite, plan } = await obtenerUsos(req.usuario.id);
+    const { usados, limite, plan } = await obtenerUsos(req.cuenta.id);
     if (usados >= limite) {
       return res.status(403).json({
         error: plan === 'GRATIS'
@@ -115,7 +116,7 @@ router.post('/respuesta', async (req, res, next) => {
     if (!respuesta) return res.status(502).json({ error: 'La IA no devolvió una respuesta. Intenta de nuevo.' });
 
     await prisma.usuario.update({
-      where: { id: req.usuario.id },
+      where: { id: req.cuenta.id },
       data: { iaUsos: { increment: 1 }, iaSemana: semanaActual() },
     });
 
@@ -136,7 +137,7 @@ router.post('/respuesta', async (req, res, next) => {
 // recomendaciones para tomar la delantera. Consume 1 uso de IA.
 // Solo planes de pago: en Gratis la comparación con competencia se queda en
 // el dato básico (rating y nº de reseñas, sin costo), sin el análisis de IA.
-router.post('/analisis-competidor', verificarPlan(['NEGOCIO', 'FRANQUICIA']), async (req, res, next) => {
+router.post('/analisis-competidor', permitir('actuar'), verificarPlan(['NEGOCIO', 'FRANQUICIA']), async (req, res, next) => {
   try {
     if (!process.env.GROQ_API_KEY) {
       return res.status(500).json({ error: 'IA no configurada. Agrega GROQ_API_KEY al .env del backend.' });
@@ -146,7 +147,7 @@ router.post('/analisis-competidor', verificarPlan(['NEGOCIO', 'FRANQUICIA']), as
     if (!negocioId || !competidorId) return res.status(400).json({ error: 'negocioId y competidorId son requeridos' });
 
     const negocio = await prisma.negocio.findFirst({
-      where: { id: negocioId, usuarioId: req.usuario.id },
+      where: dondeNegocio(req, { id: negocioId }),
       include: { snapshots: { orderBy: { tomadoEn: 'desc' }, take: 1 } },
     });
     if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
@@ -156,7 +157,7 @@ router.post('/analisis-competidor', verificarPlan(['NEGOCIO', 'FRANQUICIA']), as
     });
     if (!competidor) return res.status(404).json({ error: 'Competidor no encontrado' });
 
-    const { usados, limite } = await obtenerUsos(req.usuario.id);
+    const { usados, limite } = await obtenerUsos(req.cuenta.id);
     if (usados >= limite) {
       return res.status(403).json({
         error: `Alcanzaste el límite de ${limite} usos de IA esta semana.`,
@@ -200,7 +201,7 @@ router.post('/analisis-competidor', verificarPlan(['NEGOCIO', 'FRANQUICIA']), as
     if (!analisis) return res.status(502).json({ error: 'La IA no devolvió el análisis. Intenta de nuevo.' });
 
     await prisma.usuario.update({
-      where: { id: req.usuario.id },
+      where: { id: req.cuenta.id },
       data: { iaUsos: { increment: 1 }, iaSemana: semanaActual() },
     });
 

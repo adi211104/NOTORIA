@@ -7,7 +7,7 @@ import Icon from '../../../components/Icons';
 import { useIdioma } from '../../../context/IdiomaContext';
 import BloqueoPlan from '../../../components/BloqueoPlan';
 
-import { API_URL, auth, negociosApi, pagos } from '../../../lib/api';
+import { API_URL, auth, negociosApi, pagos, cabecerasAuth } from '../../../lib/api';
 const getToken = () => localStorage.getItem('bs_token');
 
 const TEXTOS = {
@@ -284,7 +284,7 @@ function EmailVerifCard({ usuario }) {
 }
 
 export default function ConfiguracionPage() {
-  const { usuario, logout } = useAuth();
+  const { usuario, logout, puede } = useAuth();
   const { idioma, cambiarIdioma } = useIdioma();
   const t = TEXTOS[idioma] || TEXTOS.es;
   const router = useRouter();
@@ -509,7 +509,7 @@ export default function ConfiguracionPage() {
     try {
       await fetch(`${API_URL}/api/auth/perfil`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        headers: { 'Content-Type': 'application/json', ...cabecerasAuth() },
         body: JSON.stringify({ nombre }),
       });
       mostrarMensaje('perfil', t.perfil.msgActualizado);
@@ -524,7 +524,7 @@ export default function ConfiguracionPage() {
     try {
       const res = await fetch(`${API_URL}/api/auth/cambiar-password`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        headers: { 'Content-Type': 'application/json', ...cabecerasAuth() },
         body: JSON.stringify({ passwordActual: pwActual, passwordNueva: pwNueva }),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
@@ -539,7 +539,7 @@ export default function ConfiguracionPage() {
     try {
       await fetch(`${API_URL}/api/auth/cuenta`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${getToken()}` },
+        headers: { ...cabecerasAuth() },
       });
       logout();
     } catch { mostrarMensaje('cuenta', t.peligro.msgError, 'err'); }
@@ -602,15 +602,26 @@ export default function ConfiguracionPage() {
           <span className={`text-sm font-medium ${usuario?.plan === 'GRATIS' ? '' : 'text-green-500'}`} style={usuario?.plan === 'GRATIS' ? { color: 'var(--text-2)' } : {}}>
             {t.perfil.planNombre(usuario?.plan)}
           </span>
-          <Link href="/dashboard/planes"
-            className="text-xs bg-green-800 hover:bg-green-700 text-white px-3 py-1 rounded-lg transition">
-            {usuario?.plan === 'GRATIS' ? t.perfil.actualizar : t.perfil.verPlanes}
-          </Link>
+          {/* Cambiar de plan es del propietario. Al equipo invitado se le
+              muestra el plan de la empresa (les explica qué funciones tienen)
+              pero no el botón para cambiarlo, que solo daría 403. */}
+          {puede('facturacion') && (
+            <Link href="/dashboard/planes"
+              className="text-xs bg-green-800 hover:bg-green-700 text-white px-3 py-1 rounded-lg transition">
+              {usuario?.plan === 'GRATIS' ? t.perfil.actualizar : t.perfil.verPlanes}
+            </Link>
+          )}
         </Campo>
         {/* Facturación vive acá y ya no en el menú lateral: es algo que se
             consulta de vez en cuando, no una sección de uso diario. La ruta
             /dashboard/facturacion sigue existiendo — los correos de comprobante
-            enlazan directo a ella. */}
+            enlazan directo a ella.
+
+            Solo la ve el propietario: el historial de pagos lleva el nombre del
+            titular, su documento y su domicilio fiscal. Son datos personales del
+            dueño que no tienen por qué ver el encargado ni el community manager,
+            y el backend devuelve 403 a todo /api/pagos para los demás roles. */}
+        {puede('facturacion') && (
         <Campo label={t.perfil.facturacion}>
           <span className="text-sm" style={{ color: 'var(--text-2)' }}>{t.perfil.facturacionDesc}</span>
           <Link href="/dashboard/facturacion"
@@ -619,6 +630,7 @@ export default function ConfiguracionPage() {
             {t.perfil.verFacturacion}
           </Link>
         </Campo>
+        )}
         <div className="mt-4 flex justify-end">
           <button onClick={guardarPerfil} disabled={guardandoPerfil}
             className="bg-green-800 hover:bg-green-700 disabled:opacity-50 text-white text-sm px-5 py-2 rounded-lg transition">
@@ -781,7 +793,10 @@ export default function ConfiguracionPage() {
         </Campo>
       </Seccion>
 
-      {/* SUSCRIPCIÓN — la sección que /devoluciones lleva prometiendo por nombre */}
+      {/* SUSCRIPCIÓN — la sección que /devoluciones lleva prometiendo por nombre.
+          Oculta para el equipo invitado: cancelar el plan de la empresa no es
+          decisión de quien responde las reseñas. */}
+      {puede('facturacion') && (
       <Seccion titulo={t.suscripcion.titulo} descripcion={t.suscripcion.descripcion}>
         {suscripcion?.plan && suscripcion.plan !== 'GRATIS' ? (
           <>
@@ -826,6 +841,7 @@ export default function ConfiguracionPage() {
           </p>
         )}
       </Seccion>
+      )}
 
       {/* ZONA DE PELIGRO */}
       <Seccion titulo={t.peligro.titulo} descripcion={t.peligro.descripcion}>

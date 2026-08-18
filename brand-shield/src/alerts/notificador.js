@@ -14,18 +14,41 @@
 // preferencias de abajo — no en el worker.
 
 const { enviarAlertaCritica } = require('../utils/emails');
+const { copiasDeAlerta } = require('../lib/equipo');
 
 // ─── EMAIL ────────────────────────────────────────────────
 
 const enviarAlertaEmail = async ({ usuario, negocio, alerta }) => {
+  let ok = true;
   try {
     await enviarAlertaCritica(usuario, negocio, alerta);
     console.log(`[Notificador] Email enviado a ${usuario.email} — ${alerta.tipo}`);
-    return true;
   } catch (error) {
     console.error(`[Notificador] Error enviando email: ${error.message}`);
-    return false;
+    ok = false;
   }
+
+  // Copia al equipo: los GESTORES que alcanzan este negocio (ver lib/equipo.js).
+  //
+  // Es media razón de ser de compartir la cuenta. Sin esto, el encargado tendría
+  // el panel pero se enteraría de la reseña de 1★ cuando al dueño le diera por
+  // reenviarle el correo — y la promesa del producto es el tiempo de reacción.
+  //
+  // Va DESPUÉS del correo al dueño y en un try propio: un fallo entregando una
+  // copia no puede impedir el aviso al titular de la cuenta, que es el que no
+  // puede faltar nunca.
+  if (negocio?.usuarioId) {
+    for (const miembro of await copiasDeAlerta(negocio)) {
+      try {
+        await enviarAlertaCritica(miembro, negocio, alerta);
+        console.log(`[Notificador] Copia al equipo: ${miembro.email} — ${alerta.tipo}`);
+      } catch (error) {
+        console.error(`[Notificador] Error enviando copia a ${miembro.email}: ${error.message}`);
+      }
+    }
+  }
+
+  return ok;
 };
 
 /**

@@ -63,7 +63,19 @@ Module.prototype.require = function (id) {
     return { emitirComprobante: async () => null, pdfDeComprobante: async () => null };
   }
   if (id.endsWith('middlewares/auth.middleware')) {
-    return { autenticar: (req, _res, next) => { req.usuario = { id: 'u1' }; next(); } };
+    return {
+      // `req.cuenta` lo pone `autenticar` de verdad (ver lib/equipo.js): es la
+      // empresa en la que se está trabajando. En el pago siempre coincide con la
+      // persona, porque la ruta entera exige el permiso de facturación.
+      autenticar: (req, _res, next) => {
+        req.usuario = { id: 'u1' };
+        req.cuenta = { id: 'u1', plan: 'GRATIS', propia: true };
+        req.rol = 'PROPIETARIO';
+        req.alcance = null;
+        next();
+      },
+      permitir: () => (_req, _res, next) => next(),
+    };
   }
   return requireOriginal.apply(this, arguments);
 };

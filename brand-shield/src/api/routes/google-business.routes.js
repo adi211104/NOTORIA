@@ -5,7 +5,8 @@ const express = require('express');
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
 const prisma = require('../../lib/prisma');
-const { autenticar } = require('../middlewares/auth.middleware');
+const { autenticar, permitir } = require('../middlewares/auth.middleware');
+const { dondeNegocio, registrar } = require('../../lib/equipo');
 const { listarCuentas, listarUbicaciones } = require('../../scrapers/google-business.scraper');
 const { firmarState, verificarState } = require('../../lib/oauthState');
 
@@ -160,11 +161,11 @@ router.get('/callback', async (req, res) => {
 
 // ── GET /api/auth/google-business/ubicaciones ─────────────
 // Lista las ubicaciones de una cuenta GBP para que el usuario elija
-router.get('/ubicaciones', autenticar, async (req, res, next) => {
+router.get('/ubicaciones', autenticar, permitir('conexiones'), async (req, res, next) => {
   try {
     const { negocioId, accountId } = req.query;
     const negocio = await prisma.negocio.findFirst({
-      where: { id: negocioId, usuarioId: req.usuario.id },
+      where: dondeNegocio(req, { id: negocioId }),
     });
     if (!negocio?.gbpAccessToken) return res.status(404).json({ error: 'Token GBP no encontrado' });
 
@@ -179,11 +180,11 @@ router.get('/ubicaciones', autenticar, async (req, res, next) => {
 
 // ── POST /api/auth/google-business/seleccionar ────────────
 // El usuario elige su cuenta y ubicación
-router.post('/seleccionar', autenticar, async (req, res, next) => {
+router.post('/seleccionar', autenticar, permitir('conexiones'), async (req, res, next) => {
   try {
     const { negocioId, accountId, locationId } = req.body;
     const negocio = await prisma.negocio.findFirst({
-      where: { id: negocioId, usuarioId: req.usuario.id },
+      where: dondeNegocio(req, { id: negocioId }),
     });
     if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
 
@@ -197,11 +198,11 @@ router.post('/seleccionar', autenticar, async (req, res, next) => {
 
 // ── POST /api/negocios/:id/gbp-responder ──────────────────
 // Responde una reseña directamente via GBP API
-router.post('/:negocioId/gbp-responder', autenticar, async (req, res, next) => {
+router.post('/:negocioId/gbp-responder', autenticar, permitir('actuar'), async (req, res, next) => {
   try {
     const { reviewId, respuesta } = req.body;
     const negocio = await prisma.negocio.findFirst({
-      where: { id: req.params.negocioId, usuarioId: req.usuario.id },
+      where: dondeNegocio(req, { id: req.params.negocioId }),
     });
     if (!negocio?.gbpAccessToken || !negocio.gbpAccountId) {
       return res.status(400).json({ error: 'Google Business Profile no conectado' });

@@ -3,6 +3,8 @@
 
 const jwt = require('jsonwebtoken');
 const prisma = require('../../lib/prisma');
+const { resolverAcceso, puede, MOTIVO } = require('../../lib/equipo');
+
 const autenticar = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
@@ -49,8 +51,32 @@ const autenticar = async (req, res, next) => {
     }
 
     req.usuario = usuario;
+
+    // ─── Cuenta activa ────────────────────────────────────
+    //
+    // Va DENTRO de `autenticar` a propósito, y no como middleware aparte que
+    // haya que recordar montar: si una ruta se lo saltara, `req.cuenta` sería
+    // undefined y la consulta caería en `usuarioId: undefined`, que en Prisma no
+    // es un error sino un filtro que se ignora — o sea, devolver los negocios de
+    // TODO el mundo. Un fallo abierto y silencioso. Aquí no se puede olvidar.
+    //
+    // El header es opcional: sin él se trabaja en la cuenta propia, que es el
+    // caso de casi todas las peticiones y no cuesta ni una consulta extra.
+    const cuentaPedida = (req.get('X-Cuenta') || req.query.cuenta || '').trim();
+    const acceso = await resolverAcceso(usuario, cuentaPedida);
+    req.cuenta = acceso.cuenta;   // la EMPRESA en la que se está trabajando
+    req.rol = acceso.rol;         // PROPIETARIO | GESTOR | LECTOR
+    req.alcance = acceso.alcance; // null = todos sus negocios | [ids] = solo esos
+
     next();
   } catch (error) {
+    // Los errores de acceso a una cuenta ajena traen su propio status y tipo
+    // (ver lib/equipo.js). Se contestan tal cual para que el frontend pueda
+    // distinguir "no eres de este equipo" de "tu plan se quedó sin asientos",
+    // que se arreglan de formas muy distintas.
+    if (error.status === 403 && error.tipo) {
+      return res.status(403).json({ error: error.message, tipo: error.tipo });
+    }
     if (error.name === 'JsonWebTokenError') {
       return res.status(401).json({ error: 'Token inválido' });
     }
@@ -62,8 +88,9 @@ const autenticar = async (req, res, next) => {
 };
 
 // Verifica que el usuario tenga suscripción activa
+// Ojo: mira la CUENTA, no la persona — mismo criterio que verificarPlan.
 const requiereSuscripcion = (req, res, next) => {
-  if (!req.usuario.suscripcionActiva && req.usuario.plan !== 'GRATIS') {
+  if (!req.cuenta.suscripcionActiva && req.cuenta.plan !== 'GRATIS') {
     return res.status(403).json({
       error: 'Se requiere suscripción activa',
       accion: 'SUSCRIBIRSE',
@@ -78,4 +105,25 @@ const requiereSuscripcion = (req, res, next) => {
 // terceros —DNI, domicilio, teléfono— y exponerlos tras el panel haría que
 // robar una sesión también los comprometiera. Decisión del usuario, y la más
 // segura: no se añade superficie web para algo que se usa dos veces al mes.
-module.exports = { autenticar, requiereSuscripcion };
+// ─── Permisos dentro de la cuenta ─────────────────────────
+//
+// Se usa SIEMPRE después de `autenticar` (necesita req.rol). Un rol sin el
+// permiso recibe 403 con el motivo ya redactado, para que el mismo mensaje salga
+// igual venga de donde venga.
+//
+// ⚠️ Al añadir una ruta que MODIFIQUE algo, ponerle su `permitir(...)`. Sin él
+// hereda el permiso más bajo que existe —solo lectura— y un LECTOR podría
+// escribir. El repaso rápido: si la ruta no es GET, lleva permitir().
+const permitir = (permiso) => (req, res, next) => {
+  if (!puede(req.rol, permiso)) {
+    return res.status(403).json({
+      error: MOTIVO[permiso] || 'Tu rol no permite esta acción',
+      accion: 'SIN_PERMISO',
+      permiso,
+      rol: req.rol,
+    });
+  }
+  next();
+};
+
+module.exports = { autenticar, requiereSuscripcion, permitir };

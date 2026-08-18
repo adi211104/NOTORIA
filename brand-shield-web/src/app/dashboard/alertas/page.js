@@ -221,7 +221,7 @@ function ConfigNotificaciones({ prefsIniciales, onGuardado }) {
 }
 
 export default function AlertasPage() {
-  const { usuario, refrescarPerfil } = useAuth();
+  const { usuario, refrescarPerfil, puede } = useAuth();
   const { idioma } = useIdioma();
   const t = TEXTOS[idioma] || TEXTOS.es;
   const [lista, setLista] = useState([]);
@@ -289,17 +289,23 @@ export default function AlertasPage() {
               {t.pagina.marcarTodas}
             </button>
           )}
-          <button
-            onClick={() => setMostrarConfig(v => !v)}
-            className={`text-sm px-4 py-2 rounded-lg border transition inline-flex items-center gap-2 ${mostrarConfig ? 'bg-green-800 border-green-800 text-white' : 'text-gray-400 hover:text-white border-gray-700 hover:border-gray-600'}`}
-          >
-            <Icon name="ajustes" size={14} /> {t.pagina.configBtn}
-          </button>
+          {puede('equipo') && (
+            <button
+              onClick={() => setMostrarConfig(v => !v)}
+              className={`text-sm px-4 py-2 rounded-lg border transition inline-flex items-center gap-2 ${mostrarConfig ? 'bg-green-800 border-green-800 text-white' : 'text-gray-400 hover:text-white border-gray-700 hover:border-gray-600'}`}
+            >
+              <Icon name="ajustes" size={14} /> {t.pagina.configBtn}
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Configuración de notificaciones */}
-      {mostrarConfig && (
+      {/* Configuración de notificaciones.
+          Solo el propietario. Las preferencias que respeta el worker son las de
+          la cuenta —quien recibe la alerta original—, así que a un invitado esta
+          pantalla le guardaría unas preferencias suyas que no cambian nada de lo
+          que llega. Prometer un ajuste que no hace nada es peor que no ofrecerlo. */}
+      {mostrarConfig && puede('equipo') && (
         <ConfigNotificaciones
           prefsIniciales={usuario?.prefsAlertas}
           onGuardado={refrescarPerfil}

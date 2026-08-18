@@ -41,6 +41,8 @@ const PLANES = {
         { texto: 'Solo 1 competidor monitoreado', ok: true },
         { texto: 'Alertas por email y en la app Android', ok: true },
         { texto: 'Aviso si tu ficha aparece cerrada en Google', ok: true },
+        { texto: 'La cuenta es solo tuya (1 persona)', ok: true },
+        { texto: 'Compartir el panel con tu equipo', ok: false },
         { texto: 'Escaneos frecuentes (4h o 1h)', ok: false },
         { texto: 'Conexión de TikTok', ok: false },
         { texto: 'IA amplia para respuestas y análisis', ok: false },
@@ -71,6 +73,7 @@ const PLANES = {
         { texto: 'Alertas por email y en la app Android', ok: true },
         { texto: 'Reporte PDF mensual automático', ok: true },
         { texto: 'Boleta o factura electrónica a tu RUC', ok: true },
+        { texto: 'Comparte el panel con 2 personas más', ok: true },
         { texto: 'Todo lo del plan Gratuito', ok: true },
         { texto: 'Negocios ilimitados en un solo panel', ok: false },
         { texto: 'Soporte prioritario', ok: false },
@@ -100,6 +103,8 @@ const PLANES = {
         { texto: 'Alertas por email y en la app Android', ok: true },
         { texto: 'Reporte PDF mensual', ok: true },
         { texto: 'Boleta o factura electrónica a tu RUC', ok: true },
+        { texto: 'Comparte el panel con 9 personas más', ok: true },
+        { texto: 'Da acceso a cada encargado solo a su sede', ok: true },
         { texto: 'Negocios ilimitados en un solo panel', ok: true },
         { texto: 'Soporte prioritario por correo', ok: true },
         { texto: 'Todo lo del plan Negocio', ok: true },
@@ -126,6 +131,8 @@ const PLANES = {
         { texto: 'Only 1 monitored competitor', ok: true },
         { texto: 'Email and Android app alerts', ok: true },
         { texto: 'Only 7-day history', ok: true },
+        { texto: 'The account is yours alone (1 person)', ok: true },
+        { texto: 'Share the dashboard with your team', ok: false },
         { texto: 'Frequent scans (4h or 1h)', ok: false },
         { texto: 'TikTok connection', ok: false },
         { texto: 'Extended AI for replies and analysis', ok: false },
@@ -156,6 +163,7 @@ const PLANES = {
         { texto: 'Email and Android app alerts', ok: true },
         { texto: 'Automatic monthly PDF report', ok: true },
         { texto: 'Automatic electronic invoice (SUNAT, Peru)', ok: true },
+        { texto: 'Share the dashboard with 2 more people', ok: true },
         { texto: 'Everything in the Free plan', ok: true },
         { texto: 'Multi-location executive dashboard', ok: false },
         { texto: 'Priority support', ok: false },
@@ -179,6 +187,8 @@ const PLANES = {
         { texto: 'TikTok connection (profile and videos)', ok: true },
         { texto: 'Advanced bot detection', ok: true },
         { texto: 'Email and Android app alerts', ok: true },
+        { texto: 'Share the dashboard with 9 more people', ok: true },
+        { texto: 'Give each manager access to their location only', ok: true },
         { texto: 'Monthly PDF report', ok: true },
         { texto: 'Automatic electronic invoice (SUNAT, Peru)', ok: true },
         { texto: 'Multi-location executive dashboard', ok: true },
@@ -210,6 +220,7 @@ const TEXTOS = {
     oAnual: (precioAnual) => `o ${S}${precioAnual}/mes pagando anual`,
     promoBienvenida: '50% OFF tus primeros 2 meses',
     planActivo: 'Plan activo',
+    soloPropietario: 'Solo el propietario de la cuenta puede cambiar de plan',
     valorTitulo: '¿Por qué vale la pena pagar?',
     valorItems: [
       { t:'Cada hora importa', d:'Un ataque de reseñas falsas puede destruir semanas de trabajo en una noche. Con escaneo cada 4 horas, actúas antes de que el daño sea irreversible.' },
@@ -237,6 +248,7 @@ const TEXTOS = {
     oAnual: (precioAnual) => `or ${S}${precioAnual}/mo billed yearly`,
     promoBienvenida: '50% OFF your first 2 months',
     planActivo: 'Active plan',
+    soloPropietario: 'Only the account owner can change the plan',
     valorTitulo: 'Why is it worth paying?',
     valorItems: [
       { t:'Every hour matters', d:'A fake-review attack can destroy weeks of work in one night. With scans every 4 hours, you act before the damage becomes irreversible.' },
@@ -255,7 +267,7 @@ const CheckIcon = ({ ok }) => (
 
 export default function PlanesPage() {
   const router = useRouter();
-  const { usuario, refrescarPerfil } = useAuth();
+  const { usuario, refrescarPerfil, puede } = useAuth();
   const { idioma } = useIdioma();
   const t = TEXTOS[idioma] || TEXTOS.es;
   const planes = PLANES[idioma] || PLANES.es;
@@ -484,7 +496,18 @@ export default function PlanesPage() {
                 )}
               </div>
 
-              {/* CTA */}
+              {/* CTA — solo el propietario contrata. Al equipo invitado se le
+                  deja ver la comparativa (le explica qué funciones tiene la
+                  cuenta) pero no un botón de pago que devolvería 403. */}
+              {!puede('facturacion') ? (
+                <div style={{
+                  width: '100%', padding: '11px', borderRadius: 5, fontSize: 12.5, marginBottom: 18,
+                  textAlign: 'center', fontFamily: GEO, color: 'var(--text-3)',
+                  background: 'var(--surface2)', border: '1px solid var(--border-c)',
+                }}>
+                  {t.soloPropietario}
+                </div>
+              ) : (
               <button onClick={() => handleCTA(plan)} disabled={!plan.ctaActivo || esPlanActual}
                 style={{
                   width: '100%', padding: '11px', borderRadius: 5, fontSize: 13.5, fontWeight: 600,
@@ -499,6 +522,7 @@ export default function PlanesPage() {
                 onMouseLeave={e => { if (!esPlanActual && plan.ctaActivo) e.currentTarget.style.background = G; }}>
                 {esPlanActual ? t.planActivo : plan.cta}
               </button>
+              )}
 
               {/* Features */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 9, flex: 1 }}>

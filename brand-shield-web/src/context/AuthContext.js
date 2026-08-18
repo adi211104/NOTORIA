@@ -1,7 +1,7 @@
 'use client';
 import { createContext, useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { auth } from '../lib/api';
+import { auth, setCuentaActiva, CLAVE_CUENTA } from '../lib/api';
 import { useIdioma } from './IdiomaContext';
 
 const AuthContext = createContext(null);
@@ -10,6 +10,9 @@ export const AuthProvider = ({ children }) => {
   const [usuario, setUsuario] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [errorConexion, setErrorConexion] = useState(false);
+  // Motivo por el que se salió de una cuenta compartida sin pedirlo. Se muestra
+  // una vez y se limpia: es una explicación, no un estado permanente.
+  const [avisoCuenta, setAvisoCuenta] = useState(null);
   const router = useRouter();
   const { idioma, cambiarIdioma } = useIdioma();
 
@@ -30,6 +33,19 @@ export const AuthProvider = ({ children }) => {
     auth.perfil()
       .then(u => { setUsuario(u); setErrorConexion(false); })
       .catch(err => {
+        // 🔴 Salida de emergencia de la cuenta compartida.
+        //
+        // Si el dueño te quita el acceso o baja de plan mientras tienes la
+        // sesión abierta, TODAS las peticiones empiezan a devolver 403 con la
+        // cuenta guardada en localStorage — incluida esta. Sin este rescate el
+        // panel se queda inservible y la única salida sería borrar el
+        // almacenamiento del navegador, cosa que nadie sabe hacer.
+        if (err.status === 403 && (err.datos?.tipo === 'SIN_ACCESO_CUENTA' || err.datos?.tipo === 'SIN_ASIENTO')) {
+          setCuentaActiva('');
+          setAvisoCuenta(err.message);
+          auth.perfil().then(u => { setUsuario(u); setErrorConexion(false); }).catch(() => setUsuario(null));
+          return;
+        }
         if (err.status === 401) {
           // Token inválido — limpiar sesión
           try { localStorage.removeItem('bs_token'); } catch {}
@@ -76,6 +92,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password, destino) => {
     const data = await auth.login({ email, password });
     localStorage.setItem('bs_token', data.token);
+    setCuentaActiva('');
     setUsuario(data.usuario);
     router.push(rutaSegura(destino) || '/dashboard');
   };
@@ -83,6 +100,7 @@ export const AuthProvider = ({ children }) => {
   const registro = async (nombre, email, password, destino) => {
     const data = await auth.registro({ nombre, email, password });
     localStorage.setItem('bs_token', data.token);
+    setCuentaActiva('');
     localStorage.removeItem('bs_onboarding');
     setUsuario(data.usuario);
     router.push(rutaSegura(destino) || '/onboarding');
@@ -98,11 +116,29 @@ export const AuthProvider = ({ children }) => {
     router.push(rutaSegura(destino) || (esNuevo ? '/onboarding' : '/dashboard'));
   };
 
+  /**
+   * Entra a trabajar en otra cuenta (o vuelve a la propia con id vacío).
+   *
+   * Recarga la página entera en vez de sólo refrescar el perfil, y es
+   * deliberado: media docena de pantallas del panel guardan en su propio estado
+   * negocios, alertas y comentarios de la cuenta anterior. Refrescar sólo el
+   * perfil dejaría el nombre de una empresa arriba y los datos de otra debajo,
+   * que es peor que tardar un segundo.
+   */
+  const cambiarCuenta = (id) => {
+    const propia = !id || id === usuario?.id;
+    setCuentaActiva(propia ? '' : id);
+    window.location.href = '/dashboard';
+  };
+
   const logout = () => {
     try {
       localStorage.removeItem('bs_token');
       localStorage.removeItem('bs_onboarding');
       localStorage.removeItem('bs_pais');
+      // Sin esto, el siguiente que entre en este navegador arrancaría dentro de
+      // la cuenta compartida del anterior.
+      localStorage.removeItem(CLAVE_CUENTA);
     } catch {}
     setUsuario(null);
     setErrorConexion(false);
@@ -110,7 +146,18 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ usuario, cargando, errorConexion, login, registro, loginConGoogle, logout, refrescarPerfil }}>
+    <AuthContext.Provider value={{
+      usuario, cargando, errorConexion, login, registro, loginConGoogle, logout, refrescarPerfil,
+      // Equipo. `puede` es el atajo que usan las pantallas para esconder botones;
+      // el backend vuelve a comprobarlo en cada ruta, porque esconder un botón
+      // no es una defensa, es una cortesía.
+      rol: usuario?.rol || 'PROPIETARIO',
+      puede: (permiso) => (usuario?.permisos || ['ver','actuar','negocios','conexiones','facturacion','equipo']).includes(permiso),
+      cuenta: usuario?.cuenta || null,
+      cuentas: usuario?.cuentas || [],
+      cuentaCompartida: !!(usuario?.cuenta && usuario.cuenta.propia === false),
+      cambiarCuenta, avisoCuenta, limpiarAvisoCuenta: () => setAvisoCuenta(null),
+    }}>
       {children}
     </AuthContext.Provider>
   );

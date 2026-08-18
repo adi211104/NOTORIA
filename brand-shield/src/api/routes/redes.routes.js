@@ -6,7 +6,8 @@
 const express = require('express');
 const axios = require('axios');
 const prisma = require('../../lib/prisma');
-const { autenticar } = require('../middlewares/auth.middleware');
+const { autenticar, permitir } = require('../middlewares/auth.middleware');
+const { dondeNegocio, registrar } = require('../../lib/equipo');
 const instagram = require('../../scrapers/instagram.scraper');
 const tiktok = require('../../scrapers/tiktok.scraper');
 const tiktokBiz = require('../../scrapers/tiktokBusiness.scraper');
@@ -21,8 +22,9 @@ const META_REDIRECT_URI = process.env.META_REDIRECT_URI || `${BACKEND_URL}/api/r
 const TIKTOK_REDIRECT_URI = process.env.TIKTOK_REDIRECT_URI || `${BACKEND_URL}/api/redes/tiktok/callback`;
 const TIKTOK_BIZ_REDIRECT_URI = process.env.TIKTOK_BIZ_REDIRECT_URI || `${BACKEND_URL}/api/redes/tiktok-business/callback`;
 
-const negocioDelUsuario = async (negocioId, usuarioId) =>
-  prisma.negocio.findFirst({ where: { id: negocioId, usuarioId } });
+// Ver el comentario gemelo en comentario.routes.js: la cuenta, no la persona.
+const negocioDeLaCuenta = async (req, negocioId) =>
+  prisma.negocio.findFirst({ where: dondeNegocio(req, { id: negocioId }) });
 
 // Primer escaneo nada más conectar. Sin esto, el usuario autoriza, vuelve al
 // panel y encuentra la pestaña de comentarios VACÍA hasta que corra el cron —
@@ -62,7 +64,7 @@ const primerEscaneo = async (negocioId, red) => {
 };
 
 const requierePlanPago = (req, res) => {
-  if (req.usuario.plan === 'GRATIS') {
+  if (req.cuenta.plan === 'GRATIS') {
     res.status(403).json({
       error: 'Las redes sociales (Instagram y TikTok) están disponibles desde el Plan Negocio.',
       accion: 'ACTUALIZAR_PLAN',
@@ -306,7 +308,7 @@ router.use(autenticar);
 // ── GET /api/redes/:negocioId/estado ──────────────────────
 router.get('/:negocioId/estado', async (req, res, next) => {
   try {
-    const negocio = await negocioDelUsuario(req.params.negocioId, req.usuario.id);
+    const negocio = await negocioDeLaCuenta(req, req.params.negocioId);
     if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
 
     res.json({
@@ -315,7 +317,7 @@ router.get('/:negocioId/estado', async (req, res, next) => {
         // todo el mundo salvo las cuentas de prueba (ver lib/instagramVisible).
         // El panel ESCONDE la fila entera cuando viene false: nada de
         // "próximamente", que invita a preguntar por una fecha que no tenemos.
-        disponible: instagram.configurado() && instagramVisiblePara(req.usuario),
+        disponible: instagram.configurado() && instagramVisiblePara(req.cuenta),
         conectado: !!negocio.instagramAccessToken,
       },
       tiktok: {
@@ -337,10 +339,10 @@ router.get('/:negocioId/estado', async (req, res, next) => {
 
 // ── POST /api/redes/:negocioId/instagram/conectar ────────
 // Devuelve la URL del diálogo de autorización de Meta; el frontend navega a ella.
-router.post('/:negocioId/instagram/conectar', async (req, res, next) => {
+router.post('/:negocioId/instagram/conectar', permitir('conexiones'), async (req, res, next) => {
   try {
     if (!requierePlanPago(req, res)) return;
-    const negocio = await negocioDelUsuario(req.params.negocioId, req.usuario.id);
+    const negocio = await negocioDeLaCuenta(req, req.params.negocioId);
     if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
 
     if (!instagram.configurado()) {
@@ -354,7 +356,7 @@ router.post('/:negocioId/instagram/conectar', async (req, res, next) => {
     // 403, igual que en menciones. No es que le falte permiso al usuario — es
     // que la función no existe todavía para él. El panel ya no muestra el botón;
     // esto cierra el camino de quien llegue a la URL a mano.
-    if (!instagramVisiblePara(req.usuario)) {
+    if (!instagramVisiblePara(req.cuenta)) {
       return res.status(404).json({ error: 'Función no disponible' });
     }
 
@@ -362,7 +364,7 @@ router.post('/:negocioId/instagram/conectar', async (req, res, next) => {
       client_id: process.env.META_APP_ID,
       redirect_uri: META_REDIRECT_URI,
       response_type: 'code',
-      state: codificarState(negocio.id, req.usuario.id),
+      state: codificarState(negocio.id, req.cuenta.id),
     });
     // Facebook Login for Business (apps tipo Negocio) reemplaza el `scope`
     // suelto por una "Configuración" — un paquete de permisos creado en la
@@ -385,10 +387,10 @@ router.post('/:negocioId/instagram/conectar', async (req, res, next) => {
 });
 
 // ── POST /api/redes/:negocioId/tiktok/conectar ────────────
-router.post('/:negocioId/tiktok/conectar', async (req, res, next) => {
+router.post('/:negocioId/tiktok/conectar', permitir('conexiones'), async (req, res, next) => {
   try {
     if (!requierePlanPago(req, res)) return;
-    const negocio = await negocioDelUsuario(req.params.negocioId, req.usuario.id);
+    const negocio = await negocioDeLaCuenta(req, req.params.negocioId);
     if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
 
     // Ruta preferente: TikTok Accounts API (§15-octies). Cubre todo lo que hace
@@ -408,7 +410,7 @@ router.post('/:negocioId/tiktok/conectar', async (req, res, next) => {
         client_key: process.env.TIKTOK_BIZ_CLIENT_ID,
         redirect_uri: TIKTOK_BIZ_REDIRECT_URI,
         response_type: 'code',
-        state: codificarState(negocio.id, req.usuario.id),
+        state: codificarState(negocio.id, req.cuenta.id),
         // `user.info.stats` NO es opcional aunque no mostremos seguidores:
         // `/business/get/` responde 40130 sin él, incluso pidiendo solo
         // `display_name` (comprobado el 2026-08-06 comparando dos tokens que
@@ -443,7 +445,7 @@ router.post('/:negocioId/tiktok/conectar', async (req, res, next) => {
       client_key: process.env.TIKTOK_CLIENT_KEY,
       redirect_uri: TIKTOK_REDIRECT_URI,
       response_type: 'code',
-      state: codificarState(negocio.id, req.usuario.id),
+      state: codificarState(negocio.id, req.cuenta.id),
     });
 
     res.json({
@@ -478,13 +480,13 @@ const REDES_DESCONECTABLES = {
   instagram: ['instagramUserId', 'instagramAccessToken', 'instagramTokenExpira'],
 };
 
-router.delete('/:negocioId/:red', async (req, res, next) => {
+router.delete('/:negocioId/:red', permitir('conexiones'), async (req, res, next) => {
   try {
     const { red } = req.params;
     const campos = REDES_DESCONECTABLES[red];
     if (!campos) return res.status(400).json({ error: `No se puede desconectar "${red}" desde aquí.` });
 
-    const negocio = await negocioDelUsuario(req.params.negocioId, req.usuario.id);
+    const negocio = await negocioDeLaCuenta(req, req.params.negocioId);
     if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
 
     let revocado = false;
@@ -500,7 +502,7 @@ router.delete('/:negocioId/:red', async (req, res, next) => {
         ? await prisma.negocio.count({
           where: {
             id: { not: negocio.id },
-            usuarioId: req.usuario.id,
+            usuarioId: req.cuenta.id,
             tiktokRefreshToken: negocio.tiktokRefreshToken,
           },
         })
@@ -521,7 +523,7 @@ router.delete('/:negocioId/:red', async (req, res, next) => {
         ? await prisma.negocio.count({
           where: {
             id: { not: negocio.id },
-            usuarioId: req.usuario.id,
+            usuarioId: req.cuenta.id,
             tiktokBizRefreshToken: negocio.tiktokBizRefreshToken,
           },
         })
@@ -543,7 +545,7 @@ router.delete('/:negocioId/:red', async (req, res, next) => {
       const otrosIg = await prisma.negocio.count({
         where: {
           id: { not: negocio.id },
-          usuarioId: req.usuario.id,
+          usuarioId: req.cuenta.id,
           instagramUserId: negocio.instagramUserId,
         },
       });

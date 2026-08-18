@@ -19,16 +19,53 @@ const getToken = () => {
   try { return localStorage.getItem('bs_token'); } catch { return null; }
 };
 
-const api = async (url, options = {}) => {
-  const token = getToken();
+// ─── Cuenta activa ────────────────────────────────────────
+//
+// En qué empresa está trabajando el usuario. Vacío = la suya, que es el caso de
+// casi todo el mundo. Solo cambia cuando alguien le compartió su cuenta y él
+// eligió entrar en ella desde el selector del panel.
+//
+// Vive en localStorage y no en el token: cambiar de cuenta no puede obligar a
+// re-emitir la sesión, y el backend valida la pertenencia en CADA petición
+// (lib/equipo.js), así que un valor manipulado aquí no abre ninguna puerta —
+// devuelve 403.
+export const CLAVE_CUENTA = 'bs_cuenta';
 
+export const cuentaActiva = () => {
+  try { return localStorage.getItem(CLAVE_CUENTA) || ''; } catch { return ''; }
+};
+
+export const setCuentaActiva = (id) => {
+  try {
+    if (id) localStorage.setItem(CLAVE_CUENTA, id);
+    else localStorage.removeItem(CLAVE_CUENTA);
+  } catch {}
+};
+
+/**
+ * Cabeceras de autenticación para los `fetch` sueltos que hay repartidos por el
+ * panel (descargas de PDF, formularios). Devolverlas desde aquí es lo que evita
+ * que uno se olvide de X-Cuenta y acabe operando sobre la cuenta equivocada:
+ * sin esa cabecera el backend resuelve la cuenta propia y la pantalla responde
+ * "negocio no encontrado" sin decir por qué.
+ */
+export const cabecerasAuth = () => {
+  const token = getToken();
+  const cuenta = cuentaActiva();
+  return {
+    ...(token && { Authorization: `Bearer ${token}` }),
+    ...(cuenta && { 'X-Cuenta': cuenta }),
+  };
+};
+
+const api = async (url, options = {}) => {
   let res;
   try {
     res = await fetch(`${API_URL}${url}`, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
-        ...(token && { Authorization: `Bearer ${token}` }),
+        ...cabecerasAuth(),
         ...options.headers,
       },
     });
@@ -176,6 +213,21 @@ export const competidoresApi = {
   eliminar:    (id)             => api(`/api/competidores/${id}`, { method:'DELETE' }),
   analizar:    (negocioId, competidorId) =>
     api('/api/ia/analisis-competidor', { method:'POST', body:JSON.stringify({ negocioId, competidorId }) }),
+};
+
+export const equipoApi = {
+  // Estado del equipo de la cuenta activa. Lo puede pedir cualquier rol.
+  estado:     ()        => api('/api/equipo'),
+  cuentas:    ()        => api('/api/equipo/cuentas'),
+  invitar:    (d)       => api('/api/equipo/invitar', { method:'POST', body:JSON.stringify(d) }),
+  reenviar:   (id)      => api(`/api/equipo/invitaciones/${id}/reenviar`, { method:'POST' }),
+  cancelar:   (id)      => api(`/api/equipo/invitaciones/${id}`, { method:'DELETE' }),
+  actualizar: (id, d)   => api(`/api/equipo/miembros/${id}`, { method:'PATCH', body:JSON.stringify(d) }),
+  quitar:     (id)      => api(`/api/equipo/miembros/${id}`, { method:'DELETE' }),
+  salir:      (cuentaId)=> api('/api/equipo/salir', { method:'POST', body:JSON.stringify({ cuentaId }) }),
+  // Sin sesión: la usa la página de invitación antes de que el invitado tenga cuenta.
+  verInvitacion: (token) => api(`/api/equipo/invitacion/${token}`),
+  aceptar:       (token) => api(`/api/equipo/invitacion/${token}/aceptar`, { method:'POST' }),
 };
 
 export const utils = {

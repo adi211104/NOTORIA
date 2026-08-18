@@ -135,7 +135,7 @@ const Fila = ({ nombre, descripcion, children, ultima }) => (
 );
 
 export default function ConexionesPage() {
-  const { usuario } = useAuth();
+  const { usuario, puede } = useAuth();
   const { idioma } = useIdioma();
   const t = TEXTOS[idioma] || TEXTOS.es;
 
@@ -281,10 +281,14 @@ export default function ConexionesPage() {
                     {n.gbpConectado ? (
                       <Pastilla tono="ok">{t.conectado}</Pastilla>
                     ) : (
-                      <button onClick={() => conectarGBP(n.id)}
-                        style={{ background:'#4285F4', color:'#fff', border:'none', borderRadius:8, padding:'6px 13px', fontSize:12, fontWeight:500, cursor:'pointer' }}>
-                        {t.conectar}
-                      </button>
+                      puede('conexiones') ? (
+                        <button onClick={() => conectarGBP(n.id)}
+                          style={{ background:'#4285F4', color:'#fff', border:'none', borderRadius:8, padding:'6px 13px', fontSize:12, fontWeight:500, cursor:'pointer' }}>
+                          {t.conectar}
+                        </button>
+                      ) : (
+                        <Pastilla tono="apagado">{t.noConectado}</Pastilla>
+                      )
                     )}
                   </Fila>
 
@@ -324,22 +328,31 @@ export default function ConexionesPage() {
                         // retirar el acceso — una vez autorizada quedaba para siempre.
                         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                           <Pastilla tono="azul">{t.conectado}</Pastilla>
-                          <button onClick={() => abrirAjustes(n, red)}
-                            title={t.ajustes.abrir} aria-label={t.ajustes.abrir}
-                            style={{ display:'flex', alignItems:'center', justifyContent:'center',
-                                     width:26, height:26, borderRadius:7, cursor:'pointer',
-                                     background:'var(--surface2)', border:'1px solid var(--border-c)', color:'var(--text-3)' }}>
-                            <Icon name="ajustes" size={13} />
-                          </button>
+                          {/* La tuerca lleva a reautorizar y a ELIMINAR la
+                              conexión: revoca el token del lado de la
+                              plataforma. Al equipo invitado no se le ofrece. */}
+                          {puede('conexiones') && (
+                            <button onClick={() => abrirAjustes(n, red)}
+                              title={t.ajustes.abrir} aria-label={t.ajustes.abrir}
+                              style={{ display:'flex', alignItems:'center', justifyContent:'center',
+                                       width:26, height:26, borderRadius:7, cursor:'pointer',
+                                       background:'var(--surface2)', border:'1px solid var(--border-c)', color:'var(--text-3)' }}>
+                              <Icon name="ajustes" size={13} />
+                            </button>
+                          )}
                         </div>
                       ) : (
                         // Sin conectar. No hace falta mirar `disponible`: si no
                         // lo estuviera, la fila no se habría renderizado.
-                        <button onClick={() => conectarRed(n.id, red)}
-                          disabled={conectando === `${n.id}:${red}`}
-                          style={{ fontSize:11.5, color:'#4CAF66', background:'rgba(11,115,36,0.1)', border:'1px solid rgba(11,115,36,0.3)', padding:'4px 13px', borderRadius:10, cursor:conectando===`${n.id}:${red}`?'wait':'pointer' }}>
-                          {conectando === `${n.id}:${red}` ? t.conectando : t.conectar}
-                        </button>
+                        puede('conexiones') ? (
+                          <button onClick={() => conectarRed(n.id, red)}
+                            disabled={conectando === `${n.id}:${red}`}
+                            style={{ fontSize:11.5, color:'#4CAF66', background:'rgba(11,115,36,0.1)', border:'1px solid rgba(11,115,36,0.3)', padding:'4px 13px', borderRadius:10, cursor:conectando===`${n.id}:${red}`?'wait':'pointer' }}>
+                            {conectando === `${n.id}:${red}` ? t.conectando : t.conectar}
+                          </button>
+                        ) : (
+                          <Pastilla tono="apagado">{t.noConectado}</Pastilla>
+                        )
                       )}
                     </Fila>
                   ))}

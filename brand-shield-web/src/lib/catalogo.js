@@ -65,8 +65,8 @@ export const CATALOGO = [
     imagen: 'negocio',
     destacado: true,
     descripcion:
-      'Monitoreo de hasta 5 negocios con escaneo cada 4 horas. Incluye 100 usos de IA a la semana para respuestas y análisis, 5 competidores vigilados por negocio con análisis IA de sus puntos débiles, conexión de TikTok, detección de reseñas copiadas y de picos anormales, aviso si te cambian el teléfono o el horario en tu ficha de Google, constancia de reputación con código verificable, alertas por email y notificaciones en la app de Android, reporte PDF mensual automático y boleta o factura electrónica a tu RUC. Cobro mensual, se renueva cada 30 días.',
-    incluye: ['Hasta 5 negocios', 'Escaneo cada 4 horas', 'Alertas por email y app', 'Reporte PDF mensual', 'Aviso si te alteran la ficha'],
+      'Monitoreo de hasta 5 negocios con escaneo cada 4 horas. Incluye 100 usos de IA a la semana para respuestas y análisis, 5 competidores vigilados por negocio con análisis IA de sus puntos débiles, conexión de TikTok, detección de reseñas copiadas y de picos anormales, aviso si te cambian el teléfono o el horario en tu ficha de Google, constancia de reputación con código verificable, panel compartido con 2 personas más de tu equipo (cada una con su propio usuario y su rol), alertas por email y notificaciones en la app de Android, reporte PDF mensual automático y boleta o factura electrónica a tu RUC. Cobro mensual, se renueva cada 30 días.',
+    incluye: ['Hasta 5 negocios', 'Escaneo cada 4 horas', 'Panel para 3 personas', 'Alertas por email y app', 'Reporte PDF mensual', 'Aviso si te alteran la ficha'],
     comprable: true,
   },
   {
@@ -78,7 +78,7 @@ export const CATALOGO = [
     unidad: 'por año (equivale a S/47 por mes)',
     imagen: 'negocio-anual',
     descripcion:
-      'Las mismas prestaciones del Plan Negocio con pago anual adelantado: hasta 5 negocios, escaneo cada 4 horas, 100 usos de IA a la semana, 5 competidores por negocio, conexión de TikTok y reporte PDF mensual. Un solo cargo al año, con 20% de descuento frente al pago mensual.',
+      'Las mismas prestaciones del Plan Negocio con pago anual adelantado: hasta 5 negocios, escaneo cada 4 horas, 100 usos de IA a la semana, 5 competidores por negocio, conexión de TikTok, panel compartido con 2 personas más de tu equipo y reporte PDF mensual. Un solo cargo al año, con 20% de descuento frente al pago mensual.',
     incluye: ['Todo el Plan Negocio', 'Un solo cargo al año', '20% de ahorro', 'Boleta o factura a tu RUC'],
     comprable: true,
   },
@@ -91,8 +91,8 @@ export const CATALOGO = [
     unidad: 'por mes',
     imagen: 'franquicia',
     descripcion:
-      'Para cadenas y grupos hoteleros: negocios ilimitados con escaneo cada hora. Incluye 300 usos de IA a la semana, 15 competidores por negocio con descubrimiento automático de rivales cercanos, conexión de TikTok, alertas por email y notificaciones en la app de Android, reporte PDF mensual, todos tus locales en un solo panel y soporte prioritario por correo. Cobro mensual.',
-    incluye: ['Negocios ilimitados', 'Escaneo cada hora', 'Alertas por email y app', 'Todos tus locales en un panel', 'Soporte prioritario'],
+      'Para cadenas y grupos hoteleros: negocios ilimitados con escaneo cada hora. Incluye 300 usos de IA a la semana, 15 competidores por negocio con descubrimiento automático de rivales cercanos, conexión de TikTok, alertas por email y notificaciones en la app de Android, reporte PDF mensual, todos tus locales en un solo panel, panel compartido con hasta 9 personas más —cada encargado con acceso solo a su sede— y soporte prioritario por correo. Cobro mensual.',
+    incluye: ['Negocios ilimitados', 'Escaneo cada hora', 'Panel para 10 personas', 'Alertas por email y app', 'Todos tus locales en un panel', 'Soporte prioritario'],
     comprable: true,
   },
   {
@@ -104,7 +104,7 @@ export const CATALOGO = [
     unidad: 'por año (equivale a S/143 por mes)',
     imagen: 'franquicia-anual',
     descripcion:
-      'Las mismas prestaciones del Plan Franquicia con pago anual adelantado: negocios ilimitados, escaneo cada hora, 300 usos de IA a la semana, 15 competidores por negocio y todos tus locales en un solo panel. Un solo cargo al año, con 20% de descuento frente al pago mensual.',
+      'Las mismas prestaciones del Plan Franquicia con pago anual adelantado: negocios ilimitados, escaneo cada hora, 300 usos de IA a la semana, 15 competidores por negocio, panel compartido con hasta 9 personas más y todos tus locales en un solo panel. Un solo cargo al año, con 20% de descuento frente al pago mensual.',
     incluye: ['Todo el Plan Franquicia', 'Un solo cargo al año', '20% de ahorro', 'Soporte prioritario'],
     comprable: true,
   },

@@ -9,7 +9,8 @@ const { emitirCodigo, VIGENCIA_DIAS } = require('../../lib/constancia');
 const { generarConstancia } = require('../../utils/constancia.pdf');
 
 const router = express.Router();
-const { autenticar } = require('../middlewares/auth.middleware');
+const { autenticar, permitir } = require('../middlewares/auth.middleware');
+const { dondeNegocio, registrar } = require('../../lib/equipo');
 const { verificarPlan } = require('../middlewares/verificarPlan.middleware');
 
 // Plantillas sugeridas de auto-respuesta por tono (el usuario las aprueba/edita una vez)
@@ -44,7 +45,7 @@ router.use(autenticar);
 router.get('/', async (req, res, next) => {
   try {
     const negocios = await prisma.negocio.findMany({
-      where: { usuarioId: req.usuario.id, activo: true },
+      where: dondeNegocio(req, { activo: true }),
       include: {
         _count: { select: { alertas: { where: { leida: false } } } },
         snapshots: { orderBy: { tomadoEn: 'desc' }, take: 1 },
@@ -56,7 +57,7 @@ router.get('/', async (req, res, next) => {
 });
 
 // ── POST /api/negocios ────────────────────────────────────
-router.post('/', async (req, res, next) => {
+router.post('/', permitir('negocios'), async (req, res, next) => {
   try {
     // El país ya no viene del cliente: Notoria opera solo en Perú, así que todo
     // negocio se crea con PAIS_UNICO. La columna `pais` se mantiene en el modelo
@@ -67,8 +68,8 @@ router.post('/', async (req, res, next) => {
     const tipoValido = tipoNegocioSchema.safeParse(tipo);
     if (!tipoValido.success) return res.status(400).json({ error: 'tipo de negocio inválido' });
 
-    const total = await prisma.negocio.count({ where: { usuarioId: req.usuario.id, activo: true } });
-    const limite = req.usuario.plan === 'GRATIS' ? 1 : req.usuario.plan === 'NEGOCIO' ? 5 : 999;
+    const total = await prisma.negocio.count({ where: dondeNegocio(req, { activo: true }) });
+    const limite = req.cuenta.plan === 'GRATIS' ? 1 : req.cuenta.plan === 'NEGOCIO' ? 5 : 999;
     if (total >= limite) {
       return res.status(403).json({
         error: `Tu plan permite hasta ${limite} negocio(s). Actualiza para agregar más.`,
@@ -87,7 +88,7 @@ router.post('/', async (req, res, next) => {
     }
 
     const negocio = await prisma.negocio.create({
-      data: { nombre, tipo, pais: PAIS_UNICO, googlePlaceId, googleNombre, googleRatingBase, direccion, usuarioId: req.usuario.id },
+      data: { nombre, tipo, pais: PAIS_UNICO, googlePlaceId, googleNombre, googleRatingBase, direccion, usuarioId: req.cuenta.id },
     });
     res.status(201).json({ mensaje: 'Negocio agregado. El monitoreo iniciará pronto.', negocio: negocioPublico(negocio) });
   } catch (error) { next(error); }
@@ -97,7 +98,7 @@ router.post('/', async (req, res, next) => {
 router.get('/:id', async (req, res, next) => {
   try {
     const negocio = await prisma.negocio.findFirst({
-      where: { id: req.params.id, usuarioId: req.usuario.id },
+      where: dondeNegocio(req, { id: req.params.id }),
       include: {
         alertas: { orderBy: { creadaEn: 'desc' }, take: 20 },
         snapshots: { orderBy: { tomadoEn: 'desc' }, take: 30 },
@@ -111,10 +112,10 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // ── PATCH /api/negocios/:id/configuracion ─────────────────
-router.patch('/:id/configuracion', async (req, res, next) => {
+router.patch('/:id/configuracion', permitir('actuar'), async (req, res, next) => {
   try {
     const negocio = await prisma.negocio.findFirst({
-      where: { id: req.params.id, usuarioId: req.usuario.id },
+      where: dondeNegocio(req, { id: req.params.id }),
     });
     if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
 
@@ -133,17 +134,17 @@ router.patch('/:id/configuracion', async (req, res, next) => {
 // Aprueba/edita la plantilla de auto-respuesta a reseñas positivas (4-5★).
 // Plan Negocio: solo `plantilla`. Plan Franquicia: además puede elegir `tono`
 // (una de las 3 variantes sugeridas) en vez de una plantilla única.
-router.post('/:id/auto-respuesta/configurar', verificarPlan(['NEGOCIO', 'FRANQUICIA']), async (req, res, next) => {
+router.post('/:id/auto-respuesta/configurar', permitir('actuar'), verificarPlan(['NEGOCIO', 'FRANQUICIA']), async (req, res, next) => {
   try {
     const negocio = await prisma.negocio.findFirst({
-      where: { id: req.params.id, usuarioId: req.usuario.id },
+      where: dondeNegocio(req, { id: req.params.id }),
     });
     if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
 
     const { activa, plantilla, tono } = req.body;
     const data = { autoRespuestaActiva: !!activa };
 
-    if (req.usuario.plan === 'FRANQUICIA' && tono) {
+    if (req.cuenta.plan === 'FRANQUICIA' && tono) {
       if (!PLANTILLAS_AUTO_RESPUESTA[tono]) {
         return res.status(400).json({ error: 'Tono inválido. Usa: formal, cercano o disculpa.' });
       }
@@ -169,7 +170,7 @@ router.post('/:id/auto-respuesta/configurar', verificarPlan(['NEGOCIO', 'FRANQUI
 router.get('/:id/competencia', verificarPlan(['FRANQUICIA']), async (req, res, next) => {
   try {
     const negocio = await prisma.negocio.findFirst({
-      where: { id: req.params.id, usuarioId: req.usuario.id },
+      where: dondeNegocio(req, { id: req.params.id }),
       include: { snapshots: { orderBy: { tomadoEn: 'desc' }, take: 1 } },
     });
     if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
@@ -221,7 +222,7 @@ router.get('/:id/competencia', verificarPlan(['FRANQUICIA']), async (req, res, n
 router.get('/:id/espejo', async (req, res, next) => {
   try {
     const negocio = await prisma.negocio.findFirst({
-      where: { id: req.params.id, usuarioId: req.usuario.id },
+      where: dondeNegocio(req, { id: req.params.id }),
       select: { id: true, googlePlaceId: true },
     });
     if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
@@ -276,7 +277,7 @@ router.get('/:id/espejo', async (req, res, next) => {
 router.get('/:id/simulador', async (req, res, next) => {
   try {
     const negocio = await prisma.negocio.findFirst({
-      where: { id: req.params.id, usuarioId: req.usuario.id },
+      where: dondeNegocio(req, { id: req.params.id }),
       select: {
         id: true, googleRatingBase: true,
         snapshots: { where: { plataforma: 'GOOGLE' }, orderBy: { tomadoEn: 'desc' }, take: 1 },
@@ -311,7 +312,7 @@ router.get('/:id/simulador', async (req, res, next) => {
 router.get('/:id/afiche.pdf', async (req, res, next) => {
   try {
     const negocio = await prisma.negocio.findFirst({
-      where: { id: req.params.id, usuarioId: req.usuario.id },
+      where: dondeNegocio(req, { id: req.params.id }),
       select: {
         id: true, nombre: true,
         snapshots: { where: { plataforma: 'GOOGLE' }, orderBy: { tomadoEn: 'desc' }, take: 2 },
@@ -366,7 +367,7 @@ router.get('/:id/afiche.pdf', async (req, res, next) => {
 router.get('/:id/constancia.pdf', verificarPlan(['NEGOCIO', 'FRANQUICIA']), async (req, res, next) => {
   try {
     const negocio = await prisma.negocio.findFirst({
-      where: { id: req.params.id, usuarioId: req.usuario.id },
+      where: dondeNegocio(req, { id: req.params.id }),
       select: {
         id: true, nombre: true, direccion: true, googlePlaceId: true, creadoEn: true,
         snapshots: { where: { plataforma: 'GOOGLE' }, orderBy: { tomadoEn: 'desc' }, take: 1 },
@@ -431,23 +432,24 @@ router.get('/:id/constancia.pdf', verificarPlan(['NEGOCIO', 'FRANQUICIA']), asyn
 });
 
 // ── DELETE /api/negocios/:id ──────────────────────────────
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', permitir('negocios'), async (req, res, next) => {
   try {
     const negocio = await prisma.negocio.findFirst({
-      where: { id: req.params.id, usuarioId: req.usuario.id },
+      where: dondeNegocio(req, { id: req.params.id }),
     });
     if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
     await prisma.negocio.update({ where: { id: req.params.id }, data: { activo: false } });
+    await registrar(req, 'eliminar_negocio', { negocioId: negocio.id, detalle: { negocio: negocio.nombre } });
     res.json({ mensaje: 'Negocio eliminado correctamente' });
   } catch (error) { next(error); }
 });
 
 // ── POST /api/negocios/:id/facebook ──────────────────────
-router.post('/:id/facebook', async (req, res, next) => {
+router.post('/:id/facebook', permitir('conexiones'), async (req, res, next) => {
   try {
     const { pageId, accessToken } = req.body;
     if (!pageId || !accessToken) return res.status(400).json({ error: 'pageId y accessToken requeridos' });
-    const negocio = await prisma.negocio.findFirst({ where: { id: req.params.id, usuarioId: req.usuario.id } });
+    const negocio = await prisma.negocio.findFirst({ where: dondeNegocio(req, { id: req.params.id }) });
     if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
     const expira = new Date(); expira.setDate(expira.getDate() + 60);
     await prisma.negocio.update({
@@ -460,7 +462,7 @@ router.post('/:id/facebook', async (req, res, next) => {
 
 // ── POST /api/negocios/:id/responder-resena ───────────────
 // Guarda la respuesta en la BD y abre el link correcto en el cliente
-router.post('/:id/responder-resena', autenticar, async (req, res, next) => {
+router.post('/:id/responder-resena', permitir('actuar'), async (req, res, next) => {
   try {
     const { resenaId, respuesta } = req.body;
     if (!resenaId || !respuesta?.trim()) {
@@ -468,7 +470,7 @@ router.post('/:id/responder-resena', autenticar, async (req, res, next) => {
     }
 
     const negocio = await prisma.negocio.findFirst({
-      where: { id: req.params.id, usuarioId: req.usuario.id },
+      where: dondeNegocio(req, { id: req.params.id }),
     });
     if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
 
@@ -491,6 +493,13 @@ router.post('/:id/responder-resena', autenticar, async (req, res, next) => {
       linkRespuesta = `https://www.facebook.com/${negocio.facebookPageId}/reviews`;
     }
 
+    // Quién respondió. En una cuenta compartida "se respondió" deja de ser una
+    // respuesta: hace falta saber quién, y cuándo.
+    await registrar(req, 'responder_resena', {
+      negocioId: negocio.id,
+      detalle: { negocio: negocio.nombre, autor: resena.autor, estrellas: resena.calificacion },
+    });
+
     res.json({
       mensaje: 'Respuesta guardada. Ábrela en la plataforma para publicarla.',
       linkRespuesta,
@@ -504,12 +513,12 @@ router.post('/:id/responder-resena', autenticar, async (req, res, next) => {
 router.get('/:id/cooldown', async (req, res, next) => {
   try {
     const negocio = await prisma.negocio.findFirst({
-      where: { id: req.params.id, usuarioId: req.usuario.id },
+      where: dondeNegocio(req, { id: req.params.id }),
       select: { ultimoEscaneo: true },
     });
     if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
 
-    const cooldownMin = COOLDOWN_MINUTOS[req.usuario.plan] || 1440;
+    const cooldownMin = COOLDOWN_MINUTOS[req.cuenta.plan] || 1440;
     if (!negocio.ultimoEscaneo) return res.json({ puedeEscanear: true, segundosRestantes: 0 });
 
     const transcurridos = (Date.now() - new Date(negocio.ultimoEscaneo).getTime()) / 1000;

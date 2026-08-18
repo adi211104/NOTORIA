@@ -8,7 +8,8 @@
 
 const express = require('express');
 const prisma = require('../../lib/prisma');
-const { autenticar } = require('../middlewares/auth.middleware');
+const { autenticar, permitir } = require('../middlewares/auth.middleware');
+const { dondeNegocio } = require('../../lib/equipo');
 const { verificarPlan } = require('../middlewares/verificarPlan.middleware');
 const { construirTerminos, fuentesDisponibles, hayFuenteDisponible, MAX_TERMINOS } = require('../../lib/menciones');
 
@@ -21,7 +22,7 @@ router.use(verificarPlan(['NEGOCIO', 'FRANQUICIA']));
 // API la trata como inexistente. Un 404 y no un 403 a propósito — no es que al
 // usuario le falte permiso, es que la función no existe para él todavía.
 router.use((req, res, next) => {
-  if (!hayFuenteDisponible(req.usuario)) {
+  if (!hayFuenteDisponible(req.cuenta)) {
     return res.status(404).json({ error: 'Función no disponible' });
   }
   next();
@@ -32,9 +33,9 @@ const LIMITE_MAX = 200;
 // Confirma que la mención pertenece a un negocio del usuario. Se consulta por
 // la relación y no por mencionId suelto: si no, cualquiera con un id podría
 // marcar o borrar menciones ajenas.
-const mencionDelUsuario = (mencionId, usuarioId) =>
+const mencionDeLaCuenta = (req, mencionId) =>
   prisma.mencion.findFirst({
-    where: { id: mencionId, negocio: { usuarioId } },
+    where: { id: mencionId, negocio: dondeNegocio(req) },
   });
 
 // GET /api/menciones — feed consolidado con filtros
@@ -46,7 +47,7 @@ router.get('/', async (req, res, next) => {
     const limite = Math.min(Number(req.query.limite) || 50, LIMITE_MAX);
 
     const negocios = await prisma.negocio.findMany({
-      where: { usuarioId: req.usuario.id, activo: true },
+      where: dondeNegocio(req, { activo: true }),
       select: { id: true, nombre: true, terminosMencion: true, mencionesActivas: true, colorEtiqueta: true },
       orderBy: { creadoEn: 'asc' },
     });
@@ -95,10 +96,10 @@ router.get('/', async (req, res, next) => {
 
 // PATCH /api/menciones/ver-todas — marca como vistas las no archivadas
 // Va ANTES de /:id: si no, Express haría match de "ver-todas" como un id.
-router.patch('/ver-todas', async (req, res, next) => {
+router.patch('/ver-todas', permitir('actuar'), async (req, res, next) => {
   try {
     const negocios = await prisma.negocio.findMany({
-      where: { usuarioId: req.usuario.id },
+      where: dondeNegocio(req),
       select: { id: true },
     });
     const { count } = await prisma.mencion.updateMany({
@@ -110,10 +111,10 @@ router.patch('/ver-todas', async (req, res, next) => {
 });
 
 // PATCH /api/menciones/negocio/:negocioId — términos de búsqueda y on/off
-router.patch('/negocio/:negocioId', async (req, res, next) => {
+router.patch('/negocio/:negocioId', permitir('actuar'), async (req, res, next) => {
   try {
     const negocio = await prisma.negocio.findFirst({
-      where: { id: req.params.negocioId, usuarioId: req.usuario.id },
+      where: dondeNegocio(req, { id: req.params.negocioId }),
     });
     if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
 
@@ -154,9 +155,9 @@ router.patch('/negocio/:negocioId', async (req, res, next) => {
 });
 
 // PATCH /api/menciones/:id — { vista?, archivada? }
-router.patch('/:id', async (req, res, next) => {
+router.patch('/:id', permitir('actuar'), async (req, res, next) => {
   try {
-    const mencion = await mencionDelUsuario(req.params.id, req.usuario.id);
+    const mencion = await mencionDeLaCuenta(req, req.params.id);
     if (!mencion) return res.status(404).json({ error: 'Mención no encontrada' });
 
     const data = {};
@@ -178,9 +179,9 @@ router.patch('/:id', async (req, res, next) => {
 // DELETE /api/menciones/:id
 // Ojo: si la mención sigue apareciendo en la búsqueda, el próximo ciclo la
 // vuelve a crear. Para sacarla de la vista sin que reaparezca, archivar.
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', permitir('actuar'), async (req, res, next) => {
   try {
-    const mencion = await mencionDelUsuario(req.params.id, req.usuario.id);
+    const mencion = await mencionDeLaCuenta(req, req.params.id);
     if (!mencion) return res.status(404).json({ error: 'Mención no encontrada' });
 
     await prisma.mencion.delete({ where: { id: mencion.id } });

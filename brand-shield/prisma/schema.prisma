@@ -74,6 +74,14 @@ model Usuario {
   negocios             Negocio[]
   pagos                Pago[]
   comprobantes         Comprobante[]
+  // Equipo. `equipo` son las personas que este usuario invitó a SU cuenta;
+  // `membresias` son las cuentas ajenas a las que él tiene acceso. Los dos
+  // lados existen porque una misma persona puede ser dueña de su restaurante e
+  // invitada en el de un socio.
+  equipo               Miembro[]           @relation("EquipoDeLaCuenta")
+  membresias           Miembro[]           @relation("MembresiasDelUsuario")
+  invitaciones         Invitacion[]        @relation("InvitacionesDeLaCuenta")
+  actividad            RegistroActividad[] @relation("ActividadDeLaCuenta")
   creadoEn             DateTime      @default(now())
   actualizadoEn        DateTime      @updatedAt
 
@@ -687,4 +695,117 @@ model PromoTarjeta {
 
   @@index([usuarioId])
   @@map("promo_tarjetas")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Equipo: compartir la cuenta de una empresa
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Una persona con acceso a la cuenta de OTRA.
+//
+// ⚠️ El PROPIETARIO no tiene fila aquí. Es el propio `Usuario` del que cuelgan
+// los negocios, y su rol se sintetiza en el middleware. Se decidió así por dos
+// motivos que conviene no deshacer:
+//
+//   1. Evita una migración de datos. Si el dueño fuera una fila de `Miembro`,
+//      habría que crear una por cada cuenta existente, y una migración que
+//      falle a medias deja a alguien sin acceso a su propia cuenta.
+//   2. La propiedad sigue siendo lo que ya era: `Negocio.usuarioId`. Las ~40
+//      consultas del panel siguen preguntando exactamente lo mismo, solo que
+//      ahora preguntan por `req.cuenta.id` en vez de `req.usuario.id`.
+//
+// Corolario: `Usuario` = la persona que inició sesión. `cuenta` = la empresa en
+// la que está trabajando ahora mismo. Casi siempre son la misma; cuando no lo
+// son, es porque alguien la invitó.
+model Miembro {
+  id String @id @default(cuid())
+
+  // La cuenta compartida: el Usuario que paga y de quien cuelgan los negocios.
+  cuentaId String
+  cuenta   Usuario @relation("EquipoDeLaCuenta", fields: [cuentaId], references: [id])
+
+  // La persona invitada. Tiene su propio correo y su propia contraseña — el
+  // objetivo entero de esto es que nadie más tenga que usar la del dueño.
+  usuarioId String
+  usuario   Usuario @relation("MembresiasDelUsuario", fields: [usuarioId], references: [id])
+
+  rol RolMiembro
+
+  // Alcance. Vacío = todos los negocios de la cuenta. Con ids = solo esos, que
+  // es lo que le da sentido al plan Franquicia: el encargado de una sede no
+  // tiene por qué leer las reseñas de las otras nueve.
+  //
+  // Lista de ids y no tabla intermedia porque nunca se consulta al revés ("qué
+  // miembros ven este negocio" no aparece en ninguna consulta caliente), así
+  // que el alcance viaja entero en la misma fila que ya se está leyendo.
+  //
+  // ⚠️ Un negocio borrado deja su id aquí. Es inofensivo — el filtro es un
+  // `IN` contra negocios que existen — y limpiarlo obligaría a recorrer todos
+  // los miembros en cada borrado.
+  negociosIds String[] @default([])
+
+  creadoEn DateTime @default(now())
+
+  @@unique([cuentaId, usuarioId])
+  @@index([usuarioId])
+  @@map("miembros")
+}
+
+enum RolMiembro {
+  GESTOR
+  LECTOR
+}
+
+// Invitación pendiente. Se borra al aceptarse (pasa a ser un `Miembro`).
+model Invitacion {
+  id       String  @id @default(cuid())
+  cuentaId String
+  cuenta   Usuario @relation("InvitacionesDeLaCuenta", fields: [cuentaId], references: [id])
+
+  // Normalizado a minúsculas, igual que en auth.routes.js: en Postgres el
+  // índice único distingue mayúsculas, y una invitación que no case con el
+  // correo de la cuenta creada es una invitación que nunca se puede aceptar.
+  email       String
+  rol         RolMiembro
+  negociosIds String[]   @default([])
+
+  // Se guarda el HASH del token, no el token. Mismo criterio que el de
+  // recuperación de contraseña: una filtración de la base no puede entregar
+  // enlaces de acceso a cuentas ajenas.
+  tokenHash String   @unique
+  expira    DateTime
+
+  invitadaPorId String?
+  creadoEn      DateTime @default(now())
+
+  @@unique([cuentaId, email])
+  @@index([email])
+  @@map("invitaciones")
+}
+
+// Quién hizo qué dentro de una cuenta compartida.
+//
+// Es la contrapartida de compartir: si tres personas responden reseñas desde el
+// mismo panel, "se respondió" deja de ser una respuesta. Solo se registran
+// acciones que CAMBIAN algo —hacia el cliente final o hacia el equipo—; leer no
+// se registra, sería un volumen enorme por cero valor.
+model RegistroActividad {
+  id       String  @id @default(cuid())
+  cuentaId String
+  cuenta   Usuario @relation("ActividadDeLaCuenta", fields: [cuentaId], references: [id])
+
+  usuarioId String
+  // Nombre congelado al momento de la acción. Si esa persona sale del equipo o
+  // borra su cuenta, el registro sigue diciendo quién fue — que es justamente
+  // para lo que existe.
+  autorNombre String
+
+  accion    String // "responder_resena" | "responder_comentario" | ...
+  negocioId String?
+  detalle   Json?
+
+  creadoEn DateTime @default(now())
+
+  @@index([cuentaId, creadoEn])
+  @@map("registro_actividad")
 }

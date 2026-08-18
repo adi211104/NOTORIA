@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { negociosApi } from '../../../lib/api';
+import { negociosApi, cabecerasAuth } from '../../../lib/api';
 import { useIdioma } from '../../../context/IdiomaContext';
 import { useAuth } from '../../../context/AuthContext';
 import { TIPOS_NEGOCIO, iconoParaTipo, labelParaTipo } from '../../../lib/tiposNegocio';
@@ -95,7 +95,7 @@ const formatHoraDisponible = (seg, locale) => {
 
 export default function NegociosPage() {
   const { idioma } = useIdioma();
-  const { usuario } = useAuth();
+  const { usuario, puede } = useAuth();
   const router = useRouter();
   const t = TEXTOS[idioma] || TEXTOS.es;
   const esFranquicia = usuario?.plan === 'FRANQUICIA';
@@ -126,7 +126,7 @@ export default function NegociosPage() {
     setCargando(false);
     for (const n of data) {
       fetch(`${API_URL}/api/negocios/${n.id}/cooldown`, {
-        headers: { Authorization: `Bearer ${getToken()}` }
+        headers: { ...cabecerasAuth() }
       }).then(r => r.json()).then(cd => {
         setCooldowns(prev => ({ ...prev, [n.id]: cd }));
       }).catch(() => {});
@@ -158,7 +158,7 @@ export default function NegociosPage() {
       setBuscando(true);
       try {
         const res = await fetch(`${API_URL}/api/utils/buscar-negocio?q=${encodeURIComponent(busqueda)}&tipo=${form.tipo}`, {
-          headers: { Authorization: `Bearer ${getToken()}` }
+          headers: { ...cabecerasAuth() }
         });
         const data = await res.json();
         setResultados(Array.isArray(data) ? data : []);
@@ -217,7 +217,7 @@ export default function NegociosPage() {
     try {
       const res = await fetch(`${API_URL}/api/utils/monitoreo-manual`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        headers: { 'Content-Type': 'application/json', ...cabecerasAuth() },
         body: JSON.stringify({ negocioId: negocio.id }),
       });
       const data = await res.json();
@@ -252,10 +252,15 @@ export default function NegociosPage() {
           <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)', margin: '0 0 4px' }}>{t.titulo}</h1>
           <p style={{ color: 'var(--text-2)', fontSize: 14, margin: 0 }}>{t.sub}</p>
         </div>
-        <button onClick={() => { setMostrarForm(!mostrarForm); limpiar(); setBusqueda(''); }}
-          style={{ background: '#0B7324', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 18px', fontSize: 13.5, fontWeight: 500, cursor: 'pointer' }}>
-          {mostrarForm ? t.cancelarBtn : t.agregarBtn}
-        </button>
+        {/* Agregar un negocio consume el cupo del plan y crea algo que solo el
+            dueño puede borrar: es suyo. Al equipo invitado no se le ofrece un
+            botón que el backend rechaza con 403. */}
+        {puede('negocios') && (
+          <button onClick={() => { setMostrarForm(!mostrarForm); limpiar(); setBusqueda(''); }}
+            style={{ background: '#0B7324', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 18px', fontSize: 13.5, fontWeight: 500, cursor: 'pointer' }}>
+            {mostrarForm ? t.cancelarBtn : t.agregarBtn}
+          </button>
+        )}
       </div>
 
       {errorEscaneo && (
@@ -402,10 +407,12 @@ export default function NegociosPage() {
                       )}
                     </div>
 
-                    <button onClick={() => setModalEliminar({ id: n.id, nombre: n.nombre })} title={t.eliminarTitle}
-                      style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', borderRadius: 8, padding: '7px 10px', cursor: 'pointer', transition: 'all 0.15s', display: 'flex', alignItems: 'center' }}>
-                      <Icon name="basura" size={15} />
-                    </button>
+                    {puede('negocios') && (
+                      <button onClick={() => setModalEliminar({ id: n.id, nombre: n.nombre })} title={t.eliminarTitle}
+                        style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', borderRadius: 8, padding: '7px 10px', cursor: 'pointer', transition: 'all 0.15s', display: 'flex', alignItems: 'center' }}>
+                        <Icon name="basura" size={15} />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

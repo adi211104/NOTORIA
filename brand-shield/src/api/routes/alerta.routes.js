@@ -4,7 +4,8 @@ const express = require('express');
 const prisma = require('../../lib/prisma');
 
 const router = express.Router();
-const { autenticar } = require('../middlewares/auth.middleware');
+const { autenticar, permitir } = require('../middlewares/auth.middleware');
+const { dondeNegocio } = require('../../lib/equipo');
 
 router.use(autenticar);
 
@@ -14,7 +15,7 @@ router.get('/', async (req, res, next) => {
   try {
     const alertas = await prisma.alerta.findMany({
       where: {
-        negocio: { usuarioId: req.usuario.id },
+        negocio: dondeNegocio(req),
       },
       include: {
         negocio: { select: { id: true, nombre: true, tipo: true } },
@@ -31,12 +32,12 @@ router.get('/', async (req, res, next) => {
 
 // ── PATCH /api/alertas/:id/leer ───────────────────────────
 // Marca una alerta como leída
-router.patch('/:id/leer', async (req, res, next) => {
+router.patch('/:id/leer', permitir('actuar'), async (req, res, next) => {
   try {
     const alerta = await prisma.alerta.findFirst({
       where: {
         id: req.params.id,
-        negocio: { usuarioId: req.usuario.id },
+        negocio: dondeNegocio(req),
       },
     });
 
@@ -56,11 +57,11 @@ router.patch('/:id/leer', async (req, res, next) => {
 });
 
 // ── PATCH /api/alertas/leer-todas ────────────────────────
-router.patch('/leer-todas', async (req, res, next) => {
+router.patch('/leer-todas', permitir('actuar'), async (req, res, next) => {
   try {
     await prisma.alerta.updateMany({
       where: {
-        negocio: { usuarioId: req.usuario.id },
+        negocio: dondeNegocio(req),
         leida: false,
       },
       data: { leida: true },

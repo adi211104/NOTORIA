@@ -1,6 +1,7 @@
 const express = require('express');
 const axios = require('axios');
-const { autenticar } = require('../middlewares/auth.middleware');
+const { autenticar, permitir } = require('../middlewares/auth.middleware');
+const { dondeNegocio, registrar } = require('../../lib/equipo');
 const { buscarNegocioEnGoogle } = require('../../scrapers/google.scraper');
 const { ejecutarAhora, HORAS_ESCANEO } = require('../../workers/monitoreo.worker');
 const prisma = require('../../lib/prisma');
@@ -101,10 +102,10 @@ router.get('/buscar-negocio', autenticar, async (req, res, next) => {
 //
 // Si algún día hace falta un escaneo global, va en un script de terminal
 // (`scripts/escanear.js`), nunca detrás de una sesión de usuario.
-router.post('/monitoreo-manual', autenticar, async (req, res, next) => {
+router.post('/monitoreo-manual', autenticar, permitir('actuar'), async (req, res, next) => {
   try {
     const { negocioId } = req.body || {};
-    const plan = req.usuario.plan;
+    const plan = req.cuenta.plan;
     const cooldownMin = COOLDOWN_MINUTOS[plan] || 1440;
 
     if (!negocioId || typeof negocioId !== 'string') {
@@ -113,7 +114,7 @@ router.post('/monitoreo-manual', autenticar, async (req, res, next) => {
 
     // La pertenencia se comprueba acá: `ejecutarAhora` recibe un id ya validado.
     const negocio = await prisma.negocio.findFirst({
-      where: { id: negocioId, usuarioId: req.usuario.id },
+      where: dondeNegocio(req, { id: negocioId }),
       select: { ultimoEscaneo: true, nombre: true },
     });
     if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
@@ -133,6 +134,8 @@ router.post('/monitoreo-manual', autenticar, async (req, res, next) => {
     // Actualizar ultimoEscaneo
     await prisma.negocio.update({ where: { id: negocioId }, data: { ultimoEscaneo: new Date() } });
 
+    await registrar(req, 'escanear', { negocioId, detalle: { negocio: negocio.nombre } });
+
     res.json({
       mensaje: 'Escaneo iniciado en segundo plano. Las alertas aparecerán en unos segundos.',
       cooldownMinutos: cooldownMin,
@@ -145,7 +148,7 @@ router.post('/monitoreo-manual', autenticar, async (req, res, next) => {
 // ── POST /api/utils/generar-reporte ──────────────────────
 router.post('/generar-reporte', autenticar, async (req, res, next) => {
   try {
-    const planPago = ['NEGOCIO', 'FRANQUICIA'].includes(req.usuario.plan);
+    const planPago = ['NEGOCIO', 'FRANQUICIA'].includes(req.cuenta.plan);
     if (!planPago) {
       return res.status(403).json({ error: 'Los reportes PDF están disponibles desde el Plan Negocio.', accion: 'ACTUALIZAR_PLAN' });
     }
@@ -155,7 +158,7 @@ router.post('/generar-reporte', autenticar, async (req, res, next) => {
         const { enviarReporteMensual } = require('../../utils/reporte.generator');
 
         const negocios = await prisma.negocio.findMany({
-          where: { usuarioId: req.usuario.id, activo: true },
+          where: dondeNegocio(req, { activo: true }),
           include: {
             snapshots: { orderBy: { tomadoEn: 'desc' }, take: 30 },
             alertas: { where: { creadaEn: { gte: new Date(new Date().setDate(1)) } } },

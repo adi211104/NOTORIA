@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useAuth } from '../../../context/AuthContext';
 import { useIdioma } from '../../../context/IdiomaContext';
 import Icon from '../../../components/Icons';
-import { API_URL } from '../../../lib/api';
+import { API_URL, cabecerasAuth } from '../../../lib/api';
 
 const getToken = () => localStorage.getItem('bs_token');
 
@@ -85,7 +85,7 @@ function DatosFacturacion({ t }) {
   const [errorForm, setErrorForm] = useState('');
 
   useEffect(() => {
-    fetch(`${API_URL}/api/pagos/datos-fiscales`, { headers: { Authorization: `Bearer ${getToken()}` } })
+    fetch(`${API_URL}/api/pagos/datos-fiscales`, { headers: { ...cabecerasAuth() } })
       .then(r => r.json())
       .then(d => setDatos({
         paisFiscal: PAIS_FISCAL,
@@ -108,7 +108,7 @@ function DatosFacturacion({ t }) {
     try {
       const r = await fetch(`${API_URL}/api/pagos/datos-fiscales`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        headers: { 'Content-Type': 'application/json', ...cabecerasAuth() },
         body: JSON.stringify(datos),
       });
       const cuerpo = await r.json();
@@ -180,7 +180,7 @@ export default function FacturacionPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetch(`${API_URL}/api/pagos/historial`, { headers: { Authorization: `Bearer ${getToken()}` } })
+    fetch(`${API_URL}/api/pagos/historial`, { headers: { ...cabecerasAuth() } })
       .then(r => { if (!r.ok) throw new Error('http'); return r.json(); })
       .then(data => setPagos(Array.isArray(data) ? data : []))
       .catch(() => setError(t.errorCarga))
@@ -192,7 +192,7 @@ export default function FacturacionPage() {
   const descargarComprobante = async (comprobante) => {
     try {
       const r = await fetch(`${API_URL}/api/pagos/comprobantes/${comprobante.id}/pdf`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
+        headers: { ...cabecerasAuth() },
       });
       if (!r.ok) throw new Error('http');
       const blob = await r.blob();

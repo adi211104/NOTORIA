@@ -6,7 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useIdioma } from '../../context/IdiomaContext';
 import GBPBanner from '../../components/GBPBanner';
 import TourGuiado from '../../components/TourGuiado';
-import { API_URL } from '../../lib/api';
+import { API_URL, cabecerasAuth } from '../../lib/api';
 
 // La marca de Notoria. Ojo: el escudo rojo del estado "sin conexion" mas
 // abajo NO es la marca, es un icono semantico de error — no unificarlos.
@@ -15,6 +15,8 @@ const ShieldIcon = ({ size=18, color='currentColor' }) => (
     <path d="M4.09 6.56H7.97V21H4.09ZM4.09 6.56H7.97L19.91 21H16.03ZM16.03 21V6.96L19.91 3V21Z"/>
   </svg>
 );
+
+const SERIF = "Georgia,'Times New Roman',serif";
 
 const NavIcon = ({ type, size=16 }) => {
   const paths = {
@@ -27,6 +29,7 @@ const NavIcon = ({ type, size=16 }) => {
     tarjeta: ["M2 5a2 2 0 012-2h16a2 2 0 012 2v14a2 2 0 01-2 2H4a2 2 0 01-2-2V5z","M2 10h20","M6 15h4"],
     enlace:  ["M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71","M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"],
     menciones:["M3 11l18-5v12L3 14v-3z","M11.6 16.8a3 3 0 11-5.8-1.6"],
+    equipo:  ["M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2","M9 11a4 4 0 100-8 4 4 0 000 8","M22 21v-2a4 4 0 00-3-3.87","M16 3.13a4 4 0 010 7.75"],
     settings:"M12 15a3 3 0 100-6 3 3 0 000 6z M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z",
   };
   const d = paths[type];
@@ -69,6 +72,11 @@ const navGrupos = [
   { key:'herramientas', items:[
     { href:'/dashboard/conexiones',    key:'conexiones',   icon:'enlace' },
     { href:'/dashboard/reportes',      key:'reportes',     icon:'doc' },
+    // Equipo se le muestra a TODOS los roles, no solo al propietario: saber con
+    // quién compartes el panel —y que lo que haces queda firmado con tu nombre—
+    // es parte de trabajar en equipo, no un privilegio. Quien no puede
+    // modificarlo ve la pantalla en modo lectura.
+    { href:'/dashboard/equipo',        key:'equipo',       icon:'equipo' },
     { href:'/dashboard/configuracion', key:'configuracion',icon:'settings' },
   ]},
 ];
@@ -76,9 +84,13 @@ const navGrupos = [
 // ── Diccionario de textos (es / en) ──────────────────────
 const TEXTOS = {
   es: {
-    nav: { resumen:'Resumen', negocios:'Mis negocios', competencia:'Competencia', alertas:'Alertas', menciones:'Menciones', conexiones:'Conexiones', reportes:'Reportes PDF', planes:'Planes', facturacion:'Facturación', configuracion:'Configuración' },
+    nav: { resumen:'Resumen', negocios:'Mis negocios', competencia:'Competencia', alertas:'Alertas', menciones:'Menciones', conexiones:'Conexiones', reportes:'Reportes PDF', equipo:'Equipo', planes:'Planes', facturacion:'Facturación', configuracion:'Configuración' },
     // `principal` va vacío a propósito: un rótulo sobre una sola entrada es ruido.
     navGrupos: { principal:'', vigilancia:'Lo que vigilas', entrante:'Lo que te llega', herramientas:'Herramientas' },
+    cuentaActiva:'Estás viendo',
+    tuCuenta:'tu cuenta',
+    trabajandoEn:'Cuenta compartida: lo que hagas aquí sale a nombre de esta empresa.',
+    avisoSalida:'Volviste a tu cuenta',
     emailVerif: {
       titulo:'Confirma tu correo',
       revisaBandeja:'Revisa tu bandeja y carpeta de spam. Puede tardar 1-2 min.',
@@ -104,8 +116,12 @@ const TEXTOS = {
     logout:'Cerrar sesión',
   },
   en: {
-    nav: { resumen:'Overview', negocios:'My businesses', competencia:'Competitors', alertas:'Alerts', menciones:'Mentions', conexiones:'Connections', reportes:'PDF reports', planes:'Plans', facturacion:'Billing', configuracion:'Settings' },
+    nav: { resumen:'Overview', negocios:'My businesses', competencia:'Competitors', alertas:'Alerts', menciones:'Mentions', conexiones:'Connections', reportes:'PDF reports', equipo:'Team', planes:'Plans', facturacion:'Billing', configuracion:'Settings' },
     navGrupos: { principal:'', vigilancia:'What you watch', entrante:'What reaches you', herramientas:'Tools' },
+    cuentaActiva:'Viewing',
+    tuCuenta:'your account',
+    trabajandoEn:'Shared account: whatever you do here goes out on behalf of this company.',
+    avisoSalida:'Back on your own account',
     emailVerif: {
       titulo:'Confirm your email',
       revisaBandeja:'Check your inbox and spam folder. It can take 1-2 min.',
@@ -161,7 +177,7 @@ function EmailVerifBanner({ onVerificado, t }) {
       if (!token) { setEstado('error'); setEnviando(false); return; }
       const res = await fetch(`${API_URL}/api/auth/reenviar-verificacion`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', ...cabecerasAuth() },
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.yaVerificado) {
@@ -213,7 +229,7 @@ function EmailVerifBanner({ onVerificado, t }) {
 }
 
 export default function DashboardLayout({ children }) {
-  const { usuario, cargando, errorConexion, logout, refrescarPerfil } = useAuth();
+  const { usuario, cargando, errorConexion, logout, refrescarPerfil, cuentas, cuenta, cambiarCuenta, avisoCuenta, limpiarAvisoCuenta } = useAuth();
   const { idioma } = useIdioma();
   const router = useRouter();
   const pathname = usePathname();
@@ -289,6 +305,44 @@ export default function DashboardLayout({ children }) {
           </button>
         </div>
 
+        {/* Selector de cuenta.
+            Solo aparece si de verdad hay más de una: a quien nunca compartió ni
+            fue invitado —la inmensa mayoría— no se le mete un desplegable que no
+            usa. Va arriba del todo y no dentro de Configuración porque contesta
+            la pregunta que hay que responder ANTES de mirar cualquier cifra:
+            "¿de quién son estos datos?". */}
+        {cuentas.length > 1 && (
+          <div style={{ padding:'10px 14px 0' }}>
+            <p style={{ fontSize:10, color:'var(--text-3)', margin:'0 0 4px', textTransform:'uppercase', letterSpacing:1, fontFamily:SERIF }}>
+              {t.cuentaActiva}
+            </p>
+            <select
+              value={cuenta?.id || usuario.id}
+              onChange={(e) => cambiarCuenta(e.target.value)}
+              aria-label={t.cuentaActiva}
+              style={{
+                width:'100%', background:'var(--surface2)', border:'1px solid var(--border-c)',
+                color:'var(--text)', borderRadius:5, padding:'7px 9px', fontSize:12.5,
+                fontFamily:SERIF, cursor:'pointer',
+              }}
+            >
+              {cuentas.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.propia ? `${c.nombre} (${t.tuCuenta})` : c.nombre}
+                </option>
+              ))}
+            </select>
+            {/* Aviso permanente mientras se trabaja en la cuenta de otro. No es
+                decorativo: sin él es facilísimo responder una reseña creyendo que
+                es de tu negocio cuando es del de un cliente. */}
+            {cuenta && cuenta.propia === false && (
+              <p style={{ fontSize:10.5, color:'#f59e0b', margin:'5px 0 0', lineHeight:1.5, fontFamily:SERIF }}>
+                {t.trabajandoEn}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Nav — los colores viven en globals.css (.nav-item), no inline: un
             color inline gana sobre la hoja de estilos y bloquearía el hover. */}
         <nav style={{ flex:1, padding:'6px 10px 10px', display:'flex', flexDirection:'column', gap:2, overflowY:'auto' }}>
@@ -362,6 +416,27 @@ export default function DashboardLayout({ children }) {
 
         <main className="px-4 py-6 md:px-9 md:py-8" style={{ minHeight:'100vh' }}>
           <GBPBanner/>
+          {/* Explicación de por qué el panel volvió a la cuenta propia sin que
+              nadie lo pidiera: te quitaron el acceso, o el plan de esa cuenta se
+              quedó sin asientos. Sin este aviso, la persona ve de golpe otros
+              negocios y da por hecho que el producto se rompió. */}
+          {avisoCuenta && (
+            <div role="status" style={{
+              background:'var(--surface)', border:'1px solid #f59e0b', borderRadius:8,
+              padding:'11px 14px', marginBottom:16, display:'flex', gap:12,
+              alignItems:'flex-start', justifyContent:'space-between', flexWrap:'wrap',
+            }}>
+              <div style={{ minWidth:0 }}>
+                <p style={{ margin:'0 0 2px', fontSize:13, fontWeight:700, color:'var(--text)', fontFamily:SERIF }}>{t.avisoSalida}</p>
+                <p style={{ margin:0, fontSize:12.5, color:'var(--text-2)', lineHeight:1.6, fontFamily:SERIF }}>{avisoCuenta}</p>
+              </div>
+              <button onClick={limpiarAvisoCuenta} aria-label="Cerrar aviso" style={{
+                background:'none', border:'none', cursor:'pointer', color:'var(--text-3)', padding:4,
+              }}>
+                <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+          )}
           {!usuario.emailVerificado && <EmailVerifBanner onVerificado={refrescarPerfil} t={t}/>}
           {children}
         </main>

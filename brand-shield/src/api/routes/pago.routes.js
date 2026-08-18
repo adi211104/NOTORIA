@@ -8,7 +8,7 @@ const culqi = require('../../lib/culqi');
 const tributario = require('../../lib/tributario');
 const { emitirComprobante, pdfDeComprobante } = require('../../services/comprobante.service');
 const { enviarCancelacion } = require('../../utils/emails');
-const { autenticar } = require('../middlewares/auth.middleware');
+const { autenticar, permitir } = require('../middlewares/auth.middleware');
 
 const router = express.Router();
 
@@ -141,6 +141,11 @@ router.post('/culqi/webhook', async (req, res) => {
 });
 
 router.use(autenticar);
+// Toda la facturación es del propietario, sin excepciones: también las lecturas.
+// El historial de pagos y los comprobantes llevan el nombre del titular, su
+// documento y su domicilio fiscal — datos personales del dueño que no tienen por
+// qué ver el encargado del local ni el community manager.
+router.use(permitir('facturacion'));
 
 // ── POST /api/pagos/culqi ──────────────────────────────────
 // Recibe el token del widget de Checkout, guarda la tarjeta y cobra el primer periodo.

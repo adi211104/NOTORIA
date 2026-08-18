@@ -3827,10 +3827,8 @@ defecto y exige `--aplicar`. Verificado: 0 filas de control restantes.
 Reemplaza la lista de §29.5. **Ya no queda nada esperando un `db push`.**
 
 **Decisión de negocio, no de código:**
-- [ ] **Sub-usuarios y modo agencia.** El cambio que más sube el techo: una agencia
-      con 15 restaurantes paga lo que 15 dueños sueltos no pagarían, y trae sus
-      clientes puestos. Necesita tabla de miembros con rol y cambiar todos los
-      `findFirst({ usuarioId })` por una comprobación de pertenencia.
+- [x] ~~**Sub-usuarios y modo agencia.**~~ ✅ **HECHO el 2026-08-18 — ver §31.**
+      Equipo con 3 roles, asientos por plan (1/3/10) y alcance por sede.
 
 **Fuera del código:**
 - [ ] **Cambiar el domicilio fiscal en SUNAT.** Es el único arreglo real de la
@@ -3861,3 +3859,201 @@ A partir del 2026-08-18 el dueño autoriza desplegar sin preguntar cada vez:
 `railway up --service api --detach` y `vercel --prod --yes`, verificando después
 en vivo. **La excepción sigue siendo `prisma db push`**: eso altera el schema de
 la base de producción, va antes del deploy y se avisa aparte.
+
+---
+
+## Sesión 2026-08-18 (tarde) — §31. Compartir la cuenta: equipo, roles y alcance
+
+El pendiente de «sub-usuarios y modo agencia» que llevaba abierto desde §26.4.
+**Exige `prisma db push` contra producción ANTES de desplegar** (§31.7).
+
+### 31.1 — La decisión que sostiene todo el diseño
+
+`Usuario` = la **persona** que inicia sesión. `Cuenta` = la **empresa** en la que
+está trabajando ahora mismo. Casi siempre coinciden.
+
+**El propietario NO tiene fila en `miembros`.** Es el propio `Usuario` del que
+cuelgan los negocios, y su rol se sintetiza en el middleware. Por dos motivos que
+conviene no deshacer:
+
+1. **Evita una migración de datos.** Si el dueño fuera una fila de `Miembro`
+   habría que crear una por cada cuenta existente, y una migración que falle a
+   medias deja a alguien sin acceso a su propia cuenta.
+2. **La propiedad sigue siendo `Negocio.usuarioId`.** Las ~40 consultas del panel
+   no cambian de forma: cambian de sujeto, de `req.usuario.id` a `req.cuenta.id`.
+
+Piezas: `src/lib/equipo.js` (fuente única), `Miembro` / `Invitacion` /
+`RegistroActividad` + enum `RolMiembro` en el schema,
+`src/api/routes/equipo.routes.js`, `dashboard/equipo` y `/invitacion/[token]`.
+
+### 31.2 — Asientos y roles
+
+| Plan | Asientos | |
+|---|---|---|
+| GRATIS | 1 | no comparte |
+| NEGOCIO | 3 | dueño + 2 |
+| FRANQUICIA | 10 | dueño + 9 |
+
+⚠️ **Los asientos CUENTAN AL DUEÑO.** «3 asientos» = el dueño y dos personas más.
+Contarlo al revés haría que el panel dijera un número y la página de precios otro.
+
+Seis permisos, no una matriz por endpoint: `ver` · `actuar` · `negocios` ·
+`conexiones` · `facturacion` · `equipo`.
+
+| Rol | Permisos |
+|---|---|
+| PROPIETARIO | los seis |
+| GESTOR | `ver`, `actuar` |
+| LECTOR | `ver` |
+
+⚠️ **`conexiones` está separado de `actuar` aunque parezca del día a día:** quien
+conecta una red autoriza un token que opera esa cuenta **desde fuera de Notoria**,
+y quien la desconecta se la puede quitar al negocio entero. Es del dueño.
+
+⚠️ **La facturación entera es del propietario, también las lecturas**
+(`router.use(permitir('facturacion'))` en `pago.routes.js`): el historial lleva el
+nombre del titular, su documento y su domicilio fiscal.
+
+⚠️ **Regla al añadir una ruta: si no es GET, lleva su `permitir(...)`.** Sin él
+hereda el permiso más bajo que existe —solo lectura— y un LECTOR podría escribir.
+
+### 31.3 — El middleware, y por qué va DENTRO de `autenticar`
+
+`resolverCuenta` no es un middleware aparte que haya que recordar montar: vive
+dentro de `autenticar`. Si una ruta se lo saltara, `req.cuenta` sería `undefined`
+y la consulta caería en `usuarioId: undefined`, que **en Prisma no es un error
+sino un filtro que se ignora** — o sea, devolver los negocios de TODO el mundo. Un
+fallo abierto y silencioso. Ahí no se puede olvidar.
+
+La cuenta activa viaja en la cabecera **`X-Cuenta`** (hay que declararla en
+`allowedHeaders` del CORS o el navegador la bloquea en el preflight, y el panel
+volvería siempre a la cuenta propia sin decir por qué). Sin cabecera = cuenta
+propia, **cero consultas extra**, que es el 99% de las peticiones.
+
+En el frontend vive en `localStorage` (`bs_cuenta`, ver `lib/api.js`) y **no en el
+token**: cambiar de cuenta no puede obligar a reemitir la sesión, y el backend
+valida la pertenencia en cada petición, así que un valor manipulado ahí devuelve
+403, no abre nada.
+
+⚠️ **`cabecerasAuth()` de `lib/api.js` existe para los ~30 `fetch` sueltos** que
+hay repartidos por el panel (descargas de PDF, formularios). Si uno se olvida de
+`X-Cuenta`, el backend resuelve la cuenta propia y la pantalla responde «negocio
+no encontrado» sin decir por qué. Falla cerrado, pero es indepurable.
+
+### 31.4 — El corte por asientos (lo único que impide el abuso)
+
+Bajar de plan **no borra membresías** —sería destruir datos por un cambio de
+plan— pero **sí retira el acceso** a quien no cabe. Sin eso bastaría contratar
+Franquicia un mes, invitar a nueve y bajar a Negocio para quedarse con diez
+asientos por S/59 para siempre.
+
+El corte es **por antigüedad**: los más antiguos conservan el acceso. Si dependiera
+del orden de la consulta, dos personas se turnarían el acceso entre recargas sin
+que nadie entienda por qué.
+
+Se aplica en **tres** sitios y los tres tienen que coincidir: `resolverAcceso` (al
+entrar), `equipoDeCuenta` (al pintar la lista) y `cuentasDe` (el selector, que no
+debe ofrecer una cuenta en la que se va a rebotar con 403).
+
+🔴 **Bug encontrado y corregido al escribir las pruebas:** `copiasDeAlerta`
+calculaba el corte **solo entre gestores**. Los asientos se ocupan por orden de
+entrada sin mirar el rol, así que un LECTOR que entró primero desplaza al último
+gestor. Filtrar antes de cortar le mandaba correos de una cuenta a alguien que ya
+no puede entrar en ella. Ahora se piden todos los miembros, se corta, **y después**
+se filtra por rol.
+
+**Las invitaciones pendientes ocupan asiento.** Si no contaran se podrían mandar
+veinte de golpe y el límite lo descubriría el invitado al aceptar, que es el peor
+momento posible.
+
+### 31.5 — Alcance por sede (lo que le da sentido a Franquicia)
+
+`Miembro.negociosIds` vacío = todos los negocios; con ids = solo esos. El encargado
+de una sede no tiene por qué leer las reseñas de las otras nueve.
+
+⚠️ **El alcance se aplica con `AND`, nunca escribiendo `where.id`.** Muchas
+consultas ya traen su propio id (`{ id: req.params.id, usuarioId }`) y pisarlo
+dejaría pasar el negocio ajeno igualmente. Hay una prueba dedicada a ese caso.
+
+⚠️ **Lista vacía se normaliza a `null`** al salir de `resolverAcceso`, para que el
+resto del código no tenga que distinguir «[]» de «todos» — exactamente la duda que
+acaba en un `IN` vacío que no devuelve nada.
+
+### 31.6 — Decisiones de producto que no hay que deshacer
+
+- **La invitación está atada a un correo.** Aceptarla desde otra sesión falla con
+  `CORREO_DISTINTO`: el token viaja por un canal que el dueño no controla, y
+  reenviar el correo a un tercero le regalaría acceso. De paso, eso convierte el
+  registro previo en la verificación — quien acepta demostró leer ese buzón.
+- **`GET /api/equipo/invitacion/:token` es público.** La mitad de los invitados no
+  tiene cuenta, y quien ve «Marta te invitó a Cevichería El Muelle» se registra;
+  quien ve un login pelado, se va. No expone nada que el invitado no tenga ya en su
+  correo. Lleva limitador propio (30/15min).
+- **Se acepta con un BOTÓN, no al cargar la página.** Mismo motivo que la
+  confirmación de contraseña (§29.1): los antivirus corporativos abren los enlaces
+  para analizarlos y consumirían el token antes de que la persona lo vea.
+- **Si el correo de invitación no sale, la invitación se borra** y se devuelve 502.
+  El enlace solo existe dentro de ese mensaje: dejarla viva sería un asiento
+  ocupado por algo que nadie puede aceptar.
+- **Invitar usa `upsert`**, no `create`: reinvitar al mismo correo renueva el
+  enlace en vez de chocar contra el `@unique` con un error que no explica nada.
+  Reenviar emite un token **nuevo** — el viejo ya circuló por un buzón que quizá no
+  era el correcto.
+- **La cuota semanal de IA es de la CUENTA, no de la persona.** Si fuera por
+  persona, invitar a alguien multiplicaría la cuota comprada y la factura de Groq.
+- **Las alertas se copian a los GESTORES** que alcanzan ese negocio, con el filtro
+  de preferencias **del dueño**. Los LECTORES no reciben nada: llenarles la bandeja
+  de avisos sobre los que no pueden actuar es la vía más rápida a que los filtren.
+- **El registro de actividad NO se borra al quitar a alguien**, y el nombre del
+  autor va **congelado** en cada fila: es justo el momento en que hace falta
+  consultarlo. Lo que hizo en cuentas ajenas sobrevive al borrado de su cuenta,
+  pero su nombre se disocia (`auth.routes.js`).
+- **La actividad solo la ve el propietario.** Es rendición de cuentas hacia quien
+  paga; enseñársela a todos convierte la herramienta en vigilancia entre colegas.
+- **Salir del equipo no lleva `permitir('equipo')`.** Precisamente quien NO tiene
+  ese permiso es quien lo necesita: nadie debe quedar atrapado en la cuenta de otro.
+- **`AuthContext` tiene salida de emergencia:** si el perfil devuelve 403
+  `SIN_ACCESO_CUENTA` o `SIN_ASIENTO`, borra `bs_cuenta`, reintenta y explica por
+  qué. Sin eso, que te quiten el acceso con la sesión abierta deja el panel
+  inservible y la única salida sería borrar el almacenamiento del navegador.
+- **Cambiar de cuenta recarga la página entera.** Media docena de pantallas guardan
+  en su estado negocios y comentarios de la cuenta anterior; refrescar solo el
+  perfil dejaría el nombre de una empresa arriba y los datos de otra abajo.
+
+### 31.7 — 🔴 El `db push` va ANTES del deploy
+
+El diff contra producción es **puramente aditivo** (verificado con
+`prisma migrate diff`): 3 tablas nuevas (`miembros`, `invitaciones`,
+`registro_actividad`), el enum `RolMiembro`, sus índices y FKs. **No toca ninguna
+columna existente** y no pide `--accept-data-loss`.
+
+```bash
+# 1. cerrar el backend local (Windows: Prisma da EPERM si está corriendo)
+cd brand-shield && npx prisma db push && npx prisma generate
+# 2. recién ahora
+railway up --service api --detach
+cd ../brand-shield-web && vercel --prod --yes
+```
+
+Al revés, el cliente de Prisma desplegado seleccionaría columnas que la base no
+tiene y **se cae cualquier consulta sobre esas tablas**. En este sentido no pasa
+nada: añadir tablas es compatible con el código viejo, que sigue corriendo.
+
+### 31.8 — Pruebas
+
+`node scripts/prueba-equipo.js` — **48 comprobaciones** con Prisma simulado, sin
+base ni servidor. Cubre la matriz de permisos, los asientos, el corte por bajada de
+plan (en la lista, al entrar y en el selector), el alcance con `id` ya presente,
+invitaciones pendientes ocupando asiento y a quién le llega cada alerta.
+
+⚠️ `scripts/prueba-promo.js` tuvo que actualizar su doble de `auth.middleware`:
+ahora tiene que devolver `permitir` y poner `req.cuenta`. Cualquier prueba nueva
+que simule ese middleware necesita lo mismo.
+
+### 31.9 — Encontrado de paso, NO corregido
+
+`dashboard/planes/page.js` sigue anunciando en **inglés** funciones que §25.8
+retiró de la versión en español por no existir: «Only 7-day history», «90-day
+history», «Unlimited history» y «Multi-location executive dashboard». La limpieza
+de §25.8 solo tocó los textos en español. Es la misma regla —lo que el worker no
+hace no entra al catálogo— aplicada a medias.

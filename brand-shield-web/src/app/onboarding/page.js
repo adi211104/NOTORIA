@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import Icon from '../../components/Icons';
 
-import { API_URL } from '../../lib/api';
+import { API_URL, cabecerasAuth } from '../../lib/api';
 import { TIPOS_NEGOCIO } from '../../lib/tiposNegocio';
 import LogoNotoria from '../../components/LogoNotoria';
 const getToken = () => localStorage.getItem('bs_token');
@@ -31,7 +31,7 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     if (!usuario) return;
-    fetch(`${API_URL}/api/negocios`, { headers: { Authorization: `Bearer ${getToken()}` } })
+    fetch(`${API_URL}/api/negocios`, { headers: { ...cabecerasAuth() } })
       .then(r => r.json()).then(data => {
         if (Array.isArray(data) && data.length > 0) {
           setNegociosExistentes(data);
@@ -52,7 +52,7 @@ export default function OnboardingPage() {
       try {
         const res = await fetch(
           `${API_URL}/api/utils/buscar-negocio?q=${encodeURIComponent(busqueda)}&tipo=${tipo}`,
-          { headers: { Authorization: `Bearer ${getToken()}` } }
+          { headers: { ...cabecerasAuth() } }
         );
         const data = await res.json();
         setResultados(Array.isArray(data) ? data : []);
@@ -68,7 +68,7 @@ export default function OnboardingPage() {
     try {
       const res = await fetch(`${API_URL}/api/negocios`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        headers: { 'Content-Type': 'application/json', ...cabecerasAuth() },
         body: JSON.stringify({ nombre: negocioSel.nombre, tipo, googlePlaceId: negocioSel.placeId }),
       });
       const data = await res.json();
@@ -82,7 +82,7 @@ export default function OnboardingPage() {
   const volverAPaso2 = async () => {
     if (negocioCreado?.id) {
       await fetch(`${API_URL}/api/negocios/${negocioCreado.id}`, {
-        method: 'DELETE', headers: { Authorization: `Bearer ${getToken()}` },
+        method: 'DELETE', headers: { ...cabecerasAuth() },
       }).catch(() => {});
     }
     setNegocioCreado(null); setNegocioSel(null);

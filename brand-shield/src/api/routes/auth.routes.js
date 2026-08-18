@@ -13,6 +13,7 @@ const prisma = require('../../lib/prisma');
 const router = express.Router();
 const { autenticar } = require('../middlewares/auth.middleware');
 const { hayFuenteDisponible } = require('../../lib/menciones');
+const { dondeNegocio, permisosDe, cuentasDe } = require('../../lib/equipo');
 
 // 🔴 El correo se normaliza SIEMPRE antes de tocar la base.
 //
@@ -178,9 +179,34 @@ router.post('/login', async (req, res, next) => {
 });
 
 // ── GET /api/auth/perfil ──────────────────────────────────
+//
+// ⚠️ Devuelve DOS cosas mezcladas, y hay que tenerlo presente al tocarlo:
+//
+//   · la identidad de la PERSONA (nombre, correo, idioma, verificación)
+//   · el estado de la CUENTA en la que está trabajando (plan, negocios,
+//     preferencias de alertas, datos de facturación)
+//
+// Casi siempre son la misma fila. Cuando alguien entra a una cuenta que le
+// compartieron, no: y entonces el panel tiene que mostrar el plan y los negocios
+// de esa empresa, no los suyos. Si `plan` viniera de la persona, un invitado
+// cuya cuenta propia está en Gratis vería el panel capado dentro de una cuenta
+// Franquicia — justo las funciones por las que el dueño paga.
 router.get('/perfil', autenticar, async (req, res, next) => {
   try {
-    const usuario = await prisma.usuario.findUnique({
+    const CAMPOS_CUENTA = {
+      plan: true,
+      suscripcionActiva: true,
+      fechaVencimiento: true,
+      promoBienvenidaUsada: true,
+      prefsAlertas: true,
+      // Datos de facturación: el checkout los necesita para saber si tiene que
+      // pedirlos antes de cobrar (obligatorios desde S/700, ver tributario.js)
+      docTipo: true,
+      docNumero: true,
+      razonSocial: true,
+    };
+
+    const persona = await prisma.usuario.findUnique({
       where: { id: req.usuario.id },
       select: {
         id: true,
@@ -189,22 +215,43 @@ router.get('/perfil', autenticar, async (req, res, next) => {
         emailVerificado: true,
         telefono: true,
         idioma: true,
-        plan: true,
-        suscripcionActiva: true,
-        fechaVencimiento: true,
-        promoBienvenidaUsada: true,
-        prefsAlertas: true,
-        // Datos de facturación: el checkout los necesita para saber si tiene que
-        // pedirlos antes de cobrar (obligatorios desde S/700, ver tributario.js)
-        docTipo: true,
-        docNumero: true,
-        razonSocial: true,
-        negocios: {
-          where: { activo: true },
-          select: { id: true, nombre: true, tipo: true },
-        },
+        ...CAMPOS_CUENTA,
       },
     });
+
+    // Los negocios se piden con el filtro de la cuenta Y del alcance: un miembro
+    // asignado a una sola sede no debe ver las otras ni en el menú lateral.
+    const negocios = await prisma.negocio.findMany({
+      where: dondeNegocio(req, { activo: true }),
+      select: { id: true, nombre: true, tipo: true },
+    });
+
+    const datosCuenta = req.cuenta.propia
+      ? persona
+      : await prisma.usuario.findUnique({ where: { id: req.cuenta.id }, select: CAMPOS_CUENTA });
+
+    const cuentas = await cuentasDe(req.usuario);
+
+    const usuario = {
+      ...persona,
+      ...datosCuenta,
+      negocios,
+      // Con qué permisos se pinta el panel. El frontend los usa para esconder
+      // botones; el backend vuelve a comprobarlos en cada ruta, porque esconder
+      // un botón no es una defensa.
+      rol: req.rol,
+      permisos: permisosDe(req.rol),
+      cuenta: {
+        id: req.cuenta.id,
+        nombre: req.cuenta.nombre,
+        propia: req.cuenta.propia,
+        plan: req.cuenta.plan,
+      },
+      // Solo se manda la lista si hay más de una: el selector de cuentas no
+      // tiene por qué aparecerle a quien nunca compartió ni fue invitado.
+      cuentas: cuentas.length > 1 ? cuentas : [],
+      alcanceParcial: !!req.alcance,
+    };
 
     // Bandera de disponibilidad, no una columna del usuario: depende sobre todo
     // de la configuración del servidor. Viaja en el perfil porque el layout del
@@ -215,7 +262,7 @@ router.get('/perfil', autenticar, async (req, res, next) => {
     // oculto hasta que Meta apruebe, salvo para las cuentas de prueba de la
     // revisión (lib/instagramVisible.js). Para el resto no hay ninguna fuente
     // encendida, así que Menciones vuelve a estar invisible.
-    res.json({ ...usuario, mencionesDisponibles: hayFuenteDisponible(usuario) });
+    res.json({ ...usuario, mencionesDisponibles: hayFuenteDisponible(req.cuenta) });
   } catch (error) {
     next(error);
   }
@@ -412,6 +459,27 @@ router.post('/confirmar-cambio-password', async (req, res, next) => {
 router.delete('/cuenta', autenticar, async (req, res, next) => {
   try {
     const usuarioId = req.usuario.id;
+
+    // ─── Equipo ───────────────────────────────────────────
+    // Va PRIMERO: `miembros`, `invitaciones` y `registro_actividad` tienen FK
+    // contra `usuarios`, así que sin esto el borrado falla con un error de
+    // restricción que no dice nada útil.
+    //
+    // Se van los dos lados: el equipo que esta persona había invitado a SU
+    // cuenta (nadie debe conservar acceso a una cuenta que ya no existe) y las
+    // membresías que tenía en cuentas ajenas (deja de tener acceso a ellas).
+    await prisma.miembro.deleteMany({ where: { OR: [{ cuentaId: usuarioId }, { usuarioId }] } }).catch(() => {});
+    await prisma.invitacion.deleteMany({ where: { cuentaId: usuarioId } }).catch(() => {});
+    await prisma.registroActividad.deleteMany({ where: { cuentaId: usuarioId } }).catch(() => {});
+
+    // Lo que hizo dentro de cuentas AJENAS no se borra: es el historial de esa
+    // otra empresa y no le pertenece a quien se va. Pero su nombre sí es un dato
+    // personal suyo, así que se disocia — el registro sigue sirviendo para saber
+    // que fueron acciones de una misma persona, sin identificarla.
+    await prisma.registroActividad.updateMany({
+      where: { usuarioId },
+      data: { autorNombre: 'Usuario eliminado' },
+    }).catch(() => {});
 
     // Eliminar en orden por dependencias de FK
     const negocios = await prisma.negocio.findMany({
