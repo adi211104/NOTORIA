@@ -4057,3 +4057,33 @@ retiró de la versión en español por no existir: «Only 7-day history», «90-
 history», «Unlimited history» y «Multi-location executive dashboard». La limpieza
 de §25.8 solo tocó los textos en español. Es la misma regla —lo que el worker no
 hace no entra al catálogo— aplicada a medias.
+
+### 31.10 — Desplegado y verificado (2026-08-18)
+
+`prisma db push` contra producción → `migrate diff` posterior devuelve *empty
+migration*. Railway `2d6c2302` SUCCESS · Vercel `notoria-a2i8bjgpn` Ready ·
+commit `c2e8049`.
+
+**Cómo se verificó, que es lo reutilizable.** La ruta pública de la invitación
+sirve de sonda sin necesidad de sesión, y es mejor que el truco 401/404 porque
+devuelve un cuerpo **propio** en vez de un rechazo genérico:
+
+```
+GET /api/equipo/invitacion/<64 ceros>
+  -> 404 {"error":"Esta invitación no existe o ya se usó","tipo":"INVITACION_INVALIDA"}   ← el código NUEVO corre
+GET /api/equipo                 -> 401                        ← autenticar montado
+GET /api/equipo/no-existe       -> 401                        ← cae en autenticar, no en el catch-all
+GET /api/inventado-xyz/algo     -> 404 "Ruta no encontrada"   ← control: el 404 de arriba no es genérico
+```
+
+Frontend: `/dashboard/equipo` y `/invitacion/abc123` responden 200, y esta última
+sirve su copy en el HTML. `/precios` muestra «Panel para 3 personas» y «Panel para
+10 personas». La fila nueva de la comparativa («Personas con acceso al panel») se
+localizó **dentro del chunk servido** (`/_next/static/chunks/36q_p6_pd2vul.js`),
+que es el método de §19 para lo que vive en un componente de cliente.
+
+⏳ **Lo que NO se ha probado contra producción:** el viaje completo invitación →
+correo → registro → aceptar, porque exige mandar un correo real a un buzón real y
+dejar filas en la base. Las 48 pruebas cubren la lógica; lo que queda por
+comprobar en vivo es el circuito de Resend y la pantalla del invitado. Hacerlo con
+una dirección propia y borrar después la fila de `miembros`.
