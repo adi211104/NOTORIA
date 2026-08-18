@@ -172,11 +172,21 @@ export function GraficaAtaque({ idioma = 'es' }) {
           incluido: a 360 px de ancho las etiquetas de 11 px quedaban en 6 y no
           se leían. Con un ancho mínimo, en el teléfono se desliza de lado y las
           letras conservan su tamaño. El scroll es de esta caja, nunca del
-          documento. */}
+          documento.
+
+          ⚠️ El mínimo es `W`, el ancho del propio viewBox, y ese número NO es
+          arbitrario: es el único que garantiza escala 1:1, o sea que cada
+          etiqueta se dibuje exactamente con los píxeles que declara. Estuvo en
+          520 y se quedaba corto — medido en un viewport real de 390 px, la
+          escala salía 0.81 y las etiquetas de 11 px se renderizaban a 8.9. No
+          era el desastre de los 6 px de antes, pero seguía siendo el mismo
+          problema a medias. Cualquier valor por debajo de W vuelve a encogerlas.
+          Cuesta un poco más de deslizamiento lateral dentro de una caja que ya
+          se desliza, y arranca centrada en la caída (ver el efecto de arriba). */}
       <div ref={cajaRef} style={{ overflowX:'auto', overflowY:'hidden', WebkitOverflowScrolling:'touch' }}>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img"
            aria-label={`${t.titulo}. ${t.ataque}. ${t.conNotoria}.`}
-           style={{ display:'block', minWidth:520 }}>
+           style={{ display:'block', minWidth:W }}>
         <defs>
           <linearGradient id="relleno-ataque" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.20" />

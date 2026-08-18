@@ -4087,3 +4087,127 @@ correo → registro → aceptar, porque exige mandar un correo real a un buzón 
 dejar filas en la base. Las 48 pruebas cubren la lógica; lo que queda por
 comprobar en vivo es el circuito de Resend y la pantalla del invitado. Hacerlo con
 una dirección propia y borrar después la fila de `miembros`.
+
+---
+
+## Sesión 2026-08-18 (noche) — §32. Textos que no eran ciertos, y la revisión en móvil
+
+Dos pendientes cerrados: el hallazgo de §31.9 y la **revisión visual a 390 px**,
+que llevaba aplazada desde §26.4 por no poder conseguir un viewport de teléfono.
+
+### 32.1 — Cuatro reclamos falsos que sobrevivían en inglés
+
+§25.8 quitó del catálogo lo que el worker no hace, pero **solo pasó por los
+textos en español**. En `dashboard/planes/page.js` seguían vivos en inglés:
+
+| Decía | Realidad |
+|---|---|
+| «Only 7-day history» · «90-day history» · «Unlimited history» | No hay retención por plan: todo el mundo tiene su historial desde que se registra |
+| «Multi-location executive dashboard» | No existe una vista distinta para cadenas; lo cierto es que Franquicia no tiene tope de negocios |
+
+Y dos más, de la misma familia:
+
+- 🔴 **El FAQ del JSON-LD de `layout.js`** seguía prometiendo que detectamos
+  «cuentas recién creadas» y «autores con una sola reseña». §25.4 demostró que esa
+  señal **es imposible**: las cinco fuentes escriben `autorResenasTotal: null`.
+  §25.8 corrigió el FAQ visible de `page.js` y se olvidó del duplicado — que es
+  exactamente lo que el propio README avisa desde hace meses («el texto del FAQ
+  está DUPLICADO respecto a page.js: al editar una FAQ, actualizar ambos»).
+  Este iba a Google como dato estructurado.
+- **La etiqueta del tipo de alerta `CUENTAS_NUEVAS`** decía «Reseñas de cuentas
+  recién creadas o con patrones de bot». El tipo SÍ dispara, pero por otra cosa:
+  desde §25.4 lo levanta el **texto duplicado** entre reseñas distintas. Ahora se
+  llama «Campañas coordinadas» y describe eso. El id del enum no se tocó — está
+  en la BD, en el worker y en la app Android.
+
+### 32.2 — 🔴 La técnica de revisión en móvil documentada en §23.8 YA NO FUNCIONA
+
+§23.8 decía: meter la página en un **iframe de 390 px** desde la consola, porque
+las media queries responden al viewport del iframe y es una prueba real. Dejó de
+funcionar cuando **§25.7 añadió las cabeceras de seguridad**: con
+`X-Frame-Options: DENY` la web no se puede incrustar ni en su propio origen.
+
+Y `resize_window` tampoco sirve: con la ventana maximizada, Chrome acepta la
+orden y `innerWidth` se queda en 1920. Es lo que bloqueó esta revisión en §26.4,
+§27.6, §28.4 y §30.5.
+
+**Lo que sí funciona** (`brand-shield-web/scripts/proxy-movil.js`, ~40 líneas,
+no toca nada del proyecto — `node scripts/proxy-movil.js` y abrir
+`http://localhost:3001`): un proxy local que sirve usenotoria.app quitándole las cabeceras que
+impiden el enmarcado. Tres detalles que costaron encontrar:
+
+1. **No basta con `frame-ancestors`.** La CSP también trae
+   `frame-src https://*.culqi.com …` **sin `'self'`**, y esa dirige el otro
+   sentido: qué puede enmarcar la página PADRE. Con una sola de las dos puesta,
+   `contentDocument` sigue saliendo `null`. Lo más simple es borrar la CSP entera
+   en el proxy de prueba.
+2. **El padre se sirve de caché.** Tras arreglar el proxy, la primera prueba
+   seguía fallando porque el documento padre venía de la caché **con la CSP
+   vieja**, y su `upgrade-insecure-requests` reescribía el `http://` del iframe a
+   `https://`. Se resuelve navegando con un parámetro que rompa la caché.
+3. **Escucha en el 3001 a propósito.** Ese origen está en `origensPermitidos` del
+   backend (`src/index.js`), así que las páginas que llaman a la API funcionan
+   igual que en producción, incluido el panel con sesión.
+
+⚠️ **Comprobar siempre `innerWidth` del iframe antes de dar por buena una
+medición.** Si sale 1920, se está midiendo la ventana y no el teléfono.
+
+### 32.3 — Lo que encontró la revisión
+
+🔴 **«↓ 0» en rojo en la cabecera del negocio.** Lo veía **todo negocio con el
+rating estable**, que es la mayoría casi siempre:
+
+```js
+const tend = (snap.ratingActual - snap2.ratingActual).toFixed(2);  // → "0.00"
+{tend && <div style={{ color: parseFloat(tend) > 0 ? verde : ROJO }}>…</div>}
+```
+
+`toFixed` devuelve una **cadena**, y `"0.00"` es truthy. Con la comparación
+`> 0` en falso, el bloque salía rojo y con flecha hacia abajo: una caída de cero
+pintada como alarma, justo encima de la métrica más mirada de la pantalla. Ahora
+solo se pinta si `Number(tend) !== 0`. Es el mismo criterio que §23.6 ya aplicó a
+la gráfica de historial («sin cambios» en vez de inventar un movimiento).
+
+**Las etiquetas de la gráfica del landing se renderizaban a 8.9 px.** §22.2 había
+puesto `minWidth: 520` en un SVG de `viewBox="0 0 640 250"`, lo que da escala
+0.81: las etiquetas de 11 px salían a 8.9. No era el desastre de los 6 px que
+motivó el arreglo, pero era el mismo problema a medias. Ahora el mínimo es **`W`,
+el ancho del propio viewBox**, que es el único valor que garantiza escala 1:1.
+Medido después: escala 1.000, texto 11 px reales.
+
+🔴 **`<html lang>` se quedaba en `es` con la web en inglés.** `IdiomaContext`
+solo ajustaba `lang` dentro de `cambiarIdioma`, o sea al pulsar el selector. El
+caso más común quedaba fuera: alguien con el navegador en inglés ve la web entera
+en inglés —la detección automática funciona— con el HTML declarando español.
+Verificado en vivo: `navigator.language` "en-US", `h1` en inglés,
+`documentElement.lang` = "es". Un lector de pantalla lo narra con voz española y
+Google lo indexa como español. Se movió a un `useEffect` que depende de `idioma`,
+así cubre los dos caminos.
+
+### 32.4 — Qué quedó verificado a 390 px
+
+Todo sin desborde horizontal del documento:
+
+| Pantalla | |
+|---|---|
+| `/para/<ficha>` | ✅ y la comparación sale con restaurantes, no con hoteles (§27.3 aguanta) |
+| `/verificar/<codigo>` | ✅ |
+| `/invitacion/<token>` | ✅ |
+| `/precios` | ✅ |
+| Landing | ✅ · el SVG desborda su caja, no el documento, que es el diseño de §22.2 |
+| `/dashboard/equipo` | ✅ · cajón lateral, «1 de 3 personas» y el botón de invitar caben |
+| Ficha del negocio | ✅ · la barra de 9 pestañas es UNA fila deslizable (§23.8 aguanta) |
+| «Cómo te ven» | ✅ |
+
+### 32.5 — Estado de la base de producción (solo lectura, 2026-08-18)
+
+`0 pagos · 0 comprobantes · series sin iniciar · 0 miembros · 0 invitaciones`.
+
+⚠️ Y **la emisión a SUNAT está ENCENDIDA** (`SUNAT_EMISION_ACTIVA=true`,
+`SUNAT_ENTORNO=produccion`, certificado y credenciales SOL cargadas). O sea que
+el primer cliente que pague va a ser también la primera factura real que se le
+manda a SUNAT, por un canal que nunca ha corrido contra producción. Conviene
+probarlo con un cobro pequeño antes de gastar en publicidad.
+
+El pendiente de §30.5 que decía «encender la emisión SUNAT cuando el contador lo
+confirme» estaba **desactualizado**: se encendió el 2026-08-17 (§24.5).

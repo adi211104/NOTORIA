@@ -12,7 +12,7 @@ const TEXTOS = {
     tipos: [
       { id:'RESENA_MUY_NEGATIVA', l:'Reseñas muy negativas', d:'Cada reseña de 1-2 estrellas detectada' },
       { id:'PICO_RESENAS_NEGATIVAS', l:'Ataques y picos de negativas', d:'Varias reseñas negativas en pocas horas (posible ataque)' },
-      { id:'CUENTAS_NUEVAS', l:'Cuentas sospechosas', d:'Reseñas de cuentas recién creadas o con patrones de bot' },
+      { id:'CUENTAS_NUEVAS', l:'Campañas coordinadas', d:'Varias reseñas negativas que repiten el mismo texto desde cuentas distintas' },
       { id:'CAIDA_RATING', l:'Caídas de rating', d:'Cuando tu calificación general baja entre escaneos' },
       { id:'MENCION_NEGATIVA', l:'Menciones negativas', d:'Cuando alguien habla mal de tu marca fuera de tu ficha' },
       { id:'COMENTARIO_NEGATIVO', l:'Comentarios negativos', d:'Comentarios molestos en tus propias publicaciones de redes' },
@@ -20,7 +20,7 @@ const TEXTOS = {
     labels: {
       PICO_RESENAS_NEGATIVAS: 'Pico de reseñas negativas',
       CAIDA_RATING: 'Caída de rating',
-      CUENTAS_NUEVAS: 'Cuentas sospechosas',
+      CUENTAS_NUEVAS: 'Campaña coordinada',
       RESENA_MUY_NEGATIVA: 'Reseña crítica',
       MENCION_NEGATIVA: 'Mención negativa',
       COMENTARIO_NEGATIVO: 'Comentario negativo',
@@ -67,7 +67,7 @@ const TEXTOS = {
     tipos: [
       { id:'RESENA_MUY_NEGATIVA', l:'Very negative reviews', d:'Every 1-2 star review detected' },
       { id:'PICO_RESENAS_NEGATIVAS', l:'Attacks and negative spikes', d:'Several negative reviews within a few hours (possible attack)' },
-      { id:'CUENTAS_NUEVAS', l:'Suspicious accounts', d:'Reviews from newly created accounts or with bot patterns' },
+      { id:'CUENTAS_NUEVAS', l:'Coordinated campaigns', d:'Several negative reviews repeating the same text from different accounts' },
       { id:'CAIDA_RATING', l:'Rating drops', d:'When your overall rating falls between scans' },
       { id:'MENCION_NEGATIVA', l:'Negative mentions', d:'When someone speaks badly of your brand outside your listing' },
       { id:'COMENTARIO_NEGATIVO', l:'Negative comments', d:'Hostile comments on your own social posts' },
@@ -75,7 +75,7 @@ const TEXTOS = {
     labels: {
       PICO_RESENAS_NEGATIVAS: 'Spike in negative reviews',
       CAIDA_RATING: 'Rating drop',
-      CUENTAS_NUEVAS: 'Suspicious accounts',
+      CUENTAS_NUEVAS: 'Coordinated campaign',
       RESENA_MUY_NEGATIVA: 'Critical review',
       MENCION_NEGATIVA: 'Negative mention',
       COMENTARIO_NEGATIVO: 'Negative comment',

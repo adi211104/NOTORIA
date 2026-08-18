@@ -21,11 +21,25 @@ export function IdiomaProvider({ children }) {
     } catch {}
   }, []);
 
+  // 🔴 `lang` del documento, en UN solo sitio y no dentro de cambiarIdioma.
+  //
+  // Antes solo se ajustaba al pulsar el selector, así que el caso más común se
+  // quedaba fuera: alguien con el navegador en inglés ve la web entera en inglés
+  // —la detección automática de arriba funciona— pero el HTML seguía diciendo
+  // `lang="es"`. Verificado en vivo: navigator.language "en-US", contenido en
+  // inglés, `documentElement.lang` = "es". Eso hace que un lector de pantalla lo
+  // narre con voz española y que Google lo indexe como si fuera español.
+  //
+  // Aquí depende de `idioma`, así que cubre los dos caminos: la deteccion inicial
+  // y el cambio manual.
+  useEffect(() => {
+    try { document.documentElement.lang = idioma; } catch {}
+  }, [idioma]);
+
   const cambiarIdioma = (nuevo) => {
     if (nuevo !== 'es' && nuevo !== 'en') return;
     setIdioma(nuevo);
     try { localStorage.setItem('bs_idioma', nuevo); } catch {}
-    try { document.documentElement.lang = nuevo; } catch {}
   };
 
   return (

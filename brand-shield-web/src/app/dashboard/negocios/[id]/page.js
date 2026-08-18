@@ -1750,7 +1750,17 @@ export default function DetallePage() {
                 <div style={{ textAlign:'center' }}>
                   <div style={{ fontSize:20, fontWeight:700, color:'#facc15' }}>★ {snap.ratingActual}</div>
                   <div style={{ fontSize:11, color:'var(--text-3)' }}>{t.header.rating}</div>
-                  {tend && <div style={{ fontSize:10, color:parseFloat(tend)>0?'#22c55e':'#f87171' }}>{parseFloat(tend)>0?'↑':'↓'} {Math.abs(tend)}</div>}
+                  {/* 🔴 Solo si el rating SE MOVIÓ de verdad.
+                      `toFixed(2)` devuelve la CADENA "0.00" cuando está igual, y
+                      una cadena no vacía es truthy: esto pintaba un «↓ 0» en
+                      rojo —una caída de cero, con flecha hacia abajo y color de
+                      alarma— a todo negocio con el rating estable, que es la
+                      mayoría casi siempre. Encontrado revisando el panel en un
+                      viewport real de 390 px.
+                      Mismo criterio que la gráfica de historial (§23.6), que
+                      ante un rating plano dice "sin cambios" en vez de inventar
+                      un movimiento. */}
+                  {tend && Number(tend) !== 0 && <div style={{ fontSize:10, color:Number(tend)>0?'#22c55e':'#f87171' }}>{Number(tend)>0?'↑':'↓'} {Math.abs(Number(tend))}</div>}
                 </div>
                 <div style={{ textAlign:'center' }}>
                   <div style={{ fontSize:20, fontWeight:700, color:'var(--text)' }}>{snap.totalResenas?.toLocaleString()}</div>
