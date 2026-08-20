@@ -247,6 +247,31 @@ re-verifica). DMARC en **`p=quarantine`** desde el 2026-08-19
 (`v=DMARC1; p=quarantine; rua=mailto:padkar4@gmail.com`). Monitor de uptime en `.github/workflows/uptime.yml`
 (golpea `/health` y el landing cada 15 min).
 
+### Email Routing de Cloudflare — el catch-all está en **Drop**
+
+🔴 **Regla que costó descubrir: solo llega el correo que tiene su PROPIA regla.** El catch-all
+está puesto en **Drop**, así que cualquier dirección `@usenotoria.app` sin regla se **acepta en
+SMTP y se descarta**. Desde fuera es indistinguible de una entrega correcta: el remitente ve
+`delivered` y el mensaje no existe en ningún sitio.
+
+| Regla | Acción |
+|---|---|
+| **Catch-all** | **Drop** — se deja así a propósito: reenviar todo invitaría spam a cualquier dirección inventada del dominio |
+| `hola@usenotoria.app` | → `didierprincipe@gmail.com` (creada el 2026-08-19) |
+| `didier@usenotoria.app` | → `didierprincipe@gmail.com` |
+
+`didierprincipe@gmail.com` es el **único destino verificado**, y es una dirección alterna de la
+misma cuenta de Google que `usenotoria@gmail.com`, así que todo aterriza en ese buzón.
+
+**Cómo se descubrió y cómo se cerró:** `hola@` había recibido 4 correos —los 4 avisos del Libro
+de Reclamaciones del 2026-08-06— con `delivered` en Resend y **cero rastro** en los buzones.
+El panel lo confirmó (7 días: 9 recibidos, 6 reenviados, **3 descartados**). Tras crear la
+regla se mandó un correo de prueba con una marca única y **se comprobó que aterriza**.
+
+⚠️ **Al añadir cualquier dirección nueva del dominio** —`contacto@`, `soporte@`,
+`facturacion@`— hay que crearle su regla en el mismo momento, o se tragará el correo en
+silencio. `revisormeta@usenotoria.app` sigue sin regla y sigue descartando.
+
 ### Cómo auditar la entrega de correo sin mandar nada (Resend)
 
 La API de Resend expone el historial con **solo lectura**, y es la forma de comprobar el
@@ -1401,28 +1426,11 @@ flujo entero.
    Falta ficha de tienda, formulario de Seguridad de los Datos y clasificación; el AAB firmado
    ya existe. 🔴 **Respaldar `notoria-upload.jks` y su contraseña fuera de esta PC**: sin Play
    App Signing, perderlo significa no poder actualizar la app nunca.
-4. 🔴 **`hola@usenotoria.app` se acepta pero NO aparece en ningún buzón que podamos ver.**
-   Ya no es "sin verificar": el 2026-08-19 se cruzaron las dos puntas y no cuadran.
-   - **Resend dice `delivered`** para los 4 correos que se le han mandado a `hola@` (los cuatro
-     del **Libro de Reclamaciones**, del 2026-08-06). `delivered` en Resend significa que el MX
-     de destino —Cloudflare— **aceptó** el mensaje; si no existiera regla para `hola@`,
-     Cloudflare habría rechazado en SMTP y se vería `bounced`.
-   - **Pero ninguno está en `usenotoria@gmail.com` ni en `padkar4@gmail.com`** (buscados con
-     `in:anywhere`, que incluye spam y papelera).
-   - Las dos explicaciones posibles: la regla reenvía a un **tercer destino** que no hemos
-     podido abrir (`admin@usenotoria.app`), o hay un **catch-all que acepta y descarta**.
-   - **Contraste que lo confirma:** a `didier@usenotoria.app` se le mandaron 9 correos, los 9
-     `delivered`, y **los 9 aparecen en `usenotoria@gmail.com`** con fecha y asunto coincidentes.
-     Ese buzón funciona de punta a punta; el otro no se puede demostrar que sí.
-
-   ⚠️ Por qué importa aunque las reclamaciones ya estén desviadas a `didier@`: **`EMAIL_FROM`
-   sigue siendo `Notoria <hola@usenotoria.app>`**, así que ahí caen todas las **respuestas de
-   los clientes** a cualquier correo de Notoria, y es la dirección pública de `/contacto` y del
-   pie legal. Se arregla en Cloudflare → Email Routing, comprobando a dónde apunta `hola@`.
-
-   ℹ️ Sin alarma retroactiva: esos 4 correos eran de reclamaciones de prueba (`2026-000001` y
-   `2026-000002`) de cuando se probaba el módulo, y la BD hoy tiene **0 reclamaciones**. No se
-   perdió ninguna reclamación real — todavía no ha habido ninguna.
+4. ✅ **RESUELTO el 2026-08-19 — `hola@usenotoria.app` se descartaba a propósito.** Ver la
+   causa y el arreglo en §6, *Email Routing*. Lo que queda como pendiente del dueño es solo
+   decidir si `revisormeta@usenotoria.app` también necesita regla (hoy se descarta, y le han
+   llegado 3 correos que nadie vio; importa solo si el revisor de Meta tuviera que recibir algo
+   durante el App Review).
 5. **Rotar `META_APP_SECRET`** — se compartió por chat. Al rotarlo hay que recargarlo en
    Railway o el OAuth falla con un error genérico que no menciona el secreto. Meta empieza a
    firmar los webhooks con el nuevo de inmediato.
