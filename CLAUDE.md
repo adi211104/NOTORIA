@@ -112,6 +112,28 @@ NEXT_PUBLIC_CULQI_PUBLIC_KEY     # Vercel: pk_live_. Se incrusta EN EL BUILD →
 NEXT_PUBLIC_WHATSAPP_VENTAS=51955599041   # sin ella el botón flotante no se renderiza
 ```
 
+**Auditoría de variables (2026-08-19).** Se cruzaron las 49 que lee `src/` contra las 49
+puestas en Railway. Resultado: **ninguna otra laguna**.
+- **14 se leen y no están puestas, y las 14 están bien así:** ocho tienen respaldo en el
+  código (`EMISOR_RUC`, `EMISOR_DIRECCION`, `EMISOR_UBIGEO`, `SUNAT_ENDPOINT`,
+  `SUNAT_CERT_P12_PATH`, `PORT`, `META_REDIRECT_URI`, `TIKTOK_REDIRECT_URI` — todas con
+  `|| valor`), y seis están apagadas a propósito (`INSTAGRAM_ACTIVO`, las tres
+  `MENCIONES_*`, `PARA_BLOQUEADOS`, `TRIPADVISOR_API_KEY`).
+- **14 están puestas y no las lee `src/`:** once son `RAILWAY_*` que inyecta la plataforma,
+  `CULQI_PUBLIC_KEY` y `DATABASE_URL` las usan scripts, y `NEXT_PUBLIC_GOOGLE_CLIENT_ID` es
+  una variable del frontend que quedó suelta en el servicio del backend (inofensiva; borrarla
+  cuesta un redespliegue porque `variable delete` no admite `--skip-deploys`).
+- **Ninguna variable vacía** —`''` es falsy y se comporta igual que ausente— ni con espacios
+  ni con BOM, y las llaves de Culqi miden los 24 caracteres que deben medir.
+
+El comando que reproduce el cruce:
+```bash
+grep -rhoE "process\.env\.[A-Z0-9_]+" src/ | sed 's/process\.env\.//' | sort -u > /tmp/code.txt
+railway variables --service api --kv | grep -oE "^[A-Z0-9_]+" | sort -u > /tmp/rw.txt
+comm -23 /tmp/code.txt /tmp/rw.txt   # se leen pero no están
+comm -13 /tmp/code.txt /tmp/rw.txt   # están pero no se leen
+```
+
 **Reglas de secretos:**
 - Las llaves **live no van en archivos locales**. `.env` y `.env.local` se quedan con las de
   test; `set-culqi-keys.js` se niega a escribir `*_live_*`.
@@ -1333,9 +1355,24 @@ flujo entero.
 
 ### B. Solo las puede hacer el dueño (fuera del código)
 
-1. 🔴 **Probar un cobro real pequeño.** La emisión a SUNAT está **encendida** y nunca ha
-   corrido contra producción (0 pagos, 0 comprobantes, series sin iniciar). El primer cliente
-   que pague será también la primera factura real. Probarlo **antes** de gastar en publicidad.
+1. 🔴 **Probar un cobro real pequeño.** Es lo único que queda: **todo lo verificable sin
+   gastar dinero ya se verificó el 2026-08-19** y está bien. Lo comprobado, para no repetirlo:
+   - **Culqi** (`railway run node scripts/verificar-culqi-live.js`): las dos llaves son del
+     entorno **live**, la secreta autentica, la pública es reconocida, y **el bundle desplegado
+     en usenotoria.app usa esa misma llave pública** — que es lo único que detecta un
+     `vercel env add` sin `vercel --prod`. Cargos en el entorno live: **0**.
+   - **Certificado SUNAT**, abierto de verdad dentro del contenedor (no basta
+     `certificado.configurado()`): emisor `ECEP-RENIEC CA Class 1 II`, serie `1f13ed80…`,
+     **válido hasta 2029-07-26**, con llave privada presente. `SUNAT_ENTORNO=produccion` y
+     `SUNAT_EMISION_ACTIVA=true` confirmados en el contenedor.
+   - **La numeración no hay que sembrarla**: `siguienteCorrelativo` crea la serie arrancando en
+     1 en la primera emisión, con reintento ante carrera. "Series sin iniciar" es el estado
+     normal antes de la primera factura, **no un bloqueo**.
+   - `node scripts/prueba-comprobantes.js` pasa entero.
+
+   ⚠️ Lo que sigue **sin** probarse contra producción: el envío real a SUNAT. La generación y
+   la firma se validaron contra `e-beta` en su momento, pero **nada se ha mandado nunca al
+   endpoint de producción**. Ese sigue siendo el riesgo del primer cobro.
 2. 🔴 **Cambiar el domicilio fiscal en SUNAT** — único arreglo real de la exposición de la
    dirección.
 3. **Play Console** con `usenotoria@gmail.com` y **como organización** (piden D-U-N-S y tarda;
