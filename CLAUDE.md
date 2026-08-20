@@ -258,6 +258,7 @@ SMTP y se descarta**. Desde fuera es indistinguible de una entrega correcta: el 
 |---|---|
 | **Catch-all** | **Drop** — se deja así a propósito: reenviar todo invitaría spam a cualquier dirección inventada del dominio |
 | `hola@usenotoria.app` | → `didierprincipe@gmail.com` (creada el 2026-08-19) |
+| `revisormeta@usenotoria.app` | → `didierprincipe@gmail.com` (creada el 2026-08-20) |
 | `didier@usenotoria.app` | → `didierprincipe@gmail.com` |
 
 `didierprincipe@gmail.com` es el **único destino verificado**, y es una dirección alterna de la
@@ -269,8 +270,8 @@ El panel lo confirmó (7 días: 9 recibidos, 6 reenviados, **3 descartados**). T
 regla se mandó un correo de prueba con una marca única y **se comprobó que aterriza**.
 
 ⚠️ **Al añadir cualquier dirección nueva del dominio** —`contacto@`, `soporte@`,
-`facturacion@`— hay que crearle su regla en el mismo momento, o se tragará el correo en
-silencio. `revisormeta@usenotoria.app` sigue sin regla y sigue descartando.
+`facturacion@`— hay que crearle su regla **en el mismo momento**, o se tragará el correo en
+silencio y todo parecerá correcto desde fuera.
 
 ### Cómo auditar la entrega de correo sin mandar nada (Resend)
 
@@ -1426,11 +1427,9 @@ flujo entero.
    Falta ficha de tienda, formulario de Seguridad de los Datos y clasificación; el AAB firmado
    ya existe. 🔴 **Respaldar `notoria-upload.jks` y su contraseña fuera de esta PC**: sin Play
    App Signing, perderlo significa no poder actualizar la app nunca.
-4. ✅ **RESUELTO el 2026-08-19 — `hola@usenotoria.app` se descartaba a propósito.** Ver la
-   causa y el arreglo en §6, *Email Routing*. Lo que queda como pendiente del dueño es solo
-   decidir si `revisormeta@usenotoria.app` también necesita regla (hoy se descarta, y le han
-   llegado 3 correos que nadie vio; importa solo si el revisor de Meta tuviera que recibir algo
-   durante el App Review).
+4. ✅ **RESUELTO — el correo del dominio ya entrega.** `hola@` se descartaba a propósito
+   (2026-08-19) y `revisormeta@` igual (2026-08-20); las dos tienen ya su regla. Causa y
+   detalle en §6, *Email Routing*.
 5. **Rotar `META_APP_SECRET`** — se compartió por chat. Al rotarlo hay que recargarlo en
    Railway o el OAuth falla con un error genérico que no menciona el secreto. Meta empieza a
    firmar los webhooks con el nuevo de inmediato.
