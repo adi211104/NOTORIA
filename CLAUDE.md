@@ -95,7 +95,8 @@ MENCIONES_PROVEEDOR / _API_KEY / MENCIONES_MAX_POR_TERMINO   # sin proveedor con
 CULQI_PUBLIC_KEY / CULQI_SECRET_KEY         # Railway: live. Local: test, a propósito
 CULQI_WEBHOOK_SECRET                        # 20 caracteres máx — el panel de Culqi no admite más
 PROMO_HASH_SECRET                           # ⚠️ no rotar sin vaciar promo_tarjetas
-EMAIL_RECLAMACIONES / EMAIL_CONTABILIDAD
+EMAIL_RECLAMACIONES / EMAIL_CONTABILIDAD    # ⚠️ NINGUNA de las dos está puesta en Railway — §19
+                                            # sin CONTABILIDAD, cuatro avisos se apagan en silencio
 PARA_BLOQUEADOS                             # place IDs a retirar de /para, se lee en cada petición
 SUNAT_CERT_P12_BASE64 / SUNAT_CERT_PASSWORD / SUNAT_SOL_USUARIO / SUNAT_SOL_CLAVE
 SUNAT_ENTORNO=produccion                    # ⚠️ sin esto apunta al BETA sin avisar
@@ -1313,16 +1314,28 @@ flujo entero.
    App Signing, perderlo significa no poder actualizar la app nunca.
 4. **Comprobar que el reenvío de `hola@usenotoria.app` llega de verdad** (Cloudflare Email
    Routing). Ahí caen los avisos del Libro de Reclamaciones y el plazo son 15 días hábiles
-   improrrogables.
+   improrrogables. **Revisado el 2026-08-19:** el enrutamiento funciona —un código de
+   verificación de TikTok dirigido a `didier@usenotoria.app` aterrizó en `usenotoria@gmail.com`,
+   y los informes DMARC muestran las IPs de Cloudflare (`104.30.10.x`) entregando correo del
+   dominio— pero **de `hola@` no hay NI UN mensaje recibido en ninguno de los dos buzones**, así
+   que esa dirección concreta sigue sin verificar. La prueba es mandarle un correo y esperar.
 5. **Rotar `META_APP_SECRET`** — se compartió por chat. Al rotarlo hay que recargarlo en
    Railway o el OAuth falla con un error genérico que no menciona el secreto. Meta empieza a
    firmar los webhooks con el nuevo de inmediato.
-6. **Habilitar Web Analytics en Vercel** (proyecto `notoria-web` → Analytics → Enable). El
-   paquete está montado pero no recolecta nada sin eso.
-7. **Probar el circuito de invitación de equipo** de punta a punta con una dirección propia.
-8. **Webhook de Culqi**: solo un reembolso real puede confirmarlo.
-9. **DMARC**, hacia septiembre 2026: si los reportes vienen limpios, `p=none` → `p=quarantine`.
-10. **Cuando el correo de la empresa reemplace al personal en Google Cloud:** agregarlo como
+6. **Probar el circuito de invitación de equipo** de punta a punta con una dirección propia.
+7. **Webhook de Culqi**: solo un reembolso real puede confirmarlo.
+8. **DMARC → `p=quarantine`.** ✅ **Los informes ya se revisaron (2026-08-19) y vienen limpios:**
+   8 informes agregados de Google del 2026-08-04 al 2026-08-17, **38 mensajes, 38 pasan, 0
+   fallan**, con dos remitentes y los dos alineados por SPF *y* DKIM: Resend/SES
+   (`23.249.215.x`, SPF `send.usenotoria.app`, DKIM selector `resend` con `d=usenotoria.app`) y
+   el reenviador de Cloudflare (`104.30.10.x`, DKIM selector `cf2024-1`, también
+   `d=usenotoria.app`). El registro a publicar es
+   `v=DMARC1; p=quarantine; rua=mailto:padkar4@gmail.com`.
+   ⚠️ Dos salvedades antes de subirlo: el volumen es bajo (38 mensajes en 14 días), así que un
+   remitente esporádico podría no haber aparecido todavía; y **solo Google reporta** —si algún
+   día sale correo hacia Outlook/Yahoo, esa ruta no está medida. ⚠️ Al pasar a `quarantine`, un
+   `sp` sin declarar hace que los **subdominios hereden la política**.
+9. **Cuando el correo de la empresa reemplace al personal en Google Cloud:** agregarlo como
     **propietario** del proyecto `798376364749`, cambiarlo en *Información de la marca →
     correo de asistencia* y en *Contacto del desarrollador*, y **recién entonces** quitar la
     personal. Al revés se lleva el proyecto que contiene el `GOOGLE_CLIENT_ID` de producción.
@@ -1349,4 +1362,21 @@ flujo entero.
 
 ### 🔴 Bugs abiertos en producción
 
-Ninguno conocido.
+**`EMAIL_CONTABILIDAD` y `EMAIL_RECLAMACIONES` NO están definidas en Railway** (comprobado el
+2026-08-19 con `railway variables --service api --kv`: de las tres `EMAIL_*` solo existe
+`EMAIL_FROM`). Consecuencias, las dos silenciosas:
+
+- **`EMAIL_CONTABILIDAD` sin valor apaga cuatro avisos**, porque los cuatro usos están
+  guardados con `if (!destino) return;` — `avisarReceptorIncompleto`
+  (`comprobante.service.js:63`), el rechazo/vencimiento de facturas
+  (`envioSunat.worker.js:129`), el de resúmenes diarios (`resumenSunat.worker.js:272`) y la
+  copia contable de cada comprobante (`emails.js:267`). Con la emisión a SUNAT **encendida**,
+  hoy un comprobante rechazado no avisa a nadie. Es justo lo que hay que arreglar **antes** del
+  primer cobro real (pendiente B1).
+- **`EMAIL_RECLAMACIONES` sin valor cae al default `hola@usenotoria.app`**
+  (`emails.js:415` y `:455`) — la misma dirección cuyo reenvío sigue sin verificar (pendiente
+  B4). Si no entrega, una reclamación se registra en la BD pero **nadie se entera**, y el plazo
+  de 15 días hábiles corre igual.
+
+Arreglo: definir ambas en Railway apuntando a una dirección que **se haya comprobado que
+entrega**, no a una que se suponga que entrega.
