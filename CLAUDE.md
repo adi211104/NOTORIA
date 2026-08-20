@@ -77,6 +77,9 @@ DATABASE_URL / JWT_SECRET / RESEND_API_KEY
 EMAIL_FROM=Notoria <hola@usenotoria.app>
 FRONTEND_URL / BACKEND_URL
 GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET     # proyecto GCP 798376364749
+                                            # = ID `project-f1e03c17-f209-453e-a09`, nombre "My First Project",
+                                            # org `didierprincipe-org`. La consola reescribe `?project=<numero>`
+                                            # al ID sin avisar: parece que cayó en otro proyecto y NO es así
 GROQ_API_KEY
 META_APP_ID=2232447584255257                # app tipo NEGOCIO
 META_APP_SECRET                             # ⚠️ PENDIENTE ROTARLO (se compartió por chat)
@@ -1282,7 +1285,7 @@ y rechaza otra cosa). Así se descartaron rutas enteras de TikTok sin credencial
 | Qué | Desde | Qué bloquea |
 |---|---|---|
 | **Meta — App Review de Instagram** (5 permisos) | 2026-08-15 | Instagram para clientes reales, la sección **Menciones** entera y los webhooks de comentarios (exigen Acceso Avanzado) |
-| **Google — acceso a las GBP APIs**, caso `3-5553000040900` | 2026-08-16, plazo 7-10 días hábiles | Conectar Google Business |
+| **Google — acceso a las GBP APIs**, caso `3-5553000040900` | 2026-08-16, plazo 7-10 días hábiles. **Revisado el 2026-08-19: sigue sin aprobar** (RPM=0 en `mybusinessbusinessinformation` y `mybusinessaccountmanagement`, la v4 sigue sin existir en la Biblioteca) | Conectar Google Business |
 | **Google — verificación del Perfil de Empresa** | pendiente | Que algunos cambios de la ficha se vean |
 
 **Al aprobar Meta**, en este orden: poner `INSTAGRAM_ACTIVO=true` en Railway (se abre para
