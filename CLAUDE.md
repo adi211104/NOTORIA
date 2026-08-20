@@ -221,8 +221,38 @@ los logs del servidor y en un cambio observable en la salida.
 **Infraestructura:** Railway (`notoria-api`, servicio `api` + Postgres), Vercel
 (`notoria-web`), DNS en Cloudflare en "DNS only". Dominio verificado en Resend. Search
 Console verificado (`public/googlebab20eafdad21f30.html` — **no borrarlo**, Google
-re-verifica). DMARC en `p=none`. Monitor de uptime en `.github/workflows/uptime.yml`
+re-verifica). DMARC en **`p=quarantine`** desde el 2026-08-19
+(`v=DMARC1; p=quarantine; rua=mailto:padkar4@gmail.com`). Monitor de uptime en `.github/workflows/uptime.yml`
 (golpea `/health` y el landing cada 15 min).
+
+### DMARC — cómo se llegó a `p=quarantine` (2026-08-19)
+
+La evidencia fueron los **8 informes agregados de Google** del 2026-08-04 al 2026-08-17:
+**38 mensajes, 38 pasan, 0 fallan**. Solo hay dos remitentes y los dos alinean por SPF *y*
+por DKIM, así que ninguno depende de una sola pata:
+
+| Remitente | IPs | SPF | DKIM |
+|---|---|---|---|
+| Resend / Amazon SES | `23.249.215.x` | `send.usenotoria.app` pass | selector `resend`, `d=usenotoria.app` |
+| Reenviador de Cloudflare | `104.30.10.x` | `usenotoria.app` pass | selector `cf2024-1`, `d=usenotoria.app` |
+
+⚠️ **Lo que estos informes NO cubren, y hay que recordar si algo empieza a rebotar:** el
+volumen es bajo (38 mensajes en 14 días), así que un remitente esporádico pudo no aparecer; y
+**solo Google reporta** — ninguna ruta hacia Outlook/Yahoo está medida. Si alguna vez se manda
+correo del dominio desde una herramienta nueva (un "enviar como" de Gmail, un CRM, un
+facturador), **hay que meterla en SPF/DKIM antes**, porque con `quarantine` ya no falla en
+silencio: va a la carpeta de spam del destinatario.
+
+⚠️ **`sp` no está declarado a propósito**, así que los subdominios heredan `quarantine`. Es lo
+correcto aquí: el `From:` de todo lo que sale es `@usenotoria.app`, y `send.usenotoria.app`
+solo actúa como dominio del sobre (Return-Path), que DMARC no evalúa.
+
+Se editó **la palabra dentro del registro existente**, no se creó uno nuevo: **dos TXT de
+DMARC en el mismo nombre hacen que DMARC falle entero**. Verificado después contra tres
+resolutores (1.1.1.1, 8.8.8.8, 9.9.9.9) y contando que siguiera habiendo **un solo** registro.
+
+El siguiente escalón sería `p=reject`, pero no antes de varios meses de informes limpios con
+más volumen del que hay hoy.
 
 **Correo de la empresa:** `usenotoria@gmail.com` **es la misma cuenta renombrada**, no una
 nueva — por eso no hubo migración de IAM ni del caso de soporte.
@@ -1325,18 +1355,7 @@ flujo entero.
    firmar los webhooks con el nuevo de inmediato.
 6. **Probar el circuito de invitación de equipo** de punta a punta con una dirección propia.
 7. **Webhook de Culqi**: solo un reembolso real puede confirmarlo.
-8. **DMARC → `p=quarantine`.** ✅ **Los informes ya se revisaron (2026-08-19) y vienen limpios:**
-   8 informes agregados de Google del 2026-08-04 al 2026-08-17, **38 mensajes, 38 pasan, 0
-   fallan**, con dos remitentes y los dos alineados por SPF *y* DKIM: Resend/SES
-   (`23.249.215.x`, SPF `send.usenotoria.app`, DKIM selector `resend` con `d=usenotoria.app`) y
-   el reenviador de Cloudflare (`104.30.10.x`, DKIM selector `cf2024-1`, también
-   `d=usenotoria.app`). El registro a publicar es
-   `v=DMARC1; p=quarantine; rua=mailto:padkar4@gmail.com`.
-   ⚠️ Dos salvedades antes de subirlo: el volumen es bajo (38 mensajes en 14 días), así que un
-   remitente esporádico podría no haber aparecido todavía; y **solo Google reporta** —si algún
-   día sale correo hacia Outlook/Yahoo, esa ruta no está medida. ⚠️ Al pasar a `quarantine`, un
-   `sp` sin declarar hace que los **subdominios hereden la política**.
-9. **Cuando el correo de la empresa reemplace al personal en Google Cloud:** agregarlo como
+8. **Cuando el correo de la empresa reemplace al personal en Google Cloud:** agregarlo como
     **propietario** del proyecto `798376364749`, cambiarlo en *Información de la marca →
     correo de asistencia* y en *Contacto del desarrollador*, y **recién entonces** quitar la
     personal. Al revés se lleva el proyecto que contiene el `GOOGLE_CLIENT_ID` de producción.
