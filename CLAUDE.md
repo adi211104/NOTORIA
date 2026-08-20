@@ -95,8 +95,9 @@ MENCIONES_PROVEEDOR / _API_KEY / MENCIONES_MAX_POR_TERMINO   # sin proveedor con
 CULQI_PUBLIC_KEY / CULQI_SECRET_KEY         # Railway: live. Local: test, a propósito
 CULQI_WEBHOOK_SECRET                        # 20 caracteres máx — el panel de Culqi no admite más
 PROMO_HASH_SECRET                           # ⚠️ no rotar sin vaciar promo_tarjetas
-EMAIL_RECLAMACIONES / EMAIL_CONTABILIDAD    # ⚠️ NINGUNA de las dos está puesta en Railway — §19
-                                            # sin CONTABILIDAD, cuatro avisos se apagan en silencio
+EMAIL_RECLAMACIONES / EMAIL_CONTABILIDAD    # ambas = didier@usenotoria.app desde el 2026-08-19.
+                                            # ⚠️ Si CONTABILIDAD queda vacía, CUATRO avisos se apagan
+                                            # en silencio (early return); RECLAMACIONES cae a hola@
 PARA_BLOQUEADOS                             # place IDs a retirar de /para, se lee en cada petición
 SUNAT_CERT_P12_BASE64 / SUNAT_CERT_PASSWORD / SUNAT_SOL_USUARIO / SUNAT_SOL_CLAVE
 SUNAT_ENTORNO=produccion                    # ⚠️ sin esto apunta al BETA sin avisar
@@ -1362,21 +1363,24 @@ flujo entero.
 
 ### 🔴 Bugs abiertos en producción
 
-**`EMAIL_CONTABILIDAD` y `EMAIL_RECLAMACIONES` NO están definidas en Railway** (comprobado el
-2026-08-19 con `railway variables --service api --kv`: de las tres `EMAIL_*` solo existe
-`EMAIL_FROM`). Consecuencias, las dos silenciosas:
+Ninguno conocido.
 
-- **`EMAIL_CONTABILIDAD` sin valor apaga cuatro avisos**, porque los cuatro usos están
-  guardados con `if (!destino) return;` — `avisarReceptorIncompleto`
-  (`comprobante.service.js:63`), el rechazo/vencimiento de facturas
-  (`envioSunat.worker.js:129`), el de resúmenes diarios (`resumenSunat.worker.js:272`) y la
-  copia contable de cada comprobante (`emails.js:267`). Con la emisión a SUNAT **encendida**,
-  hoy un comprobante rechazado no avisa a nadie. Es justo lo que hay que arreglar **antes** del
-  primer cobro real (pendiente B1).
-- **`EMAIL_RECLAMACIONES` sin valor cae al default `hola@usenotoria.app`**
-  (`emails.js:415` y `:455`) — la misma dirección cuyo reenvío sigue sin verificar (pendiente
-  B4). Si no entrega, una reclamación se registra en la BD pero **nadie se entera**, y el plazo
-  de 15 días hábiles corre igual.
+**Corregido el 2026-08-19 — `EMAIL_CONTABILIDAD` y `EMAIL_RECLAMACIONES` no existían en
+Railway.** Solo estaba `EMAIL_FROM`. Las dos consecuencias eran silenciosas:
 
-Arreglo: definir ambas en Railway apuntando a una dirección que **se haya comprobado que
-entrega**, no a una que se suponga que entrega.
+- **`EMAIL_CONTABILIDAD` vacía apaga CUATRO avisos**, porque los cuatro usos están guardados
+  con `if (!destino) return;` — `avisarReceptorIncompleto` (`comprobante.service.js:63`), el
+  rechazo/vencimiento de facturas (`envioSunat.worker.js:129`), el de resúmenes diarios
+  (`resumenSunat.worker.js:272`) y la copia contable de cada comprobante (`emails.js:267`).
+  Con la emisión a SUNAT encendida, un comprobante rechazado no avisaba a nadie.
+- **`EMAIL_RECLAMACIONES` vacía cae al default `hola@usenotoria.app`** (`emails.js:415` y
+  `:455`), la dirección cuyo reenvío sigue sin verificar.
+
+Ambas quedaron en **`didier@usenotoria.app`** — se eligió esa y no `hola@` porque de esta sí
+hay prueba de entrega (un código de TikTok dirigido ahí llegó a `usenotoria@gmail.com`).
+Verificado dentro del contenedor con `railway ssh`: las dos miden 21 caracteres exactos.
+
+🔴 **La lección que vale para cualquier variable futura: un `if (!destino) return;` convierte
+una variable olvidada en una función que no existe, sin un solo error en los logs.** Al
+agregar una variable que gobierne un aviso, comprobarla en el contenedor, no en el `.env`
+local — que aquí tenía las tres.
