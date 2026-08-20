@@ -247,6 +247,27 @@ re-verifica). DMARC en **`p=quarantine`** desde el 2026-08-19
 (`v=DMARC1; p=quarantine; rua=mailto:padkar4@gmail.com`). Monitor de uptime en `.github/workflows/uptime.yml`
 (golpea `/health` y el landing cada 15 min).
 
+### Cómo auditar la entrega de correo sin mandar nada (Resend)
+
+La API de Resend expone el historial con **solo lectura**, y es la forma de comprobar el
+correo sin ensuciar buzones ni registros legales. `GET /emails?limit=100` pagina con
+`after=<último id>`, y cada fila trae `to`, `subject`, `created_at` y **`last_event`**.
+
+```bash
+# la llave vive solo en Railway; así no hay que tocarla
+railway run --service api node <script-que-consulta-api.resend.com>
+```
+
+Foto del 2026-08-19: **66 correos** entre el 2026-07-26 y el 2026-08-17 — 64 `delivered`,
+1 `suppressed`, 1 `bounced` (`revisorculqi@gmail.com`, una cuenta de prueba). El dominio
+figura **`verified`** en la región `sa-east-1`.
+
+🔴 **Lo que `delivered` significa y lo que NO:** que el MX de destino aceptó el mensaje, no
+que una persona lo haya visto. Con un reenviador como Cloudflare Email Routing en medio,
+aceptar y descartar se ve exactamente igual que aceptar y reenviar. Por eso la comprobación
+buena es **cruzar las dos puntas**: Resend dice que salió y llegó al MX, y el buzón de destino
+lo tiene. Así se descubrió lo de `hola@` (§19 B4).
+
 ### DMARC — cómo se llegó a `p=quarantine` (2026-08-19)
 
 La evidencia fueron los **8 informes agregados de Google** del 2026-08-04 al 2026-08-17:
@@ -1380,13 +1401,28 @@ flujo entero.
    Falta ficha de tienda, formulario de Seguridad de los Datos y clasificación; el AAB firmado
    ya existe. 🔴 **Respaldar `notoria-upload.jks` y su contraseña fuera de esta PC**: sin Play
    App Signing, perderlo significa no poder actualizar la app nunca.
-4. **Comprobar que el reenvío de `hola@usenotoria.app` llega de verdad** (Cloudflare Email
-   Routing). Ahí caen los avisos del Libro de Reclamaciones y el plazo son 15 días hábiles
-   improrrogables. **Revisado el 2026-08-19:** el enrutamiento funciona —un código de
-   verificación de TikTok dirigido a `didier@usenotoria.app` aterrizó en `usenotoria@gmail.com`,
-   y los informes DMARC muestran las IPs de Cloudflare (`104.30.10.x`) entregando correo del
-   dominio— pero **de `hola@` no hay NI UN mensaje recibido en ninguno de los dos buzones**, así
-   que esa dirección concreta sigue sin verificar. La prueba es mandarle un correo y esperar.
+4. 🔴 **`hola@usenotoria.app` se acepta pero NO aparece en ningún buzón que podamos ver.**
+   Ya no es "sin verificar": el 2026-08-19 se cruzaron las dos puntas y no cuadran.
+   - **Resend dice `delivered`** para los 4 correos que se le han mandado a `hola@` (los cuatro
+     del **Libro de Reclamaciones**, del 2026-08-06). `delivered` en Resend significa que el MX
+     de destino —Cloudflare— **aceptó** el mensaje; si no existiera regla para `hola@`,
+     Cloudflare habría rechazado en SMTP y se vería `bounced`.
+   - **Pero ninguno está en `usenotoria@gmail.com` ni en `padkar4@gmail.com`** (buscados con
+     `in:anywhere`, que incluye spam y papelera).
+   - Las dos explicaciones posibles: la regla reenvía a un **tercer destino** que no hemos
+     podido abrir (`admin@usenotoria.app`), o hay un **catch-all que acepta y descarta**.
+   - **Contraste que lo confirma:** a `didier@usenotoria.app` se le mandaron 9 correos, los 9
+     `delivered`, y **los 9 aparecen en `usenotoria@gmail.com`** con fecha y asunto coincidentes.
+     Ese buzón funciona de punta a punta; el otro no se puede demostrar que sí.
+
+   ⚠️ Por qué importa aunque las reclamaciones ya estén desviadas a `didier@`: **`EMAIL_FROM`
+   sigue siendo `Notoria <hola@usenotoria.app>`**, así que ahí caen todas las **respuestas de
+   los clientes** a cualquier correo de Notoria, y es la dirección pública de `/contacto` y del
+   pie legal. Se arregla en Cloudflare → Email Routing, comprobando a dónde apunta `hola@`.
+
+   ℹ️ Sin alarma retroactiva: esos 4 correos eran de reclamaciones de prueba (`2026-000001` y
+   `2026-000002`) de cuando se probaba el módulo, y la BD hoy tiene **0 reclamaciones**. No se
+   perdió ninguna reclamación real — todavía no ha habido ninguna.
 5. **Rotar `META_APP_SECRET`** — se compartió por chat. Al rotarlo hay que recargarlo en
    Railway o el OAuth falla con un error genérico que no menciona el secreto. Meta empieza a
    firmar los webhooks con el nuevo de inmediato.
