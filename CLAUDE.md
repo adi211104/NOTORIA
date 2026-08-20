@@ -166,6 +166,22 @@ cd brand-shield     && railway up --service api --detach   # → https://api.use
 cd brand-shield-web && vercel --prod --yes                 # → https://usenotoria.app
 ```
 
+**Leer o cambiar ajustes del proyecto de Vercel sin abrir el navegador:** `vercel api <ruta>`
+usa la autenticación del propio CLI, así que no hay que tocar el token ni iniciar sesión en el
+panel. Con esto se comprobó que Web Analytics ya estaba encendido:
+
+```bash
+vercel api "/v9/projects/notoria-web"    # trae webAnalytics, speedInsights, etc.
+```
+
+🔴 **Desde Git Bash hay que desactivar la conversión de rutas de MSYS**, o el `/v9/...` se
+convierte en `C:/...` y el CLI responde *"Invalid arguments. Use an API path starting with /"*
+— un error que parece decir que la ruta está mal escrita cuando el problema es el shell:
+
+```bash
+MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' vercel api "/v9/projects/notoria-web"
+```
+
 **El despliegue lo hace el agente sin preguntar** (autorizado el 2026-08-18). La excepción
 es `prisma db push`: altera el schema de producción, va **antes** del deploy y se avisa aparte.
 
@@ -266,8 +282,9 @@ misma cuenta de Google que `usenotoria@gmail.com`, así que todo aterriza en ese
 
 **Cómo se descubrió y cómo se cerró:** `hola@` había recibido 4 correos —los 4 avisos del Libro
 de Reclamaciones del 2026-08-06— con `delivered` en Resend y **cero rastro** en los buzones.
-El panel lo confirmó (7 días: 9 recibidos, 6 reenviados, **3 descartados**). Tras crear la
-regla se mandó un correo de prueba con una marca única y **se comprobó que aterriza**.
+El panel lo confirmó (7 días: 9 recibidos, 6 reenviados, **3 descartados**). Tras crear cada
+regla se mandó un correo con una **marca única** y se comprobó que aterriza: `hola@` el
+2026-08-19 y `revisormeta@` el 2026-08-20. Las dos llegaron a `usenotoria@gmail.com`.
 
 ⚠️ **Al añadir cualquier dirección nueva del dominio** —`contacto@`, `soporte@`,
 `facturacion@`— hay que crearle su regla **en el mismo momento**, o se tragará el correo en
@@ -1304,6 +1321,15 @@ textos por otros inventados. El procedimiento está en la cabecera del component
   → navegar con un parámetro que rompa la caché; (3) escucha en el **3001** a propósito, que
   está en `origensPermitidos` del backend.
   ⚠️ **Comprobar siempre `innerWidth` del iframe antes de dar por buena una medición.**
+- 🔴 **Si no viste el resultado de un guardado, RE-LEE el estado; no reintentes.** El panel de
+  Cloudflare reinició la pestaña justo al pulsar Guardar y la captura se perdió. Volver a
+  cargar la lista mostró que **la regla ya estaba creada**: reintentar habría dejado dos
+  reglas para la misma dirección. Vale para cualquier formulario que cree algo —reglas DNS,
+  variables, registros—: **el estado es la fuente de verdad, no el haber visto la confirmación.**
+- **Para dar por buena una entrega de correo, mándate una MARCA ÚNICA y búscala.** Un asunto
+  con `NOTORIA-PRUEBA-<algo>-<timestamp en base36>` se encuentra con una sola búsqueda en
+  Gmail y no se confunde con nada anterior. Es lo que distinguió "la regla existe" de "el
+  correo llega", que resultaron ser cosas distintas (§6, *Email Routing*).
 - **`:focus` no se puede probar con el navegador automatizado**: `document.hasFocus()` es
   `false`, así que `.focus()` no lo activa y da un falso negativo.
 - **El JS inyectado en la pestaña corre en un contexto AISLADO**: sobrescribir `window.fetch`
@@ -1387,6 +1413,14 @@ y rechaza otra cosa). Así se descartaron rutas enteras de TikTok sin credencial
 |---|---|---|
 | **Meta — App Review de Instagram** (5 permisos) | 2026-08-15 | Instagram para clientes reales, la sección **Menciones** entera y los webhooks de comentarios (exigen Acceso Avanzado) |
 | **Google — acceso a las GBP APIs**, caso `3-5553000040900` | 2026-08-16, plazo 7-10 días hábiles. **Revisado el 2026-08-19: sigue sin aprobar** (RPM=0 en `mybusinessbusinessinformation` y `mybusinessaccountmanagement`, la v4 sigue sin existir en la Biblioteca) | Conectar Google Business |
+
+⚠️ **El caso `3-5553000040900` no tiene rastro en ningún buzón accesible.** Buscado con
+`in:anywhere` —que incluye spam y papelera— en `usenotoria@gmail.com` y en `padkar4@gmail.com`:
+cero resultados, ni por el número ni por "Business Profile API". Tampoco figura en Cloud
+Support → Casos, donde además la consola avisa de que **crear casos no está disponible con el
+plan de asistencia actual**, así que ese caso no vive ahí. Las dos explicaciones: el formulario
+se envió desde **`admin@usenotoria.app`** (la cuenta de Workspace), o Google dio el número en
+pantalla sin mandar acuse. **Importa saber cuál, porque la aprobación llegará a ese buzón.**
 | **Google — verificación del Perfil de Empresa** | pendiente | Que algunos cambios de la ficha se vean |
 
 **Al aprobar Meta**, en este orden: poner `INSTAGRAM_ACTIVO=true` en Railway (se abre para
@@ -1427,15 +1461,12 @@ flujo entero.
    Falta ficha de tienda, formulario de Seguridad de los Datos y clasificación; el AAB firmado
    ya existe. 🔴 **Respaldar `notoria-upload.jks` y su contraseña fuera de esta PC**: sin Play
    App Signing, perderlo significa no poder actualizar la app nunca.
-4. ✅ **RESUELTO — el correo del dominio ya entrega.** `hola@` se descartaba a propósito
-   (2026-08-19) y `revisormeta@` igual (2026-08-20); las dos tienen ya su regla. Causa y
-   detalle en §6, *Email Routing*.
-5. **Rotar `META_APP_SECRET`** — se compartió por chat. Al rotarlo hay que recargarlo en
+4. **Rotar `META_APP_SECRET`** — se compartió por chat. Al rotarlo hay que recargarlo en
    Railway o el OAuth falla con un error genérico que no menciona el secreto. Meta empieza a
    firmar los webhooks con el nuevo de inmediato.
-6. **Probar el circuito de invitación de equipo** de punta a punta con una dirección propia.
-7. **Webhook de Culqi**: solo un reembolso real puede confirmarlo.
-8. **Cuando el correo de la empresa reemplace al personal en Google Cloud:** agregarlo como
+5. **Probar el circuito de invitación de equipo** de punta a punta con una dirección propia.
+6. **Webhook de Culqi**: solo un reembolso real puede confirmarlo.
+7. **Cuando el correo de la empresa reemplace al personal en Google Cloud:** agregarlo como
     **propietario** del proyecto `798376364749`, cambiarlo en *Información de la marca →
     correo de asistencia* y en *Contacto del desarrollador*, y **recién entonces** quitar la
     personal. Al revés se lleva el proyecto que contiene el `GOOGLE_CLIENT_ID` de producción.
@@ -1457,7 +1488,8 @@ flujo entero.
 ### Estado de la base de producción (última lectura, 2026-08-18)
 
 `0 pagos · 0 comprobantes · series sin iniciar · 0 miembros · 0 invitaciones · 0 reclamaciones
-· 0 promo_tarjetas`. Las cuentas con plan NEGOCIO concedido a mano (`didier@usenotoria.app`,
+· 0 promo_tarjetas`. Confirmado el 2026-08-20 por otra vía: Culqi reporta **0 cargos** en el
+entorno live. Las cuentas con plan NEGOCIO concedido a mano (`didier@usenotoria.app`,
 `didierprincipe@gmail.com`) **son del dueño**, no tocarlas.
 
 ### 🔴 Bugs abiertos en producción
