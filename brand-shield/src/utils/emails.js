@@ -147,22 +147,91 @@ const enviarRecuperacionContrasena = async (usuario, token) => {
 };
 
 // ── 4. Alerta crítica ─────────────────────────────────────
+// ── Textos del correo de alerta ───────────────────────────
+//
+// Este es, desde el 2026-08-22, el correo que MÁS reciben los clientes: hasta
+// entonces las alertas eran agregadas y casi nunca saltaban, así que un texto
+// genérico bastaba. Ahora una reseña de 1★ avisa en el momento, y el asunto
+// «Alerta en X — Notoria» con un cuerpo que empieza por «Detectamos actividad
+// inusual» tiene dos problemas: no dice qué pasó, así que el dueño no puede
+// decidir si abrirlo ahora o luego —y el producto entero se vende por el tiempo
+// de reacción—, y además es falso: una reseña de 1★ es mala noticia, no una
+// anomalía estadística.
+//
+// Bilingüe como el drip, y por el mismo motivo que se arreglaron las alertas del
+// panel: con la interfaz en inglés, un correo en español canta.
+const ALERTA = {
+  es: {
+    asunto: (negocio) => `Alerta en ${negocio} — Notoria`,
+    titulo: 'Alerta de reputación detectada',
+    intro: (negocio) => `Esto acaba de pasar en <strong>${negocio}</strong>:`,
+    cta: 'Ver en Notoria →',
+    asuntoResena: (r, negocio) => `Reseña de ${r}★ en ${negocio}`,
+    tituloResena: (r) => `Una reseña de ${r}★ acaba de aparecer`,
+    introResena: (autor) => `${autor} escribió en tu ficha de Google:`,
+    introResenaSinTexto: (autor) => `${autor} calificó tu negocio en Google, sin dejar comentario.`,
+    ctaResena: 'Responder ahora →',
+    notaResena: 'Responder el mismo día cambia lo que ven los siguientes clientes.',
+    sospecha: 'Además, esta reseña tiene señales de no ser auténtica.',
+  },
+  en: {
+    asunto: (negocio) => `Alert on ${negocio} — Notoria`,
+    titulo: 'Reputation alert',
+    intro: (negocio) => `This just happened at <strong>${negocio}</strong>:`,
+    cta: 'View in Notoria →',
+    asuntoResena: (r, negocio) => `${r}★ review on ${negocio}`,
+    tituloResena: (r) => `A ${r}★ review just came in`,
+    introResena: (autor) => `${autor} wrote on your Google listing:`,
+    introResenaSinTexto: (autor) => `${autor} rated your business on Google, with no comment.`,
+    ctaResena: 'Reply now →',
+    notaResena: 'Replying the same day changes what your next customers see.',
+    sospecha: 'It also shows signs of not being genuine.',
+  },
+};
+
 const enviarAlertaCritica = async (usuario, negocio, alerta) => {
   console.log('[Email] Enviando alerta crítica a:', usuario.email);
-  const r = getResend();
-  const res = await r.emails.send({
-    from: FROM(), to: usuario.email,
-    subject: `Alerta en ${negocio.nombre} — Notoria`,
-    html: base(`
-      ${h1('Alerta de reputación detectada')}
-      ${p(`Detectamos actividad inusual en <strong>${negocio.nombre}</strong>:`)}
+  const t = ALERTA[usuario.idioma] || ALERTA.es;
+  const d = alerta.detalle;
+  const enlace = (tab) => `${FRONT()}/dashboard/negocios/${negocio.id}?tab=${tab}`;
+
+  // La plantilla específica pide sus piezas, igual que `web/src/lib/alertas.js`.
+  // Sin ellas se cae al texto genérico, que es correcto aunque sea impersonal.
+  // Eso NO es un caso raro: por `RESENA_MUY_NEGATIVA` pasan también la escalación
+  // de las 24h y el aviso de token de Facebook expirado, y ninguno trae `detalle`
+  // — a los dos les corresponde el genérico, con la descripción que ya traen.
+  const esResena = alerta.tipo === 'RESENA_MUY_NEGATIVA' && d && d.rating;
+
+  const { subject, html } = esResena
+    ? {
+      subject: t.asuntoResena(d.rating, negocio.nombre),
+      html: base(`
+      ${h1(t.tituloResena(d.rating))}
+      ${p(d.texto
+        ? t.introResena(`<strong>${esc(d.autor || (usuario.idioma === 'en' ? 'A customer' : 'Un cliente'))}</strong>`)
+        : t.introResenaSinTexto(`<strong>${esc(d.autor || (usuario.idioma === 'en' ? 'A customer' : 'Un cliente'))}</strong>`))}
+      ${d.texto ? `<div style="background:#FAF9F5;border-left:3px solid #B74040;border-radius:0 6px 6px 0;padding:14px 18px;margin:12px 0;">
+        <p style="color:#141413;font-size:15px;margin:0;line-height:1.6;font-style:italic;">“${esc(d.texto)}”</p>
+      </div>` : ''}
+      ${d.motivoSospecha ? p(`<span style="color:#B74040;">${t.sospecha}</span>`) : ''}
+      ${btn(t.ctaResena, enlace('resenas'))}
+      <p style="color:#9C9B96;font-size:12px;margin:10px 0 0;">${t.notaResena}</p>
+    `),
+    }
+    : {
+      subject: t.asunto(negocio.nombre),
+      html: base(`
+      ${h1(t.titulo)}
+      ${p(t.intro(esc(negocio.nombre)))}
       <div style="background:#FAF9F5;border:1px solid #E8E6DC;border-radius:6px;padding:14px 18px;margin:12px 0;">
         <p style="color:#9C9B96;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin:0 0 6px;">${esc(alerta.tipo?.replace(/_/g," "))}</p>
         <p style="color:#141413;font-size:14px;margin:0;line-height:1.6;">${esc(alerta.descripcion)}</p>
       </div>
-      ${btn('Ver en Notoria →', `${FRONT()}/dashboard/negocios/${negocio.id}?tab=alertas`)}
+      ${btn(t.cta, enlace('alertas'))}
     `),
-  });
+    };
+
+  const res = await getResend().emails.send({ from: FROM(), to: usuario.email, subject, html });
   console.log('[Email] Alerta resultado:', JSON.stringify(res));
   return res;
 };

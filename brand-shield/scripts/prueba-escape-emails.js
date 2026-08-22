@@ -119,6 +119,62 @@ const correr = async () => {
   check('ni en el aviso interno que le llega a la empresa',
     !html.includes('<a href="https://sitio-falso/pagar">') && !html.includes('<img src=x'));
 
+  // ── 3-bis. El correo de reseña negativa ─────────────────
+  //
+  // Es el que más reciben los clientes desde el 2026-08-22. Lo que se vigila es
+  // que el ASUNTO diga qué pasó (de eso depende que lo abran hoy o mañana) y que
+  // los casos sin `detalle` caigan al genérico en vez de romperse — porque por
+  // este mismo tipo pasan la escalación de 24h y el aviso de token de Facebook.
+  bloque('3-bis. El correo de reseña negativa');
+  const alertaResena = (detalle, idioma = 'es') => {
+    enviados = [];
+    return callado(() => emails.enviarAlertaCritica(
+      { ...usuario, idioma }, negocio,
+      { tipo: 'RESENA_MUY_NEGATIVA', descripcion: 'texto guardado', detalle },
+    )).then(() => enviados[enviados.length - 1]);
+  };
+
+  let msg = await alertaResena({ rating: 1, autor: 'Jayro H.', texto: 'esperé una hora y llegó frío' });
+  check('el asunto dice la calificación y el negocio',
+    msg.subject === 'Reseña de 1★ en Cevichería El Muelle', msg.subject);
+  check('el cuerpo cita la reseña', msg.html.includes('esperé una hora y llegó frío'));
+  check('  …y nombra a quien la escribió', msg.html.includes('Jayro H.'));
+  check('el botón lleva a Reseñas, no a Alertas',
+    msg.html.includes('tab=resenas'), 'desde Alertas no se puede responder');
+  check('ya no dice "actividad inusual"', !msg.html.includes('actividad inusual'),
+    'una reseña de 1★ es mala noticia, no una anomalía estadística');
+
+  msg = await alertaResena({ rating: 1, autor: null, texto: null });
+  check('sin texto ni autor, el asunto sigue sirviendo',
+    msg.subject.includes('1★'), msg.subject);
+  check('  …y no inventa una cita vacía', !msg.html.includes('“”'));
+
+  msg = await alertaResena({ rating: 2, autor: 'Ana', texto: 'malo', motivoSospecha: 'texto_duplicado' });
+  check('si el detector la marcó, el correo lo dice',
+    msg.html.includes('señales de no ser auténtica'));
+
+  msg = await alertaResena({ rating: 1, autor: 'Jayro H.', texto: 'cold' }, 'en');
+  check('en inglés el asunto también', msg.subject === '1★ review on Cevichería El Muelle', msg.subject);
+  check('  …y el cuerpo', msg.html.includes('just came in') && msg.html.includes('Reply now'));
+
+  // Los tres que comparten el tipo pero NO traen detalle
+  enviados = [];
+  await callado(() => emails.enviarAlertaCritica(usuario, negocio, {
+    tipo: 'RESENA_MUY_NEGATIVA', plataforma: 'GOOGLE',
+    descripcion: 'Una reseña de 1★ en Cevichería El Muelle lleva más de 24h sin respuesta.',
+  }));
+  msg = ultimoHtml();
+  check('la escalación de 24h (sin detalle) cae al genérico y NO se rompe',
+    msg.includes('lleva más de 24h sin respuesta'));
+
+  enviados = [];
+  await callado(() => emails.enviarAlertaCritica(usuario, negocio, {
+    tipo: 'FICHA_ALTERADA', descripcion: 'Tu ficha de Google aparece como cerrada permanentemente.',
+  }));
+  msg = ultimoHtml();
+  check('la ficha alterada sigue llegando entera', msg.includes('cerrada permanentemente'));
+  check('  …y su intro ya no habla de anomalías', !msg.includes('actividad inusual'));
+
   // ── 4. Que el escape no rompa el español ────────────────
   bloque('4. El escape no puede estropear el texto normal');
   enviados = [];
