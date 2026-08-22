@@ -82,7 +82,7 @@ GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET     # proyecto GCP 798376364749
                                             # al ID sin avisar: parece que cayó en otro proyecto y NO es así
 GROQ_API_KEY
 META_APP_ID=2232447584255257                # app tipo NEGOCIO
-META_APP_SECRET                             # ⚠️ PENDIENTE ROTARLO (se compartió por chat)
+META_APP_SECRET                             # ✅ ROTADO el 2026-08-22 y verificado contra la Graph API
 META_IG_APP_SECRET                          # secreto de la app de Instagram 1305555994987658 — §8.3
 META_LOGIN_CONFIG_ID=4655107931374707       # si está seteado, el OAuth manda config_id en vez de scope
 META_WEBHOOK_VERIFY_TOKEN                   # sin ella el webhook responde 403 a propósito
@@ -1459,6 +1459,8 @@ textos por otros inventados. El procedimiento está en la cabecera del component
 | `reclamaciones.js [todas\|ver <n>\|responder <n>]` | Libro de Reclamaciones por terminal |
 | `prueba-negocio-publico.js` | 10 pruebas del saneador de tokens. **Correr al agregar cualquier campo al modelo `Negocio`** |
 | `prueba-equipo.js` | 48 comprobaciones de roles, asientos, corte por bajada de plan y alcance |
+| `cargar-secreto.sh <VAR> [largo]` | Carga un secreto en Railway pidiéndolo por teclado: no pasa por la línea de comandos ni queda en el historial. Limpia BOM, saltos y espacios, y **se niega a cargar** si quedan caracteres no imprimibles o si no mide lo esperado. Nació porque copiar el comando desde un chat arrastró un `U+0096` invisible y bash respondió `$'Âprintf': command not found` |
+| `verificar-meta-secret.js` | Comprueba los secretos de Meta **contra la Graph API**, sin imprimirlos. Que la variable esté puesta y mida 32 caracteres no prueba nada: un secreto rotado en el panel y no recargado aquí tiene la misma pinta que uno correcto |
 | `prueba-alertas-resena.js` | 28 comprobaciones del aviso por reseña negativa. Lo que vigila son las **condiciones de silencio** (primer barrido, antigüedad, umbral, que pase por `notificar()`): si una se rompe, no falla nada — simplemente se deja de avisar |
 | `prueba-escape-emails.js` | 11 comprobaciones de que el texto ajeno no inyecta HTML en los correos, incluidas las que verifican que escapar **no estropee el texto normal** (★, el apóstrofo de un cliente llamado "Tito's", el ampersand) |
 | `prueba-instagram-visible.js` | 12 comprobaciones del interruptor de Instagram |
@@ -1560,9 +1562,12 @@ flujo entero.
    Falta ficha de tienda, formulario de Seguridad de los Datos y clasificación; el AAB firmado
    ya existe. 🔴 **Respaldar `notoria-upload.jks` y su contraseña fuera de esta PC**: sin Play
    App Signing, perderlo significa no poder actualizar la app nunca.
-4. **Rotar `META_APP_SECRET`** — se compartió por chat. Al rotarlo hay que recargarlo en
-   Railway o el OAuth falla con un error genérico que no menciona el secreto. Meta empieza a
-   firmar los webhooks con el nuevo de inmediato.
+4. ~~Rotar `META_APP_SECRET`.~~ **Hecho el 2026-08-22** y comprobado contra la Graph API
+   (`railway run --service api node scripts/verificar-meta-secret.js`). Se rotó con el App
+   Review en curso a sabiendas: la ventana en que el OAuth falla es solo la del redespliegue
+   de Railway, 1-2 minutos. ⚠️ **`META_IG_APP_SECRET` NO se tocó, y no debe tocarse**: es con
+   ese con el que Meta firma los webhooks de Instagram (§8.3), y hoy **no hay forma de
+   validarlo** — la única prueba sería un comentario real, que no llegará hasta que aprueben.
 5. ~~Probar el circuito de invitación de equipo.~~ **Hecho el 2026-08-22**, de punta a punta
    y con la base limpiada después — ver §11.
 6. 🟡 **Las respuestas al cliente salen desde `usenotoria@gmail.com`, no desde el dominio.**
