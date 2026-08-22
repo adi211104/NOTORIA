@@ -1,4 +1,8 @@
 import Link from 'next/link';
+// La identificacion del proveedor sale de CONTACTO, no se reescribe aqui: el
+// domicilio fiscal estaba copiado en tres paginas y el dia que cambie ante SUNAT
+// hay que cambiarlo en TODAS o los datos legales se contradicen entre si.
+import { CONTACTO } from '../../components/PieLegal';
 
 const GEO = "Georgia,'Times New Roman',serif";
 const G = '#0B7324';
@@ -33,7 +37,7 @@ export default function PrivacidadPage() {
         </div>
 
         <H2>1. Responsable del tratamiento</H2>
-        <P>Notoria, plataforma operada por NOTORIA E.I.R.L., RUC 20616239466, con domicilio fiscal en Cal. Isla Filipinas Mza. G9 Lote 8, La Perla, Provincia Constitucional del Callao, Perú, es responsable del tratamiento de tus datos personales conforme a la Ley N.° 29733 — Ley de Protección de Datos Personales del Perú y su reglamento D.S. N.° 003-2013-JUS.</P>
+        <P>Notoria, plataforma operada por {CONTACTO.razonSocial}, RUC {CONTACTO.ruc}, con domicilio fiscal en {CONTACTO.direccion}, es responsable del tratamiento de tus datos personales conforme a la Ley N.° 29733 — Ley de Protección de Datos Personales del Perú y su reglamento D.S. N.° 003-2013-JUS.</P>
 
         <H2>2. Datos que recopilamos</H2>
         <P><strong>Datos que nos proporcionas:</strong></P>

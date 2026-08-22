@@ -113,6 +113,19 @@ const emitirComprobante = async ({ pago, usuario }) => {
     // comprobante, así que se avisa a contabilidad para completar sus datos y
     // reemitir. Mientras la emisión esté apagada esto no cambia nada.
     if (emisionSunatActiva()) {
+      // Primero NOSOTROS, después el cliente. Un domicilio del emisor a medias
+      // —la calle nueva con el distrito viejo, tras mudarse— hace que SUNAT
+      // rechace TODOS los comprobantes, no el de este cliente, así que conviene
+      // enterarse en el primero y no después de gastar numeración. Ver el
+      // bloque DOMICILIO_FICHA_RUC en lib/tributario.js.
+      const faltaEmisor = tributario.validarEmisor();
+      if (faltaEmisor) {
+        console.error(`[Comprobante] NO emitido: ${faltaEmisor}. Pago ${pago.id}`);
+        await avisarReceptorIncompleto({ pago, usuario, receptor, tipoFiscal, motivo: faltaEmisor })
+          .catch(e => console.error('[Comprobante] No se pudo avisar del emisor incompleto:', e.message));
+        return null;
+      }
+
       const falta = tributario.validarReceptorParaSunat({
         receptor, tipoFiscal, total: importes.total,
       });

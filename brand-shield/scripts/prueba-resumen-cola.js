@@ -20,7 +20,13 @@ process.env.SUNAT_ENTORNO = 'beta';
 process.env.SUNAT_EMISION_ACTIVA = 'true';
 process.env.SUNAT_CERT_P12_PATH = path.join(__dirname, 'sunat-test.p12');
 process.env.SUNAT_CERT_PASSWORD = 'test123';
-process.env.EMISOR_DIRECCION = 'Av. Ejemplo 123, Lima, Peru';
+// El domicilio se define ENTERO o no se define: los cinco campos van juntos al
+// XML y `validarEmisor()` corta si llegan a medias (ver lib/tributario.js).
+process.env.EMISOR_DIRECCION = 'Av. Ejemplo 123';
+process.env.EMISOR_UBIGEO = '150101';
+process.env.EMISOR_DISTRITO = 'LIMA';
+process.env.EMISOR_PROVINCIA = 'LIMA';
+process.env.EMISOR_DEPARTAMENTO = 'LIMA';
 delete process.env.EMAIL_CONTABILIDAD; // sin destino, los avisos no se envían
 
 // ── Prisma en memoria ────────────────────────────────────

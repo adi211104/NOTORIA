@@ -7,7 +7,13 @@ fs.mkdirSync(SALIDA, { recursive: true });
 // Certificado de prueba autofirmado — el entorno beta de SUNAT los acepta
 process.env.SUNAT_CERT_P12_PATH = path.join(__dirname, 'sunat-test.p12');
 process.env.SUNAT_CERT_PASSWORD = 'test123';
-process.env.EMISOR_DIRECCION = 'Av. Ejemplo 123, Lima, Peru';
+// El domicilio se define ENTERO o no se define: los cinco campos van juntos al
+// XML y `validarEmisor()` corta si llegan a medias (ver lib/tributario.js).
+process.env.EMISOR_DIRECCION = 'Av. Ejemplo 123';
+process.env.EMISOR_UBIGEO = '150101';
+process.env.EMISOR_DISTRITO = 'LIMA';
+process.env.EMISOR_PROVINCIA = 'LIMA';
+process.env.EMISOR_DEPARTAMENTO = 'LIMA';
 
 const certificado = require(path.join(base, 'sunat/certificado'));
 const ubl = require(path.join(base, 'sunat/ublInvoice'));

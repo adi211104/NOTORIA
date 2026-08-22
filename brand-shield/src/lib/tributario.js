@@ -18,16 +18,69 @@ const IGV_TASA = 0.18;
 // La dirección debe coincidir con el domicilio fiscal de la ficha RUC, que
 // SUNAT contrasta contra el comprobante. Va desglosada porque el UBL pide
 // distrito, provincia y departamento en campos separados de la calle.
+// 🔴 LOS CINCO CAMPOS DEL DOMICILIO VIAJAN JUNTOS AL XML, Y JUNTOS SE CAMBIAN.
+//
+// `ublInvoice.js` manda calle, ubigeo, distrito, provincia y departamento al
+// mismo bloque `RegistrationAddress`, y SUNAT los contrasta contra la ficha RUC.
+// Antes solo `direccion` y `ubigeo` se podían sobreescribir por variable de
+// entorno, y los otros tres estaban fijos en el código: quien mudara el
+// domicilio y pusiera esas dos variables —que es exactamente lo que parece
+// suficiente— emitiría comprobantes con la calle nueva y el distrito viejo.
+// SUNAT los rechaza, y el mensaje no dice cuál de los cinco está mal.
+//
+// Así que es todo o nada: o se define el domicilio entero por variables, o
+// ninguna y se usa el del código. Un cambio a medias se detiene en
+// `validarEmisor()` ANTES de gastar numeración, en vez de descubrirse en el CDR.
+const DOMICILIO_CAMPOS = ['EMISOR_DIRECCION', 'EMISOR_UBIGEO', 'EMISOR_DISTRITO', 'EMISOR_PROVINCIA', 'EMISOR_DEPARTAMENTO'];
+const domicilioPuestos = DOMICILIO_CAMPOS.filter((k) => (process.env[k] || '').trim());
+const domicilioPorEntorno = domicilioPuestos.length === DOMICILIO_CAMPOS.length;
+
+// El domicilio del código es el vigente en la ficha RUC. Al cambiarlo ante
+// SUNAT hay que cambiar ESTAS cinco líneas y desplegar — y también §17 de
+// `PieLegal.js`, `terminos` y `privacidad`, que lo muestran al público.
+const DOMICILIO_FICHA_RUC = {
+  direccion: 'CAL.ISLA FILIPINAS MZA. G9 LOTE. 8',
+  ubigeo: '070104', // INEI: La Perla, Callao. NO es el código postal (07011)
+  distrito: 'LA PERLA',
+  provincia: 'PROV. CONST. DEL CALLAO',
+  departamento: 'PROV. CONST. DEL CALLAO',
+};
+
 const EMISOR = {
   ruc: process.env.EMISOR_RUC || '20616239466',
   razonSocial: 'NOTORIA E.I.R.L.',
   nombreComercial: 'Notoria',
-  direccion: process.env.EMISOR_DIRECCION || 'CAL.ISLA FILIPINAS MZA. G9 LOTE. 8',
-  ubigeo: process.env.EMISOR_UBIGEO || '070104', // INEI: La Perla, Callao
-  distrito: 'LA PERLA',
-  provincia: 'PROV. CONST. DEL CALLAO',
-  departamento: 'PROV. CONST. DEL CALLAO',
+  direccion: domicilioPorEntorno ? process.env.EMISOR_DIRECCION.trim() : DOMICILIO_FICHA_RUC.direccion,
+  ubigeo: domicilioPorEntorno ? process.env.EMISOR_UBIGEO.trim() : DOMICILIO_FICHA_RUC.ubigeo,
+  distrito: domicilioPorEntorno ? process.env.EMISOR_DISTRITO.trim() : DOMICILIO_FICHA_RUC.distrito,
+  provincia: domicilioPorEntorno ? process.env.EMISOR_PROVINCIA.trim() : DOMICILIO_FICHA_RUC.provincia,
+  departamento: domicilioPorEntorno ? process.env.EMISOR_DEPARTAMENTO.trim() : DOMICILIO_FICHA_RUC.departamento,
   pais: 'PE',
+};
+
+/**
+ * ¿Se puede emitir con los datos del emisor que hay cargados?
+ *
+ * Devuelve `null` si todo está bien, o el motivo si no. Se llama desde
+ * `comprobante.service.js` ANTES de pedir el correlativo, igual que la
+ * validación del receptor: la numeración es correlativa y no admite huecos, así
+ * que un comprobante que va a ser rechazado no debe llegar a consumir un número.
+ */
+const validarEmisor = () => {
+  if (domicilioPuestos.length && !domicilioPorEntorno) {
+    const faltan = DOMICILIO_CAMPOS.filter((k) => !domicilioPuestos.includes(k));
+    return `domicilio del emisor a medias: están puestas ${domicilioPuestos.join(', ')} pero faltan ${faltan.join(', ')}. `
+      + 'Los cinco campos se contrastan contra la ficha RUC y SUNAT rechaza el comprobante si no coinciden.';
+  }
+  if (!/^\d{11}$/.test(EMISOR.ruc)) return `RUC del emisor inválido: ${EMISOR.ruc}`;
+  if (!/^\d{6}$/.test(EMISOR.ubigeo)) {
+    return `ubigeo del emisor inválido: ${EMISOR.ubigeo}. SUNAT pide el ubigeo INEI de 6 dígitos, `
+      + 'no el código postal de 5 que devuelve codigopostal.gob.pe.';
+  }
+  // SUNAT valida largo 1-100 en la dirección del emisor, igual que en la del
+  // receptor; una cadena de relleno de un carácter hace fallar el envío entero.
+  if (!EMISOR.direccion || EMISOR.direccion.length < 5) return 'dirección del emisor demasiado corta';
+  return null;
 };
 
 // Domicilio fiscal completo, para la representación impresa y las páginas legales
@@ -273,7 +326,7 @@ module.exports = {
   IGV_TASA, EMISOR, TIPO_OPERACION, DOC, PLAZO_ENVIO_DIAS, PLAZO_RESUMEN_DIAS,
   UMBRAL_IDENTIFICACION,
   esDomestico, desglosar, tipoFiscalPara, receptorDesdeUsuario, validarDatosFiscales,
-  validarReceptorParaSunat, requiereIdentificacion,
+  validarReceptorParaSunat, requiereIdentificacion, validarEmisor,
   calcularFechaLimiteEnvio, calcularFechaLimiteResumen,
   formatearImporte, totalEnLetras, numeroEnLetras,
   ZONA_PERU, fechaPeru, horaPeru,
