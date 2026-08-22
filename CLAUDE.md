@@ -969,9 +969,32 @@ que distinguir `[]` de "todos" — la duda que acaba en un `IN` vacío que no de
 Pruebas: `node scripts/prueba-equipo.js` — **48 comprobaciones** con Prisma simulado.
 ⚠️ Cualquier prueba que simule `auth.middleware` debe devolver `permitir` y poner `req.cuenta`.
 
-⏳ **Sin probar en vivo:** el viaje completo invitación → correo → registro → aceptar (exige
-un correo real y deja filas). La lógica está cubierta; falta ver Resend y la pantalla del
-invitado.
+**Probado en vivo el 2026-08-22** (invitación real de `didierprincipe@gmail.com` a
+`didier@usenotoria.app`, rol Gestor). Lo que quedó verificado contra producción:
+
+| Paso | Resultado |
+|---|---|
+| Asientos | ✅ pasó de "1 de 3" a **"2 de 3" al invitar** — la invitación pendiente ocupa asiento, tal como se diseñó |
+| Propietario | ✅ aparece en la lista **sin fila en `miembros`**, con su rol sintetizado |
+| Correo | ✅ sale de Resend, cruza el Email Routing de Cloudflare y **aterriza en el buzón**, con rol, alcance, la dirección con la que hay que aceptar y el vencimiento a 7 días |
+| Caducidad | ✅ "Expires Aug 29, 2026" — los 7 días exactos |
+| Se acepta con un BOTÓN | ✅ la página no acepta al cargar |
+| **`CORREO_DISTINTO`** | ✅ con la sesión de `didierprincipe@` abierta y una invitación para `didier@`, **explica el desajuste y no deja aceptar**, con botón para entrar con la otra cuenta |
+
+⏳ **Lo único que falta** es aceptar con la sesión correcta y ver la cuenta compartida
+funcionando. Exige iniciar sesión como el invitado, así que **lo tiene que hacer el dueño**:
+el agente no puede escribir contraseñas ni crear cuentas.
+⚠️ **Queda una invitación pendiente en producción** (`didier@usenotoria.app`). Al terminar la
+prueba hay que quitar el miembro y borrar la fila: es una cuenta del dueño, no un cliente.
+
+🔴 **Bug encontrado durante esa prueba — la regla que deja:** con el panel en inglés, invitar
+respondía *"Invitación enviada a…"* y la lista de pendientes decía *"Gestor"* junto a
+*"Expires Aug 29, 2026"*. El backend redactaba el texto y siempre en español. **Lo que lleva
+idioma se compone en el panel; del backend viaja el valor del enum (`rol`), que no tiene
+idioma.** Es el mismo error que ya había pasado con el texto de las alertas (§12), por otro
+camino. ⚠️ `accion()` además prefería el mensaje del backend sobre el texto local traducido
+(`r?.mensaje || ok`), así que quitar, cambiar de rol, reenviar y cancelar también contestaban
+en español: ahora **gana el local**.
 ---
 
 ## 12. Escaneo, detección y alertas
@@ -981,6 +1004,24 @@ corre **cada hora** y elige a quién le toca. Antes había un solo cron de 4 h p
 rompía la oferta en las dos direcciones: Franquicia pagaba por 1 h y recibía 4, y cada cuenta
 gratuita costaba **seis veces** las consultas a Places prometidas. El cooldown del botón
 "Escanear ahora" se importa de esa misma constante.
+
+**El botón manual se conserva, pero el panel dejó de pedir que lo uses** (decisión del dueño,
+2026-08-22). El cooldown del botón es **igual al intervalo del cron de su plan**, así que
+pulsarlo casi nunca adelanta nada — como mucho los minutos que falten para el ciclo
+automático. Se queda por un solo motivo, que es suficiente: **un negocio recién conectado no
+tiene `ultimoEscaneo`, así que el botón funciona sin cooldown**, y es lo que hace que el
+cliente vea resultados en su primer minuto en vez de esperar 24 h.
+- Se **borró el consejo "El hábito que protege todo lo demás: escanear"**, que pedía
+  literalmente *"escanea apenas veas el botón verde disponible — no lo dejes para después"*.
+  Entrenaba el hábito contrario al que persigue el producto (el afiche de la pared existe
+  porque el abandono no se arregla con más pantalla), y desde que una reseña negativa avisa
+  al momento era además falso.
+- El estado bajo el botón pasó de *"Se reestablece hoy a las 14:30"* —un botón que existe
+  para decirte que no— a **"Revisado hace 12 min · automático cada 4 h"**.
+- 🔴 **Ese "hace 12 min" NO puede salir de `ultimoEscaneo`.** `GET /:id/cooldown` devuelve
+  ahora `ultimaRevision`, que es la fecha del **último `Snapshot`**: la revisión de verdad, la
+  haya pedido alguien o la haya hecho el cron. Con `ultimoEscaneo`, a un cliente que nunca ha
+  tocado el botón el panel le diría "aún sin revisar" mientras el cron pasa cada 4 horas.
 
 🔴 **`ultimoEscaneo` es el reloj del BOTÓN manual, no del cron.** Cuando el cron lo escribía,
 a un plan Gratis le salía el botón en cooldown siempre, sin haberlo usado nunca. El cron usa
@@ -1519,12 +1560,10 @@ flujo entero.
 4. **Rotar `META_APP_SECRET`** — se compartió por chat. Al rotarlo hay que recargarlo en
    Railway o el OAuth falla con un error genérico que no menciona el secreto. Meta empieza a
    firmar los webhooks con el nuevo de inmediato.
-5. **Probar el circuito de invitación de equipo** de punta a punta con una dirección propia.
-   Requiere que el dueño inicie sesión y acepte: el agente **no puede crear cuentas ni
-   escribir contraseñas**. El camino más corto no crea cuentas nuevas: invitar desde
-   `didierprincipe@gmail.com` (NEGOCIO, 3 asientos) a **`didier@usenotoria.app`**, que ya
-   tiene cuenta y cuyo correo se reenvía a `usenotoria@gmail.com`. Deja filas en
-   `invitaciones` / `miembros` / `registro_actividad` que hay que limpiar después.
+5. **Terminar el circuito de invitación de equipo.** Se probó el 2026-08-22 hasta la
+   pantalla del invitado (el detalle está en §11); **falta aceptar**, y eso exige iniciar
+   sesión como `didier@usenotoria.app`, que el agente no puede hacer. ⚠️ Hay una invitación
+   viva en producción que hay que limpiar al terminar.
 6. 🟡 **Las respuestas al cliente salen desde `usenotoria@gmail.com`, no desde el dominio.**
    Comprobado el 2026-08-22 en Gmail → Cuentas e importación: **no hay ningún alias "enviar
    como"**, solo `Notoria <usenotoria@gmail.com>` (el nombre visible es "Notoria", la
