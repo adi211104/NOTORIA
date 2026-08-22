@@ -1132,6 +1132,18 @@ sola cifra falsa desacredita todas las demás alertas.**
 worker, `Icons.js` (`ICONO_ALERTA`) y `alertas/page.js` (tipos + labels es/en). Más las
 etiquetas de `web/src/lib/alertas.js` y `Modelos.kt` de la app.
 
+**El correo de alerta (`enviarAlertaCritica`) tiene DOS formas, y la específica exige sus
+piezas.** Desde el 2026-08-22 es el correo que más reciben los clientes, así que dejó de ser
+genérico: cuando la alerta trae `detalle.rating` el asunto dice **«Reseña de 1★ en {negocio}»**
+—no «Alerta en {negocio}»—, el cuerpo cita la reseña y el botón lleva a la pestaña **Reseñas**,
+porque desde Alertas no se puede responder. Es bilingüe, como el drip.
+- 🔴 **Sin `detalle` cae al genérico, y eso NO es un caso raro:** por `RESENA_MUY_NEGATIVA`
+  pasan también la **escalación de las 24 h** y el aviso de **token de Facebook expirado**, y
+  ninguno de los dos trae detalle. A los dos les toca el genérico con la descripción que ya
+  traen. Al tocar este correo, correr `scripts/prueba-escape-emails.js`, que cubre los tres.
+- El genérico tampoco dice ya «detectamos actividad inusual»: era falso para una reseña de 1★
+  y para una ficha alterada.
+
 **Canal único: correo.** `revisarEscalacionesUrgentes()` manda un recordatorio de las reseñas
 de ≤2★ sin responder tras 24 h llamando a `enviarAlertaEmail()` **directo y no a
 `notificar()`**, a propósito: no debe filtrarse por `prefsAlertas.frecuencia` (quien eligió
