@@ -518,8 +518,31 @@ router.get('/:id/cooldown', async (req, res, next) => {
     });
     if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
 
+    // 🔴 `ultimoEscaneo` y `ultimaRevision` son DOS relojes distintos, y
+    // confundirlos hace que el panel mienta:
+    //
+    //   · `ultimoEscaneo` es el reloj del BOTÓN manual. Solo lo escribe una
+    //     pulsación (y el cron, únicamente para negocios sin ficha de Google,
+    //     que nunca generan snapshot). Es lo que gobierna el cooldown.
+    //   · `ultimaRevision` es cuándo se miró la ficha DE VERDAD, lo haya pedido
+    //     alguien o lo haya hecho el cron, y eso es el último snapshot.
+    //
+    // El panel enseña la segunda: a un cliente que nunca ha tocado el botón,
+    // decirle "aún sin revisar" cuando el cron pasó hace cinco minutos sería
+    // falso, y justo al revés de lo que el producto quiere que entienda.
+    const ultimoSnapshot = await prisma.snapshot.findFirst({
+      where: { negocioId: req.params.id },
+      orderBy: { tomadoEn: 'desc' },
+      select: { tomadoEn: true },
+    });
+
     const cooldownMin = COOLDOWN_MINUTOS[req.cuenta.plan] || 1440;
-    if (!negocio.ultimoEscaneo) return res.json({ puedeEscanear: true, segundosRestantes: 0 });
+    const comun = {
+      ultimaRevision: ultimoSnapshot?.tomadoEn || null,
+      cooldownMinutos: cooldownMin,
+    };
+
+    if (!negocio.ultimoEscaneo) return res.json({ puedeEscanear: true, segundosRestantes: 0, ...comun });
 
     const transcurridos = (Date.now() - new Date(negocio.ultimoEscaneo).getTime()) / 1000;
     const cooldownSeg = cooldownMin * 60;
@@ -529,7 +552,7 @@ router.get('/:id/cooldown', async (req, res, next) => {
       puedeEscanear: restantes === 0,
       segundosRestantes: Math.ceil(restantes),
       ultimoEscaneo: negocio.ultimoEscaneo,
-      cooldownMinutos: cooldownMin,
+      ...comun,
     });
   } catch (error) { next(error); }
 });

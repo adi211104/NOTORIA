@@ -998,6 +998,37 @@ que para esos —y solo esos— el cron sigue marcando `ultimoEscaneo`.
 | Caída de rating | ✅ Compara contra el **snapshot anterior**, no contra `googleRatingBase` (que se fija al crear el negocio y no se actualiza: la alerta se recreaba **cada 4 h para siempre** y el cliente aprendía a ignorar los correos) |
 | Cuentas recién creadas | ❌ **Imposible**: las cinco fuentes escriben `autorResenasTotal: null` |
 | Picos por número de negativas | ❌ Pedía ≥5 en 24 h, y **Places entrega 5 reseñas COMO MÁXIMO** |
+| **Reseña negativa nueva** (`alertarResenaNegativa`) | ✅ Añadida el 2026-08-22. Es la única señal **por reseña individual**, y sin ella el producto no avisaba de nada — ver abajo |
+
+🔴 **Por qué existe `alertarResenaNegativa`, y por qué no se puede volver a quitar.**
+Todas las señales de arriba son **agregadas**, y ninguna se cumple en un negocio que
+no esté bajo ataque. El resultado medido en producción el 2026-08-22: **1783 escaneos,
+15 negocios, 84 reseñas guardadas —12 de ellas de ≤2★ y 3 marcadas como sospechosas— y
+CERO alertas creadas desde que existe la plataforma.** No fallaba nada; simplemente
+nadie creaba una alerta por una reseña individual.
+
+Una reseña de 1★ solo producía un correo **24 horas después**
+(`revisarEscalacionesUrgentes`), que además **no crea fila de `Alerta`**: no aparecía
+en el panel, no llegaba a la app Android y no la veían los gestores del equipo. El
+dueño entraba y leía *"Todo tranquilo por ahora"* con una reseña de 1★ recién puesta
+en su ficha. Y la pantalla de Alertas ya ofrecía elegir entre **"Cada reseña negativa"**
+(activada por defecto) y "Solo picos (5+ en 24 h)": una preferencia que no gobernaba nada.
+
+- **Reusa `RESENA_MUY_NEGATIVA`**, que ya estaba en el enum, en `TIPOS_VALIDOS`, en los
+  iconos y en `Modelos.kt` de la app → **cero cambios de schema, cero toques a la app**.
+- **Tres condiciones de silencio, y son lo que hay que vigilar** (si una se rompe no
+  falla nada, solo se deja de avisar o se avisa de más): no avisa en el **primer barrido**
+  de un negocio (llegan de golpe las 5 reseñas que publica Places, que pueden ser de hace
+  años), no avisa de reseñas de **más de 30 días** (si el escaneo estuvo caído, algo viejo
+  aparece hoy como nuevo *para nosotros*), y **va por `notificar()`, no por
+  `enviarAlertaEmail` directo** — al revés que la ficha alterada, porque aquí las
+  preferencias del cliente sí deben mandar: es justo lo que ese umbral existe para regular.
+- ⚠️ **`esPrimerBarrido` se calcula ANTES de crear el snapshot del ciclo**, o la respuesta
+  sería siempre "no".
+- No sustituye a la escalación de 24 h: son dos mensajes distintos y los dos tienen
+  sentido ("llegó una reseña de 1★" hoy, "lleva un día sin respuesta" mañana).
+- `node scripts/prueba-alertas-resena.js` — 28 comprobaciones, casi todas sobre los
+  silencios.
 
 ⚠️ **El enum `CUENTAS_NUEVAS` sigue vivo pero significa otra cosa**: hoy lo levanta el texto
 duplicado, y por eso su etiqueta es "Campañas coordinadas". El id no se toca (está en la BD,
@@ -1157,6 +1188,7 @@ Resend pierde ese correo, no lo duplica).
 | **Borrados** | Competidores borra sus snapshots (FK RESTRICT: tras el primer ciclo del worker ninguno se podía eliminar) y el borrado de cuenta toca `pagos`, `comprobantes` y `comentarios_sociales` |
 | **QR** | Se genera en el navegador con `qrcode`; antes se pedía a `api.qrserver.com`, mandándole a un tercero el enlace de cada cliente |
 | **Prisma** | `detector.js` usa el singleton, no un `PrismaClient` propio |
+| **HTML en los correos** | 🔴 `esc()` en `utils/emails.js`. Todo texto que **no escribimos nosotros** —el de una reseña, un comentario, una mención o una hoja del Libro de Reclamaciones— se escapa antes de entrar al HTML del correo. Sin eso, una reseña de 1★ cuyo texto fuera `<a href="https://sitio-falso">Haz clic para eliminar esta reseña</a>` se convertía en un **enlace real dentro de un correo salido del dominio de Notoria, firmado con DKIM y alineado con DMARC**: phishing contra el propio cliente con nuestra credibilidad de remitente, disparable por cualquiera capaz de escribir una reseña en su ficha. ⚠️ El escape va **en el punto donde se inserta el dato ajeno**, NO dentro de `p()`, `h1()` ni `btn()`: a esos se les pasa HTML a propósito (`<strong>`, `<code>`). Al añadir un correo que muestre texto ajeno, sumar su caso a `scripts/prueba-escape-emails.js` — lo que no está en esa lista, nadie lo vigila |
 | **`trust proxy`** | `app.set('trust proxy', 1)` en `index.js`, antes de los limiters. ⚠️ **Es `1`, NO `true`**: con `true` Express confía en toda la cadena de `X-Forwarded-For` y cualquiera puede falsear su IP para saltarse el rate-limit. `1` = un proxy, que es lo que Railway pone delante. Con un CDN adicional sería 2 |
 
 **Borrado de cuenta: ANONIMIZA cuando hay historial fiscal.** El XML firmado y el CDR se
@@ -1383,6 +1415,8 @@ textos por otros inventados. El procedimiento está en la cabecera del component
 | `reclamaciones.js [todas\|ver <n>\|responder <n>]` | Libro de Reclamaciones por terminal |
 | `prueba-negocio-publico.js` | 10 pruebas del saneador de tokens. **Correr al agregar cualquier campo al modelo `Negocio`** |
 | `prueba-equipo.js` | 48 comprobaciones de roles, asientos, corte por bajada de plan y alcance |
+| `prueba-alertas-resena.js` | 28 comprobaciones del aviso por reseña negativa. Lo que vigila son las **condiciones de silencio** (primer barrido, antigüedad, umbral, que pase por `notificar()`): si una se rompe, no falla nada — simplemente se deja de avisar |
+| `prueba-escape-emails.js` | 11 comprobaciones de que el texto ajeno no inyecta HTML en los correos, incluidas las que verifican que escapar **no estropee el texto normal** (★, el apóstrofo de un cliente llamado "Tito's", el ampersand) |
 | `prueba-instagram-visible.js` | 12 comprobaciones del interruptor de Instagram |
 | `prueba-instagram-comentarios.js` · `prueba-instagram-webhook.js` · `prueba-instagram-menciones.js` | Comentarios (37, incluida la paginación), webhook (33+) y menciones (23), con axios interceptado |
 | `prueba-tiktok-business.js` · `prueba-tiktok-comentarios.js` | Circuito de TikTok con `axios.request` sustituido |
@@ -1412,15 +1446,36 @@ y rechaza otra cosa). Así se descartaron rutas enteras de TikTok sin credencial
 | Qué | Desde | Qué bloquea |
 |---|---|---|
 | **Meta — App Review de Instagram** (5 permisos) | 2026-08-15 | Instagram para clientes reales, la sección **Menciones** entera y los webhooks de comentarios (exigen Acceso Avanzado) |
-| **Google — acceso a las GBP APIs**, caso `3-5553000040900` | 2026-08-16, plazo 7-10 días hábiles. **Revisado el 2026-08-19: sigue sin aprobar** (RPM=0 en `mybusinessbusinessinformation` y `mybusinessaccountmanagement`, la v4 sigue sin existir en la Biblioteca) | Conectar Google Business |
+| **Google — acceso a las GBP APIs**, caso `3-5553000040900` | 2026-08-16, plazo 7-10 días hábiles. **Revisado el 2026-08-22: sigue sin aprobar** (RPM=0 en `mybusinessbusinessinformation`) | Conectar Google Business |
+
+**Revisión del panel de Meta del 2026-08-22 — nada que hacer, solo esperar.** Estado
+`Review in progress` con los cinco permisos correctos, app en **modo Live**, y las dos
+obligaciones (`Submit Data Use Checkup` y `Data access renewal`) en **Completed**.
+- ⏳ **El plazo real lo dice el propio panel: *"most submissions are reviewed within 20
+  days"***, no los 7-10 que se supusieron al enviarlo. Enviado el 15/08 → **hasta
+  ~4 de septiembre** antes de que valga la pena preocuparse.
+- 📅 **5 de octubre de 2026: vence la renovación anual de acceso a datos de Meta.** Si se
+  pasa, se pierde el acceso a las APIs. No depende del App Review.
+
+⚠️ **Cómo se lee la cuota de las GBP APIs sin equivocarse:** las otras tres cuotas de
+`mybusinessbusinessinformation` **siempre han tenido valores** (Create Location 100,
+SearchGoogleLocation 200, Update Location 10 000). La única señal de que hay acceso
+concedido es **`Requests per minute`**, que sigue en **0**. Ver un 100 en la tabla y
+cantar victoria es el error fácil.
 
 ⚠️ **El caso `3-5553000040900` no tiene rastro en ningún buzón accesible.** Buscado con
 `in:anywhere` —que incluye spam y papelera— en `usenotoria@gmail.com` y en `padkar4@gmail.com`:
 cero resultados, ni por el número ni por "Business Profile API". Tampoco figura en Cloud
 Support → Casos, donde además la consola avisa de que **crear casos no está disponible con el
-plan de asistencia actual**, así que ese caso no vive ahí. Las dos explicaciones: el formulario
-se envió desde **`admin@usenotoria.app`** (la cuenta de Workspace), o Google dio el número en
-pantalla sin mandar acuse. **Importa saber cuál, porque la aprobación llegará a ese buzón.**
+plan de asistencia actual**, así que ese caso no vive ahí.
+
+✅ **Resuelto el 2026-08-22: la hipótesis de `admin@usenotoria.app` queda descartada.** El
+dueño confirma que esa cuenta la creó en Google Business, **le pidieron pagar y la abandonó**;
+nunca la usó. Y los MX del dominio son de **Cloudflare Email Routing**
+(`route1/2/3.mx.cloudflare.net`), no de Workspace, así que ese buzón **no existe** y no hay
+regla que crearle. Queda la otra explicación: Google dio el número en pantalla **sin mandar
+acuse**. Se confirmó además, buscando en `usenotoria@gmail.com`, que **no ha llegado ningún
+correo de Google** sobre el caso ni sobre "Business Profile" desde el 10/08.
 | **Google — verificación del Perfil de Empresa** | pendiente | Que algunos cambios de la ficha se vean |
 
 **Al aprobar Meta**, en este orden: poner `INSTAGRAM_ACTIVO=true` en Railway (se abre para
@@ -1465,6 +1520,20 @@ flujo entero.
    Railway o el OAuth falla con un error genérico que no menciona el secreto. Meta empieza a
    firmar los webhooks con el nuevo de inmediato.
 5. **Probar el circuito de invitación de equipo** de punta a punta con una dirección propia.
+   Requiere que el dueño inicie sesión y acepte: el agente **no puede crear cuentas ni
+   escribir contraseñas**. El camino más corto no crea cuentas nuevas: invitar desde
+   `didierprincipe@gmail.com` (NEGOCIO, 3 asientos) a **`didier@usenotoria.app`**, que ya
+   tiene cuenta y cuyo correo se reenvía a `usenotoria@gmail.com`. Deja filas en
+   `invitaciones` / `miembros` / `registro_actividad` que hay que limpiar después.
+6. 🟡 **Las respuestas al cliente salen desde `usenotoria@gmail.com`, no desde el dominio.**
+   Comprobado el 2026-08-22 en Gmail → Cuentas e importación: **no hay ningún alias "enviar
+   como"**, solo `Notoria <usenotoria@gmail.com>` (el nombre visible es "Notoria", la
+   dirección no). Así que un cliente que escribe a `hola@usenotoria.app` recibe la respuesta
+   desde un Gmail personal, y al responder se sale del dominio.
+   🔴 **Si se arregla, NO se hace con el SMTP de Gmail:** ese envío no está en el SPF del
+   dominio ni lo firma nuestro DKIM, y con **DMARC en `p=quarantine`** (§6) cada respuesta
+   se iría a la carpeta de spam del cliente. La vía correcta es el **SMTP de Resend**, que
+   ya está verificado y alinea las dos patas.
 6. **Webhook de Culqi**: solo un reembolso real puede confirmarlo.
 7. **Cuando el correo de la empresa reemplace al personal en Google Cloud:** agregarlo como
     **propietario** del proyecto `798376364749`, cambiarlo en *Información de la marca →
@@ -1485,16 +1554,40 @@ flujo entero.
 - **Ranking "quién subió más este mes"**: solo se calcula con historial propio, así que hay que
   dejar pasar meses de snapshots. Cada semana que pasa es ventaja acumulada.
 
-### Estado de la base de producción (última lectura, 2026-08-18)
+### Estado de la base de producción (última lectura, 2026-08-22)
 
-`0 pagos · 0 comprobantes · series sin iniciar · 0 miembros · 0 invitaciones · 0 reclamaciones
-· 0 promo_tarjetas`. Confirmado el 2026-08-20 por otra vía: Culqi reporta **0 cargos** en el
+`11 usuarios · 15 negocios (10 activos) · 1783 snapshots · 84 reseñas (12 de ≤2★, 3
+sospechosas) · 0 pagos · 0 comprobantes · series sin iniciar · 0 miembros · 0 invitaciones
+· 0 reclamaciones · 0 promo_tarjetas`.
+
+**Lo que esa foto confirma que funciona**, medido y no supuesto:
+- **La cadencia por plan es exacta.** Contando snapshots de los últimos 3 días: los negocios
+  de plan GRATIS generan **1,0 al día** y los de NEGOCIO **6,0** (cada 4 h). El fix de
+  `HORAS_ESCANEO` hace lo que promete.
+- El escaneo corre al día (snapshots de la hora en curso) y los correos del producto se
+  entregan (el registro de Cloudflare muestra *"Alerta en KFC — Notoria"* reenviado).
+- **Lo que reveló:** 1783 escaneos con **0 alertas**. De ahí salió `alertarResenaNegativa`
+  (§12). Es el ejemplo de por qué esta foto se toma: ningún log decía nada.
+- ⚠️ **3 de los 11 usuarios no han verificado su correo** (`dhazzez15@`, `cehakax956@` —una
+  dirección desechable— y `josephsalas108@`). El drip de onboarding **solo va a verificados**,
+  así que esos tres no reciben absolutamente nada. Confirmado el 2026-08-20 por otra vía: Culqi reporta **0 cargos** en el
 entorno live. Las cuentas con plan NEGOCIO concedido a mano (`didier@usenotoria.app`,
 `didierprincipe@gmail.com`) **son del dueño**, no tocarlas.
 
 ### 🔴 Bugs abiertos en producción
 
 Ninguno conocido.
+
+**Corregido el 2026-08-22 — el producto no avisaba de las reseñas negativas.** 1783
+escaneos y 0 alertas: ninguna señal creaba alerta por una reseña individual, y la pantalla
+de Alertas ofrecía una preferencia ("Cada reseña negativa") que no gobernaba nada. El
+detalle completo está en §12. **La lección es la misma de siempre y conviene tenerla a
+mano: un hueco de producto no produce logs.** Lo que lo delató fue contar filas en
+producción (`0 alertas` con `12 reseñas de ≤2★` al lado), no leer código ni revisar errores.
+
+**Corregido el 2026-08-22 — el texto de una reseña podía inyectar HTML en los correos.**
+Ver §14, fila *HTML en los correos*. Existía desde antes para comentarios y menciones; el
+aviso nuevo lo habría convertido en el caso masivo.
 
 **Corregido el 2026-08-19 — `EMAIL_CONTABILIDAD` y `EMAIL_RECLAMACIONES` no existían en
 Railway.** Solo estaba `EMAIL_FROM`. Las dos consecuencias eran silenciosas:

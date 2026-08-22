@@ -17,19 +17,34 @@ const getToken = () => localStorage.getItem('bs_token');
 const COLORES = ['#3AA857','#8b5cf6','#ec4899','#ef4444','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#64748b'];
 
 // Devuelve { dia, hora } listos para mostrar en "Se reestablece el {dia} a las {hora}"
-const formatFechaHora = (seg, idioma) => {
-  if (!seg || seg <= 0) return null;
-  const locale = idioma === 'en' ? 'en-US' : 'es-PE';
-  const fecha = new Date(Date.now() + seg*1000);
-  const hora = fecha.toLocaleTimeString(locale, { hour:'2-digit', minute:'2-digit' });
-  const hoy = new Date();
-  const manana = new Date(hoy); manana.setDate(hoy.getDate() + 1);
-  const dia = fecha.toDateString() === hoy.toDateString()
-    ? (idioma === 'en' ? 'today' : 'hoy')
-    : fecha.toDateString() === manana.toDateString()
-      ? (idioma === 'en' ? 'tomorrow' : 'mañana')
-      : (idioma === 'en' ? 'on ' : 'el ') + fecha.toLocaleDateString(locale, { day:'numeric', month:'long' });
-  return { dia, hora };
+// Hace cuánto se revisó la ficha, y cada cuánto se revisa sola.
+//
+// Sustituyen al «Se reestablece hoy a las 14:30» que había debajo del botón
+// (2026-08-22). Ese texto convertía el botón en algo que existe para decirte que
+// no: el cooldown es igual al intervalo del cron del plan, así que pulsarlo casi
+// nunca adelanta nada, y el dato que de verdad le sirve al dueño no es cuándo se
+// le permite pulsar sino que ESTO YA SE ESTÁ MIRANDO SOLO. Es la misma promesa
+// que sostiene el aviso por reseña negativa: no hace falta entrar.
+//
+// ⚠️ `desde` tiene que ser la fecha del último SNAPSHOT (el backend la manda como
+// `ultimaRevision`), nunca `ultimoEscaneo`, que solo marca la última pulsación
+// del botón — ver el comentario del endpoint en negocio.routes.js.
+const formatHace = (desde, idioma) => {
+  if (!desde) return null;
+  const min = Math.floor((Date.now() - new Date(desde).getTime()) / 60000);
+  if (!Number.isFinite(min) || min < 0) return null;
+  if (min < 1) return idioma === 'en' ? 'just now' : 'recién';
+  if (min < 60) return idioma === 'en' ? `${min} min ago` : `hace ${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return idioma === 'en' ? `${h}h ago` : `hace ${h} h`;
+  const d = Math.floor(h / 24);
+  return idioma === 'en' ? `${d}d ago` : `hace ${d} d`;
+};
+
+const formatCada = (minutos, idioma) => {
+  const h = Math.round((minutos || 1440) / 60);
+  if (idioma === 'en') return h === 1 ? 'every hour' : `every ${h}h`;
+  return h === 1 ? 'cada hora' : `cada ${h} h`;
 };
 
 // ── Input de nombre: UNCONTROLLED para evitar reset por timers ──
@@ -370,12 +385,14 @@ const TEXTOS = {
       alerta:(n) => `${n} alerta${n>1?'s':''}`,
       rating:'Rating',
       resenasTotales:'Reseñas totales',
-      escanear:'Escanear ahora',
-      escaneando:(p) => `Escaneando... ${p}%`,
-      seReestablece:(dia,hora) => `Se reestablece ${dia} a las ${hora}`,
-      disponibleAhora:'Escaneo disponible — úsalo ahora',
-      scanCompletado:'Escaneo completado. Revisa las reseñas y alertas.',
-      errorEscanear:'Error al escanear',
+      escanear:'Revisar ahora',
+      escaneando:(p) => `Revisando... ${p}%`,
+      // El estado de abajo del botón dice qué hace el sistema por su cuenta, no
+      // cuándo se le permite pulsar al cliente. Ver formatHace/formatCada.
+      revisado:(hace,cada) => `Revisado ${hace} · automático ${cada}`,
+      revisadoNunca:(cada) => `Se revisa automáticamente ${cada}`,
+      scanCompletado:'Listo. Revisa las reseñas y alertas.',
+      errorEscanear:'Error al revisar',
     },
     tabs: {
       resumen:'Resumen',
@@ -647,11 +664,6 @@ const TEXTOS = {
           porQue:'Tu rating no vale nada en el vacío: un 4.2★ es excelente si tus vecinos tienen 3.9★, y un problema si tienen 4.6★. Sin punto de comparación, no sabes si estás ganando o perdiendo clientes frente al local de enfrente.',
           pasos:['Agrega al competidor que te quita más clientes (tu plan gratuito incluye 1)','Compara su evolución con la tuya en cada escaneo','Usa sus debilidades (reseñas negativas frecuentes) como argumento de tu propuesta'],
           cta:'Agregar competidor' } },
-      habito: { titulo:'El hábito que protege todo lo demás: escanear',
-        datoGratis:'1 escaneo cada 24h', datoNegocio:'1 escaneo cada 4h', datoFranquicia:'1 escaneo cada hora',
-        porQue:'Los ataques de reseñas falsas suelen ocurrir de madrugada (lunes es el día más común) y el daño se consolida en 48-72 horas si nadie lo detecta. Cada escaneo es una foto de tu reputación: sin fotos frecuentes, no hay historial ni alertas tempranas.',
-        pasos:['Escanea apenas veas el botón verde disponible — no lo dejes para después','Convierte el escaneo en rutina: al abrir el negocio o al revisar las ventas del día','Si necesitas más frecuencia, el Plan Negocio escanea cada 4 horas automáticamente'],
-        cta:'Escanear ahora' },
     },
     config: {
       nombreTitulo:'Nombre del negocio',
@@ -786,12 +798,12 @@ const TEXTOS = {
       alerta:(n) => `${n} alert${n>1?'s':''}`,
       rating:'Rating',
       resenasTotales:'Total reviews',
-      escanear:'Scan now',
-      escaneando:(p) => `Scanning... ${p}%`,
-      seReestablece:(dia,hora) => `Resets ${dia} at ${hora}`,
-      disponibleAhora:'Scan available — use it now',
-      scanCompletado:'Scan completed. Check your reviews and alerts.',
-      errorEscanear:'Error scanning',
+      escanear:'Check now',
+      escaneando:(p) => `Checking... ${p}%`,
+      revisado:(hace,cada) => `Checked ${hace} · automatic ${cada}`,
+      revisadoNunca:(cada) => `Checked automatically ${cada}`,
+      scanCompletado:'Done. Check your reviews and alerts.',
+      errorEscanear:'Error checking',
     },
     tabs: {
       resumen:'Overview',
@@ -1048,11 +1060,6 @@ const TEXTOS = {
           porQue:'Your rating means nothing in a vacuum: a 4.2★ is excellent if your neighbors have 3.9★, and a problem if they have 4.6★. Without a point of comparison, you don’t know whether you’re winning or losing customers to the place across the street.',
           pasos:['Add the competitor taking the most customers from you (your free plan includes 1)','Compare their progress against yours on every scan','Use their weaknesses (frequent negative reviews) as an argument in your pitch'],
           cta:'Add competitor' } },
-      habito: { titulo:'The habit that protects everything else: scanning',
-        datoGratis:'1 scan every 24h', datoNegocio:'1 scan every 4h', datoFranquicia:'1 scan every hour',
-        porQue:'Fake review attacks usually happen overnight (Monday is the most common day), and the damage sets in within 48-72 hours if nobody catches it. Every scan is a snapshot of your reputation — without frequent snapshots, there’s no history and no early alerts.',
-        pasos:['Scan as soon as you see the green button available — don’t put it off','Turn scanning into a routine: when you open the business or check the day’s sales','If you need more frequency, the Business plan scans automatically every 4 hours'],
-        cta:'Scan now' },
     },
     config: {
       nombreTitulo:'Business name',
@@ -1665,7 +1672,14 @@ export default function DetallePage() {
   const todasResenas = negocio.resenas || [];
   const color = colorLocal;
   const puedeEscanear = !cooldown || cooldown.puedeEscanear || cooldown.segundosRestantes <= 0;
-  const fechaDisp = formatFechaHora(cooldown?.segundosRestantes, idioma);
+  // Estado bajo el botón: cuándo se miró la ficha de verdad (último snapshot) y
+  // cada cuánto se mira sola. Quién puede pulsar lo decide `puedeEscanear`, que
+  // sigue mirando los segundos restantes del cooldown.
+  const haceRevision = formatHace(cooldown?.ultimaRevision, idioma);
+  const cadaRevision = formatCada(cooldown?.cooldownMinutos, idioma);
+  const textoRevision = haceRevision
+    ? t.header.revisado(haceRevision, cadaRevision)
+    : t.header.revisadoNunca(cadaRevision);
   const planPago = usuario?.plan === 'NEGOCIO' || usuario?.plan === 'FRANQUICIA';
 
   // Sospechosas ya NO es una pestaña (2026-07-29): eran las mismas reseñas
@@ -1793,15 +1807,14 @@ export default function DetallePage() {
               {!soloLectura && (
               <button onClick={escanear} disabled={!puedeEscanear||escaneando}
                 className={puedeEscanear&&!escaneando ? 'btn-escanear-listo' : ''}
-                title={fechaDisp?t.header.seReestablece(fechaDisp.dia,fechaDisp.hora):t.header.escanear}
+                title={puedeEscanear?t.header.escanear:textoRevision}
                 style={{ background:puedeEscanear&&!escaneando?'#0B7324':'var(--surface2)', color:puedeEscanear&&!escaneando?'#fff':'var(--text-3)', border:'none', borderRadius:10, padding:'14px 28px', fontSize:15, cursor:puedeEscanear&&!escaneando?'pointer':'not-allowed', fontWeight:700, letterSpacing:0.2 }}>
                 {escaneando?t.header.escaneando(progreso):(
                   <span style={{ display:'inline-flex', alignItems:'center', gap:9 }}><Icon name="buscar" size={17} strokeWidth={2} /> {t.header.escanear}</span>
                 )}
               </button>
               )}
-              {fechaDisp&&!escaneando && <div style={{ fontSize:11, color:'var(--text-3)', marginTop:5 }}>{t.header.seReestablece(fechaDisp.dia,fechaDisp.hora)}</div>}
-              {!fechaDisp&&!escaneando && <div style={{ fontSize:11, color:'#22c55e', marginTop:5, fontWeight:600 }}>{t.header.disponibleAhora}</div>}
+              {!escaneando && <div style={{ fontSize:11, color:'var(--text-3)', marginTop:5 }}>{textoRevision}</div>}
             </div>
           </div>
         </div>
@@ -3031,14 +3044,13 @@ export default function DetallePage() {
             cta:{ label:tc.cta, tabDestino:'competencia' } });
         }
 
-        // 5. Hábito de escaneo
-        {
-          const tc = t.consejos.habito;
-          consejos.push({ icono:'buscar', c:'#4CAF66', titulo:tc.titulo, dato: usuario?.plan === 'GRATIS' ? tc.datoGratis : usuario?.plan === 'NEGOCIO' ? tc.datoNegocio : tc.datoFranquicia,
-            porQue:tc.porQue,
-            pasos:tc.pasos,
-            cta: puedeEscanear && !escaneando ? { label:tc.cta, accion: escanear } : null });
-        }
+        // El consejo 5 era «El hábito que protege todo lo demás: escanear», y se
+        // quitó el 2026-08-22. Le pedía al dueño «escanea apenas veas el botón
+        // verde disponible—no lo dejes para después»: entrenaba justo el hábito
+        // contrario al que persigue el producto (ver el afiche de la pared, que
+        // existe porque el abandono no se arregla con más pantalla). Y desde que
+        // una reseña negativa avisa al momento, era además falso: no hay que
+        // entrar a mirar, y si pasa algo llega el aviso.
 
         return (
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
