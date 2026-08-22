@@ -90,6 +90,20 @@ const probar = async (etiqueta, ruta, params, token) => {
   // 1. ¿De quien es este token? Si no es una pagina, el resto no significa nada.
   await probar('¿de quien es el token?', 'me', { fields: 'id,name' }, token);
 
+  // 🔴 CONTROL DE TIPO. Que `me` responda no prueba que sea una PAGINA: un token
+  // de perfil tambien responde id y name, y «los perfiles no tienen ratings» no
+  // dice absolutamente nada sobre las paginas. Ese fue el error de la sonda con
+  // ID inventado: Meta lo trato como usuario y contesto que /ratings no existe.
+  //
+  // `category` y `fan_count` solo existen en paginas. Si estos responden, el
+  // objeto es una pagina y entonces —y solo entonces— «overall_star_rating no
+  // existe» significa que no existe PARA PAGINAS.
+  await probar('CONTROL DE TIPO: ¿es una pagina? (category, fan_count)', 'me',
+    { fields: 'category,fan_count' }, token);
+  await probar('CONTROL: otro campo que solo tienen las paginas (link, followers_count)', 'me',
+    { fields: 'link,followers_count' }, token);
+  await probar('CONTROL: edge /posts, que si existe en paginas', 'me/posts', { limit: '1' }, token);
+
   // 2. Los campos que usa el stub para el rating general.
   await probar('campo overall_star_rating (lo usa el stub)', 'me', { fields: 'overall_star_rating' }, token);
   await probar('campo rating_count (lo usa el stub)', 'me', { fields: 'rating_count' }, token);
@@ -107,11 +121,19 @@ const probar = async (etiqueta, ruta, params, token) => {
     { fields: 'reviewer,recommendation_type,review_text,created_time,open_graph_story' }, token);
 
   console.log('──────────────────────────────────────────────────────');
-  console.log('Como leer esto:');
-  console.log('  · Si el CONTROL dice NO EXISTE y los campos del stub dicen otra cosa,');
-  console.log('    la sonda distingue y sus veredictos valen.');
-  console.log('  · Si el CONTROL suena igual que todo lo demas, no prueba nada.');
-  console.log('  · «lista con 0 elemento(s)» en /ratings = la API responde y la pagina');
-  console.log('    no tiene resenas. Eso es DISTINTO de un error de permisos, y es');
-  console.log('    justo lo que hacia falta saber.');
+  console.log('Como leer esto, en este orden:');
+  console.log('');
+  console.log('1. ¿El CONTROL DE TIPO responde con datos?');
+  console.log('   NO  -> el token no es de una pagina y NADA de lo de abajo vale.');
+  console.log('          Vuelve al Explorer y elige "Get Page Access Token".');
+  console.log('   SI  -> es una pagina, y entonces el resto significa algo.');
+  console.log('');
+  console.log('2. ¿La sonda distingue? Hay que ver las dos puntas:');
+  console.log('   · `id,name` y los CONTROL responden con datos  = positivo conocido');
+  console.log('   · el campo inventado dice NO EXISTE            = negativo conocido');
+  console.log('   Con esas dos, un veredicto sobre overall_star_rating vale.');
+  console.log('   Si TODO suena igual, la sonda no prueba nada.');
+  console.log('');
+  console.log('3. En /ratings, «lista con 0 elemento(s)» NO es lo mismo que un error:');
+  console.log('   significa que la API responde y la pagina no tiene resenas.');
 })();
