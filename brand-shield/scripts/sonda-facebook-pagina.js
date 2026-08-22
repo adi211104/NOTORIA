@@ -77,6 +77,43 @@ const probar = async (etiqueta, ruta, params, token) => {
   console.log('');
 };
 
+// 🔴 LA LLAMADA QUE ACABA CON LA ESPECULACION, y que habria que hacer PRIMERO en
+// cualquier duda sobre la Graph API: `?metadata=1` devuelve el TIPO del objeto y
+// la lista completa de sus campos y conexiones. En vez de adivinar si un campo
+// existe probandolo de uno en uno —y arriesgarse a confundir «no existe» con «no
+// tengo permiso» o con «este objeto no es lo que creo»—, Meta enumera lo que hay.
+const introspeccion = async (token) => {
+  console.log('══ QUE ES ESTE OBJETO, SEGUN META ══\n');
+  try {
+    const r = await consultar('me', { metadata: '1', fields: 'id,name' }, token);
+    if (r.error) {
+      console.log(`⚠️  metadata no disponible: ${r.error.message}`);
+      return;
+    }
+    const meta = r.cuerpo.metadata || {};
+    console.log(`TIPO DEL OBJETO: ${meta.type || '(no lo dice)'}`);
+
+    const conexiones = Object.keys(meta.connections || {});
+    console.log(`\nCONEXIONES disponibles (${conexiones.length}):`);
+    console.log('  ' + (conexiones.join(', ') || '(ninguna)'));
+
+    const campos = (meta.fields || []).map((f) => f.name);
+    console.log(`\nCAMPOS disponibles (${campos.length}):`);
+    console.log('  ' + (campos.join(', ') || '(ninguno)'));
+
+    console.log('\n── VEREDICTO SOBRE RESENAS ──');
+    for (const clave of ['ratings', 'recommendations', 'reviews']) {
+      console.log(`  conexion "${clave}": ${conexiones.includes(clave) ? '✅ EXISTE' : '❌ no esta en la lista'}`);
+    }
+    for (const clave of ['overall_star_rating', 'rating_count']) {
+      console.log(`  campo "${clave}": ${campos.includes(clave) ? '✅ EXISTE' : '❌ no esta en la lista'}`);
+    }
+  } catch (e) {
+    console.log(`⚠️  fallo de red: ${e.message}`);
+  }
+  console.log('\n══════════════════════════════════════════════════════\n');
+};
+
 (async () => {
   const token = await pedirToken();
   if (!token) { console.error('Sin token. No se consulta nada.'); process.exit(1); }
@@ -86,6 +123,9 @@ const probar = async (etiqueta, ruta, params, token) => {
   }
 
   console.log(`Graph API ${V} — con token de pagina\n`);
+
+  // Lo primero, porque puede hacer innecesario todo lo demas.
+  await introspeccion(token);
 
   // 1. ¿De quien es este token? Si no es una pagina, el resto no significa nada.
   await probar('¿de quien es el token?', 'me', { fields: 'id,name' }, token);
