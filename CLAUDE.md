@@ -1328,8 +1328,14 @@ domicilio fiscal — en una E.I.R.L., normalmente una casa.
 
 ⚠️ La **dirección** se dejó en el pie a propósito: es justo lo que Culqi exigió ver al
 observar la web. La regla está anotada en `components/PieLegal.js`.
-🔴 El arreglo de fondo es **cambiar el domicilio fiscal ante SUNAT**: mientras sea una casa
-particular, quien tenga el RUC llega ahí aunque la web no lo muestre.
+✅ **Decidido el 2026-08-22: el domicilio fiscal se queda como está, y esto NO es un
+pendiente.** La ficha RUC de SUNAT es pública y hoy es una casa particular, así que quien
+busque el RUC —que sigue en Términos, Privacidad, Libro de Reclamaciones y comprobantes,
+donde es obligatorio— llega a esa dirección aunque el pie de la web no la muestre. Mover el
+domicilio a una oficina virtual era la única forma de evitarlo, cuesta unos S/50-150 al mes y
+**el dueño decidió no hacerlo**. No hay nada roto ni ningún problema con SUNAT: es una
+decisión de privacidad, no una tarea. Si algún día se reabre, §9 explica cómo cambiarlo sin
+romper la facturación.
 
 **Capturas del panel en el landing (`PanelShowcase`): LOS DATOS ESTÁN ANONIMIZADOS Y ES
 OBLIGATORIO MANTENERLO ASÍ.** Salen de una cuenta real cuyo negocio monitoreado es un
@@ -1586,8 +1592,11 @@ flujo entero.
    ⚠️ Lo que sigue **sin** probarse contra producción: el envío real a SUNAT. La generación y
    la firma se validaron contra `e-beta` en su momento, pero **nada se ha mandado nunca al
    endpoint de producción**. Ese sigue siendo el riesgo del primer cobro.
-2. 🔴 **Cambiar el domicilio fiscal en SUNAT** — único arreglo real de la exposición de la
-   dirección.
+2. ~~Cambiar el domicilio fiscal en SUNAT.~~ **Cerrado el 2026-08-22 como decisión, no como
+   tarea:** el dueño prefiere dejarlo. Ver §15. De paso quedó verificado que el domicilio del
+   código **coincide campo por campo con la ficha RUC real** —calle, `LA PERLA`, y provincia
+   y departamento `PROV. CONST. DEL CALLAO`—, que es lo que SUNAT contrasta al recibir un
+   comprobante.
 3. **Play Console** con `usenotoria@gmail.com` y **como organización** (piden D-U-N-S y tarda;
    mover después una app de cuenta personal es un trámite de transferencia). US$25 pago único.
    Falta ficha de tienda, formulario de Seguridad de los Datos y clasificación; el AAB firmado

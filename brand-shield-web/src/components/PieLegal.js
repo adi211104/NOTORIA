@@ -29,10 +29,13 @@ const G = '#0B7324';
 // Reclamaciones. Y en los comprobantes, donde sigue siendo obligatorio de verdad
 // — pero esos van al cliente que compró, no a la pantalla de todos.
 //
-// ⚠️ Lo que el código NO puede arreglar: mientras el domicilio fiscal en SUNAT
-// sea una casa particular, quien tenga el RUC llega a esa dirección aunque la web
-// no la muestre. El arreglo de fondo es cambiar el domicilio fiscal, no esconder
-// el número.
+// ⚠️ Lo que el código NO puede arreglar, y es una DECISIÓN TOMADA, no una tarea
+// pendiente: la ficha RUC de SUNAT es pública y el domicilio fiscal es una casa
+// particular, así que quien tenga el RUC llega a esa dirección aunque la web no
+// la muestre. Quitar el RUC del pie solo tapa el atajo. La única salida real era
+// mover el domicilio fiscal a una oficina virtual, y el dueño decidió el
+// 2026-08-22 no hacerlo. No hay nada que arreglar acá: si alguien lo reabre, la
+// discusión está en CLAUDE.md §15.
 export const CONTACTO = {
   razonSocial: 'NOTORIA E.I.R.L.',
   ruc: '20616239466',
