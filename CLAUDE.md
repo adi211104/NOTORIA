@@ -1622,6 +1622,11 @@ flujo entero.
      1 en la primera emisión, con reintento ante carrera. "Series sin iniciar" es el estado
      normal antes de la primera factura, **no un bloqueo**.
    - `node scripts/prueba-comprobantes.js` pasa entero.
+   - **Añadido el 2026-08-22:** el domicilio del emisor **coincide campo por campo con la
+     ficha RUC real** (calle, `LA PERLA`, y provincia y departamento `PROV. CONST. DEL
+     CALLAO`) — es lo que SUNAT contrasta al recibir el comprobante, y estaba supuesto hasta
+     ahora. Además `validarEmisor()` corta antes de pedir correlativo si alguna vez el
+     domicilio queda a medias (§9), y `scripts/prueba-emisor.js` lo cubre con 17 pruebas.
 
    ⚠️ Lo que sigue **sin** probarse contra producción: el envío real a SUNAT. La generación y
    la firma se validaron contra `e-beta` en su momento, pero **nada se ha mandado nunca al
