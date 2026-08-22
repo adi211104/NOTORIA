@@ -1597,11 +1597,22 @@ flujo entero.
    código **coincide campo por campo con la ficha RUC real** —calle, `LA PERLA`, y provincia
    y departamento `PROV. CONST. DEL CALLAO`—, que es lo que SUNAT contrasta al recibir un
    comprobante.
-3. **Play Console** con `usenotoria@gmail.com` y **como organización** (piden D-U-N-S y tarda;
-   mover después una app de cuenta personal es un trámite de transferencia). US$25 pago único.
-   Falta ficha de tienda, formulario de Seguridad de los Datos y clasificación; el AAB firmado
-   ya existe. 🔴 **Respaldar `notoria-upload.jks` y su contraseña fuera de esta PC**: sin Play
-   App Signing, perderlo significa no poder actualizar la app nunca.
+3. **Play Console.** Todo lo preparable **ya está hecho y verificado** (2026-08-22):
+   `NotoriaApp/PLAY-CONSOLE.md` tiene las respuestas del formulario de Seguridad de los
+   Datos derivadas del código, la ficha de tienda con los textos contados, y el estado del
+   paquete comprobado —el keystore **abre con su contraseña** (RSA 4096, válido hasta 2054),
+   el AAB pasa `jarsigner -verify`, `targetSdk 36`, tres permisos y **cero SDKs de
+   terceros**—. Lo que falta necesita a una persona:
+   - 🔴 **Respaldar `notoria-upload.jks` y su contraseña fuera de esta PC.** Es lo único
+     irreversible. (Tras la primera subida, Play App Signing vuelve recuperable la clave de
+     subida; hoy todavía no.)
+   - Decidir **personal vs organización** (organización pide D-U-N-S, gratis pero lento) y
+     pagar los **US$25**.
+   - Icono 512×512, gráfico destacado 1024×500 y capturas — ⚠️ **con datos anonimizados**,
+     igual que las del landing.
+   ⚠️ **La app no lleva Google Sign-In nativo** (los OAuth abren el navegador), así que el
+   SHA-1 del keystore **no hay que registrarlo en ninguna parte**: el fallo clásico de
+   "Google firma con su clave, cambia el SHA-1 y nadie puede entrar" no aplica aquí.
 4. ~~Rotar `META_APP_SECRET`.~~ **Hecho el 2026-08-22** y comprobado contra la Graph API
    (`railway run --service api node scripts/verificar-meta-secret.js`). Se rotó con el App
    Review en curso a sabiendas: la ventana en que el OAuth falla es solo la del redespliegue
