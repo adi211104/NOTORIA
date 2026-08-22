@@ -268,7 +268,7 @@ los logs del servidor y en un cambio observable en la salida.
 | **TikTok Display API** | Conservada como respaldo, sin usarse |
 | **Instagram** | Código completo y desplegado, **oculto tras interruptor** hasta que Meta apruebe (§8.3). App Review enviado el 2026-08-15 |
 | **Menciones** | Motor y panel completos. Instagram es su **única** fuente, así que hoy la sección está invisible. TikTok exigiría proveedor de pago |
-| **Facebook Reviews** | Scraper stub, **sin ruta para conectar una página** → `facebookPageId` no se llena nunca. Retirado de todas las páginas públicas |
+| **Facebook Reviews** | Scraper stub y **sin ruta para conectar una página** → `facebookPageId` no se llena nunca. Retirado de todas las páginas públicas. ✅ **Investigado el 2026-08-22: la API existe y el stub está casi bien**; falta el permiso `pages_read_user_content`, que va en la segunda solicitud de App Review — ver §19 A |
 | **TripAdvisor** | Solo base preparada a propósito (scraper + campos en schema + enum `TRIPADVISOR`). Sin ruta de conexión, sin cableado en el worker, sin UI. Decisión de negocio: activar cuando haya masa de hoteles |
 | **SUNAT** | ✅ Emisión **ENCENDIDA** en producción |
 | **WhatsApp / Telegram** | ❌ Eliminados como canal de alerta. WhatsApp sigue vivo solo como contacto comercial (botón de ventas, `/contacto`) |
@@ -1593,9 +1593,14 @@ correo de Google** sobre el caso ni sobre "Business Profile" desde el 10/08.
 **Al aprobar Meta**, en este orden: poner `INSTAGRAM_ACTIVO=true` en Railway (se abre para
 todos sin desplegar) → comprobar si los eventos del webhook llegan **sin**
 `suscribirWebhookInstagram()`, y si llegan **borrar esa llamada** → enviar la **segunda**
-solicitud con `business_management`, que quedó fuera porque su botón de acceso avanzado seguía
-deshabilitado al enviar (Meta no deja pedirlo sin llamadas registradas). El detalle del
-paquete está en `docs/app-review-meta.md`.
+solicitud, que ahora lleva **dos** permisos:
+- **`business_management`**, que quedó fuera porque su botón de acceso avanzado seguía
+  deshabilitado al enviar (Meta no deja pedirlo sin llamadas registradas).
+- **`pages_read_user_content`**, el que habilita **Facebook Reviews** (§19 C). ⚠️ Es este y
+  **no `pages_read_engagement`**, que es lo que se dio por hecho durante meses: con la
+  solicitud actual aprobada, las reseñas de Facebook seguirían sin funcionar.
+
+El detalle del paquete está en `docs/app-review-meta.md`.
 
 **Al aprobar Google:** verificar que la cuota deje de ser 0, habilitar
 `mybusiness.googleapis.com` (la v4, que ni aparece en la Biblioteca) y recién ahí probar el
@@ -1653,8 +1658,23 @@ flujo entero.
 
 - **Proveedor de datos para las menciones de TikTok** (~US$100/mes): sería el primer costo
   variable por cliente.
-- **Facebook Reviews**: el scraper es un stub y no hay ruta para conectar una página.
-  Preguntado y sin respuesta.
+- ~~**Facebook Reviews**~~ → **ya no es una decisión de negocio, es un permiso que pedir.**
+  Decidido el 2026-08-22: se implementa cuando Meta conceda `pages_read_user_content`, que va
+  en la segunda solicitud (§19 A). Lo investigado, para no repetirlo:
+  - ✅ **`/{page-id}/ratings` EXISTE** en v26.0, sin aviso de deprecación, y devuelve nodos
+    `Recommendation` con `rating` (1-5), `recommendation_type`, `review_text`, `reviewer`,
+    `created_time`, `has_rating`, `has_review`.
+  - ✅ **El stub está casi bien**, al contrario de lo que se supuso: sus campos son reales.
+    Solo le falta `recommendation_type` y los dos booleanos — desde 2018 una recomendación
+    puede venir **sin estrella**, y sin tratarlo caería en `rating: 0`, que el detector leería
+    como una reseña de cero estrellas.
+  - 🔴 El permiso es **`pages_read_user_content`**, ⚠️ **NO `pages_read_engagement`**, que es
+    lo que se dio por hecho. Por eso nunca habría funcionado aunque aprobaran la solicitud
+    actual.
+  - ✅ **No** hace falta la feature *Page Public Content Access* (esa es para páginas ajenas;
+    aquí el cliente conecta la suya), que es la difícil de conseguir.
+  - El OAuth ya existe: el callback de Instagram pide `me/accounts` con `access_token` y ya
+    trae la página — solo descarta las que no tienen Instagram (`redes.routes.js:128`).
 - **TripAdvisor**: activar cuando haya masa de hoteles.
 - ~~Borrar `Usuario.telegramChatId`.~~ **Hecho el 2026-08-22.** ⚠️ **Nunca debería haber
   estado en esta lista:** al ponerlo junto a contratar un proveedor de ~US$100/mes y activar

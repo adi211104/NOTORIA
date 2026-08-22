@@ -90,7 +90,24 @@ const introspeccion = async (token) => {
       console.log(`⚠️  metadata no disponible: ${r.error.message}`);
       return;
     }
-    const meta = r.cuerpo.metadata || {};
+    const meta = r.cuerpo.metadata;
+
+    // 🔴 Si `metadata` no vino, NO HAY LISTA — y entonces «no esta en la lista»
+    // no es un veredicto, es una frase sin sentido. La primera version de esta
+    // funcion imprimia igualmente ❌ para cada campo, o sea que daba por
+    // inexistente todo lo que buscaba cada vez que la introspeccion fallaba.
+    // Es el mismo error que este archivo existe para evitar, cometido dentro del
+    // propio verificador: un negativo cantado cuando en realidad no se sabe.
+    if (!meta || (!meta.type && !meta.connections && !meta.fields)) {
+      console.log('⚠️  META NO DEVOLVIO METADATA. Esta consulta no sabe nada, y por');
+      console.log('   tanto NO dice que estos campos no existan — solo que no hay');
+      console.log('   lista que mirar. Causas tipicas: el token no alcanza a este');
+      console.log('   objeto, o `metadata=1` no aplica a este tipo.');
+      console.log('   Para saber si el endpoint existe, la fuente es la documentacion:');
+      console.log('   https://developers.facebook.com/docs/graph-api/reference/page/ratings/');
+      return;
+    }
+
     console.log(`TIPO DEL OBJETO: ${meta.type || '(no lo dice)'}`);
 
     const conexiones = Object.keys(meta.connections || {});
