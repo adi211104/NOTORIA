@@ -14,12 +14,6 @@ model Usuario {
   nombre               String
   telefono             String?
   idioma               String        @default("es") // "es" | "en" — preferencia de idioma (dashboard, PDF, emails)
-  // ⚠️ OBSOLETA desde el 2026-08-16. El canal de Telegram se eliminó del
-  // producto (ver src/alerts/notificador.js): ya nadie la lee ni la escribe, y
-  // el endpoint POST /api/auth/telegram que la llenaba también se fue.
-  // La columna se deja porque borrarla exige `prisma db push --accept-data-loss`
-  // contra la BD de producción — decisión del dueño, no efecto secundario.
-  telegramChatId       String?
   googleId             String?       @unique
   emailVerificado      Boolean       @default(false)
   tokenVerificacion    String?       @unique

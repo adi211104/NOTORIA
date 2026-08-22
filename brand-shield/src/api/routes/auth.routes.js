@@ -271,9 +271,9 @@ router.get('/perfil', autenticar, async (req, res, next) => {
 // El endpoint POST /api/auth/telegram vivía acá. Se eliminó el 2026-08-16 junto
 // con el canal entero (ver src/alerts/notificador.js): las alertas van por
 // correo, y el aviso inmediato lo da la app Android. La columna
-// `Usuario.telegramChatId` sigue en el schema por ahora — dejar de escribirla es
-// gratis, borrarla obliga a un `prisma db push --accept-data-loss` contra la BD
-// de producción, que es una decisión del dueño y no un efecto secundario de esto.
+// `Usuario.telegramChatId` que llenaba se borró de la BD el 2026-08-22, ya con
+// el dueño decidiendo: estaba vacía en los 11 usuarios y el diff era una sola
+// línea. No queda nada de Telegram en el producto.
 
 module.exports = router;
 
