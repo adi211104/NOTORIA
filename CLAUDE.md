@@ -1479,6 +1479,14 @@ inexistente, pasó las pruebas con mocks y aparentó funcionar durante meses. Y 
 prueba debe llamar **al mismo código que producción**, no a una copia que relea los campos por
 su cuenta.
 
+🔴 **Un verificador sin llamada de CONTROL miente, y manda a arreglar lo que estaba bien.**
+`verificar-meta-secret.js` daba «Meta lo RECHAZA» para `META_IG_APP_SECRET`. Era falso:
+repitiendo la consulta con un secreto **inventado**, Meta devolvía el mismo error 101 — o sea
+que ese flujo ni siquiera llega a mirar el secreto. Sin ese contraste, el veredicto habría
+llevado a rotar una credencial sana, y esa sí habría roto los webhooks de Instagram. Es el
+mismo patrón que el «404 de control» de §5: **ante un fallo, preguntar primero si el método
+distingue**. Cuando no distingue, el resultado correcto es «no concluyente», nunca «rechazado».
+
 🔍 **Para saber si un endpoint existe, golpearlo sin token y leer el error:** un 404 en HTML es
 del balanceador (la ruta no existe); un código de error en JSON es la API contestando (existe
 y rechaza otra cosa). Así se descartaron rutas enteras de TikTok sin credenciales.
