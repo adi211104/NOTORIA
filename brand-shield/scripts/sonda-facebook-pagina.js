@@ -1,0 +1,117 @@
+// brand-shield/scripts/sonda-facebook-pagina.js
+// Pregunta a la Graph API que queda VIVO de las resenas de una pagina, usando un
+// token de pagina de verdad. No escribe nada, no guarda nada, no autoriza nada.
+//
+//   node scripts/sonda-facebook-pagina.js
+//
+// El token se pide por teclado y NO se muestra ni se guarda: no queda en el
+// historial de bash ni en ningun archivo. Lo unico que sale por pantalla son
+// veredictos, asi que la salida se puede pegar en un chat sin problema.
+//
+// POR QUE HACE FALTA UN TOKEN DE PAGINA. Con app access token se puede saber que
+// el edge /ratings existe, y poco mas: Meta falla por permisos del objeto ANTES
+// de mirar los campos, asi que un campo inventado suena igual que `name`. Para
+// distinguir «el campo no existe» de «no tengo permiso» y de «no hay resenas»
+// hace falta un token que si pueda leer la pagina.
+//
+// COMO SACAR EL TOKEN (4 clics, no toca la configuracion de la app):
+//   1. https://developers.facebook.com/tools/explorer/
+//   2. Arriba a la derecha: Meta App = Notoria
+//   3. User or Page = Get Page Access Token, y elige tu pagina
+//   4. En Permissions anade `pages_read_engagement` y pulsa Generate Access Token
+//   5. Copia el token y pegalo cuando este script lo pida
+//
+// El token del Explorer dura unas horas y es de solo lectura para lo que hace
+// esta sonda. No hace falta guardarlo en ningun sitio.
+
+const readline = require('readline');
+
+const V = 'v21.0';
+
+const pedirToken = () => new Promise((resolve) => {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
+  process.stdout.write('Pega el token de PAGINA y pulsa Enter (no se vera en pantalla):\n> ');
+  // Silencia el eco: el token no aparece ni en la terminal ni en una captura.
+  rl._writeToOutput = () => {};
+  rl.question('', (valor) => {
+    rl.close();
+    process.stdout.write('\n');
+    resolve((valor || '').trim());
+  });
+});
+
+const consultar = async (ruta, params, token) => {
+  const url = new URL(`https://graph.facebook.com/${V}/${ruta}`);
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  url.searchParams.set('access_token', token);
+  const res = await fetch(url);
+  const cuerpo = await res.json();
+  return { status: res.status, error: cuerpo.error, cuerpo };
+};
+
+const veredicto = (r) => {
+  if (!r.error) return null;
+  const m = r.error.message || '';
+  if (/nonexisting field|Unknown fields|no field/i.test(m)) return ['❌', 'EL CAMPO NO EXISTE'];
+  if (/permission|#3\)|not have the capability|requires/i.test(m)) return ['🔑', 'existe, pero falta permiso'];
+  if (/deprecat/i.test(m)) return ['⚠️', 'DEPRECADO'];
+  return ['⚪', 'otro error, leerlo entero'];
+};
+
+const probar = async (etiqueta, ruta, params, token) => {
+  try {
+    const r = await consultar(ruta, params, token);
+    const v = veredicto(r);
+    if (!v) {
+      const datos = r.cuerpo.data;
+      const resumen = Array.isArray(datos)
+        ? `lista con ${datos.length} elemento(s)`
+        : JSON.stringify(r.cuerpo).slice(0, 120);
+      console.log(`✅ ${etiqueta}\n   RESPONDE: ${resumen}`);
+    } else {
+      console.log(`${v[0]} ${etiqueta}\n   ${v[1]}\n   codigo ${r.error.code}: ${(r.error.message || '').slice(0, 120)}`);
+    }
+  } catch (e) {
+    console.log(`⚠️  ${etiqueta}\n   fallo de red: ${e.message}`);
+  }
+  console.log('');
+};
+
+(async () => {
+  const token = await pedirToken();
+  if (!token) { console.error('Sin token. No se consulta nada.'); process.exit(1); }
+  if (/[^\x20-\x7E]/.test(token)) {
+    console.error('El token trae caracteres invisibles (se colaron al copiar). Vuelve a copiarlo.');
+    process.exit(1);
+  }
+
+  console.log(`Graph API ${V} — con token de pagina\n`);
+
+  // 1. ¿De quien es este token? Si no es una pagina, el resto no significa nada.
+  await probar('¿de quien es el token?', 'me', { fields: 'id,name' }, token);
+
+  // 2. Los campos que usa el stub para el rating general.
+  await probar('campo overall_star_rating (lo usa el stub)', 'me', { fields: 'overall_star_rating' }, token);
+  await probar('campo rating_count (lo usa el stub)', 'me', { fields: 'rating_count' }, token);
+
+  // 3. 🔴 CONTROL. Si un campo inventado suena igual que los de arriba, esta
+  //    sonda no distingue nada y sus veredictos no valen. Sin esta linea, las
+  //    dos sondas anteriores dieron conclusiones falsas en las dos direcciones.
+  await probar('CONTROL: campo inventado (deberia decir NO EXISTE)', 'me', { fields: 'campo_inventado_xyz' }, token);
+
+  // 4. El edge de resenas, con los campos del stub y con los modernos.
+  await probar('/ratings pelado', 'me/ratings', {}, token);
+  await probar('/ratings con campos del stub (era de las estrellas)', 'me/ratings',
+    { fields: 'reviewer,rating,review_text,created_time' }, token);
+  await probar('/ratings con campos modernos (recomendaciones)', 'me/ratings',
+    { fields: 'reviewer,recommendation_type,review_text,created_time,open_graph_story' }, token);
+
+  console.log('──────────────────────────────────────────────────────');
+  console.log('Como leer esto:');
+  console.log('  · Si el CONTROL dice NO EXISTE y los campos del stub dicen otra cosa,');
+  console.log('    la sonda distingue y sus veredictos valen.');
+  console.log('  · Si el CONTROL suena igual que todo lo demas, no prueba nada.');
+  console.log('  · «lista con 0 elemento(s)» en /ratings = la API responde y la pagina');
+  console.log('    no tiene resenas. Eso es DISTINTO de un error de permisos, y es');
+  console.log('    justo lo que hacia falta saber.');
+})();
