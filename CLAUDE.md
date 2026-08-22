@@ -210,6 +210,23 @@ columnas con default o valores de enum es compatible con el código viejo que si
 Al revés, el cliente de Prisma desplegado selecciona columnas que la BD no tiene y **se cae
 cualquier consulta sobre esa tabla**, no solo la función nueva.
 
+**Al QUITAR una columna, el orden es el mismo pero por el motivo contrario.** Se hizo el
+2026-08-22 con `Usuario.telegramChatId` y funcionó así:
+
+1. Quitarla del `schema.prisma` y **desplegar** — el cliente de Prisma se regenera sin ella.
+2. Comprobar en el contenedor que el schema desplegado ya no la tiene *(la sonda sirve: da 1
+   con la versión vieja y 0 con la nueva)* y que las consultas sobre esa tabla siguen vivas.
+3. Recién entonces `railway ssh --service api "npx prisma db push --accept-data-loss --skip-generate"`.
+
+🔴 Al revés se cae **cualquier** consulta sobre esa tabla —login incluido—, porque el cliente
+desplegado sigue pidiendo una columna que la BD ya no tiene.
+
+⚠️ **`db push` responde «The database is already in sync» tanto si acaba de aplicar el cambio
+como si no hizo nada.** No sirve de comprobante. Lo que sí prueba el resultado es
+`migrate diff` contra la BD real: antes de migrar generaba el `DROP COLUMN`, después devuelve
+**«This is an empty migration»**. Y luego un 401 en `/api/auth/login` con credenciales falsas,
+que confirma que la tabla se consulta bien (un 500 diría lo contrario).
+
 ⚠️ **Railway NO corre `prisma db push` en el deploy** (solo `prisma generate`, por el
 `postinstall`).
 
@@ -1149,8 +1166,8 @@ de ≤2★ sin responder tras 24 h llamando a `enviarAlertaEmail()` **directo y 
 `notificar()`**, a propósito: no debe filtrarse por `prefsAlertas.frecuencia` (quien eligió
 resumen semanal igual quiere enterarse de una 1★ que lleva un día sin contestar).
 
-⚠️ La columna `Usuario.telegramChatId` sigue en la BD, marcada obsoleta. Nadie la lee ni la
-escribe; borrarla exige `--accept-data-loss`.
+✅ **La columna `Usuario.telegramChatId` se borró el 2026-08-22.** Estaba vacía en los 11
+usuarios y nadie la leía. No queda nada de Telegram en el producto.
 
 **Comentarios sociales:**
 - **`publicacionId` es lo que habilita responder.** Un comentario guardado sin él queda de
@@ -1639,7 +1656,11 @@ flujo entero.
 - **Facebook Reviews**: el scraper es un stub y no hay ruta para conectar una página.
   Preguntado y sin respuesta.
 - **TripAdvisor**: activar cuando haya masa de hoteles.
-- **Borrar `Usuario.telegramChatId`** (exige `prisma db push --accept-data-loss`).
+- ~~Borrar `Usuario.telegramChatId`.~~ **Hecho el 2026-08-22.** ⚠️ **Nunca debería haber
+  estado en esta lista:** al ponerlo junto a contratar un proveedor de ~US$100/mes y activar
+  TripAdvisor, parecía que había algo comercial que valorar. Era limpieza técnica de una
+  columna vacía. Lo correcto de aquella nota era **no ejecutarla sin permiso** —toca
+  producción—, no llamarla decisión de negocio.
 
 ### D. Se pueden hacer solas, pero necesitan tiempo o datos
 
