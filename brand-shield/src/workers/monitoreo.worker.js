@@ -172,6 +172,99 @@ const revisarCambiosDeContacto = async (negocio, datos) => {
   console.log(`[Ficha] ${negocio.nombre}: cambió ${cambios.map((c) => c.campo).join(', ')} — alerta ${alerta.id}`);
 };
 
+// ── Aviso inmediato por reseña negativa nueva ─────────────
+//
+// 🔴 Este era el agujero central del producto, y no producía un solo error en
+// los logs. Foto de producción del 2026-08-22: 1783 escaneos, 15 negocios,
+// 84 reseñas guardadas — de ellas 12 de ≤2★ y 3 marcadas como sospechosas — y
+// CERO alertas creadas desde que existe la plataforma.
+//
+// El motivo es que las cinco señales de `detectarAnomalias` son todas AGREGADAS
+// y ninguna se cumple en un negocio real que no esté bajo ataque:
+//
+//   · CAIDA_RATING pide 0.1 puntos entre dos mediciones, y una ficha con
+//     cientos de reseñas no mueve eso en cuatro horas ni queriendo.
+//   · PICO_RESENAS_NEGATIVAS pide 3 negativas en 24h, cuando Places entrega
+//     5 reseñas COMO MÁXIMO por consulta.
+//   · CUENTAS_NUEVAS por perfiles nuevos no se dispara nunca (`autorResenasTotal`
+//     llega null desde las cinco fuentes).
+//
+// Así que una reseña de 1★ recién publicada solo producía un correo 24 HORAS
+// después, desde `revisarEscalacionesUrgentes`, que además manda el aviso sin
+// crear fila de `Alerta`: no aparecía en el panel, no llegaba a la app Android,
+// y no la veían los gestores del equipo. El dueño entraba a su panel y leía
+// "Todo tranquilo por ahora" con una reseña de 1★ recién puesta en su ficha.
+//
+// Y la pantalla de Alertas ya ofrecía elegir entre «Cada reseña negativa» y
+// «Solo picos (5+ en 24h)», con la primera puesta por defecto: una preferencia
+// que el cliente podía configurar y que no gobernaba absolutamente nada.
+//
+// Esto NO sustituye a la escalación de 24h: son dos mensajes distintos y los dos
+// tienen sentido ("llegó una reseña de 1★" hoy, "lleva un día sin respuesta"
+// mañana). Sí pasa por `notificar()`, y no por `enviarAlertaEmail` directo,
+// porque acá las preferencias del usuario SÍ mandan — a diferencia de la ficha
+// cerrada, esto es exactamente lo que el umbral de la pantalla de Alertas
+// existe para regular.
+
+// Qué se considera negativa. Es el mismo corte que usa la escalación de
+// urgencias y el aviso rojo del Espejo: por debajo de 3★ el cliente está
+// molesto, y de 3★ para arriba marcar la reseña sería ruido.
+const UMBRAL_RESENA_NEGATIVA = 2;
+
+// Solo se avisa de lo que acaba de pasar. Si el escaneo estuvo caído unos días,
+// o Google reordena lo que devuelve, una reseña de hace meses puede aparecer hoy
+// como nueva PARA NOSOTROS. El correo dice que acaba de llegar, así que tiene
+// que ser cierto: una alerta por algo de hace medio año destruye la confianza en
+// todas las demás.
+const DIAS_RESENA_RECIENTE = 30;
+
+const alertarResenaNegativa = async (negocio, resena, esPrimerBarrido) => {
+  if (resena.rating > UMBRAL_RESENA_NEGATIVA) return;
+
+  // Un negocio recién conectado trae de golpe las 5 reseñas que Places publica,
+  // y pueden ser de hace años. Avisar de ellas sería mandarle tres correos de
+  // reseñas viejas al minuto de registrarse: la peor primera impresión posible
+  // para un producto que se vende por la calidad de sus avisos.
+  if (esPrimerBarrido) return;
+
+  const antiguedadDias = (Date.now() - new Date(resena.fechaResena).getTime()) / (24 * 60 * 60 * 1000);
+  if (!Number.isFinite(antiguedadDias) || antiguedadDias > DIAS_RESENA_RECIENTE) return;
+
+  const autor = resena.autorNombre || 'un cliente';
+  const extracto = (resena.texto || '').trim().slice(0, 120);
+
+  // `descripcion` se guarda redactada y en español, como el resto de la tabla.
+  // Las PIEZAS van en `detalle` para que el panel arme la frase en el idioma del
+  // usuario (ver web/src/lib/alertas.js) — es la regla que ese archivo pide
+  // seguir al añadir un tipo con datos variables.
+  const descripcion = extracto
+    ? `Nueva reseña de ${resena.rating}★ de ${autor}: “${extracto}”`
+    : `Nueva reseña de ${resena.rating}★ de ${autor}, sin comentario.`;
+
+  const alerta = await prisma.alerta.create({
+    data: {
+      tipo: 'RESENA_MUY_NEGATIVA',
+      plataforma: resena.plataforma,
+      descripcion,
+      detalle: {
+        resenaId: resena.id,
+        rating: resena.rating,
+        autor: resena.autorNombre || null,
+        texto: extracto || null,
+        // Se guarda por qué el detector la marcó, si la marcó. El panel puede
+        // decir "además repite el texto de otra reseña", que es información que
+        // el dueño no tiene por ningún otro medio.
+        motivoSospecha: resena.motivoSospecha || null,
+      },
+      negocioId: negocio.id,
+    },
+  });
+
+  await notificar({ usuario: negocio.usuario, negocio, alerta });
+  await prisma.alerta.update({ where: { id: alerta.id }, data: { notificada: true } });
+  console.log(`[Reseñas] ${negocio.nombre}: ${resena.rating}★ de ${autor} — alerta ${alerta.id}`);
+};
+
 /**
  * Procesa un negocio: obtiene reseñas, guarda nuevas, detecta anomalías y notifica
  */
@@ -197,6 +290,16 @@ const procesarNegocio = async (negocio) => {
       // horario, el nombre o la dirección.
       await revisarCambiosDeContacto(negocio, datos)
         .catch((e) => console.error(`[Ficha] Error comparando datos de ${negocio.nombre}: ${e.message}`));
+
+      // ¿Es la primera vez que miramos esta ficha? Se pregunta ANTES de crear el
+      // snapshot de este ciclo, o la respuesta sería siempre "no". Gobierna el
+      // aviso por reseña negativa: en el primer barrido llegan de golpe las 5
+      // reseñas que Places publica, que pueden ser de hace años (ver
+      // `alertarResenaNegativa`).
+      const escaneosPrevios = await prisma.snapshot.count({
+        where: { negocioId: negocio.id, plataforma: 'GOOGLE' },
+      });
+      const esPrimerBarrido = escaneosPrevios === 0;
 
       // Guardar snapshot del estado actual
       await prisma.snapshot.create({
@@ -256,6 +359,12 @@ const procesarNegocio = async (negocio) => {
         if (resenaCreada.rating >= 4 && negocio.autoRespuestaActiva && negocio.usuario.plan !== 'GRATIS') {
           await intentarAutoRespuesta(negocio, resenaCreada);
         }
+
+        // Y el aviso de las negativas, que es por lo que se paga el producto.
+        // Con su propio catch: si algo falla avisando de UNA reseña, las demás
+        // del ciclo —y el resto del escaneo del negocio— tienen que continuar.
+        await alertarResenaNegativa(negocio, resenaCreada, esPrimerBarrido)
+          .catch((e) => console.error(`[Reseñas] ${negocio.nombre}: no se pudo alertar (${e.message})`));
       }
 
       // Detectar anomalías y crear alertas
@@ -1257,4 +1366,9 @@ module.exports = {
   // el worker: si un scraper renombra un campo, `aFila` deja de mapearlo y el
   // comentario se guardaría a medias sin que nada falle.
   FUENTES_COMENTARIOS,
+  // El aviso por reseña negativa y sus dos umbrales. Se exportan porque lo que
+  // hay que vigilar en esta función son justamente sus condiciones de silencio
+  // (primer barrido, reseña vieja, rating por encima del umbral): si una se
+  // rompe, no falla nada — simplemente se deja de avisar, o se avisa de más.
+  alertarResenaNegativa, UMBRAL_RESENA_NEGATIVA, DIAS_RESENA_RECIENTE,
 };

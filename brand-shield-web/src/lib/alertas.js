@@ -15,14 +15,30 @@
 // Al añadir un tipo de alerta nuevo: si su texto lleva datos variables, guardar
 // esos datos en `detalle` y sumar aquí su plantilla, en vez de redactar la frase
 // en el worker.
+// Cada plantilla declara qué piezas necesita. No es ceremonia: una reseña de 1★
+// SIN TEXTO es uno de los patrones de ataque que el producto detecta, así que
+// para ese tipo `texto` es opcional — pero para un comentario o una mención no
+// lo es, y una fila vieja sin esas piezas tiene que caer a `descripcion` en vez
+// de pintar "Comentario negativo en TikTok de undefined".
 const PLANTILLAS = {
   COMENTARIO_NEGATIVO: {
+    requiere: ['autor', 'texto'],
     es: (d) => `Comentario negativo en ${d.red} de ${d.autor}: “${d.texto}”`,
     en: (d) => `Negative comment on ${d.red} from ${d.autor}: “${d.texto}”`,
   },
   MENCION_NEGATIVA: {
+    requiere: ['autor', 'texto'],
     es: (d) => `Nueva mención negativa en ${d.red} de ${d.autor}: “${d.texto}”`,
     en: (d) => `New negative mention on ${d.red} from ${d.autor}: “${d.texto}”`,
+  },
+  RESENA_MUY_NEGATIVA: {
+    requiere: ['rating'],
+    es: (d) => (d.texto
+      ? `Nueva reseña de ${d.rating}★ de ${d.autor || 'un cliente'}: “${d.texto}”`
+      : `Nueva reseña de ${d.rating}★ de ${d.autor || 'un cliente'}, sin comentario.`),
+    en: (d) => (d.texto
+      ? `New ${d.rating}★ review from ${d.autor || 'a customer'}: “${d.texto}”`
+      : `New ${d.rating}★ review from ${d.autor || 'a customer'}, no comment.`),
   },
 };
 
@@ -60,13 +76,19 @@ export const etiquetaAlerta = (tipo, idioma = 'es') =>
   ETIQUETAS[idioma]?.[tipo] || ETIQUETAS.es[tipo] || String(tipo || '').replace(/_/g, ' ');
 
 export const textoAlerta = (alerta, idioma = 'es') => {
-  const plantilla = PLANTILLAS[alerta?.tipo]?.[idioma];
+  const entrada = PLANTILLAS[alerta?.tipo];
+  const plantilla = entrada?.[idioma];
   const d = alerta?.detalle;
-  // Sin las piezas no hay nada que componer: filas viejas o tipos sin plantilla.
-  if (!plantilla || !d?.autor || !d?.texto) return alerta?.descripcion || '';
+  // Sin las piezas que ese tipo necesita no hay nada que componer: filas viejas
+  // o tipos sin plantilla. Se muestra `descripcion`, que es correcta en español
+  // y siempre mejor que un hueco en blanco.
+  if (!plantilla || !d || !entrada.requiere.every((k) => d[k] !== null && d[k] !== undefined)) {
+    return alerta?.descripcion || '';
+  }
   return plantilla({
     red: NOMBRE_RED[d.plataforma] || d.plataforma || '',
     autor: d.autor,
     texto: d.texto,
+    rating: d.rating,
   });
 };
