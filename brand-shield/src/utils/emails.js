@@ -34,6 +34,30 @@ const base = (body) => `<!DOCTYPE html>
   </div>
 </body></html>`;
 
+// ── Escape de HTML para texto que NO escribimos nosotros ──
+//
+// 🔴 Todo lo que llega de fuera y termina dentro de un correo pasa por acá. La
+// razón no es teórica: el texto de una reseña, de un comentario o de una hoja
+// del Libro de Reclamaciones lo escribe un DESCONOCIDO, y esos textos se
+// interpolan en el HTML del mensaje que Notoria manda —desde su propio dominio,
+// firmado con DKIM y alineado con DMARC— al dueño del negocio.
+//
+// Sin escapar, una reseña de 1★ cuyo texto sea
+//   <a href="https://sitio-falso/pagar">Haz clic para eliminar esta reseña</a>
+// se convierte en un enlace de verdad dentro de un correo legítimo de Notoria.
+// Es phishing con nuestra credibilidad detrás, y lo dispara cualquiera que pueda
+// escribir una reseña en la ficha de un cliente: es decir, cualquiera.
+//
+// ⚠️ NO se aplica dentro de `p()`, `h1()` ni `btn()`: a esos se les pasa HTML a
+// propósito (`<strong>`, `<code>`). El escape va en el punto donde se inserta el
+// dato ajeno, que es el único sitio donde se puede distinguir uno de otro.
+const esc = (t) => String(t ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
 const h1  = (t)   => `<h1 style="color:#141413;font-size:20px;font-weight:800;margin:0 0 14px;letter-spacing:-0.5px;">${t}</h1>`;
 const p   = (t)   => `<p style="color:#5C5B57;font-size:14px;line-height:1.75;margin:0 0 12px;">${t}</p>`;
 const btn = (t,u) => `<div style="margin:16px 0;"><a href="${u}" style="display:inline-block;background:#0B7324;color:#fff;text-decoration:none;padding:12px 24px;border-radius:5px;font-weight:700;font-size:14px;">${t}</a></div>`;
@@ -133,8 +157,8 @@ const enviarAlertaCritica = async (usuario, negocio, alerta) => {
       ${h1('Alerta de reputación detectada')}
       ${p(`Detectamos actividad inusual en <strong>${negocio.nombre}</strong>:`)}
       <div style="background:#FAF9F5;border:1px solid #E8E6DC;border-radius:6px;padding:14px 18px;margin:12px 0;">
-        <p style="color:#9C9B96;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin:0 0 6px;">${alerta.tipo?.replace(/_/g,' ')}</p>
-        <p style="color:#141413;font-size:14px;margin:0;line-height:1.6;">${alerta.descripcion}</p>
+        <p style="color:#9C9B96;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin:0 0 6px;">${esc(alerta.tipo?.replace(/_/g," "))}</p>
+        <p style="color:#141413;font-size:14px;margin:0;line-height:1.6;">${esc(alerta.descripcion)}</p>
       </div>
       ${btn('Ver en Notoria →', `${FRONT()}/dashboard/negocios/${negocio.id}?tab=alertas`)}
     `),
@@ -155,8 +179,8 @@ const enviarResumenAlertas = async (usuario, alertas, periodo) => {
     <p style="color:#141413;font-size:14px;font-weight:700;margin:14px 0 6px;">${nombre} (${lista.length})</p>
     ${lista.slice(0, 10).map(a => `
       <div style="background:#FAF9F5;border:1px solid #E8E6DC;border-radius:6px;padding:10px 14px;margin-bottom:6px;">
-        <p style="color:#9C9B96;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin:0 0 3px;">${a.tipo?.replace(/_/g, ' ')}</p>
-        <p style="color:#5C5B57;font-size:13px;margin:0;line-height:1.5;">${a.descripcion}</p>
+        <p style="color:#9C9B96;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin:0 0 3px;">${esc(a.tipo?.replace(/_/g, " "))}</p>
+        <p style="color:#5C5B57;font-size:13px;margin:0;line-height:1.5;">${esc(a.descripcion)}</p>
       </div>`).join('')}
   `).join('');
 
@@ -377,18 +401,24 @@ const enviarDrip = async (usuario, tipo, datos) => {
 const filaHoja = (etiqueta, valor) =>
   `<tr><td style="padding:5px 10px 5px 0;color:#9C9B96;font-size:12px;vertical-align:top;white-space:nowrap;">${etiqueta}</td><td style="padding:5px 0;color:#141413;font-size:12px;">${valor}</td></tr>`;
 
+// Todos los campos que vienen del formulario van escapados: el Libro de
+// Reclamaciones es público y SIN AUTENTICACIÓN a propósito (la norma no permite
+// exigir registro previo), así que cualquiera en internet puede escribir lo que
+// quiera en estos campos y esta hoja se manda por correo al consumidor Y a la
+// empresa. `numero` y `montoS` los genera Notoria, pero se escapan igual: la
+// regla vale más si no tiene excepciones que haya que recordar.
 const hojaHtml = (r) => `<table style="width:100%;border-collapse:collapse;">
-  ${filaHoja('N° de hoja', `<strong>${r.numero}</strong>`)}
-  ${filaHoja('Fecha', new Date(r.creadoEn).toLocaleString('es-PE', { timeZone: 'America/Lima' }))}
+  ${filaHoja('N° de hoja', `<strong>${esc(r.numero)}</strong>`)}
+  ${filaHoja('Fecha', esc(new Date(r.creadoEn).toLocaleString('es-PE', { timeZone: 'America/Lima' })))}
   ${filaHoja('Tipo', r.tipo === 'QUEJA' ? 'Queja' : 'Reclamo')}
-  ${filaHoja('Consumidor', `${r.nombre} · ${r.docTipo} ${r.documento}`)}
-  ${filaHoja('Domicilio', r.domicilio)}
-  ${filaHoja('Contacto', `${r.email} · ${r.telefono}`)}
-  ${r.esMenor ? filaHoja('Apoderado', r.apoderado) : ''}
-  ${filaHoja('Bien contratado', `${r.tipoBien === 'PRODUCTO' ? 'Producto' : 'Servicio'} — ${r.descripcion}`)}
-  ${r.montoS ? filaHoja('Monto reclamado', `S/ ${(r.montoS / 100).toFixed(2)}`) : ''}
-  ${filaHoja('Detalle', r.detalle)}
-  ${filaHoja('Pedido', r.pedido)}
+  ${filaHoja('Consumidor', `${esc(r.nombre)} · ${esc(r.docTipo)} ${esc(r.documento)}`)}
+  ${filaHoja('Domicilio', esc(r.domicilio))}
+  ${filaHoja('Contacto', `${esc(r.email)} · ${esc(r.telefono)}`)}
+  ${r.esMenor ? filaHoja('Apoderado', esc(r.apoderado)) : ''}
+  ${filaHoja('Bien contratado', `${r.tipoBien === 'PRODUCTO' ? 'Producto' : 'Servicio'} — ${esc(r.descripcion)}`)}
+  ${r.montoS ? filaHoja('Monto reclamado', `S/ ${esc((r.montoS / 100).toFixed(2))}`) : ''}
+  ${filaHoja('Detalle', esc(r.detalle))}
+  ${filaHoja('Pedido', esc(r.pedido))}
 </table>`;
 
 const enviarCargoReclamacion = async (r) => {
