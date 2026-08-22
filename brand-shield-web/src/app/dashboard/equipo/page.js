@@ -33,6 +33,17 @@ const TEXTOS = {
     rol: 'Qué podrá hacer',
     rolGestor: 'Gestor — responder y gestionar',
     rolLector: 'Solo lectura — mirar e informarse',
+    // Nombres cortos del rol para las listas. NO se usa el `rolNombre` que manda
+    // el backend: viene siempre en español, y con el panel en inglés pintaba
+    // «Gestor» al lado de «Expires Aug 29». Mismo problema que ya hubo con el
+    // texto de las alertas: lo que lleva idioma se compone en el panel, y del
+    // backend viaja el valor del enum (`rol`), que no tiene idioma. (2026-08-22)
+    rolCorto: { PROPIETARIO: 'Propietario', GESTOR: 'Gestor', LECTOR: 'Lector' },
+    okInvitado: (email) => `Invitación enviada a ${email}`,
+    okQuitado: 'Listo, esa persona ya no tiene acceso.',
+    okRol: 'Rol actualizado.',
+    okReenviado: 'Invitación reenviada.',
+    okCancelado: 'Invitación cancelada.',
     rolGestorDesc: 'Responde reseñas y comentarios, usa la IA, escanea y marca alertas. No ve los pagos, no conecta redes y no puede borrar negocios.',
     rolLectorDesc: 'Ve reseñas, alertas y reportes. No puede modificar nada.',
     alcance: 'A qué negocios',
@@ -85,6 +96,12 @@ const TEXTOS = {
     rol: 'What they can do',
     rolGestor: 'Manager — reply and manage',
     rolLector: 'Read only — look and stay informed',
+    rolCorto: { PROPIETARIO: 'Owner', GESTOR: 'Manager', LECTOR: 'Read only' },
+    okInvitado: (email) => `Invitation sent to ${email}`,
+    okQuitado: 'Done, that person no longer has access.',
+    okRol: 'Role updated.',
+    okReenviado: 'Invitation resent.',
+    okCancelado: 'Invitation cancelled.',
     rolGestorDesc: 'Replies to reviews and comments, uses AI, scans and handles alerts. No access to billing, cannot connect networks and cannot delete businesses.',
     rolLectorDesc: 'Sees reviews, alerts and reports. Cannot change anything.',
     alcance: 'Which businesses',
@@ -218,7 +235,7 @@ export default function EquipoPage() {
         rol: form.rol,
         negociosIds: form.todos ? [] : form.negociosIds,
       });
-      setAviso({ tipo: 'ok', texto: r.mensaje });
+      setAviso({ tipo: 'ok', texto: t.okInvitado(form.email.trim()) });
       setForm({ email: '', rol: 'GESTOR', todos: true, negociosIds: [] });
       setFormAbierto(false);
       await cargar();
@@ -233,7 +250,9 @@ export default function EquipoPage() {
     setAviso(null);
     try {
       const r = await fn();
-      setAviso({ tipo: 'ok', texto: r?.mensaje || ok });
+      // El texto local va primero: `r.mensaje` llega del backend siempre en
+      // espanol y solo sirve de reserva si aqui no se pasó ninguno.
+      setAviso({ tipo: 'ok', texto: ok || r?.mensaje });
       await cargar();
     } catch (err) {
       setAviso({ tipo: 'error', texto: err.message });
@@ -409,7 +428,7 @@ export default function EquipoPage() {
             key={m.id}
             nombre={m.usuario.nombre}
             email={m.usuario.email}
-            etiqueta={`${m.rolNombre}${m.soyYo ? ` · ${t.tu}` : ''}`}
+            etiqueta={`${t.rolCorto[m.rol] || m.rolNombre}${m.soyYo ? ` · ${t.tu}` : ''}`}
             sub={[
               m.negocios.length ? m.negocios.join(', ') : t.todosLosNegocios,
               t.desde(fecha(m.desde, idioma)),
@@ -419,7 +438,7 @@ export default function EquipoPage() {
               confirmando === m.id ? (
                 <span style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 12, color: 'var(--text-2)' }}>{t.quitarConfirma}</span>
-                  <button onClick={() => { setConfirmando(null); accion(() => equipoApi.quitar(m.id)); }}
+                  <button onClick={() => { setConfirmando(null); accion(() => equipoApi.quitar(m.id), t.okQuitado); }}
                     style={{ ...btnSecundario, borderColor: '#ef4444', color: '#ef4444' }}>{t.quitarSi}</button>
                   <button onClick={() => setConfirmando(null)} style={btnSecundario}>{t.quitarNo}</button>
                 </span>
@@ -429,7 +448,7 @@ export default function EquipoPage() {
                       es el cambio más frecuente después de invitar. */}
                   <select
                     value={m.rol}
-                    onChange={(e) => accion(() => equipoApi.actualizar(m.id, { rol: e.target.value }))}
+                    onChange={(e) => accion(() => equipoApi.actualizar(m.id, { rol: e.target.value }), t.okRol)}
                     aria-label={t.rol}
                     style={{ ...btnSecundario, padding: '6px 8px' }}
                   >
@@ -458,13 +477,13 @@ export default function EquipoPage() {
             <Persona
               key={i.id}
               nombre={i.email}
-              etiqueta={i.rolNombre}
+              etiqueta={t.rolCorto[i.rol] || i.rolNombre}
               sub={i.vencida ? t.vencida : t.venceEl(fecha(i.expira, idioma))}
               atenuada
               derecha={esPropietario && (
                 <span style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={() => accion(() => equipoApi.reenviar(i.id))} style={btnSecundario}>{t.reenviar}</button>
-                  <button onClick={() => accion(() => equipoApi.cancelar(i.id))}
+                  <button onClick={() => accion(() => equipoApi.reenviar(i.id), t.okReenviado)} style={btnSecundario}>{t.reenviar}</button>
+                  <button onClick={() => accion(() => equipoApi.cancelar(i.id), t.okCancelado)}
                     style={{ ...btnSecundario, color: '#ef4444' }}>{t.cancelarInv}</button>
                 </span>
               )}
