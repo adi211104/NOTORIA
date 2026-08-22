@@ -1597,31 +1597,15 @@ flujo entero.
    código **coincide campo por campo con la ficha RUC real** —calle, `LA PERLA`, y provincia
    y departamento `PROV. CONST. DEL CALLAO`—, que es lo que SUNAT contrasta al recibir un
    comprobante.
-3. **Play Console.** Todo lo preparable **ya está hecho y verificado** (2026-08-22):
-   `NotoriaApp/PLAY-CONSOLE.md` tiene las respuestas del formulario de Seguridad de los
-   Datos derivadas del código, la ficha de tienda con los textos contados, y el estado del
-   paquete comprobado —el keystore **abre con su contraseña** (RSA 4096, válido hasta 2054),
-   el AAB pasa `jarsigner -verify`, `targetSdk 36`, tres permisos y **cero SDKs de
-   terceros**—. Lo que falta necesita a una persona:
-   - 🔴 **Respaldar `notoria-upload.jks` y su contraseña fuera de esta PC.** Es lo único
-     irreversible. (Tras la primera subida, Play App Signing vuelve recuperable la clave de
-     subida; hoy todavía no.)
-   - Decidir **personal vs organización** (organización pide D-U-N-S, gratis pero lento) y
-     pagar los **US$25**.
-   - Icono 512×512, gráfico destacado 1024×500 y capturas — ⚠️ **con datos anonimizados**,
-     igual que las del landing.
-   ⚠️ **La app no lleva Google Sign-In nativo** (los OAuth abren el navegador), así que el
-   SHA-1 del keystore **no hay que registrarlo en ninguna parte**: el fallo clásico de
-   "Google firma con su clave, cambia el SHA-1 y nadie puede entrar" no aplica aquí.
-4. ~~Rotar `META_APP_SECRET`.~~ **Hecho el 2026-08-22** y comprobado contra la Graph API
+3. ~~Rotar `META_APP_SECRET`.~~ **Hecho el 2026-08-22** y comprobado contra la Graph API
    (`railway run --service api node scripts/verificar-meta-secret.js`). Se rotó con el App
    Review en curso a sabiendas: la ventana en que el OAuth falla es solo la del redespliegue
    de Railway, 1-2 minutos. ⚠️ **`META_IG_APP_SECRET` NO se tocó, y no debe tocarse**: es con
    ese con el que Meta firma los webhooks de Instagram (§8.3), y hoy **no hay forma de
    validarlo** — la única prueba sería un comentario real, que no llegará hasta que aprueben.
-5. ~~Probar el circuito de invitación de equipo.~~ **Hecho el 2026-08-22**, de punta a punta
+4. ~~Probar el circuito de invitación de equipo.~~ **Hecho el 2026-08-22**, de punta a punta
    y con la base limpiada después — ver §11.
-6. 🟡 **Las respuestas al cliente salen desde `usenotoria@gmail.com`, no desde el dominio.**
+5. 🟡 **Las respuestas al cliente salen desde `usenotoria@gmail.com`, no desde el dominio.**
    Comprobado el 2026-08-22 en Gmail → Cuentas e importación: **no hay ningún alias "enviar
    como"**, solo `Notoria <usenotoria@gmail.com>` (el nombre visible es "Notoria", la
    dirección no). Así que un cliente que escribe a `hola@usenotoria.app` recibe la respuesta
@@ -1649,6 +1633,37 @@ flujo entero.
 
 - **Ranking "quién subió más este mes"**: solo se calcula con historial propio, así que hay que
   dejar pasar meses de snapshots. Cada semana que pasa es ventaja acumulada.
+
+### E. Aplazados a propósito — decididos, pero no ahora
+
+No están aquí por olvido ni por bloqueo: **se decidió no hacerlos todavía**. Lo que ya
+estaba preparado sigue preparado; al retomarlos no hay que rehacer nada.
+
+**Publicar la app en Google Play** — aplazado el 2026-08-22 por decisión del dueño, que
+prefiere esperar. Todo lo preparable está hecho y verificado, así que retomarlo es empezar
+por el paso 1 de esta lista, no por el principio:
+
+**Lo que ya está hecho.** Todo lo preparable **ya está hecho y verificado** (2026-08-22):
+   `NotoriaApp/PLAY-CONSOLE.md` tiene las respuestas del formulario de Seguridad de los
+   Datos derivadas del código, la ficha de tienda con los textos contados, y el estado del
+   paquete comprobado —el keystore **abre con su contraseña** (RSA 4096, válido hasta 2054),
+   el AAB pasa `jarsigner -verify`, `targetSdk 36`, tres permisos y **cero SDKs de
+   terceros**—. Lo que falta necesita a una persona:
+   - 🔴 **Respaldar `notoria-upload.jks` y su contraseña fuera de esta PC.** Es lo único
+     irreversible. (Tras la primera subida, Play App Signing vuelve recuperable la clave de
+     subida; hoy todavía no.)
+   - Decidir **personal vs organización** (organización pide D-U-N-S, gratis pero lento) y
+     pagar los **US$25**.
+   - Icono 512×512, gráfico destacado 1024×500 y capturas — ⚠️ **con datos anonimizados**,
+     igual que las del landing.
+   ⚠️ **La app no lleva Google Sign-In nativo** (los OAuth abren el navegador), así que el
+   SHA-1 del keystore **no hay que registrarlo en ninguna parte**: el fallo clásico de
+   "Google firma con su clave, cambia el SHA-1 y nadie puede entrar" no aplica aquí.
+
+⚠️ Al retomarlo, **volver a comprobar el keystore antes de nada** (`keytool -list -v`): si
+esa clave se perdiera durante la espera, no hay app que publicar. Y releer los requisitos de
+alta en la consola, que Google los cambia.
+
 
 ### Estado de la base de producción (última lectura, 2026-08-22)
 
