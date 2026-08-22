@@ -820,6 +820,29 @@ se degrada a VOUCHER a escondidas**.
 tienen disparador — no hay ninguna acción en el producto que anule un comprobante. El modelo
 `ResumenSunat` ya distingue `tipo` RC/RA para cuando exista.
 
+**Cambiar el domicilio fiscal — los DOS sitios que hay que tocar, y en qué orden.**
+Desde el 2026-08-22 el domicilio vive en dos únicos lugares: `DOMICILIO_FICHA_RUC` en
+`lib/tributario.js` (los cinco campos que van al XML) y `CONTACTO` en
+`components/PieLegal.js` (del que ahora tiran también Términos y Privacidad, que antes lo
+tenían copiado). El README y este archivo son documentación y van detrás.
+
+🔴 **Los cinco campos del domicilio son todo o nada.** `ublInvoice.js` manda calle, ubigeo,
+distrito, provincia y departamento al mismo bloque y SUNAT los contrasta contra la ficha RUC.
+Antes solo `direccion` y `ubigeo` tenían override por variable de entorno —lo que parece
+suficiente al mudarse— y los otros tres estaban fijos: el resultado habría sido la calle
+nueva con el distrito viejo, rechazado con un mensaje que no señala cuál de los cinco falla,
+y después de gastar un correlativo que no admite huecos. Ahora `validarEmisor()` corta ese
+caso **antes de pedir el número**, junto a la validación del receptor, y ante un cambio
+parcial se queda con el domicilio del código, que al menos es coherente.
+
+⚠️ **El orden importa:** cambiar primero en SUNAT y desplegar después deja una ventana en la
+que cualquier comprobante emitido sale con la dirección vieja y es rechazado. Hoy esa ventana
+es inofensiva —**0 comprobantes emitidos**— pero en cuanto haya cobros hay que hacer las dos
+cosas seguidas, y comprobar con `railway ssh` que el contenedor ya tiene el domicilio nuevo
+antes de que entre el siguiente pago.
+
+`node scripts/prueba-emisor.js` — 17 comprobaciones. **Correrlo al tocar el domicilio.**
+
 **Trámites fuera del código:** afiliación al SEE-Del Contribuyente ✅ · usuario SOL secundario
 solo con permiso de emisión · Registro de Exportadores de Servicios (sin él, las ventas al
 exterior no califican como exportación y **sí llevarían IGV**). ⚠️ Nada de esto es asesoría
