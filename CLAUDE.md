@@ -981,11 +981,14 @@ Pruebas: `node scripts/prueba-equipo.js` — **48 comprobaciones** con Prisma si
 | Se acepta con un BOTÓN | ✅ la página no acepta al cargar |
 | **`CORREO_DISTINTO`** | ✅ con la sesión de `didierprincipe@` abierta y una invitación para `didier@`, **explica el desajuste y no deja aceptar**, con botón para entrar con la otra cuenta |
 
-⏳ **Lo único que falta** es aceptar con la sesión correcta y ver la cuenta compartida
-funcionando. Exige iniciar sesión como el invitado, así que **lo tiene que hacer el dueño**:
-el agente no puede escribir contraseñas ni crear cuentas.
-⚠️ **Queda una invitación pendiente en producción** (`didier@usenotoria.app`). Al terminar la
-prueba hay que quitar el miembro y borrar la fila: es una cuenta del dueño, no un cliente.
+| **Aceptar** | ✅ el dueño aceptó con la sesión del invitado: se creó el `Miembro` con rol GESTOR y alcance a todos los negocios |
+| Consumo del token | ✅ la fila de `Invitacion` **desaparece al aceptarse** — no queda pendiente ocupando asiento |
+| Registro de actividad | ✅ `equipo_invitar` y, 13 ms después de crear el miembro, `equipo_aceptar`, con el **`autorNombre` congelado** en cada fila |
+
+**El circuito está probado entero y la base quedó limpia** (0 miembros, 0 invitaciones; solo
+sobrevive un `escanear` del 21/08 que era anterior). Ya no hace falta repetirlo: lo único sin
+ejercitar en vivo es el camino del invitado **sin cuenta previa**, que añade el registro en
+medio y no cambia nada de la lógica de equipo.
 
 🔴 **Bug encontrado durante esa prueba — la regla que deja:** con el panel en inglés, invitar
 respondía *"Invitación enviada a…"* y la lista de pendientes decía *"Gestor"* junto a
@@ -1560,10 +1563,8 @@ flujo entero.
 4. **Rotar `META_APP_SECRET`** — se compartió por chat. Al rotarlo hay que recargarlo en
    Railway o el OAuth falla con un error genérico que no menciona el secreto. Meta empieza a
    firmar los webhooks con el nuevo de inmediato.
-5. **Terminar el circuito de invitación de equipo.** Se probó el 2026-08-22 hasta la
-   pantalla del invitado (el detalle está en §11); **falta aceptar**, y eso exige iniciar
-   sesión como `didier@usenotoria.app`, que el agente no puede hacer. ⚠️ Hay una invitación
-   viva en producción que hay que limpiar al terminar.
+5. ~~Probar el circuito de invitación de equipo.~~ **Hecho el 2026-08-22**, de punta a punta
+   y con la base limpiada después — ver §11.
 6. 🟡 **Las respuestas al cliente salen desde `usenotoria@gmail.com`, no desde el dominio.**
    Comprobado el 2026-08-22 en Gmail → Cuentas e importación: **no hay ningún alias "enviar
    como"**, solo `Notoria <usenotoria@gmail.com>` (el nombre visible es "Notoria", la
