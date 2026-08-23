@@ -77,7 +77,11 @@ const llamar = async (ticket) => {
 
   // ── 2. Autenticación ────────────────────────────────────
   console.log('\n── 2. Autenticación contra el endpoint de producción ──');
-  const ticketFalso = `SONDA${Date.now()}`;
+  // ⚠️ El ticket tiene que ser NUMÉRICO. Con uno alfanumérico SUNAT responde
+  // HTTP 200 con el cuerpo VACÍO —ni Fault, ni statusCode, ni content—, y la
+  // sonda daba «no concluyente» culpando al método cuando el problema era el
+  // formato del dato. Un ticket real tiene la forma AAAAMMDD + correlativo.
+  const ticketFalso = `${new Date().toISOString().slice(0, 10).replace(/-/g, '')}0000001`;
   const real = await llamar(ticketFalso);
   console.log(`respuesta con las credenciales REALES:\n   ${real.ok ? real.respuesta : real.error}`);
 
@@ -94,21 +98,36 @@ const llamar = async (ticket) => {
   const textoReal = real.ok ? real.respuesta : real.error;
   const textoFalso = falso.ok ? falso.respuesta : falso.error;
 
-  if (textoReal === textoFalso) {
-    console.log('⚠️  NO CONCLUYENTE: la clave buena y la inventada dan exactamente lo mismo.');
-    console.log('    Este método no distingue, así que no prueba nada. No tomarlo como que funciona.');
+  const realRechazada = CLAVE_INVALIDA.test(textoReal);
+  const falsaRechazada = CLAVE_INVALIDA.test(textoFalso);
+
+  // ⚠️ El orden importa. Si SUNAT dice literalmente «usuario o contraseña
+  // incorrectos» sobre las credenciales REALES, eso ya es concluyente: da igual
+  // qué conteste el control, porque para poder emitir ese error SUNAT tuvo que
+  // mirarlas y rechazarlas. Comprobar primero la igualdad de las dos respuestas
+  // enterraba el hallazgo bajo un «no concluyente» que sonaba a problema del
+  // método — y el problema era de las credenciales.
+  if (realRechazada) {
+    console.log('❌ SUNAT RECHAZA las credenciales reales (0102).');
+    console.log('   El primer comprobante de verdad sería rechazado. NO cobrar hasta arreglarlo.');
+    console.log('   Qué revisar, en la Clave SOL del RUC → Administración de usuarios secundarios:');
+    console.log('     · que el usuario SOL secundario EXISTA y esté activo');
+    console.log('     · que tenga marcado el perfil de comprobantes de pago electrónicos');
+    console.log('     · su contraseña (SUNAT las caduca)');
+    console.log('   Y que SUNAT_SOL_USUARIO sea SOLO el usuario, sin el RUC delante:');
+    console.log('   el código ya compone `RUC + usuario`, y ponerlo dos veces da este mismo 0102.');
     process.exitCode = 1;
     return;
   }
 
-  const realRechazada = CLAVE_INVALIDA.test(textoReal);
-  const falsaRechazada = CLAVE_INVALIDA.test(textoFalso);
-
-  if (realRechazada) {
-    console.log('❌ SUNAT RECHAZA las credenciales reales. Hay que revisar SUNAT_SOL_USUARIO/CLAVE');
-    console.log('   (usuario SOL SECUNDARIO, y el username va como RUC+usuario).');
+  if (textoReal === textoFalso) {
+    console.log('⚠️  NO CONCLUYENTE: la clave buena y la inventada dan exactamente lo mismo,');
+    console.log('    y ninguna es un error de credenciales. El método no distingue: no prueba nada.');
     process.exitCode = 1;
-  } else if (falsaRechazada) {
+    return;
+  }
+
+  if (falsaRechazada) {
     console.log('✅ AUTENTICA. La clave real pasa y la inventada es rechazada: el método distingue,');
     console.log('   así que el resultado significa algo. El endpoint de producción responde y');
     console.log('   acepta nuestras credenciales SOL.');

@@ -1687,6 +1687,7 @@ textos por otros inventados. El procedimiento está en la cabecera del component
 | `dar-plan.js <email> <PLAN>` | Cambia el plan a mano. No crea `Pago` ni comprobante (la numeración es correlativa y no admite huecos) |
 | `escanear.js` | Fuerza un ciclo sin cooldown (`railway run --service api`) |
 | `enlaces-venta.js "<búsqueda>" [--paginas N] [--csv]` | Prospección: genera enlaces `/para` ordenados por prioridad |
+| `sonda-sunat-produccion.js` | 🔴 **Correr ANTES de cualquier cobro real.** Comprueba contra el endpoint de PRODUCCIÓN que el certificado se descifra y que las credenciales SOL autentican, con `getStatus` sobre un ticket inventado: es solo lectura, no numera ni consume nada. Lleva control con clave falsa. ⚠️ El ticket debe ser **numérico** (`AAAAMMDD`+correlativo): con uno alfanumérico SUNAT devuelve 200 con el cuerpo VACÍO y la sonda parece rota cuando el mal formado es el dato |
 | `verificar-culqi-live.js` | Prueba llaves **live sin cobrar**: espacios/BOM, mismo entorno, que la secreta autentique, que la pública siga viva (401 = llave mala, **400 = llave buena** rechazando la tarjeta) y que el **bundle desplegado** traiga esa misma llave — lo único que detecta un `vercel env add` sin `vercel --prod` |
 | `auditar-pagos.js` | Foto de solo lectura de los cobros |
 | `limpiar-pagos-prueba.js <email> [--aplicar]` | Deja una cuenta como si nunca hubiera pagado: borra pagos y comprobantes, **retrocede el correlativo**, libera las tarjetas que gastaron la promo. **Se niega a tocar cargos que no sean `chr_test_`** |
@@ -1817,8 +1818,17 @@ flujo entero.
 > node scripts/recordar-verificacion.js --aplicar  # manda los 4 correos
 > ```
 
-1. 🔴 **Probar un cobro real pequeño.** Es lo único que queda: **todo lo verificable sin
-   gastar dinero ya se verificó el 2026-08-19** y está bien. Lo comprobado, para no repetirlo:
+1. 🔴 **Probar un cobro real pequeño — BLOQUEADO el 2026-08-23: SUNAT producción rechaza
+   nuestras credenciales SOL.** Ver el bug abierto al final de este archivo. Hasta arreglarlo no
+   se cobra: el cargo pasaría por Culqi y el comprobante sería rechazado, dejando al cliente
+   pagado, sin documento y con un correlativo gastado.
+
+   ⚠️ **La frase que había aquí —«todo lo verificable sin gastar dinero ya se verificó y está
+   bien»— era FALSA**, y conviene entender por qué para no repetirlo: lo que se verificó el
+   2026-08-19 fue que el **certificado** se abre dentro del contenedor. Nunca se le habló al
+   endpoint de producción. Que las variables SOL estén puestas y midan lo que deben no prueba
+   que SUNAT las acepte — exactamente el mismo error que `verificar-meta-secret.js` enseñó con
+   los secretos de Meta. Lo comprobado de verdad, para no repetirlo:
    - **Culqi** (`railway run node scripts/verificar-culqi-live.js`): las dos llaves son del
      entorno **live**, la secreta autentica, la pública es reconocida, y **el bundle desplegado
      en usenotoria.app usa esa misma llave pública** — que es lo único que detecta un
@@ -1991,7 +2001,31 @@ es, además, imposible.
 
 ### 🔴 Bugs abiertos en producción
 
-Ninguno conocido.
+🔴 **SUNAT producción rechaza nuestras credenciales SOL (`0102 — Usuario o contrasena
+incorrectos`).** Encontrado el 2026-08-23 con `scripts/sonda-sunat-produccion.js`, **antes** de
+cobrar nada. Es el fallo que llevaba meses escondido detrás de un supuesto.
+
+- **Qué SÍ funciona:** el endpoint de producción responde, y el certificado se abre y descifra
+  (ECEP-RENIEC, válido hasta 2029-07-26).
+- **Qué NO:** el par usuario/clave. La forma es plausible —usuario de 8 caracteres alfanuméricos,
+  clave de 11, sin espacios ni BOM, y el username se compone como `RUC+usuario` (19 en total)—,
+  así que no es un problema de formato evidente.
+- **Lo arregla el dueño**, en la Clave SOL del RUC → *Administración de usuarios secundarios*:
+  que el usuario secundario exista y esté activo, que tenga el perfil de comprobantes de pago
+  electrónicos, y su contraseña (SUNAT las caduca). Después se recargan las dos variables en
+  Railway y se vuelve a correr la sonda.
+- ⚠️ **Consecuencia si no se arregla:** el primer cobro real cobra bien por Culqi y el
+  comprobante se queda en `PENDIENTE` para siempre — cliente pagado, sin documento, y con un
+  correlativo consumido que no admite huecos.
+
+🔴 **Dos lecciones, y las dos son sobre cómo se verifica, no sobre SUNAT:**
+1. **«La variable está puesta» no es «la credencial funciona».** Es literalmente el mismo error
+   que ya había enseñado `verificar-meta-secret.js`, por otro camino y con otro proveedor.
+2. **El orden del veredicto importaba.** La sonda comprobaba primero si la respuesta buena y la
+   del control coincidían, y como SUNAT devuelve `0102` para las dos, enterró el hallazgo bajo
+   un «no concluyente» que sonaba a problema del método. Cuando el proveedor dice explícitamente
+   *«usuario o contraseña incorrectos»* sobre la credencial real, eso ya es concluyente: para
+   emitir ese error tuvo que mirarla y rechazarla.
 
 **Corregido el 2026-08-23 — todas las alertas salían en español, también para quien tiene el
 panel en inglés.** El fallo no estaba en la plantilla sino **en el `select` que la alimenta**:
