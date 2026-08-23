@@ -221,6 +221,15 @@ cualquier consulta sobre esa tabla**, no solo la función nueva.
 🔴 Al revés se cae **cualquier** consulta sobre esa tabla —login incluido—, porque el cliente
 desplegado sigue pidiendo una columna que la BD ya no tiene.
 
+🔴 **Y hay un cuarto paso que no estaba escrito: `npx prisma generate` EN LOCAL.** Al quitar
+`telegramChatId` se regeneró el cliente del contenedor (vía `postinstall`) pero no el de esta
+máquina. Mordió un día después, el 2026-08-23, y lo peor es **cómo se esconde**: una consulta
+con `select` explícito no toca la columna y sigue funcionando perfectamente —así se leyeron
+decenas de filas de producción sin notar nada—, pero el primer `update` sin `select` devuelve la
+fila entera y revienta con *«The column `usuarios.telegramChatId` does not exist in the current
+database»*, un mensaje que suena a que **la BD** está mal cuando el desfasado es el cliente
+local. Si aparece: `npx prisma generate` con el backend detenido (EPERM si está corriendo).
+
 ⚠️ **`db push` responde «The database is already in sync» tanto si acaba de aplicar el cambio
 como si no hizo nada.** No sirve de comprobante. Lo que sí prueba el resultado es
 `migrate diff` contra la BD real: antes de migrar generaba el `DROP COLUMN`, después devuelve
@@ -1860,10 +1869,18 @@ por antigüedad. Se descartó también que fallara `CAIDA_RATING`: el único mov
 49 días (Geyser 4.1→4.0, el **31 de julio**) es **anterior** al commit `0b2a896` del 17 de agosto
 que introdujo la comparación contra el snapshot anterior.
 
-⚠️ **Consecuencia que conviene tener presente: ninguna de las seis señales del detector se ha
-ejercitado nunca en producción.** Todo desplegado, todo con pruebas unitarias, cero
-confirmaciones en vivo — y esperando no llegan, porque el aviso solo se dispara con una reseña
-nueva. Para eso está `scripts/ensayo-alertas.js` (§18).
+✅ **La cadena de alertas quedó VERIFICADA EN VIVO el 2026-08-23** con
+`scripts/ensayo-alertas.js --aplicar` sobre un negocio del dueño: **4/4 correctos** — la reseña
+de 1★ reciente creó la fila, la notificó y **el correo llegó `delivered`**; los tres silencios
+(reseña de 60 días, 3★, primer barrido) callaron. La alerta de ensayo se borró y la tabla quedó
+en 0. El correo llegó además **en inglés** —asunto *«1★ review on Don Tito San Miguel»*—, que es
+lo que cierra el fallo de `idioma` de arriba en la única cuenta que lo tiene puesto.
+
+⚠️ **Lo que sigue sin ejercitarse son las OTRAS cinco señales** del detector (caída de rating,
+ráfagas, duplicados, ficha alterada, cuentas nuevas): desplegadas, con pruebas unitarias, cero
+confirmaciones en vivo. Y esperando no llegan. Si alguna vez importa, el patrón para probarlas
+es el de `ensayo-alertas.js`: importar la función real, un caso positivo, controles negativos y
+limpieza al final.
 
 **Lo que esa foto confirma que funciona**, medido y no supuesto:
 - **La cadencia por plan es exacta.** Contando snapshots de los últimos 3 días: los negocios
@@ -1879,7 +1896,11 @@ nueva. Para eso está `scripts/ensayo-alertas.js` (§18).
   tienen negocios cargados** (1 y 2), o sea que llegaron lejos y aun así no activaron. El drip
   **solo va a verificados**, así que ese tercio del padrón no recibía absolutamente nada. Ya hay
   cron de recordatorio (§13) — pero solo alcanza a las cuentas de menos de 10 días, así que a
-  estas cuatro **hay que recuperarlas a mano** con `scripts/recordar-verificacion.js --aplicar`.
+  estas cuatro se las recuperó a mano con `scripts/recordar-verificacion.js --aplicar`.
+  ✅ **Hecho el 2026-08-23: los 4 correos salieron y los 4 figuran `delivered`** en Resend, cada
+  uno con su cuenta de días correcta («hace 49 días», «hace 11», «hace 6»). Lo que pase ahora ya
+  no depende de nosotros. **No repetirlo**: el espaciado de 4 días lo bloquearía igual, pero
+  insistir más allá de eso es spam.
   Confirmado el 2026-08-20 por otra vía: Culqi reporta **0 cargos** en el entorno live. Las cuentas con plan NEGOCIO concedido a mano (`didier@usenotoria.app`,
 `didierprincipe@gmail.com`) **son del dueño**, no tocarlas.
 
