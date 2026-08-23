@@ -42,7 +42,17 @@ Module.prototype.require = function (id) {
     return { emitirComprobante: async () => null, pdfDeComprobante: async () => null };
   }
   if (id.endsWith('middlewares/auth.middleware')) {
-    return { autenticar: (req, _res, next) => { req.usuario = { id: 'u1' }; next(); } };
+    // ⚠️ El doble tiene que devolver `permitir` Y poner `req.cuenta`, no solo
+    // `autenticar`. Sin `permitir`, `pago.routes.js` revienta al CARGARSE con
+    // «permitir is not a function» —el `router.use(permitir('facturacion'))` se
+    // evalúa al importar el módulo—, así que la prueba entera moría antes de
+    // ejecutar un solo caso. Estuvo así hasta el 2026-08-23, y por eso el aviso
+    // está escrito en CLAUDE.md §11: cualquier prueba que simule este middleware
+    // necesita las dos cosas.
+    return {
+      autenticar: (req, _res, next) => { req.usuario = { id: 'u1' }; req.cuenta = { id: 'u1' }; next(); },
+      permitir: () => (_req, _res, next) => next(),
+    };
   }
   return requireOriginal.apply(this, arguments);
 };
