@@ -5,20 +5,35 @@ import { createContext, useContext, useEffect, useState } from 'react';
 
 const IdiomaContext = createContext({ idioma: 'es', cambiarIdioma: () => {} });
 
+/**
+ * Qué idioma le toca a esta persona: el que eligió, o el de su navegador.
+ *
+ * 🔴 Está fuera del componente y exportado porque hay DOS sitios que necesitan
+ * la respuesta y uno de ellos no es un componente: el registro, que manda el
+ * idioma al backend para guardarlo en la cuenta.
+ *
+ * Antes esa regla vivía solo dentro del `useEffect` de abajo, y la consecuencia
+ * era silenciosa: `bs_idioma` únicamente se escribe cuando alguien PULSA el
+ * selector, así que quien entra con el navegador en inglés ve la web en inglés
+ * —la detección funciona— pero al registrarse su cuenta nacía en español. Después
+ * recibía todos los correos en el idioma que no era, y el trabajo de traducirlos
+ * no le llegaba nunca.
+ */
+export const idiomaPreferido = () => {
+  try {
+    const guardado = localStorage.getItem('bs_idioma');
+    if (guardado === 'en' || guardado === 'es') return guardado;
+    return (navigator.language || '').toLowerCase().startsWith('en') ? 'en' : 'es';
+  } catch {
+    return 'es';
+  }
+};
+
 export function IdiomaProvider({ children }) {
   const [idioma, setIdioma] = useState('es');
 
   useEffect(() => {
-    try {
-      const guardado = localStorage.getItem('bs_idioma');
-      if (guardado === 'en' || guardado === 'es') {
-        setIdioma(guardado);
-      } else {
-        // Sin preferencia guardada: usar el idioma del sistema/navegador
-        const sistema = (navigator.language || '').toLowerCase().startsWith('en') ? 'en' : 'es';
-        setIdioma(sistema);
-      }
-    } catch {}
+    setIdioma(idiomaPreferido());
   }, []);
 
   // 🔴 `lang` del documento, en UN solo sitio y no dentro de cambiarIdioma.

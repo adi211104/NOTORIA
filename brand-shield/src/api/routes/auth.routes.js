@@ -32,6 +32,18 @@ const schemaRegistro = z.object({
   email: emailNormalizado,
   password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),
   telefono: z.string().optional(),
+  // El idioma del navegador, que manda el frontend en el alta.
+  //
+  // 🔴 Sin esto TODA cuenta nacía con el default 'es'. La consecuencia no era
+  // visible: la web se veía en inglés —el frontend detecta el navegador— pero
+  // la cuenta quedaba en español y esa persona recibía cada correo del producto
+  // en el idioma que no era, sin saber que en Configuración había un selector.
+  // O sea que el trabajo de traducir los correos no le llegaba a nadie salvo a
+  // quien lo cambiara a mano.
+  //
+  // Opcional a propósito: un cliente viejo del API o una petición sin este campo
+  // siguen funcionando y caen al default, que es el comportamiento de antes.
+  idioma: z.enum(['es', 'en']).optional(),
 });
 
 const schemaLogin = z.object({
@@ -89,6 +101,7 @@ router.post('/registro', async (req, res, next) => {
         email: datos.email,
         password: passwordHash,
         telefono: datos.telefono,
+        ...(datos.idioma ? { idioma: datos.idioma } : {}),
       },
       select: {
         id: true,
@@ -98,11 +111,11 @@ router.post('/registro', async (req, res, next) => {
         // Lo necesita `firmarSesion`. En una cuenta recién creada siempre vale 0,
         // pero se pide igual para no depender de eso.
         tokenVersion: true,
-        // Lo necesita el correo de verificación, que es bilingüe. Hoy una cuenta
-        // nueva siempre nace con el default 'es', así que pedirlo no cambia nada
-        // — pero que salga en español por el default y no por un `undefined` que
-        // cae al fallback son dos cosas distintas el día que el registro empiece
-        // a guardar el idioma del navegador.
+        // Lo necesitan los DOS correos que salen del alta —bienvenida y
+        // verificación—, que son bilingües. Desde el 2026-08-23 el registro
+        // guarda el idioma del navegador, así que esto ya no es previsión: es lo
+        // que hace que a quien entra en inglés le lleguen en inglés desde el
+        // primer minuto.
         idioma: true,
       },
     });

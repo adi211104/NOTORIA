@@ -414,7 +414,21 @@ configurables · configuración · reportes PDF · facturación · conexiones ·
 
 **Internacionalización:** completa. Patrón `const TEXTOS = { es: {...}, en: {...} }` por
 página + `useIdioma()` (`src/context/IdiomaContext.js`). El idioma se persiste en
-`Usuario.idioma` y `AuthContext` lo sincroniza hacia `IdiomaContext`. El PDF mensual y los
+`Usuario.idioma` y `AuthContext` lo sincroniza hacia `IdiomaContext`.
+
+🔴 **El registro guarda el idioma del navegador desde el 2026-08-23, y antes no.** El hueco era
+invisible: `bs_idioma` solo se escribe cuando alguien **pulsa** el selector, así que quien
+entraba con el navegador en inglés veía la web en inglés —la detección siempre funcionó— pero
+su cuenta nacía con el default `'es'`. A partir de ahí recibía cada correo del producto en el
+idioma que no era, sin sospechar que había un ajuste que cambiarlo. O sea que todo el trabajo
+de traducir los correos no le llegaba a nadie salvo a quien lo tocara a mano.
+- La regla vive en **`idiomaPreferido()`**, exportada de `IdiomaContext` y usada por los dos
+  sitios que la necesitan: el provider y `AuthContext.registro`. Uno de ellos no es un
+  componente, que es justo por lo que la regla tuvo que salir del `useEffect`.
+- El backend lo acepta como `z.enum(['es','en']).optional()`. **Opcional a propósito:** una
+  petición sin el campo sigue funcionando y cae al default, igual que antes.
+- Se comprueba sin crear ninguna cuenta: `idioma: 'pt'` devuelve **400** (Zod corre antes que
+  la comprobación de correo) y `idioma: 'en'` con un correo existente devuelve **409**. El PDF mensual y los
 correos usan `usuario.idioma`.
 
 ⚠️ La app Android **no se traduce** (decisión del dueño, 2026-08-17): el servicio es solo
@@ -713,6 +727,10 @@ un solo error**. Va en la segunda solicitud de App Review, ya redactada (`docs/a
   nota, una reseña falsa en la ficha del cliente no.
 - **`autorResenasTotal` es `null`, no 0** — un 0 haría que la señal de «cuenta nueva» la marcara
   como falsa.
+- ✅ **`Resena.sinEstrella` existe en la BD desde el 2026-08-23** (`Boolean?`, aditiva). Antes el
+  scraper la calculaba y **se tiraba**, así que el panel habría enseñado «5★» de algo que en
+  Facebook solo dice «recomienda». `true` = la estrella la derivamos nosotros; `null` en el
+  resto de fuentes, porque ahí la pregunta no aplica — que no es lo mismo que `false`.
 - **Un error devuelve `null`, no `[]`**: `null` = no se pudo leer, `[]` = se leyó y no hay nada.
 
 **Callback PROPIO, y no es duplicación.** El de Instagram busca la página que tenga

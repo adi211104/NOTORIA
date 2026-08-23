@@ -503,6 +503,13 @@ const procesarNegocio = async (negocio, ctx = {}) => {
               fechaResena: resena.fechaResena,
               esSospechosa: analisis.esSospechosa,
               motivoSospecha: analisis.motivoSospecha,
+              // Solo Facebook lo manda: `true` significa que la estrella la
+              // derivamos nosotros de un «recomienda / no recomienda». Se guarda
+              // para que el panel pueda decirlo en vez de fingir una precisión
+              // que la plataforma no da. `?? null` y no `?? false`: en las demás
+              // fuentes no es que la estrella sea real, es que la pregunta no
+              // aplica.
+              sinEstrella: resena.sinEstrella ?? null,
               negocioId: negocio.id,
             },
           });

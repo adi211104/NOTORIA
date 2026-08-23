@@ -189,6 +189,15 @@ const correr = async () => {
     ramaFB.includes('previasFB'),
     'llamar a analizarResena con un solo argumento deja esa señal sin evaluar');
 
+  check('🔴 `sinEstrella` se GUARDA, no solo se calcula',
+    ramaFB.includes('sinEstrella: resena.sinEstrella'),
+    'sin persistirlo, el panel enseñaría 5★ de algo que en Facebook solo dice «recomienda»');
+
+  const schema = require('fs').readFileSync(require('path').join(__dirname, '..', 'prisma', 'schema.prisma'), 'utf8');
+  check('  …y la columna existe y es NULLABLE',
+    /sinEstrella\s+Boolean\?/.test(schema),
+    'nullable a propósito: en las demás fuentes la pregunta no aplica, no es que la estrella sea real');
+
   // ── Resumen ─────────────────────────────────────────────
   console.log('\n──────────────────────────────────────────────────────');
   console.log(`${pasadas} pasadas · ${fallidas} fallidas`);

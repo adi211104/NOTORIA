@@ -1,6 +1,7 @@
 'use client';
 import { createContext, useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { idiomaPreferido } from './IdiomaContext';
 import { auth, setCuentaActiva, CLAVE_CUENTA } from '../lib/api';
 import { useIdioma } from './IdiomaContext';
 
@@ -98,7 +99,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   const registro = async (nombre, email, password, destino) => {
-    const data = await auth.registro({ nombre, email, password });
+    // El idioma viaja en el alta. Sin esto toda cuenta nacía con el default
+    // 'es', y quien navegaba en inglés recibía todos los correos en español sin
+    // enterarse de que había un selector en Configuración.
+    const data = await auth.registro({ nombre, email, password, idioma: idiomaPreferido() });
     localStorage.setItem('bs_token', data.token);
     setCuentaActiva('');
     localStorage.removeItem('bs_onboarding');

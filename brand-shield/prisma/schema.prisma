@@ -410,6 +410,16 @@ model Resena {
   fechaResena       DateTime
   esSospechosa      Boolean    @default(false)
   motivoSospecha    String?
+  // Facebook no tiene estrellas desde 2018, tiene recomendaciones. El scraper
+  // traduce positive → 5 y negative → 1 para que el detector y el promedio
+  // funcionen igual que con las demás fuentes, pero eso es una conversión
+  // nuestra, no un dato que diera la plataforma.
+  //
+  // 🔴 `true` significa «esta puntuación la derivamos nosotros». Sin la columna,
+  // el scraper la calculaba y se tiraba, y el panel enseñaría «5★» de algo que
+  // en Facebook solo dice «recomienda» — una precisión que no existe. Es null
+  // para las fuentes que sí dan estrella de verdad, que son todas las demás.
+  sinEstrella       Boolean?
   respondida        Boolean    @default(false)
   respuesta         String?
   // Evita reenviar la escalación de urgencia (24h sin responder) más de una vez
