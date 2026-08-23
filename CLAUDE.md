@@ -2010,13 +2010,36 @@ cobrar nada. Es el fallo que llevaba meses escondido detrás de un supuesto.
 - **Qué NO:** el par usuario/clave. La forma es plausible —usuario de 8 caracteres alfanuméricos,
   clave de 11, sin espacios ni BOM, y el username se compone como `RUC+usuario` (19 en total)—,
   así que no es un problema de formato evidente.
-- **Lo arregla el dueño**, en la Clave SOL del RUC → *Administración de usuarios secundarios*:
-  que el usuario secundario exista y esté activo, que tenga el perfil de comprobantes de pago
-  electrónicos, y su contraseña (SUNAT las caduca). Después se recargan las dos variables en
-  Railway y se vuelve a correr la sonda.
+- **Revisado en el portal de SUNAT el 2026-08-23**, con el dueño delante:
+  - El usuario secundario **`NOTORIAS` existe y está Activo**, y la variable
+    `SUNAT_SOL_USUARIO` contiene exactamente eso, con las mayúsculas correctas. (Ojo: el
+    usuario PRINCIPAL es `LEOTHDAY` y también mide 8 caracteres, así que el largo no
+    distingue cuál está configurado — hay que comparar la cadena.)
+  - 🔴 **No tenía NINGUNA opción asignada.** Se le asignaron, y quedaron grabadas:
+    `TRIBUTARIOS → Comprobantes de pago → SEE - Del Contribuyente y Envío de Documentos`, con
+    sus dos ramas — *Servicio de Envío de Documentos Electrónicos por Servicio Web* (que es lo
+    que usa `sendBill`/`sendSummary`) y *Consultar Envíos de CPE* (comprobantes, bajas,
+    resúmenes de boletas y disponibilidad del servidor, que es lo que usa `getStatus`).
+    ⚠️ El panel derecho solo muestra las opciones del nodo seleccionado, pero la selección
+    **sí se acumula** entre nodos: se comprueba con el enlace «Resumen de opciones asignadas»
+    antes de grabar.
+  - Los **«Asignar Roles»** son todos de aduanas y VUCE: ninguno aplica a facturación.
+  - **Y aun así sigue dando 0102**, así que lo que queda es la contraseña. La guardada está
+    bien formada —11 caracteres, letras y dígitos, sin símbolos, sin BOM ni espacios— o sea que
+    no es un problema de codificación: simplemente no es la que espera SUNAT.
+- **Lo que falta, y solo lo puede hacer el dueño:** cambiar la clave de `NOTORIAS` desde la
+  ficha del usuario secundario (6-12 caracteres) y cargarla con
+  `bash scripts/cargar-secreto.sh SUNAT_SOL_CLAVE`, que la pide por teclado y no la deja en el
+  historial. Después, `railway run --service api node scripts/sonda-sunat-produccion.js`.
 - ⚠️ **Consecuencia si no se arregla:** el primer cobro real cobra bien por Culqi y el
   comprobante se queda en `PENDIENTE` para siempre — cliente pagado, sin documento, y con un
   correlativo consumido que no admite huecos.
+
+⚠️ **Bug latente arreglado de paso: las credenciales SOL se insertaban SIN ESCAPAR en el XML
+del sobre SOAP.** SUNAT permite símbolos en la clave, y un `&` habría roto el XML. Lo peor es
+cómo se habría manifestado: SUNAT contesta el **mismo `0102`** que ante una clave equivocada, así
+que se habría perdido una tarde cambiando una contraseña que estaba bien. La de ahora no tiene
+símbolos —no era la causa—, pero la próxima podría.
 
 🔴 **Dos lecciones, y las dos son sobre cómo se verifica, no sobre SUNAT:**
 1. **«La variable está puesta» no es «la credencial funciona».** Es literalmente el mismo error

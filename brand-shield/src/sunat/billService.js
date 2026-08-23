@@ -22,12 +22,28 @@ const ENDPOINTS = {
 const entorno = () => (process.env.SUNAT_ENTORNO === 'produccion' ? 'produccion' : 'beta');
 const endpoint = () => process.env.SUNAT_ENDPOINT || ENDPOINTS[entorno()];
 
+// 🔴 Las credenciales van DENTRO de un XML, así que hay que escaparlas.
+//
+// SUNAT permite símbolos en la clave SOL, y basta un `&` para que el sobre deje
+// de ser XML válido. El fallo sería de los peores de diagnosticar: no dice nada
+// sobre el XML, SUNAT contesta lo mismo que ante una clave equivocada —el
+// `0102` de siempre— y uno se pasa la tarde cambiando una contraseña que estaba
+// bien. Se descubrió el 2026-08-23 revisando por qué fallaba la autenticación;
+// la clave de entonces no tenía símbolos, así que no era la causa, pero la
+// próxima podría tenerlos.
+const escaparXml = (v) => String(v)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&apos;');
+
 const credenciales = () => {
   const ruc = process.env.EMISOR_RUC || '20616239466';
   const usuario = process.env.SUNAT_SOL_USUARIO;
   const clave = process.env.SUNAT_SOL_CLAVE;
   if (!usuario || !clave) throw new Error('Faltan SUNAT_SOL_USUARIO y SUNAT_SOL_CLAVE');
-  return { username: `${ruc}${usuario}`, password: clave };
+  return { username: escaparXml(`${ruc}${usuario}`), password: escaparXml(clave) };
 };
 
 const configurado = () => !!(process.env.SUNAT_SOL_USUARIO && process.env.SUNAT_SOL_CLAVE);
