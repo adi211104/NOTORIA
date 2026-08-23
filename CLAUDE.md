@@ -1921,20 +1921,14 @@ flujo entero.
 
 ### B. Solo las puede hacer el dueño (fuera del código)
 
-> **Dos comandos listos y esperando aprobación (2026-08-23).** Los dos escriben en producción
-> y mandan correo de verdad, así que no se corren solos:
+> ✅ Los dos comandos que esperaban aprobación —el ensayo de alertas y el recordatorio a las
+> cuentas sin verificar— **se ejecutaron el 2026-08-23**. Sus resultados están más abajo y en
+> §12. No hay que repetirlos.
 >
-> ```bash
-> cd brand-shield
-> # 1. Ensayo de la cadena de alertas: 1 caso positivo + 3 controles de silencio,
-> #    sobre un negocio del propio dueño, y borra lo que crea al terminar.
-> #    ⚠️ NO usar `railway run`: inyecta la URL interna de Postgres y falla.
-> FRONTEND_URL=https://usenotoria.app node scripts/ensayo-alertas.js --aplicar
->
-> # 2. Recuperar las 4 cuentas que nunca verificaron su correo (dos desde el 5 de julio).
-> node scripts/recordar-verificacion.js            # listado, no manda nada
-> node scripts/recordar-verificacion.js --aplicar  # manda los 4 correos
-> ```
+> 🔴 **Lo único verdaderamente irreversible que sigue abierto: respaldar
+> `notoria-upload.jks` y su contraseña fuera de esta PC.** Si esa clave se pierde antes de la
+> primera subida a Play, no hay app que publicar — hay que crear otra identidad. Ver
+> `docs/secretos.md`, que ordena todos los secretos por «¿qué haría falta para recuperarlo?».
 
 1. ✅ **HECHO el 2026-08-23: cobro real de S/1, emisión a SUNAT producción, reembolso,
    webhook y anulación. El circuito entero, de punta a punta, con dinero de verdad.**
@@ -2026,7 +2020,9 @@ flujo entero.
 
    ⚠️ Estos envíos consumen cuota de Resend como cualquier otro. Con el volumen actual, nada.
 
-6. **Webhook de Culqi**: solo un reembolso real puede confirmarlo.
+6. ~~**Webhook de Culqi**: solo un reembolso real puede confirmarlo.~~ ✅ **Confirmado el
+   2026-08-23** con el reembolso `ref_live_62tvV00vQKPBjACB`: llegó
+   `refund.creation.succeeded` y dejó el pago en `REEMBOLSADO`. Ver el punto 1.
 7. **Cuando el correo de la empresa reemplace al personal en Google Cloud:** agregarlo como
     **propietario** del proyecto `798376364749`, cambiarlo en *Información de la marca →
     correo de asistencia* y en *Contacto del desarrollador*, y **recién entonces** quitar la
@@ -2036,10 +2032,12 @@ flujo entero.
 
 - **Proveedor de datos para las menciones de TikTok** (~US$100/mes): sería el primer costo
   variable por cliente.
-- ~~**Facebook Reviews**~~ → ✅ **Implementado el 2026-08-23, oculto tras interruptor** (§8.5).
-  Ya no queda nada que decidir ni que programar: el día que Meta conceda
-  `pages_read_user_content` se pone `FACEBOOK_ACTIVO=true` en Railway y se abre para todos sin
-  desplegar. ⚠️ Antes de eso, **una llamada real contra una página con reseñas**.
+- ~~**Facebook Reviews**~~ → ✅ **Implementado y PROBADO CONTRA LA API REAL el 2026-08-23**
+  (§8.5). El día que Meta conceda `pages_read_user_content` para clientes se pone
+  `FACEBOOK_ACTIVO=true` en Railway y se abre para todos sin desplegar.
+  ⚠️ Lo único que queda sin ver es **la forma de un `Recommendation` real**: la página del
+  dueño no tiene reseñas. No bloquea nada —el resto está verificado— pero si algún día hay a
+  mano una página con reseñas, es una llamada de treinta segundos que cierra el cabo.
 - **TripAdvisor**: activar cuando haya masa de hoteles.
 - ~~Borrar `Usuario.telegramChatId`.~~ **Hecho el 2026-08-22.** ⚠️ **Nunca debería haber
   estado en esta lista:** al ponerlo junto a contratar un proveedor de ~US$100/mes y activar
@@ -2049,14 +2047,13 @@ flujo entero.
 
 ### D. Se pueden hacer solas, pero necesitan tiempo o datos
 
-- ~~**Ranking "quién subió más este mes"**~~ → **el motor está hecho y probado (2026-08-23);
-  lo que falta es la UI.** El bloqueo era «faltan meses de snapshots» y caducó: hay historial
-  desde el 5 de julio. Pero medirlo reveló que **la métrica original no sirve**: en 49 días
-  ningún rating se movió (4.8→4.8, 3.9→3.9, 4.0→4.0, 4.5→4.5), porque una ficha con cientos de
-  reseñas no mueve su promedio en un mes. Lo que sí tiene señal es el **volumen de reseñas
-  nuevas**: 4 de 10 negocios se movieron este mes y 6 tienen los dos meses medidos. `lib/progreso.js`
-  + `GET /api/negocios/:id/progreso` ya lo calculan (§13); falta la pantalla, y el endpoint
-  responde **409 `SIN_DATOS`** para que esa pantalla pueda esconderse sola cuando no hay nada.
+*(Vacía a fecha 2026-08-23. Se deja la sección porque volverá a llenarse.)*
+
+- ~~**Ranking "quién subió más este mes"**~~ → ✅ **Cerrado el 2026-08-23: motor, endpoint y
+  pantalla.** El bloqueo era «faltan meses de snapshots» y caducó. Pero medirlo reveló que **la
+  métrica original no servía**: en 49 días ningún rating se movió (4.8→4.8, 3.9→3.9, 4.0→4.0,
+  4.5→4.5), porque una ficha con cientos de reseñas no mueve su promedio en un mes. Lo que sí
+  tiene señal es el **volumen de reseñas nuevas**. Ver §13.
 
 ### E. Aplazados a propósito — decididos, pero no ahora
 
@@ -2091,10 +2088,11 @@ alta en la consola, que Google los cambia.
 
 ### Estado de la base de producción (última lectura, 2026-08-23)
 
-`11 usuarios (4 SIN VERIFICAR) · 15 negocios (10 activos, pero solo 9 place IDs distintos) ·
-1808 snapshots · 85 reseñas (12 de ≤2★, 11 sin responder) · 0 alertas · 1 pago (S/1, REEMBOLSADO) ·
-1 comprobante (B001-00000001, ANULADO) · serie B001 en 1 · 0 miembros · 0 invitaciones · 0 reclamaciones ·
-0 promo_tarjetas · 3 competidores con 422 snapshots`.
+`11 usuarios (4 SIN VERIFICAR, 1 con idioma 'en') · 15 negocios (10 activos, pero solo 9 place
+IDs distintos) · 1813 snapshots · 85 reseñas (12 de ≤2★, 11 sin responder) · 0 alertas ·
+1 pago (S/1, REEMBOLSADO) · 1 comprobante (B001-00000001, ANULADO) · 2 resúmenes SUNAT (los dos
+ACEPTADOS) · serie B001 en 1 · 2 comentarios sociales · 3 competidores con 422 snapshots ·
+0 miembros · 0 invitaciones · 0 reclamaciones · 0 promo_tarjetas · 0 menciones`.
 
 🔴 **Las 0 alertas del 2026-08-23 NO son un bug, y perseguirlas costó media mañana bien
 gastada.** El aviso por reseña negativa se desplegó el día 22 y **el contenedor lo tiene**
@@ -2154,6 +2152,9 @@ es, además, imposible.
 `didierprincipe@gmail.com`) **son del dueño**, no tocarlas.
 
 ### 🔴 Bugs abiertos en producción
+
+**Ninguno conocido** (última revisión: 2026-08-23, tras el cobro real de punta a punta).
+Debajo, lo corregido, en orden inverso — se conserva porque cada uno deja una regla.
 
 ✅ **RESUELTO el mismo 2026-08-23 — SUNAT producción rechazaba nuestras credenciales SOL
 (`0102`).** Hicieron falta dos cosas: asignarle permisos al usuario secundario Y una clave
