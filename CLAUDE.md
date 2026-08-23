@@ -1942,15 +1942,31 @@ flujo entero.
    validarlo** — la única prueba sería un comentario real, que no llegará hasta que aprueben.
 4. ~~Probar el circuito de invitación de equipo.~~ **Hecho el 2026-08-22**, de punta a punta
    y con la base limpiada después — ver §11.
-5. 🟡 **Las respuestas al cliente salen desde `usenotoria@gmail.com`, no desde el dominio.**
-   Comprobado el 2026-08-22 en Gmail → Cuentas e importación: **no hay ningún alias "enviar
-   como"**, solo `Notoria <usenotoria@gmail.com>` (el nombre visible es "Notoria", la
-   dirección no). Así que un cliente que escribe a `hola@usenotoria.app` recibe la respuesta
-   desde un Gmail personal, y al responder se sale del dominio.
-   🔴 **Si se arregla, NO se hace con el SMTP de Gmail:** ese envío no está en el SPF del
-   dominio ni lo firma nuestro DKIM, y con **DMARC en `p=quarantine`** (§6) cada respuesta
-   se iría a la carpeta de spam del cliente. La vía correcta es el **SMTP de Resend**, que
-   ya está verificado y alinea las dos patas.
+5. ✅ **RESUELTO el 2026-08-23: las respuestas salen del dominio, por el SMTP de Resend.**
+   Se creó en Gmail el alias «enviar como» `Notoria <hola@usenotoria.app>`, configurado con
+   **`smtp.resend.com:465` (SSL), usuario `resend`** y una **API key de Resend dedicada** —no
+   la del backend, para poder revocar una sin tumbar la otra.
+
+   🔴 **La trampa, y por qué no valía el SMTP de Gmail:** ese envío no está en el SPF del
+   dominio ni lo firma nuestro DKIM, y con **DMARC en `p=quarantine`** cada respuesta a un
+   cliente se habría ido a su carpeta de spam. Gmail ofrece esa opción por defecto en el
+   formulario; hay que elegir la de servidor SMTP propio.
+
+   ⚠️ **El ajuste que hace que esto sirva** no es cambiar el remitente por defecto, sino
+   marcar **«Responder desde la misma dirección a la que se envió el mensaje»**. Con eso, lo
+   que llega a `hola@` se responde desde `hola@` y el correo personal del dueño no cambia.
+   Funciona porque el Email Routing de Cloudflare conserva la cabecera `To:` al reenviar.
+
+   **Verificado cruzando las dos puntas**, que es la única forma que vale acá:
+   - El correo de prueba **aparece en el historial de Resend** (`delivered`). Uno enviado por
+     el SMTP de Gmail nunca aparecería ahí, así que eso solo ya prueba la ruta.
+   - Y en la cabecera recibida: `dkim=pass header.i=@usenotoria.app header.s=resend` ·
+     `spf=pass` con `smtp.mailfrom=…@send.usenotoria.app` (IP 23.249.215.54, del rango de
+     Resend que ya salía en los informes DMARC) · y sobre todo **`dmarc=pass
+     (p=QUARANTINE)`** — que es exactamente lo que había que demostrar.
+
+   ⚠️ Estos envíos consumen cuota de Resend como cualquier otro. Con el volumen actual, nada.
+
 6. **Webhook de Culqi**: solo un reembolso real puede confirmarlo.
 7. **Cuando el correo de la empresa reemplace al personal en Google Cloud:** agregarlo como
     **propietario** del proyecto `798376364749`, cambiarlo en *Información de la marca →
