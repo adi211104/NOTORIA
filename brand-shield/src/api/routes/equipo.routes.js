@@ -93,7 +93,7 @@ router.post('/invitacion/:token/aceptar', async (req, res, next) => {
   try {
     const inv = await prisma.invitacion.findUnique({
       where: { tokenHash: hashear(req.params.token) },
-      include: { cuenta: { select: { id: true, nombre: true, email: true, plan: true } } },
+      include: { cuenta: { select: { id: true, nombre: true, email: true, plan: true, idioma: true } } },
     });
     if (!inv) return res.status(404).json({ error: 'Esta invitación no existe o ya se usó', tipo: 'INVITACION_INVALIDA' });
     if (inv.expira < new Date()) {
@@ -363,6 +363,7 @@ router.post('/invitar', async (req, res, next) => {
     try {
       await enviarInvitacionEquipo({
         email, cuenta: req.cuenta.nombre, invitadoPor: req.usuario.nombre, rol, token, negocios: nombres,
+        idioma: await idiomaDeInvitacion(email, req),
       });
     } catch (e) {
       await prisma.invitacion.deleteMany({ where: { cuentaId: req.cuenta.id, email } });
@@ -374,6 +375,19 @@ router.post('/invitar', async (req, res, next) => {
     res.status(201).json({ mensaje: `Invitación enviada a ${email}` });
   } catch (error) { next(error); }
 });
+
+// ¿En qué idioma se le escribe a alguien que quizá ni tenga cuenta?
+//
+// Si ya la tiene, la suya: es el mismo fallo de siempre —mandarle español a
+// quien tiene el panel en inglés— solo que por un camino donde no hay objeto
+// `usuario` a mano. Si no la tiene, la de quien invita, que es la mejor
+// suposición disponible: trabajan en el mismo negocio.
+const idiomaDeInvitacion = async (email, req) => {
+  const yaExiste = await prisma.usuario.findUnique({
+    where: { email }, select: { idioma: true },
+  }).catch(() => null);
+  return yaExiste?.idioma || req.usuario?.idioma;
+};
 
 // ── POST /api/equipo/invitaciones/:id/reenviar ────────────
 router.post('/invitaciones/:id/reenviar', async (req, res, next) => {
@@ -399,6 +413,7 @@ router.post('/invitaciones/:id/reenviar', async (req, res, next) => {
     await enviarInvitacionEquipo({
       email: inv.email, cuenta: req.cuenta.nombre, invitadoPor: req.usuario.nombre,
       rol: inv.rol, token, negocios: nombres,
+      idioma: await idiomaDeInvitacion(inv.email, req),
     });
 
     res.json({ mensaje: `Invitación reenviada a ${inv.email}` });
@@ -422,7 +437,7 @@ router.patch('/miembros/:id', async (req, res, next) => {
   try {
     const miembro = await prisma.miembro.findFirst({
       where: { id: req.params.id, cuentaId: req.cuenta.id },
-      include: { usuario: { select: { nombre: true, email: true } } },
+      include: { usuario: { select: { nombre: true, email: true, idioma: true } } },
     });
     if (!miembro) return res.status(404).json({ error: 'Esa persona no está en tu equipo' });
 
@@ -452,7 +467,7 @@ router.delete('/miembros/:id', async (req, res, next) => {
   try {
     const miembro = await prisma.miembro.findFirst({
       where: { id: req.params.id, cuentaId: req.cuenta.id },
-      include: { usuario: { select: { nombre: true, email: true } } },
+      include: { usuario: { select: { nombre: true, email: true, idioma: true } } },
     });
     if (!miembro) return res.status(404).json({ error: 'Esa persona no está en tu equipo' });
 

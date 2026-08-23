@@ -64,19 +64,193 @@ const btn = (t,u) => `<div style="margin:16px 0;"><a href="${u}" style="display:
 const hr  = ()    => `<div style="height:1px;background:#E8E6DC;margin:18px 0;"></div>`;
 
 // ── 1. Bienvenida ─────────────────────────────────────────
+// Fecha larga en el idioma del destinatario. Los correos la traían fija con
+// `toLocaleDateString('es-PE', …)`, así que un usuario en inglés leía «15 de
+// septiembre de 2026» dentro de un párrafo en inglés.
+//
+// ⚠️ NO confundir con `tributario.fechaPeru()`: aquella formatea en zona horaria
+// de Lima porque SUNAT rechaza una fecha desfasada (§9). Esta es cosmética.
+const fechaLarga = (fecha, idioma, opciones = { day: 'numeric', month: 'long', year: 'numeric' }) =>
+  new Date(fecha).toLocaleDateString(idioma === 'en' ? 'en-US' : 'es-PE', opciones);
+
+// Correos de la cuenta: alta, contraseñas y ciclo de cobro.
+const CUENTA = {
+  es: {
+    bienvenidaAsunto: (n) => `Bienvenido a Notoria, ${n}`,
+    bienvenidaTitulo: (n) => `Bienvenido, ${n}.`,
+    bienvenidaIntro: 'Tu cuenta está lista. En 5 minutos puedes tener tu negocio monitoreado.',
+    bienvenidaPasos: ['Agrega tu restaurante u hotel desde Google Maps.', 'Conecta Google Business para ver todas tus reseñas.', 'Elige qué alertas quieres recibir por correo.'],
+    irPanel: 'Ir al panel de control →',
+
+    cambiadaAsunto: 'Tu contraseña fue cambiada — Notoria',
+    cambiadaTitulo: 'Tu contraseña fue cambiada',
+    cambiadaIntro: (email) => `La contraseña de <strong>${email}</strong> fue actualizada correctamente.`,
+    noFuiste: '¿No fuiste tú?',
+    escribenos: (correo) => `Escríbenos a <a href="mailto:${correo}" style="color:#0B7324;">${correo}</a> de inmediato.`,
+    irCuenta: 'Ir a mi cuenta →',
+
+    resetAsunto: 'Restablece tu contraseña — Notoria',
+    resetTitulo: '¿Olvidaste tu contraseña?',
+    resetIntro: (email) => `Recibimos una solicitud para restablecer la contraseña de <strong>${email}</strong>. Haz clic en el botón para elegir una nueva:`,
+    resetCta: 'Restablecer contraseña →',
+    resetIgnora: 'Si no solicitaste esto, ignora este mensaje y tu contraseña seguirá igual. El enlace expira en 1 hora.',
+    copiar: 'Si el botón no funciona, copia este enlace:',
+
+    confirmarAsunto: 'Confirma el cambio de tu contraseña de Notoria',
+    confirmarTitulo: 'Confirma el cambio',
+    confirmarIntro: (n) => `Hola ${n}, alguien pidió cambiar la contraseña de tu cuenta de Notoria.`,
+    confirmarAviso: '<strong>Tu contraseña todavía NO ha cambiado.</strong> Solo cambia si abres este enlace:',
+    confirmarCta: 'Sí, cambiar mi contraseña',
+    confirmarVigencia: 'El enlace vale 30 minutos y se puede usar una sola vez.',
+    confirmarNoFuiste: '<strong>¿No fuiste tú?</strong> No abras el enlace y no hace falta que hagas nada más: sin ese clic la contraseña sigue siendo la de siempre. Aun así, quien lo pidió conocía tu contraseña actual, así que conviene que la cambies tú desde la app y revises dónde tienes la sesión abierta.',
+
+    cobroAsuntoUltimo: 'No pudimos cobrar tu plan de Notoria — último aviso',
+    cobroAsunto: (i, max) => `No pudimos cobrar tu plan de Notoria (intento ${i} de ${max})`,
+    cobroTituloUltimo: 'Tu plan pasó al Gratuito',
+    cobroTitulo: 'No pudimos cobrar tu plan',
+    cobroIntro: (n, importe, plan) => `Hola ${n}, intentamos cobrar <strong>${importe}</strong> de tu plan ${plan} y el banco rechazó el cargo.`,
+    cobroMotivo: 'Casi siempre es una tarjeta vencida, un límite de compras por internet o un bloqueo temporal del banco. Se arregla en dos minutos actualizando la tarjeta.',
+    cobroUltimo: 'Tu cuenta pasó al plan Gratuito. <strong>No perdiste nada</strong>: tus negocios siguen monitoreados y todo tu historial está intacto. Al actualizar tu tarjeta recuperas tu plan al instante.',
+    cobroReintento: (f) => `Lo volveremos a intentar el <strong>${f}</strong>. Mientras tanto tu plan sigue activo con normalidad.`,
+    cobroCta: 'Actualizar mi tarjeta →',
+    cobroYaActualizada: 'Si ya la actualizaste, ignora este correo.',
+
+    cancelAsunto: 'Cancelaste la renovación de tu plan Notoria',
+    cancelTitulo: 'Listo, no te volveremos a cobrar',
+    cancelIntro: (n, plan) => `Hola ${n}, cancelaste la renovación automática de tu plan ${plan}.`,
+    cancelHasta: (f) => `<strong>Tu plan sigue activo hasta el ${f}</strong>, que es el final del periodo que ya pagaste. Ese día tu cuenta pasa sola al plan Gratuito.`,
+    cancelConserva: 'Tus negocios siguen monitoreados y no se borra nada de tu historial. Puedes reactivar el plan cuando quieras.',
+    cancelCta: 'Ver mis planes →',
+    cancelFeedback: 'Si cancelaste por algo que podamos mejorar, respóndenos a este correo: lo leemos todo.',
+  },
+  en: {
+    bienvenidaAsunto: (n) => `Welcome to Notoria, ${n}`,
+    bienvenidaTitulo: (n) => `Welcome, ${n}.`,
+    bienvenidaIntro: 'Your account is ready. In 5 minutes you can have your business monitored.',
+    bienvenidaPasos: ['Add your restaurant or hotel from Google Maps.', 'Connect Google Business to see all your reviews.', 'Choose which alerts you want by email.'],
+    irPanel: 'Open dashboard →',
+
+    cambiadaAsunto: 'Your password was changed — Notoria',
+    cambiadaTitulo: 'Your password was changed',
+    cambiadaIntro: (email) => `The password for <strong>${email}</strong> was updated successfully.`,
+    noFuiste: "Wasn't you?",
+    escribenos: (correo) => `Write to us at <a href="mailto:${correo}" style="color:#0B7324;">${correo}</a> right away.`,
+    irCuenta: 'Go to my account →',
+
+    resetAsunto: 'Reset your password — Notoria',
+    resetTitulo: 'Forgot your password?',
+    resetIntro: (email) => `We received a request to reset the password for <strong>${email}</strong>. Click the button to choose a new one:`,
+    resetCta: 'Reset password →',
+    resetIgnora: 'If you did not request this, ignore this message and your password stays the same. The link expires in 1 hour.',
+    copiar: "If the button doesn't work, copy this link:",
+
+    confirmarAsunto: 'Confirm your Notoria password change',
+    confirmarTitulo: 'Confirm the change',
+    confirmarIntro: (n) => `Hi ${n}, someone asked to change the password on your Notoria account.`,
+    confirmarAviso: '<strong>Your password has NOT changed yet.</strong> It only changes if you open this link:',
+    confirmarCta: 'Yes, change my password',
+    confirmarVigencia: 'The link is valid for 30 minutes and can be used only once.',
+    confirmarNoFuiste: '<strong>Was it not you?</strong> Do not open the link and you need do nothing else: without that click your password stays as it was. Even so, whoever asked knew your current password, so it is worth changing it yourself from the app and checking where your session is open.',
+
+    cobroAsuntoUltimo: 'We could not charge your Notoria plan — final notice',
+    cobroAsunto: (i, max) => `We could not charge your Notoria plan (attempt ${i} of ${max})`,
+    cobroTituloUltimo: 'Your plan moved to Free',
+    cobroTitulo: 'We could not charge your plan',
+    cobroIntro: (n, importe, plan) => `Hi ${n}, we tried to charge <strong>${importe}</strong> for your ${plan} plan and the bank declined it.`,
+    cobroMotivo: 'It is almost always an expired card, an online purchase limit or a temporary bank block. It takes two minutes to fix by updating the card.',
+    cobroUltimo: 'Your account moved to the Free plan. <strong>You lost nothing</strong>: your businesses are still monitored and your whole history is intact. Update your card and your plan comes back instantly.',
+    cobroReintento: (f) => `We will try again on <strong>${f}</strong>. In the meantime your plan stays active as normal.`,
+    cobroCta: 'Update my card →',
+    cobroYaActualizada: 'If you already updated it, ignore this email.',
+
+    cancelAsunto: 'You cancelled your Notoria plan renewal',
+    cancelTitulo: 'Done, we will not charge you again',
+    cancelIntro: (n, plan) => `Hi ${n}, you cancelled the automatic renewal of your ${plan} plan.`,
+    cancelHasta: (f) => `<strong>Your plan stays active until ${f}</strong>, the end of the period you already paid for. That day your account moves to the Free plan on its own.`,
+    cancelConserva: 'Your businesses stay monitored and nothing in your history is deleted. You can reactivate the plan whenever you want.',
+    cancelCta: 'See my plans →',
+    cancelFeedback: 'If you cancelled over something we can fix, reply to this email: we read every one.',
+  },
+};
+
+// Correos de equipo. ⚠️ El destinatario puede NO tener cuenta todavía (la
+// invitación), así que el idioma llega como parámetro en vez de leerse de un
+// objeto usuario.
+const EQUIPO_T = {
+  es: {
+    invAsunto: (quien, cuenta) => `${quien} te invitó a gestionar ${cuenta} en Notoria`,
+    invTitulo: (cuenta) => `Te invitaron a ${cuenta}`,
+    invIntro: (quien, cuenta) => `<strong>${quien}</strong> quiere que le ayudes a cuidar la reputación de <strong>${cuenta}</strong> en Notoria.`,
+    invRol: (rol, queHace) => `Entrarás como <strong>${rol}</strong>. ${queHace}`,
+    rolGestor: 'Gestor',
+    rolLector: 'Solo lectura',
+    queHaceGestor: 'Podrás responder reseñas y comentarios, usar la IA y gestionar las alertas.',
+    queHaceLector: 'Podrás ver las reseñas, las alertas y los reportes, sin modificar nada.',
+    invAlcance: (lista) => `Tu acceso será solo a: <strong>${lista}</strong>.`,
+    invCta: 'Aceptar la invitación →',
+    invCorreo: (email) => `Acepta con esta dirección de correo: <strong>${email}</strong>. Si aún no tienes cuenta en Notoria, el enlace te deja crearla — es gratis y no te pide tarjeta.`,
+    invVence: 'La invitación vence en 7 días. Si no esperabas este correo, puedes ignorarlo.',
+
+    nuevoAsunto: (n) => `${n} ya tiene acceso a tu cuenta de Notoria`,
+    nuevoTitulo: 'Se sumó alguien a tu equipo',
+    nuevoIntro: (n, email, rol) => `<strong>${n}</strong> (${email}) aceptó tu invitación y ya puede entrar como <strong>${rol}</strong>.`,
+    nuevoRegistro: 'A partir de ahora verás en Equipo qué hace cada persona: quién respondió cada reseña y cuándo.',
+    nuevoCta: 'Ver mi equipo →',
+    nuevoDesconocido: 'Si no reconoces a esta persona, quítale el acceso desde esa misma pantalla.',
+
+    salidaAsunto: (cuenta) => `Ya no tienes acceso a ${cuenta} en Notoria`,
+    salidaTitulo: 'Se cerró tu acceso',
+    salidaIntro: (cuenta) => `El propietario de <strong>${cuenta}</strong> retiró tu acceso a esa cuenta en Notoria.`,
+    salidaPersonal: 'Tu cuenta personal sigue intacta: puedes entrar y, si quieres, monitorear tu propio negocio gratis.',
+    salidaCta: 'Entrar a Notoria →',
+  },
+  en: {
+    invAsunto: (quien, cuenta) => `${quien} invited you to manage ${cuenta} on Notoria`,
+    invTitulo: (cuenta) => `You were invited to ${cuenta}`,
+    invIntro: (quien, cuenta) => `<strong>${quien}</strong> wants your help looking after the reputation of <strong>${cuenta}</strong> on Notoria.`,
+    invRol: (rol, queHace) => `You will join as <strong>${rol}</strong>. ${queHace}`,
+    rolGestor: 'Manager',
+    rolLector: 'Read only',
+    queHaceGestor: 'You will be able to reply to reviews and comments, use the AI and manage alerts.',
+    queHaceLector: 'You will be able to see reviews, alerts and reports, without changing anything.',
+    invAlcance: (lista) => `Your access will be limited to: <strong>${lista}</strong>.`,
+    invCta: 'Accept the invitation →',
+    invCorreo: (email) => `Accept using this email address: <strong>${email}</strong>. If you do not have a Notoria account yet, the link lets you create one — it is free and asks for no card.`,
+    invVence: 'The invitation expires in 7 days. If you were not expecting this email, you can ignore it.',
+
+    nuevoAsunto: (n) => `${n} now has access to your Notoria account`,
+    nuevoTitulo: 'Someone joined your team',
+    nuevoIntro: (n, email, rol) => `<strong>${n}</strong> (${email}) accepted your invitation and can now sign in as <strong>${rol}</strong>.`,
+    nuevoRegistro: 'From now on the Team screen shows what each person does: who replied to each review and when.',
+    nuevoCta: 'See my team →',
+    nuevoDesconocido: 'If you do not recognise this person, remove their access from that same screen.',
+
+    salidaAsunto: (cuenta) => `You no longer have access to ${cuenta} on Notoria`,
+    salidaTitulo: 'Your access was closed',
+    salidaIntro: (cuenta) => `The owner of <strong>${cuenta}</strong> removed your access to that account on Notoria.`,
+    salidaPersonal: 'Your personal account is untouched: you can sign in and, if you want, monitor your own business for free.',
+    salidaCta: 'Sign in to Notoria →',
+  },
+};
+
+const textosCuenta = (usuario) => CUENTA[usuario?.idioma] || CUENTA.es;
+const textosEquipo = (idioma) => EQUIPO_T[idioma] || EQUIPO_T.es;
+
 const enviarBienvenida = async (usuario) => {
   console.log('[Email] Enviando bienvenida a:', usuario.email);
+  const t = textosCuenta(usuario);
+  const nombre = esc(usuario.nombre.split(' ')[0]);
   const r = getResend();
   const res = await r.emails.send({
     from: FROM(), to: usuario.email,
-    subject: `Bienvenido a Notoria, ${usuario.nombre.split(' ')[0]}`,
+    subject: t.bienvenidaAsunto(usuario.nombre.split(' ')[0]),
     html: base(`
-      ${h1(`Bienvenido, ${usuario.nombre.split(' ')[0]}.`)}
-      ${p('Tu cuenta está lista. En 5 minutos puedes tener tu negocio monitoreado.')}
+      ${h1(t.bienvenidaTitulo(nombre))}
+      ${p(t.bienvenidaIntro)}
       ${hr()}
-      ${['Agrega tu restaurante u hotel desde Google Maps.','Conecta Google Business para ver todas tus reseñas.','Elige qué alertas quieres recibir por correo.'].map((s,i)=>`<div style="display:flex;gap:10px;margin-bottom:8px;"><span style="color:#0B7324;font-weight:700;">${i+1}.</span><p style="color:#5C5B57;font-size:13px;margin:0;line-height:1.5;">${s}</p></div>`).join('')}
+      ${t.bienvenidaPasos.map((s,i)=>`<div style="display:flex;gap:10px;margin-bottom:8px;"><span style="color:#0B7324;font-weight:700;">${i+1}.</span><p style="color:#5C5B57;font-size:13px;margin:0;line-height:1.5;">${s}</p></div>`).join('')}
       ${hr()}
-      ${btn('Ir al dashboard →', `${FRONT()}/dashboard`)}
+      ${btn(t.irPanel, `${FRONT()}/dashboard`)}
     `),
   });
   console.log('[Email] Bienvenida resultado:', JSON.stringify(res));
@@ -151,18 +325,19 @@ const enviarVerificacion = async (usuario, token, opciones = {}) => {
 // ── 3. Confirmación cambio de contraseña ─────────────────
 const enviarConfirmacionContrasena = async (usuario) => {
   console.log('[Email] Enviando confirmación contraseña a:', usuario.email);
+  const t = textosCuenta(usuario);
   const r = getResend();
   const res = await r.emails.send({
     from: FROM(), to: usuario.email,
-    subject: 'Tu contraseña fue cambiada — Notoria',
+    subject: t.cambiadaAsunto,
     html: base(`
-      ${h1('Tu contraseña fue cambiada')}
-      ${p(`La contraseña de <strong>${usuario.email}</strong> fue actualizada exitosamente.`)}
+      ${h1(t.cambiadaTitulo)}
+      ${p(t.cambiadaIntro(esc(usuario.email)))}
       <div style="background:#FAF9F5;border-left:3px solid #B74040;padding:12px 16px;margin:14px 0;">
-        <p style="color:#B74040;font-size:13px;font-weight:600;margin:0 0 4px;">¿No fuiste tú?</p>
-        <p style="color:#5C5B57;font-size:13px;margin:0;">Escríbenos a <a href="mailto:hola@usenotoria.app" style="color:#0B7324;">hola@usenotoria.app</a> de inmediato.</p>
+        <p style="color:#B74040;font-size:13px;font-weight:600;margin:0 0 4px;">${t.noFuiste}</p>
+        <p style="color:#5C5B57;font-size:13px;margin:0;">${t.escribenos('hola@usenotoria.app')}</p>
       </div>
-      ${btn('Ir a mi cuenta →', `${FRONT()}/dashboard/configuracion`)}
+      ${btn(t.irCuenta, `${FRONT()}/dashboard/configuracion`)}
     `),
   });
   console.log('[Email] Contraseña resultado:', JSON.stringify(res));
@@ -172,18 +347,19 @@ const enviarConfirmacionContrasena = async (usuario) => {
 // ── 3b. Recuperación de contraseña ("olvidé mi contraseña") ──
 const enviarRecuperacionContrasena = async (usuario, token) => {
   console.log('[Email] Enviando recuperación de contraseña a:', usuario.email);
+  const t = textosCuenta(usuario);
   const url = `${FRONT()}/resetear-password?token=${token}`;
   const r = getResend();
   const res = await r.emails.send({
     from: FROM(), to: usuario.email,
-    subject: 'Restablece tu contraseña — Notoria',
+    subject: t.resetAsunto,
     html: base(`
-      ${h1('¿Olvidaste tu contraseña?')}
-      ${p(`Recibimos una solicitud para restablecer la contraseña de <strong>${usuario.email}</strong>. Haz clic en el botón para elegir una nueva:`)}
-      ${btn('Restablecer contraseña →', url)}
+      ${h1(t.resetTitulo)}
+      ${p(t.resetIntro(esc(usuario.email)))}
+      ${btn(t.resetCta, url)}
       ${hr()}
-      <p style="color:#9C9B96;font-size:12px;margin:0;">Si no solicitaste esto, ignora este mensaje y tu contraseña seguirá igual. El enlace expira en 1 hora.</p>
-      <p style="color:#9C9B96;font-size:12px;margin:8px 0 0;">Si el botón no funciona, copia este enlace: <br><a href="${url}" style="color:#0B7324;word-break:break-all;">${url}</a></p>
+      <p style="color:#9C9B96;font-size:12px;margin:0;">${t.resetIgnora}</p>
+      <p style="color:#9C9B96;font-size:12px;margin:8px 0 0;">${t.copiar} <br><a href="${url}" style="color:#0B7324;word-break:break-all;">${url}</a></p>
     `),
   });
   console.log('[Email] Recuperación resultado:', JSON.stringify(res));
@@ -692,18 +868,19 @@ const enviarAvisoPlazoReclamaciones = async (pendientes) => {
 // explícito en las dos direcciones — qué hacer si fuiste tú, y qué significa si
 // no fuiste tú, que es el caso en el que este correo salva la cuenta.
 const enviarConfirmacionCambioPassword = async (usuario, token) => {
+  const t = textosCuenta(usuario);
   const enlace = `${FRONT()}/confirmar-cambio/${encodeURIComponent(token)}`;
   const res = await getResend().emails.send({
     from: FROM(), to: usuario.email,
-    subject: 'Confirma el cambio de tu contraseña de Notoria',
+    subject: t.confirmarAsunto,
     html: base(`
-      ${h1('Confirma el cambio')}
-      ${p(`Hola ${usuario.nombre.split(' ')[0]}, alguien pidió cambiar la contraseña de tu cuenta de Notoria.`)}
-      ${p('<strong>Tu contraseña todavía NO ha cambiado.</strong> Solo cambia si abres este enlace:')}
-      ${btn('Sí, cambiar mi contraseña', enlace)}
-      ${p('<span style="font-size:12px;color:#9C9B96;">El enlace vale 30 minutos y se puede usar una sola vez.</span>')}
+      ${h1(t.confirmarTitulo)}
+      ${p(t.confirmarIntro(esc(usuario.nombre.split(' ')[0])))}
+      ${p(t.confirmarAviso)}
+      ${btn(t.confirmarCta, enlace)}
+      ${p(`<span style="font-size:12px;color:#9C9B96;">${t.confirmarVigencia}</span>`)}
       ${hr()}
-      ${p('<strong>¿No fuiste tú?</strong> No abras el enlace y no hace falta que hagas nada más: sin ese clic la contraseña sigue siendo la de siempre. Aun así, quien lo pidió conocía tu contraseña actual, así que conviene que la cambies tú desde la app y revises dónde tienes la sesión abierta.')}
+      ${p(t.confirmarNoFuiste)}
     `),
   });
   console.log(`[Seguridad] Confirmación de cambio de contraseña enviada a ${usuario.email}`);
@@ -720,24 +897,26 @@ const enviarConfirmacionCambioPassword = async (usuario, token) => {
 //
 // `intento` y `maxIntentos` van en el texto a propósito: saber que quedan dos
 // intentos más es lo que hace que el cliente actúe hoy en vez de dejarlo pasar.
+// ⚠️ `proximoIntento` llega como FECHA, no como texto ya formateado. Antes el
+// worker la convertía con `toLocaleDateString('es-PE', …)` y la mandaba hecha,
+// así que un correo en inglés traía «29 de agosto» en medio de la frase. Misma
+// regla de §11 que el `periodo` del digest de alertas.
 const enviarCobroFallido = async (usuario, { intento, maxIntentos, monto, moneda, proximoIntento }) => {
+  const t = textosCuenta(usuario);
   const importe = `${moneda === 'PEN' ? 'S/' : ''}${(monto / 100).toFixed(2)}`;
   const ultimo = intento >= maxIntentos;
+  const fecha = proximoIntento ? fechaLarga(proximoIntento, usuario?.idioma, { day: 'numeric', month: 'long' }) : '';
   const res = await getResend().emails.send({
     from: FROM(), to: usuario.email,
-    subject: ultimo
-      ? 'No pudimos cobrar tu plan de Notoria — último aviso'
-      : `No pudimos cobrar tu plan de Notoria (intento ${intento} de ${maxIntentos})`,
+    subject: ultimo ? t.cobroAsuntoUltimo : t.cobroAsunto(intento, maxIntentos),
     html: base(`
-      ${h1(ultimo ? 'Tu plan pasó al Gratuito' : 'No pudimos cobrar tu plan')}
-      ${p(`Hola ${usuario.nombre.split(' ')[0]}, intentamos cobrar <strong>${importe}</strong> de tu plan ${usuario.plan} y el banco rechazó el cargo.`)}
-      ${p('Casi siempre es una tarjeta vencida, un límite de compras por internet o un bloqueo temporal del banco. Se arregla en dos minutos actualizando la tarjeta.')}
+      ${h1(ultimo ? t.cobroTituloUltimo : t.cobroTitulo)}
+      ${p(t.cobroIntro(esc(usuario.nombre.split(' ')[0]), importe, usuario.plan))}
+      ${p(t.cobroMotivo)}
       ${hr()}
-      ${ultimo
-        ? p('Tu cuenta pasó al plan Gratuito. <strong>No perdiste nada</strong>: tus negocios siguen monitoreados y todo tu historial está intacto. Al actualizar tu tarjeta recuperas tu plan al instante.')
-        : p(`Lo volveremos a intentar el <strong>${proximoIntento}</strong>. Mientras tanto tu plan sigue activo con normalidad.`)}
-      ${btn('Actualizar mi tarjeta →', `${FRONT()}/dashboard/planes`)}
-      ${p('<span style="font-size:12px;color:#9C9B96;">Si ya la actualizaste, ignora este correo.</span>')}
+      ${ultimo ? p(t.cobroUltimo) : p(t.cobroReintento(fecha))}
+      ${btn(t.cobroCta, `${FRONT()}/dashboard/planes`)}
+      ${p(`<span style="font-size:12px;color:#9C9B96;">${t.cobroYaActualizada}</span>`)}
     `),
   });
   console.log(`[Cobro] Aviso de cobro fallido enviado a ${usuario.email} (intento ${intento}/${maxIntentos})`);
@@ -748,18 +927,19 @@ const enviarCobroFallido = async (usuario, { intento, maxIntentos, monto, moneda
 // El plan sigue activo hasta el final del periodo ya pagado, y eso es lo primero
 // que hay que decir: es la duda que trae a soporte a quien cancela.
 const enviarCancelacion = async (usuario, fechaFin) => {
-  const hasta = new Date(fechaFin).toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' });
+  const t = textosCuenta(usuario);
+  const hasta = fechaLarga(fechaFin, usuario?.idioma);
   const res = await getResend().emails.send({
     from: FROM(), to: usuario.email,
-    subject: 'Cancelaste la renovación de tu plan Notoria',
+    subject: t.cancelAsunto,
     html: base(`
-      ${h1('Listo, no te volveremos a cobrar')}
-      ${p(`Hola ${usuario.nombre.split(' ')[0]}, cancelaste la renovación automática de tu plan ${usuario.plan}.`)}
+      ${h1(t.cancelTitulo)}
+      ${p(t.cancelIntro(esc(usuario.nombre.split(' ')[0]), usuario.plan))}
       ${hr()}
-      ${p(`<strong>Tu plan sigue activo hasta el ${hasta}</strong>, que es el final del periodo que ya pagaste. Ese día tu cuenta pasa sola al plan Gratuito.`)}
-      ${p('Tus negocios siguen monitoreados y no se borra nada de tu historial. Puedes reactivar el plan cuando quieras.')}
-      ${btn('Ver mis planes →', `${FRONT()}/dashboard/planes`)}
-      ${p('<span style="font-size:12px;color:#9C9B96;">Si cancelaste por algo que podamos mejorar, respóndenos a este correo: lo leemos todo.</span>')}
+      ${p(t.cancelHasta(hasta))}
+      ${p(t.cancelConserva)}
+      ${btn(t.cancelCta, `${FRONT()}/dashboard/planes`)}
+      ${p(`<span style="font-size:12px;color:#9C9B96;">${t.cancelFeedback}</span>`)}
     `),
   });
   console.log(`[Cobro] Confirmación de cancelación enviada a ${usuario.email}`);
@@ -772,28 +952,30 @@ const enviarCancelacion = async (usuario, fechaFin) => {
 // lib/equipo.js y el modelo Invitacion). El correo dice explícitamente CON QUÉ
 // dirección hay que entrar: la invitación está atada a ese correo y aceptarla
 // desde otra cuenta falla, así que decirlo aquí evita el 90% de los "no me deja".
-const enviarInvitacionEquipo = async ({ email, cuenta, invitadoPor, rol, token, negocios }) => {
+// ⚠️ `idioma` llega como parámetro y no de un objeto usuario: al invitado puede
+// que ni siquiera le exista cuenta todavía. La ruta lo resuelve preguntando
+// primero por la cuenta del invitado y cayendo a la de quien invita.
+const enviarInvitacionEquipo = async ({ email, cuenta, invitadoPor, rol, token, negocios, idioma }) => {
+  const t = textosEquipo(idioma);
   const r = getResend();
   const url = `${FRONT()}/invitacion/${token}`;
-  const queHace = rol === 'GESTOR'
-    ? 'Podrás responder reseñas y comentarios, usar la IA y gestionar las alertas.'
-    : 'Podrás ver las reseñas, las alertas y los reportes, sin modificar nada.';
+  const esGestor = rol === 'GESTOR';
   const alcance = negocios && negocios.length
-    ? p(`Tu acceso será solo a: <strong>${negocios.join(', ')}</strong>.`)
+    ? p(t.invAlcance(esc(negocios.join(', '))))
     : '';
 
   return r.emails.send({
     from: FROM(), to: email,
-    subject: `${invitadoPor} te invitó a gestionar ${cuenta} en Notoria`,
+    subject: t.invAsunto(invitadoPor, cuenta),
     html: base(`
-      ${h1(`Te invitaron a ${cuenta}`)}
-      ${p(`<strong>${invitadoPor}</strong> quiere que le ayudes a cuidar la reputación de <strong>${cuenta}</strong> en Notoria.`)}
-      ${p(`Entrarás como <strong>${rol === 'GESTOR' ? 'Gestor' : 'Solo lectura'}</strong>. ${queHace}`)}
+      ${h1(t.invTitulo(esc(cuenta)))}
+      ${p(t.invIntro(esc(invitadoPor), esc(cuenta)))}
+      ${p(t.invRol(esGestor ? t.rolGestor : t.rolLector, esGestor ? t.queHaceGestor : t.queHaceLector))}
       ${alcance}
-      ${btn('Aceptar la invitación →', url)}
+      ${btn(t.invCta, url)}
       ${hr()}
-      ${p(`Acepta con esta dirección de correo: <strong>${email}</strong>. Si aún no tienes cuenta en Notoria, el enlace te deja crearla — es gratis y no te pide tarjeta.`)}
-      ${p('La invitación vence en 7 días. Si no esperabas este correo, puedes ignorarlo.')}
+      ${p(t.invCorreo(esc(email)))}
+      ${p(t.invVence)}
     `),
   });
 };
@@ -802,16 +984,18 @@ const enviarInvitacionEquipo = async ({ email, cuenta, invitadoPor, rol, token, 
 // Le llega al propietario. Es la contrapartida de dar acceso a una cuenta: quien
 // la paga tiene que enterarse el día que alguien entra, no descubrirlo después.
 const enviarAvisoNuevoMiembro = async ({ propietario, miembro, rol }) => {
+  // Este va al PROPIETARIO, así que manda su idioma, no el del que se sumó.
+  const t = textosEquipo(propietario?.idioma);
   const r = getResend();
   return r.emails.send({
     from: FROM(), to: propietario.email,
-    subject: `${miembro.nombre} ya tiene acceso a tu cuenta de Notoria`,
+    subject: t.nuevoAsunto(miembro.nombre),
     html: base(`
-      ${h1('Se sumó alguien a tu equipo')}
-      ${p(`<strong>${miembro.nombre}</strong> (${miembro.email}) aceptó tu invitación y ya puede entrar como <strong>${rol === 'GESTOR' ? 'Gestor' : 'Solo lectura'}</strong>.`)}
-      ${p('A partir de ahora verás en Equipo qué hace cada persona: quién respondió cada reseña y cuándo.')}
-      ${btn('Ver mi equipo →', `${FRONT()}/dashboard/equipo`)}
-      ${p('Si no reconoces a esta persona, quítale el acceso desde esa misma pantalla.')}
+      ${h1(t.nuevoTitulo)}
+      ${p(t.nuevoIntro(esc(miembro.nombre), esc(miembro.email), rol === 'GESTOR' ? t.rolGestor : t.rolLector))}
+      ${p(t.nuevoRegistro)}
+      ${btn(t.nuevoCta, `${FRONT()}/dashboard/equipo`)}
+      ${p(t.nuevoDesconocido)}
     `),
   });
 };
@@ -821,15 +1005,17 @@ const enviarAvisoNuevoMiembro = async ({ propietario, miembro, rol }) => {
 // del producto, y la persona acaba escribiendo a soporte por algo que fue una
 // decisión deliberada del dueño.
 const enviarSalidaEquipo = async ({ miembro, cuenta }) => {
+  // Va a quien pierde el acceso: su idioma, no el del propietario.
+  const t = textosEquipo(miembro?.idioma);
   const r = getResend();
   return r.emails.send({
     from: FROM(), to: miembro.email,
-    subject: `Ya no tienes acceso a ${cuenta} en Notoria`,
+    subject: t.salidaAsunto(cuenta),
     html: base(`
-      ${h1('Se cerró tu acceso')}
-      ${p(`El propietario de <strong>${cuenta}</strong> retiró tu acceso a esa cuenta en Notoria.`)}
-      ${p('Tu cuenta personal sigue intacta: puedes entrar y, si quieres, monitorear tu propio negocio gratis.')}
-      ${btn('Entrar a Notoria →', `${FRONT()}/dashboard`)}
+      ${h1(t.salidaTitulo)}
+      ${p(t.salidaIntro(esc(cuenta)))}
+      ${p(t.salidaPersonal)}
+      ${btn(t.salidaCta, `${FRONT()}/dashboard`)}
     `),
   });
 };

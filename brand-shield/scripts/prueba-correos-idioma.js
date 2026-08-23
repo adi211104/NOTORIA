@@ -68,23 +68,21 @@ const fuenteEmails = leer('utils', 'emails.js');
 const BILINGUES = [
   'enviarVerificacion', 'enviarAlertaCritica', 'enviarDrip',
   'enviarResumenSemanal', 'enviarResumenSemanalConsolidado', 'enviarResumenAlertas',
+  'enviarBienvenida', 'enviarConfirmacionContrasena', 'enviarRecuperacionContrasena',
+  'enviarConfirmacionCambioPassword', 'enviarCobroFallido', 'enviarCancelacion',
+  'enviarInvitacionEquipo', 'enviarAvisoNuevoMiembro', 'enviarSalidaEquipo',
 ];
 
+// Los cinco que quedan están en español POR DECISIÓN, y el motivo va escrito.
+// Traducirlos sería un error, no una mejora: cuatro son piezas del Libro de
+// Reclamaciones —un instrumento legal peruano cuya constancia tiene que decir lo
+// que dice la norma— y el quinto acompaña a un comprobante electrónico de SUNAT.
 const SOLO_ESPANOL = {
-  enviarBienvenida: 'pendiente: se manda en el registro, donde el idioma aún no se recoge del navegador',
-  enviarConfirmacionContrasena: 'pendiente, volumen bajo',
-  enviarRecuperacionContrasena: 'pendiente, volumen bajo',
-  enviarConfirmacionCambioPassword: 'pendiente, volumen bajo',
-  enviarComprobante: 'DELIBERADO: comprobante electrónico peruano, el documento fiscal es en español',
+  enviarComprobante: 'DELIBERADO: acompaña un comprobante electrónico peruano; el documento fiscal es en español',
   enviarCargoReclamacion: 'DELIBERADO: Libro de Reclamaciones, instrumento legal peruano (Ley 29571)',
   enviarAvisoReclamacionInterno: 'DELIBERADO: va a contabilidad, no a un cliente',
   enviarRespuestaReclamacion: 'DELIBERADO: Libro de Reclamaciones',
   enviarAvisoPlazoReclamaciones: 'DELIBERADO: aviso interno',
-  enviarCobroFallido: 'pendiente',
-  enviarCancelacion: 'pendiente',
-  enviarInvitacionEquipo: 'pendiente',
-  enviarAvisoNuevoMiembro: 'pendiente',
-  enviarSalidaEquipo: 'pendiente',
 };
 
 // Extrae el cuerpo de una función `const nombre = async (...) => { ... };`
@@ -100,7 +98,7 @@ const usaIdioma = (nombre) => {
   if (c === null) return null;
   // O lee `usuario.idioma` directo, o pasa por un ayudante que lo hace
   // (`textosResumen`), que es el patrón de los tres resúmenes.
-  return /usuario\??\.idioma/.test(c) || /textosResumen\(/.test(c);
+  return /usuario\??\.idioma/.test(c) || /textos(Resumen|Cuenta|Equipo)\(/.test(c);
 };
 
 const correr = async () => {
@@ -155,6 +153,17 @@ const correr = async () => {
   check('drip.worker: el select del usuario pide idioma',
     /idioma: true/.test(workerDrip));
 
+  // 🔴 La raíz de todo: `req.usuario`. Casi todos los correos que se mandan
+  // desde una ruta autenticada lo usan, así que si el middleware no pide el
+  // idioma, no hay ruta que pueda arreglarlo por su cuenta.
+  check('auth.middleware: req.usuario trae idioma',
+    /idioma: true/.test(leer('api', 'middlewares', 'auth.middleware.js')),
+    'sin esto, cada ruta que mande un correo repite el mismo fallo');
+
+  for (const [archivo, ruta] of [['equipo', ['api', 'routes', 'equipo.routes.js']], ['pago', ['api', 'routes', 'pago.routes.js']], ['auth', ['api', 'routes', 'auth.routes.js']]]) {
+    check(`${archivo}.routes: sus consultas de usuario piden idioma`, /idioma: true|idioma: usuario\.idioma/.test(leer(...ruta)));
+  }
+
   // ── 5. El insight de IA acompaña al idioma ──────────────
   bloque('5. El insight que escribe la IA sale en el mismo idioma que el correo');
 
@@ -195,6 +204,54 @@ const correr = async () => {
   enviados = [];
   await emails.enviarResumenAlertas({ email: 'a@b.c', nombre: 'Marta', idioma: 'en' }, alertas, 'mensual');
   check('  …también "mensual"', /monthly/i.test(enviados[0].subject), enviados[0].subject);
+
+  // ── 6b. Los correos de cuenta y de equipo ───────────────
+  bloque('6b. Cuenta y equipo, en los dos idiomas');
+
+  const usr = (idioma) => ({ email: 'a@b.c', nombre: 'Marta Quispe', idioma, plan: 'NEGOCIO' });
+
+  enviados = [];
+  await emails.enviarBienvenida(usr('es'));
+  await emails.enviarBienvenida(usr('en'));
+  check('bienvenida', /Bienvenido a Notoria/.test(enviados[0].subject) && /Welcome to Notoria/.test(enviados[1].subject));
+  check('  …y sus 3 pasos también se traducen',
+    /Google Maps/.test(enviados[1].html) && !/Agrega tu restaurante/.test(enviados[1].html));
+
+  enviados = [];
+  const fin = new Date('2026-09-15T12:00:00');
+  await emails.enviarCancelacion(usr('es'), fin);
+  await emails.enviarCancelacion(usr('en'), fin);
+  check('cancelación', /Cancelaste/.test(enviados[0].subject) && /cancelled/i.test(enviados[1].subject));
+  // ⚠️ El mes va con `es-PE`, y esa configuración regional escribe **«setiembre»**
+  // sin la p — que es la grafía correcta en Perú, no una errata. Comprobarlo con
+  // /septiembre/ hace fallar una prueba sobre un código que está bien.
+  check('🔴   …y la FECHA se formatea en el idioma del destinatario',
+    /setiembre/.test(enviados[0].html) && /September/.test(enviados[1].html),
+    'estaba fija con toLocaleDateString("es-PE"): metía "15 de setiembre" en un párrafo en inglés');
+
+  enviados = [];
+  const proximo = new Date('2026-08-29T12:00:00');
+  await emails.enviarCobroFallido(usr('en'), { intento: 1, maxIntentos: 3, monto: 5900, moneda: 'PEN', proximoIntento: proximo });
+  check('🔴 cobro fallido: el próximo intento llega como fecha, no como texto ya hecho',
+    /August 29/.test(enviados[0].html) && !/de agosto/.test(enviados[0].html), enviados[0].subject);
+
+  enviados = [];
+  const inv = { email: 'x@y.z', cuenta: 'Cevichería El Muelle', invitadoPor: 'Marta', rol: 'GESTOR', token: 'tk', negocios: [] };
+  await emails.enviarInvitacionEquipo({ ...inv, idioma: 'es' });
+  await emails.enviarInvitacionEquipo({ ...inv, idioma: 'en' });
+  check('invitación de equipo', /te invitó a gestionar/.test(enviados[0].subject) && /invited you to manage/.test(enviados[1].subject));
+  check('  …y el ROL se traduce (Gestor / Manager)',
+    /<strong>Gestor<\/strong>/.test(enviados[0].html) && /<strong>Manager<\/strong>/.test(enviados[1].html));
+
+  enviados = [];
+  await emails.enviarSalidaEquipo({ miembro: { email: 'x@y.z', idioma: 'en' }, cuenta: 'El Muelle' });
+  check('salida de equipo usa el idioma de QUIEN PIERDE el acceso, no del dueño',
+    /no longer have access/.test(enviados[0].subject), enviados[0].subject);
+
+  enviados = [];
+  await emails.enviarAvisoNuevoMiembro({ propietario: { email: 'd@e.f', idioma: 'en' }, miembro: { nombre: 'Ana', email: 'a@n.a' }, rol: 'LECTOR' });
+  check('aviso de nuevo miembro usa el idioma del PROPIETARIO, que es quien lo recibe',
+    /now has access/.test(enviados[0].subject), enviados[0].subject);
 
   // ── 7. Un idioma desconocido no rompe nada ──────────────
   bloque('7. Un idioma que no existe cae al español, no a undefined');

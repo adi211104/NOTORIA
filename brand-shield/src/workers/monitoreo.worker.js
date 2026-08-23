@@ -460,23 +460,46 @@ const procesarNegocio = async (negocio, ctx = {}) => {
 
     const resenas = await obtenerResenasFacebook(negocio.facebookPageId, negocio.facebookAccessToken);
     if (resenas && !resenas.tokenExpirado) {
+      // ¿Primer barrido de esta página? Se pregunta ANTES de guardar nada, igual
+      // que en Google: gobierna el silencio del aviso por reseña negativa, y una
+      // página recién conectada entrega de golpe reseñas que pueden ser viejas.
+      const esPrimerBarridoFB = (await prisma.resena.count({
+        where: { negocioId: negocio.id, plataforma: 'FACEBOOK' },
+      })) === 0;
+
+      // El texto duplicado necesita con qué comparar. Sin esta lista,
+      // `analizarResena` se llamaba con un solo argumento y la señal de campaña
+      // coordinada NUNCA se evaluaba en Facebook — no fallaba nada, simplemente
+      // no miraba.
+      const hace90dFB = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+      const previasFB = await prisma.resena.findMany({
+        where: { negocioId: negocio.id, detectadaEn: { gte: hace90dFB }, texto: { not: null } },
+        orderBy: { detectadaEn: 'desc' },
+        take: 200,
+        select: { externalId: true, texto: true },
+      });
+
       for (const resena of resenas) {
-        const analisis = analizarResena(resena);
+        const analisis = analizarResena(resena, [
+          ...previasFB,
+          ...resenas.filter((r) => r.externalId !== resena.externalId),
+        ]);
+
+        const yaExistia = await prisma.resena.findUnique({
+          where: { plataforma_externalId: { plataforma: 'FACEBOOK', externalId: resena.externalId } },
+        });
+        if (yaExistia) continue;
+
+        let creada;
         try {
-          await prisma.resena.upsert({
-            where: {
-              plataforma_externalId: {
-                plataforma: 'FACEBOOK',
-                externalId: resena.externalId,
-              },
-            },
-            update: {},
-            create: {
+          creada = await prisma.resena.create({
+            data: {
               plataforma: 'FACEBOOK',
               externalId: resena.externalId,
               rating: resena.rating,
               texto: resena.texto,
               autorNombre: resena.autorNombre,
+              autorResenasTotal: resena.autorResenasTotal ?? null,
               fechaResena: resena.fechaResena,
               esSospechosa: analisis.esSospechosa,
               motivoSospecha: analisis.motivoSospecha,
@@ -484,8 +507,16 @@ const procesarNegocio = async (negocio, ctx = {}) => {
             },
           });
         } catch (e) {
-          // Ignorar duplicados
+          continue; // carrera con otro ciclo — ignorar
         }
+
+        // 🔴 Esto faltaba, y era el mismo agujero que tuvo Google hasta el
+        // 2026-08-22: sin esta llamada, una recomendación negativa de Facebook
+        // se guardaba en la base y NO producía alerta, ni correo, ni nada en el
+        // panel. Se añade ahora y no cuando llegue el permiso, porque el día que
+        // llegue nadie va a acordarse de que faltaba.
+        await alertarResenaNegativa(negocio, creada, esPrimerBarridoFB)
+          .catch((e) => console.error(`[Facebook] Error avisando de la reseña: ${e.message}`));
       }
 
       const alertasFB = await detectarAnomalias(negocio.id, 'FACEBOOK', rating);
@@ -1276,8 +1307,10 @@ const iniciarRenovacionesCulqi = () => {
 
         // El correo nunca puede tumbar el cron: si Resend falla, el cobro ya
         // quedó registrado y el reintento sigue programado igual.
-        const proximoIntento = new Date(Date.now() + DIAS_ENTRE_INTENTOS * 86400000)
-          .toLocaleDateString('es-PE', { day: 'numeric', month: 'long' });
+        // Se manda la FECHA, no el texto: el correo la formatea en el idioma
+        // del destinatario. Formatearla acá con 'es-PE' metía «29 de agosto» en
+        // medio de un párrafo en inglés.
+        const proximoIntento = new Date(Date.now() + DIAS_ENTRE_INTENTOS * 86400000);
         await enviarCobroFallido(usuario, {
           intento, maxIntentos: MAX_INTENTOS_COBRO, monto, moneda: MONEDA, proximoIntento,
         }).catch(e => console.error('[Cobro] No se pudo avisar del cobro fallido:', e.message));
@@ -1435,4 +1468,8 @@ module.exports = {
   // sutiles: que una respuesta CON contacto sirve para quien no lo paga pero no
   // al revés, y que un fallo no se cachea.
   obtenerFichaGoogleCompartida,
+  // Para `scripts/ensayo-detector.js`: es la única señal del detector que crea
+  // la alerta ella misma (las demás las devuelve `detectarAnomalias` y las
+  // persiste el worker), así que ejercitarla en vivo exige llamarla directa.
+  revisarFichaGoogle,
 };

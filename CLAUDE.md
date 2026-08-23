@@ -89,6 +89,8 @@ META_WEBHOOK_VERIFY_TOKEN                   # sin ella el webhook responde 403 a
 META_REDIRECT_URI / META_GRAPH_VERSION      # opcionales
 INSTAGRAM_ACTIVO                            # solo el literal 'true' abre IG a todos — §8.3
 INSTAGRAM_CUENTAS_PRUEBA                    # correos que ven IG mientras tanto
+FACEBOOK_ACTIVO / FACEBOOK_CUENTAS_PRUEBA   # lo mismo para Facebook Reviews — §8.5
+META_REDIRECT_URI_FB                        # opcional; por defecto /api/redes/facebook/callback
 TIKTOK_BIZ_CLIENT_ID / TIKTOK_BIZ_CLIENT_SECRET
 TIKTOK_CLIENT_KEY / TIKTOK_CLIENT_SECRET    # Display API, solo respaldo
 MENCIONES_PROVEEDOR / _API_KEY / MENCIONES_MAX_POR_TERMINO   # sin proveedor contratado
@@ -277,7 +279,7 @@ los logs del servidor y en un cambio observable en la salida.
 | **TikTok Display API** | Conservada como respaldo, sin usarse |
 | **Instagram** | Código completo y desplegado, **oculto tras interruptor** hasta que Meta apruebe (§8.3). App Review enviado el 2026-08-15 |
 | **Menciones** | Motor y panel completos. Instagram es su **única** fuente, así que hoy la sección está invisible. TikTok exigiría proveedor de pago |
-| **Facebook Reviews** | Scraper stub y **sin ruta para conectar una página** → `facebookPageId` no se llena nunca. Retirado de todas las páginas públicas. ✅ **Investigado el 2026-08-22: la API existe y el stub está casi bien**; falta el permiso `pages_read_user_content`, que va en la segunda solicitud de App Review — ver §19 A |
+| **Facebook Reviews** | ✅ **Terminado el 2026-08-23 y OCULTO tras interruptor** (`lib/facebookVisible.js`, gemelo del de Instagram): scraper con `recommendation_type`, ruta de conexión, callback propio, desconexión, aviso por reseña negativa y fila en el panel. Sigue invisible hasta que Meta conceda **`pages_read_user_content`** (segunda solicitud, §19 A). ⚠️ Antes de encenderlo: **una llamada real contra una página con reseñas** |
 | **TripAdvisor** | Solo base preparada a propósito (scraper + campos en schema + enum `TRIPADVISOR`). Sin ruta de conexión, sin cableado en el worker, sin UI. Decisión de negocio: activar cuando haya masa de hoteles |
 | **SUNAT** | ✅ Emisión **ENCENDIDA** en producción |
 | **WhatsApp / Telegram** | ❌ Eliminados como canal de alerta. WhatsApp sigue vivo solo como contacto comercial (botón de ventas, `/contacto`) |
@@ -674,6 +676,53 @@ borrarla.**
 
 **El webhook convive con el barrido, no lo sustituye:** solo notifica desde que se configura,
 así que el histórico de cada cuenta nueva sigue llegando por el escaneo.
+
+### 8.5 Facebook Reviews — completo pero oculto tras interruptor
+
+**Terminado el 2026-08-23.** Mismo patrón que Instagram (§8.3) y por el mismo motivo:
+el código está listo y con pruebas, y nadie lo ve hasta que Meta conceda el permiso.
+Fuente única: **`src/lib/facebookVisible.js`** (`FACEBOOK_ACTIVO` / `FACEBOOK_CUENTAS_PRUEBA`).
+
+🔴 **El permiso es `pages_read_user_content`, NO `pages_read_engagement`.** Esa confusión duró
+meses. Con el equivocado la conexión funcionaría y las reseñas llegarían **siempre vacías, sin
+un solo error**. Va en la segunda solicitud de App Review, ya redactada (`docs/app-review-meta.md` §8).
+
+**Lo que se arregló del stub, y por qué cada cosa:**
+- 🔴 **Desde 2018 Facebook no tiene estrellas sino recomendaciones**, y el nodo puede llegar sin
+  `rating`. El stub hacía `rating: r.rating || 0`, así que una recomendación **positiva** sin
+  estrella se guardaba como **0★**: el detector la habría leído como la peor puntuación posible
+  y le habría mandado al cliente una alerta de reputación **por algo bueno que le pasó**. Ahora
+  se piden `recommendation_type`, `has_rating` y `has_review`, y se traduce positive → 5,
+  negative → 1, dejando `sinEstrella: true` para que el panel no finja una precisión que no hay.
+- **Sin estrella y sin tipo se descarta**, no se guarda con un 0 inventado: un conteo corto se
+  nota, una reseña falsa en la ficha del cliente no.
+- **`autorResenasTotal` es `null`, no 0** — un 0 haría que la señal de «cuenta nueva» la marcara
+  como falsa.
+- **Un error devuelve `null`, no `[]`**: `null` = no se pudo leer, `[]` = se leyó y no hay nada.
+
+**Callback PROPIO, y no es duplicación.** El de Instagram busca la página que tenga
+`instagram_business_account` y descarta las demás. Un restaurante que solo usa Facebook no tiene
+ninguna así, y con ese callback su conexión fallaría con «sin_cuenta_business» — un mensaje que
+le manda a arreglar algo que no está roto.
+
+🔴 **La rama del worker no avisaba de las reseñas negativas**, el mismo agujero que tuvo Google
+hasta el 2026-08-22: se guardaban y no producían alerta, ni correo, ni nada en el panel. Se
+cableó `alertarResenaNegativa` (con su propio `esPrimerBarrido`) **ahora y no cuando llegue el
+permiso**, porque ese día nadie se acordaría. De paso, `analizarResena` se llamaba con un solo
+argumento, así que la señal de **texto duplicado nunca se evaluaba** en Facebook.
+
+⚠️ **El panel tenía a Facebook como fila FIJA con una pastilla «No conectado» que no se podía
+pulsar**: prometía una función que no existía y no daba forma de llegar a ella. Ahora pasa por
+la misma lista que las demás (`redesVisibles`), gobernada por el interruptor.
+
+- El modal de error del OAuth **se comparte con Instagram** (`redOAuth` + `oauthT` en la ficha):
+  mismo componente, otros textos y **otros pasos** — Facebook no exige vincular nada a
+  Instagram, así que enseñarle esa lista mandaría a arreglar algo que no aplica.
+- `node scripts/prueba-facebook.js` — 40 comprobaciones.
+
+⚠️ **Lo que las pruebas NO cubren, y hay que hacer antes de encender el interruptor:** que Meta
+responda eso de verdad. Nadie ha llamado nunca a `/{page-id}/ratings` con un token válido. Es la
+misma distinción que costó meses con `obtenerComentariosTikTok`.
 
 ### 8.4 Menciones
 
@@ -1655,6 +1704,8 @@ textos por otros inventados. El procedimiento está en la cabecera del component
 | `prueba-ficha-compartida.js` | 12 comprobaciones del caché de fichas por ciclo. Vigila las dos reglas invisibles: que una respuesta sin Contact Data no se le sirva a quien lo paga, y que un fallo no se cachee |
 | `prueba-progreso.js` | 28 comprobaciones de la comparación mensual: `null` distinto de 0, deltas negativos y el umbral de 0.2 del rating |
 | `prueba-alertas-resena.js` | 31 comprobaciones del aviso por reseña negativa. Lo que vigila son las **condiciones de silencio** (primer barrido, antigüedad, umbral, que pase por `notificar()`): si una se rompe, no falla nada — simplemente se deja de avisar |
+| `ensayo-detector.js [--aplicar]` | **Ensayo EN VIVO de las seis señales del detector.** Las cuatro que salen de `detectarAnomalias` van en **solo lectura** —esa función devuelve las alertas, no las escribe—, así que se ejercitan contra los snapshots reales pasándole unos `datosNuevos` inventados. Las que escriben (campaña coordinada, pico por conteo y ficha alterada) van tras `--aplicar` y se limpian. Cada señal con su control negativo |
+| `prueba-facebook.js` | 40 comprobaciones de Facebook Reviews: la recomendación sin estrella, el interruptor, el permiso del OAuth y que el worker avise de las negativas. ⚠️ Cubre la forma **documentada** de la respuesta, no que Meta la devuelva |
 | `prueba-correos-idioma.js` | 24 comprobaciones del idioma de los correos. Obliga a clasificar cada correo nuevo como bilingüe o solo-español, verifica las **dos mitades** (plantilla y `select` del worker) y renderiza el resumen semanal en los dos idiomas para comparar la salida real |
 | `prueba-escape-emails.js` | 11 comprobaciones de que el texto ajeno no inyecta HTML en los correos, incluidas las que verifican que escapar **no estropee el texto normal** (★, el apóstrofo de un cliente llamado "Tito's", el ampersand) |
 | `prueba-instagram-visible.js` | 12 comprobaciones del interruptor de Instagram |
@@ -1821,23 +1872,10 @@ flujo entero.
 
 - **Proveedor de datos para las menciones de TikTok** (~US$100/mes): sería el primer costo
   variable por cliente.
-- ~~**Facebook Reviews**~~ → **ya no es una decisión de negocio, es un permiso que pedir.**
-  Decidido el 2026-08-22: se implementa cuando Meta conceda `pages_read_user_content`, que va
-  en la segunda solicitud (§19 A). Lo investigado, para no repetirlo:
-  - ✅ **`/{page-id}/ratings` EXISTE** en v26.0, sin aviso de deprecación, y devuelve nodos
-    `Recommendation` con `rating` (1-5), `recommendation_type`, `review_text`, `reviewer`,
-    `created_time`, `has_rating`, `has_review`.
-  - ✅ **El stub está casi bien**, al contrario de lo que se supuso: sus campos son reales.
-    Solo le falta `recommendation_type` y los dos booleanos — desde 2018 una recomendación
-    puede venir **sin estrella**, y sin tratarlo caería en `rating: 0`, que el detector leería
-    como una reseña de cero estrellas.
-  - 🔴 El permiso es **`pages_read_user_content`**, ⚠️ **NO `pages_read_engagement`**, que es
-    lo que se dio por hecho. Por eso nunca habría funcionado aunque aprobaran la solicitud
-    actual.
-  - ✅ **No** hace falta la feature *Page Public Content Access* (esa es para páginas ajenas;
-    aquí el cliente conecta la suya), que es la difícil de conseguir.
-  - El OAuth ya existe: el callback de Instagram pide `me/accounts` con `access_token` y ya
-    trae la página — solo descarta las que no tienen Instagram (`redes.routes.js:128`).
+- ~~**Facebook Reviews**~~ → ✅ **Implementado el 2026-08-23, oculto tras interruptor** (§8.5).
+  Ya no queda nada que decidir ni que programar: el día que Meta conceda
+  `pages_read_user_content` se pone `FACEBOOK_ACTIVO=true` en Railway y se abre para todos sin
+  desplegar. ⚠️ Antes de eso, **una llamada real contra una página con reseñas**.
 - **TripAdvisor**: activar cuando haya masa de hoteles.
 - ~~Borrar `Usuario.telegramChatId`.~~ **Hecho el 2026-08-22.** ⚠️ **Nunca debería haber
   estado en esta lista:** al ponerlo junto a contratar un proveedor de ~US$100/mes y activar
@@ -1909,11 +1947,25 @@ de 1★ reciente creó la fila, la notificó y **el correo llegó `delivered`**;
 en 0. El correo llegó además **en inglés** —asunto *«1★ review on Don Tito San Miguel»*—, que es
 lo que cierra el fallo de `idioma` de arriba en la única cuenta que lo tiene puesto.
 
-⚠️ **Lo que sigue sin ejercitarse son las OTRAS cinco señales** del detector (caída de rating,
-ráfagas, duplicados, ficha alterada, cuentas nuevas): desplegadas, con pruebas unitarias, cero
-confirmaciones en vivo. Y esperando no llegan. Si alguna vez importa, el patrón para probarlas
-es el de `ensayo-alertas.js`: importar la función real, un caso positivo, controles negativos y
-limpieza al final.
+✅ **Las otras cinco señales quedaron verificadas en vivo el mismo día** con
+`scripts/ensayo-detector.js --aplicar`: **21/21 correctos** — caída de rating, ráfaga por
+volumen, campaña coordinada, pico por conteo y ficha alterada, cada una con su control negativo,
+y la base limpia al terminar. El correo de `FICHA_ALTERADA` llegó `delivered` y **en inglés**,
+que confirma el arreglo de `idioma` por un camino distinto (esa va por `enviarAlertaEmail`
+directo, sin pasar por `notificar()`).
+
+🔴 **Y encontró un bug que solo se ve ejercitando: una alerta con estrellas NEGATIVAS.** El
+mensaje decía *«Calificaron **-0.9★** de promedio como mucho»*. La causa era una asimetría en
+`compararMediciones`: `promedio` y `min` se acotaban a un mínimo de 1 y **`max` solo tenía tope
+por arriba**, así que el techo salía por debajo del suelo. Pasa cuando la aritmética es
+imposible — y lo es de verdad cada vez que **Google borra reseñas** mientras entran otras (está
+medido: una ficha pasó de 11 a 10 el 31 de julio), porque el despeje asume que las viejas siguen
+ahí.
+⚠️ **Recortar `max` a 1 NO era el arreglo**: afirmaría «como mucho 1★» cuando la realidad pudo
+ser 4★ y solo hubo un borrado. Lo correcto es **no dar cifra** cuando el intervalo estimado no
+toca el rango posible \[1,5]; el aviso sale igual, apoyado en la caída publicada, que sí es un
+hecho observado. Es la regla de «nunca un número inventado» aplicada al caso en que el número
+es, además, imposible.
 
 **Lo que esa foto confirma que funciona**, medido y no supuesto:
 - **La cadencia por plan es exacta.** Contando snapshots de los últimos 3 días: los negocios

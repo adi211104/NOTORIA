@@ -408,7 +408,7 @@ router.post('/confirmar-cambio-password', async (req, res, next) => {
 
     const usuario = await prisma.usuario.findUnique({
       where: { id: datos.usuarioId },
-      select: { id: true, nombre: true, email: true, password: true },
+      select: { id: true, nombre: true, email: true, password: true, idioma: true },
     });
     if (!usuario) return res.status(400).json({ error: 'El enlace no es válido.', tipo: 'TOKEN_INVALIDO' });
 
@@ -432,7 +432,7 @@ router.post('/confirmar-cambio-password', async (req, res, next) => {
     });
 
     setImmediate(async () => {
-      try { await enviarConfirmacionContrasena({ nombre: usuario.nombre, email: usuario.email }); }
+      try { await enviarConfirmacionContrasena({ nombre: usuario.nombre, email: usuario.email, idioma: usuario.idioma }); }
       catch (e) { console.error('[Email] Error enviando aviso de contraseña cambiada:', e.message); }
     });
 
@@ -758,7 +758,7 @@ router.post('/resetear-password', async (req, res, next) => {
     });
 
     setImmediate(async () => {
-      try { await enviarConfirmacionContrasena({ nombre: usuario.nombre, email: usuario.email }); }
+      try { await enviarConfirmacionContrasena({ nombre: usuario.nombre, email: usuario.email, idioma: usuario.idioma }); }
       catch (e) { console.error('[Reset] Error enviando confirmación:', e.message); }
     });
 

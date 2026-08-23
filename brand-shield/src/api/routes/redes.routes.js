@@ -13,12 +13,17 @@ const tiktok = require('../../scrapers/tiktok.scraper');
 const tiktokBiz = require('../../scrapers/tiktokBusiness.scraper');
 const { firmarState, verificarState } = require('../../lib/oauthState');
 const { instagramVisiblePara } = require('../../lib/instagramVisible');
+const { facebookVisiblePara } = require('../../lib/facebookVisible');
 
 const router = express.Router();
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3000';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3001';
 const META_REDIRECT_URI = process.env.META_REDIRECT_URI || `${BACKEND_URL}/api/redes/instagram/callback`;
+// Facebook Reviews usa la MISMA app de Meta pero su propio callback: el de
+// Instagram busca `instagram_business_account` y descarta las páginas que no lo
+// tienen, que es justamente el caso de un negocio que solo usa Facebook.
+const META_REDIRECT_URI_FB = process.env.META_REDIRECT_URI_FB || `${BACKEND_URL}/api/redes/facebook/callback`;
 const TIKTOK_REDIRECT_URI = process.env.TIKTOK_REDIRECT_URI || `${BACKEND_URL}/api/redes/tiktok/callback`;
 const TIKTOK_BIZ_REDIRECT_URI = process.env.TIKTOK_BIZ_REDIRECT_URI || `${BACKEND_URL}/api/redes/tiktok-business/callback`;
 
@@ -303,6 +308,106 @@ router.get('/tiktok-business/callback', async (req, res) => {
   }
 });
 
+// ── GET /api/redes/facebook/callback ──────────────────────
+//
+// Gemelo del de Instagram, con UNA diferencia que es la razón de que exista por
+// separado: aquel busca la página que tenga `instagram_business_account` y
+// descarta las demás (`redes.routes.js`, «3. Buscar la primera página…»). Un
+// restaurante que solo usa Facebook no tiene ninguna así, y con ese callback su
+// conexión fallaría con «sin_cuenta_business» — un mensaje que le manda a
+// arreglar algo que no está roto.
+//
+// 🔴 No se gatea con el interruptor a propósito, igual que el de Instagram: el
+// `state` va firmado y caduca a los 10 minutos, así que solo se llega hasta acá
+// pasando antes por `conectar`, que sí está gateado.
+router.get('/facebook/callback', async (req, res) => {
+  const { code, state, error: oauthError } = req.query;
+
+  let negocioId = null;
+  try { ({ negocioId } = decodificarState(state)); } catch { /* state ausente o manipulado */ }
+
+  const volverA = (params) => res.redirect(
+    `${FRONTEND_URL}${negocioId ? `/dashboard/negocios/${negocioId}` : '/dashboard'}?${params}`,
+  );
+
+  if (oauthError) return volverA(`fb_error=cancelado`);
+  if (!code || !negocioId) return volverA('fb_error=state_invalido');
+
+  try {
+    const { data: tokenCorto } = await axios.get('https://graph.facebook.com/v21.0/oauth/access_token', {
+      params: {
+        client_id: process.env.META_APP_ID,
+        client_secret: process.env.META_APP_SECRET,
+        redirect_uri: META_REDIRECT_URI_FB,
+        code,
+      },
+    });
+
+    // Token de larga duración: el corto vive una hora y el escaneo corre cada
+    // pocas horas, así que sin este canje la conexión se caería sola el mismo día.
+    const { data: tokenLargo } = await axios.get('https://graph.facebook.com/v21.0/oauth/access_token', {
+      params: {
+        grant_type: 'fb_exchange_token',
+        client_id: process.env.META_APP_ID,
+        client_secret: process.env.META_APP_SECRET,
+        fb_exchange_token: tokenCorto.access_token,
+      },
+    });
+
+    const { data: paginas } = await axios.get('https://graph.facebook.com/v21.0/me/accounts', {
+      params: { fields: 'id,name,access_token', access_token: tokenLargo.access_token },
+    });
+
+    const lista = paginas.data || [];
+    // El id de página puede venir elegido desde el panel (un negocio con varias
+    // páginas); si no, se toma la primera, que es el caso normal.
+    const elegida = req.query.page_id
+      ? lista.find((p) => p.id === req.query.page_id)
+      : lista[0];
+
+    if (!elegida) {
+      // Mismo diagnóstico que en Instagram y por el mismo motivo: «0 páginas» no
+      // distingue entre no haber otorgado ninguna y un token de otro tipo. Sin
+      // imprimir quién es `me` y qué permisos trae, esto se depura a ciegas
+      // contra la interfaz de otra persona.
+      let diagnostico = '';
+      try {
+        const [yo, permisos] = await Promise.all([
+          axios.get('https://graph.facebook.com/v21.0/me', {
+            params: { fields: 'id,name', access_token: tokenLargo.access_token },
+          }),
+          axios.get('https://graph.facebook.com/v21.0/me/permissions', {
+            params: { access_token: tokenLargo.access_token },
+          }),
+        ]);
+        const concedidos = (permisos.data.data || [])
+          .filter((p) => p.status === 'granted').map((p) => p.permission).join(', ');
+        diagnostico = ` | me = ${yo.data.name || '(sin nombre)'} [${yo.data.id}] | permisos: ${concedidos || 'NINGUNO'}`;
+      } catch (e) {
+        diagnostico = ` | diagnóstico no disponible: ${e.response?.data?.error?.message || e.message}`;
+      }
+      console.warn(`[Facebook OAuth] Sin páginas utilizables.${diagnostico}`);
+      return volverA('fb_error=sin_paginas');
+    }
+
+    await prisma.negocio.update({
+      where: { id: negocioId },
+      data: {
+        facebookPageId: elegida.id,
+        // Token de PÁGINA, no de usuario: es el que `/{page-id}/ratings` acepta.
+        facebookAccessToken: elegida.access_token,
+        facebookTokenExpira: new Date(Date.now() + (tokenLargo.expires_in || 5184000) * 1000),
+      },
+    });
+
+    await primerEscaneo(negocioId, 'Facebook');
+    volverA('fb=conectado');
+  } catch (error) {
+    console.error('[Facebook OAuth] Error en callback:', error.response?.data?.error?.message || error.message);
+    volverA('fb_error=callback_failed');
+  }
+});
+
 router.use(autenticar);
 
 // ── GET /api/redes/:negocioId/estado ──────────────────────
@@ -330,7 +435,11 @@ router.get('/:negocioId/estado', async (req, res, next) => {
         comentarios: !!negocio.tiktokBizAccessToken,
       },
       facebook: {
-        disponible: true,
+        // ⚠️ Esto decía `true` fijo y era una promesa falsa: no existía ninguna
+        // ruta para conectar una página, así que `facebookPageId` no se llenaba
+        // nunca. Ahora la ruta existe, pero sigue oculta hasta que Meta conceda
+        // `pages_read_user_content` — mismo interruptor que Instagram.
+        disponible: facebookVisiblePara(req.cuenta) && !!process.env.META_APP_ID,
         conectado: !!negocio.facebookPageId,
       },
     });
@@ -381,6 +490,44 @@ router.post('/:negocioId/instagram/conectar', permitir('conexiones'), async (req
     } else {
       params.set('scope', 'instagram_basic,instagram_manage_comments,pages_show_list,pages_read_engagement,pages_manage_metadata');
     }
+
+    res.json({ url: `https://www.facebook.com/v21.0/dialog/oauth?${params.toString()}` });
+  } catch (error) { next(error); }
+});
+
+// ── POST /api/redes/:negocioId/facebook/conectar ─────────
+//
+// ⚠️ El scope pide **`pages_read_user_content`**, no `pages_read_engagement`.
+// Esa confusión duró meses: `pages_read_engagement` cubre publicaciones y
+// métricas, y `/{page-id}/ratings` —las reseñas— exige el otro. Con el permiso
+// equivocado la conexión funcionaría y las reseñas llegarían siempre vacías, sin
+// un solo error. Ver `docs/app-review-meta.md` §8.
+router.post('/:negocioId/facebook/conectar', permitir('conexiones'), async (req, res, next) => {
+  try {
+    if (!requierePlanPago(req, res)) return;
+    const negocio = await negocioDeLaCuenta(req, req.params.negocioId);
+    if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
+
+    if (!process.env.META_APP_ID || !process.env.META_APP_SECRET) {
+      return res.status(501).json({
+        error: 'La integración con Facebook está en proceso de aprobación por Meta. Te avisaremos cuando esté disponible.',
+        estado: 'PENDIENTE_APROBACION',
+      });
+    }
+
+    // 404 y no 403, igual que Instagram: al usuario no le falta un permiso, es
+    // que la función todavía no existe para él.
+    if (!facebookVisiblePara(req.cuenta)) {
+      return res.status(404).json({ error: 'Función no disponible' });
+    }
+
+    const params = new URLSearchParams({
+      client_id: process.env.META_APP_ID,
+      redirect_uri: META_REDIRECT_URI_FB,
+      response_type: 'code',
+      state: codificarState(negocio.id, req.cuenta.id),
+      scope: 'pages_show_list,pages_read_user_content',
+    });
 
     res.json({ url: `https://www.facebook.com/v21.0/dialog/oauth?${params.toString()}` });
   } catch (error) { next(error); }
@@ -478,6 +625,7 @@ const REDES_DESCONECTABLES = {
     'tiktokNombre', 'tiktokAvatar', 'tiktokUsername', 'tiktokPerfilUrl',
   ],
   instagram: ['instagramUserId', 'instagramAccessToken', 'instagramTokenExpira'],
+  facebook: ['facebookPageId', 'facebookAccessToken', 'facebookTokenExpira'],
 };
 
 router.delete('/:negocioId/:red', permitir('conexiones'), async (req, res, next) => {

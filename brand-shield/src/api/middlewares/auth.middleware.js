@@ -26,6 +26,13 @@ const autenticar = async (req, res, next) => {
         plan: true,
         suscripcionActiva: true,
         tokenVersion: true,
+        // 🔴 `idioma` va acá y no en cada ruta. Todos los correos que se mandan
+        // desde una ruta autenticada lo leen de `req.usuario`, y olvidarlo no
+        // rompe nada: el correo sale igual, en español, para alguien que tiene
+        // el panel en inglés. Ese fallo apareció tres veces en un solo día
+        // (2026-08-23) por tres caminos distintos. Pedirlo una vez acá lo cierra
+        // para todas las rutas de golpe.
+        idioma: true,
       },
     });
 

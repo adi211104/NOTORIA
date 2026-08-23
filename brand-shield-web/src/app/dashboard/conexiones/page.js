@@ -121,7 +121,7 @@ const Pastilla = ({ tono, children, title }) => {
 // una cuenta ya enlazada nunca se esconde, o el usuario se quedaría sin forma de
 // desconectarla ni de borrar los datos que trajo.
 const redesVisibles = (est) =>
-  ['instagram', 'tiktok'].filter((red) => est?.[red]?.disponible || est?.[red]?.conectado);
+  ['instagram', 'facebook', 'tiktok'].filter((red) => est?.[red]?.disponible || est?.[red]?.conectado);
 
 const Fila = ({ nombre, descripcion, children, ultima }) => (
   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:14, padding:'11px 0',
@@ -173,9 +173,12 @@ export default function ConexionesPage() {
     const clave = `${negocioId}:${red}`;
     setConectando(clave);
     try {
-      const { url } = red === 'tiktok'
-        ? await redes.conectarTikTok(negocioId)
-        : await redes.conectarInstagram(negocioId);
+      const conectar = {
+        tiktok: redes.conectarTikTok,
+        facebook: redes.conectarFacebook,
+        instagram: redes.conectarInstagram,
+      }[red];
+      const { url } = await conectar(negocioId);
       if (url) window.location.href = url;
       else setConectando(null);
     } catch { setConectando(null); }
@@ -292,29 +295,22 @@ export default function ConexionesPage() {
                     )}
                   </Fila>
 
-                  {/* `ultima` mira la lista de redes que vienen después: si
-                      están todas ocultas, esta fila cierra la tarjeta y no debe
-                      dejar un borde inferior colgando. */}
-                  <Fila nombre={t.redes.facebook.n} descripcion={planPago ? t.redes.facebook.d : t.soloPlanNegocio}
-                    ultima={visibles.length === 0}>
-                    {!planPago ? (
-                      <Link href="/dashboard/planes" style={{ fontSize:11.5, color:'#4CAF66', textDecoration:'none', background:'rgba(11,115,36,0.1)', padding:'3px 10px', borderRadius:10 }}>{t.actualizar}</Link>
-                    ) : (
-                      <Pastilla tono={n.facebookPageId ? 'azul' : 'apagado'}>
-                        {n.facebookPageId ? t.conectado : t.noConectado}
-                      </Pastilla>
-                    )}
-                  </Fila>
-
                   {/* Una red que hoy no podemos entregar sencillamente NO se
-                      lista: ni "próximamente" ni el motivo. Instagram sale con
-                      `disponible:false` mientras Meta revisa la app —con los
-                      permisos en acceso estándar, un cliente real que pulse
-                      Conectar recibe un error que no puede resolver—, y volverá
-                      solo el día que aprueben (ver lib/instagramVisible.js en el
-                      backend). Excepción a propósito: si la cuenta YA está
-                      conectada la fila se queda pase lo que pase, porque hay que
-                      poder desconectarla y borrar sus datos. */}
+                      lista: ni "próximamente" ni el motivo. Instagram y Facebook
+                      salen con `disponible:false` mientras Meta revisa la app
+                      —con los permisos en acceso estándar, un cliente real que
+                      pulse Conectar recibe un error que no puede resolver—, y
+                      volverán solo el día que aprueben (ver `lib/instagramVisible.js`
+                      y `lib/facebookVisible.js` en el backend). Excepción a
+                      propósito: si la cuenta YA está conectada la fila se queda
+                      pase lo que pase, porque hay que poder desconectarla y
+                      borrar sus datos.
+
+                      ⚠️ Facebook estaba antes como fila FIJA con una pastilla
+                      «No conectado» que no se podía pulsar: prometía una función
+                      que no existía —no había ruta para conectar una página— y
+                      no daba forma de llegar a ella. Ahora pasa por la misma
+                      lista que las demás. */}
                   {visibles.map((red, i) => (
                     <Fila key={red} nombre={t.redes[red].n}
                       descripcion={planPago ? t.redes[red].d : t.soloPlanNegocio}

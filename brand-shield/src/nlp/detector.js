@@ -126,11 +126,31 @@ const compararMediciones = (anterior, actual) => {
   const promedio = (r2 * n2 - r1 * n1) / nuevas;
   const margen = (0.05 * (n1 + n2)) / nuevas;
 
+  // 🔴 Cuando el intervalo estimado NO TOCA el rango posible [1,5], la fórmula
+  // se apoyó en algo que no pasó y no hay número que salvar.
+  //
+  // El despeje asume que las N₁ reseñas viejas siguen ahí y solo se sumaron k
+  // nuevas. Google también BORRA reseñas —está medido: una ficha pasó de 11 a 10
+  // el 31 de julio—, y si borra unas cuantas buenas mientras entran otras, el
+  // total sube igual pero la aritmética queda inconsistente y el promedio
+  // despejado se va fuera de la escala.
+  //
+  // Se descubrió el 2026-08-23 ejercitando la señal contra producción: la alerta
+  // decía «Calificaron **-0.9★** de promedio como mucho». La causa era una
+  // asimetría en el propio recorte —`promedio` y `min` se acotaban a un mínimo
+  // de 1 y `max` solo tenía tope por arriba—, así que el techo salía por debajo
+  // del suelo. Recortar `max` a 1 tampoco valía: afirmaría «como mucho 1★»
+  // cuando la realidad pudo ser 4★ y solo hubo un borrado. Lo único honesto es
+  // no dar cifra; el aviso sale igual, apoyado en la caída publicada, que sí es
+  // un hecho observado.
+  const fueraDeEscala = promedio + margen < 1 || promedio - margen > 5;
+  if (fueraDeEscala) return base;
+
   return {
     ...base,
     promedio: Math.max(1, Math.min(5, promedio)),
-    min: Math.max(1, promedio - margen),
-    max: Math.min(5, promedio + margen),
+    min: Math.max(1, Math.min(5, promedio - margen)),
+    max: Math.max(1, Math.min(5, promedio + margen)),
     margen,
     // Con más de media estrella de margen, decir "promediaron 1.7★" es inventar.
     promedioFiable: margen <= 0.5,

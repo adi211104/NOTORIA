@@ -745,6 +745,27 @@ const TEXTOS = {
         missing_params:'Facebook no devolvió el código de autorización. Vuelve a intentarlo.',
       },
       igErrorGenerico:'Instagram rechazó la conexión.',
+      // Facebook Reviews. Comparte el modal con Instagram —mismo componente,
+      // otros textos— porque el fallo se arregla igual: fuera de Notoria y con
+      // pasos concretos. Lo que NO comparte son los pasos: Facebook no exige
+      // vincular nada a Instagram, así que enseñarle esa lista mandaría a
+      // arreglar algo que no aplica.
+      fbExito:'Facebook conectado. Ya estamos leyendo las reseñas de tu página.',
+      fbErrorTitulo:'No se pudo conectar Facebook',
+      fbError:{
+        cancelado:'Cancelaste la autorización en Facebook. No se conectó nada.',
+        sin_paginas:'No autorizaste ninguna página de Facebook, así que no hay reseñas que leer.',
+        state_invalido:'El enlace de autorización caducó. Vuelve a pulsar Conectar.',
+        callback_failed:'Facebook devolvió un error al terminar la conexión. Inténtalo de nuevo en unos minutos.',
+      },
+      fbErrorGenerico:'Facebook rechazó la conexión.',
+      fbComoVincular:'Cómo autorizar tu página',
+      fbPasos:[
+        'Pulsa Conectar otra vez y, en el diálogo de Facebook, elige "Editar configuración".',
+        'Marca la casilla de la página de tu negocio: si aceptas la configuración anterior, Facebook reutiliza un permiso viejo que no la incluye.',
+        'Tienes que ser administrador de esa página. Si la creó otra persona, pídele que te dé ese rol.',
+        'Acepta y vuelve. La primera lectura tarda unos minutos.',
+      ],
       igComoVincular:'Cómo vincularla',
       igEntendido:'Entendido',
       igReintentar:'Ir a Conexiones',
@@ -1150,6 +1171,22 @@ const TEXTOS = {
         missing_params:'Facebook did not return the authorization code. Please try again.',
       },
       igErrorGenerico:'Instagram rejected the connection.',
+      fbExito:'Facebook connected. We are already reading your page reviews.',
+      fbErrorTitulo:'Could not connect Facebook',
+      fbError:{
+        cancelado:'You cancelled the authorization on Facebook. Nothing was connected.',
+        sin_paginas:'You did not authorize any Facebook Page, so there are no reviews to read.',
+        state_invalido:'The authorization link expired. Press Connect again.',
+        callback_failed:'Facebook returned an error while finishing the connection. Try again in a few minutes.',
+      },
+      fbErrorGenerico:'Facebook rejected the connection.',
+      fbComoVincular:'How to authorize your Page',
+      fbPasos:[
+        'Press Connect again and, in the Facebook dialog, choose "Edit settings".',
+        'Tick the checkbox for your business Page: if you accept the previous setup, Facebook reuses an old permission that does not include it.',
+        'You must be an admin of that Page. If someone else created it, ask them for that role.',
+        'Accept and come back. The first read takes a few minutes.',
+      ],
       igComoVincular:'How to link it',
       igEntendido:'Got it',
       igReintentar:'Go to Connections',
@@ -1518,19 +1555,49 @@ export default function DetallePage() {
   // en el redirect, pero `tab` nunca se leyó de la URL: el usuario aterrizaba en
   // "resumen" y el aviso se quedaba en una pestaña que no estaba mirando —
   // invisible igual que cuando no existía.
+  //
+  // Sirve para Instagram Y para Facebook: el backend usa `?ig=` / `?ig_error=` y
+  // `?fb=` / `?fb_error=`, y las dos aterrizan en la misma pantalla con el mismo
+  // tratamiento. `redOAuth` recuerda cuál fue, que es lo único que cambia entre
+  // las dos: los textos y los pasos del arreglo.
+  const [redOAuth, setRedOAuth] = useState(null);   // null | 'ig' | 'fb'
   const [igConectado, setIgConectado] = useState(false);
   const [igError, setIgError] = useState(null);
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const p = new URLSearchParams(window.location.search);
-    const ok = p.get('ig') === 'conectado';
-    const err = p.get('ig_error');
-    if (!ok && !err) return;
-    setIgConectado(ok);
-    setIgError(err);
+    const red = p.get('ig') || p.get('ig_error') ? 'ig'
+      : p.get('fb') || p.get('fb_error') ? 'fb'
+        : null;
+    if (!red) return;
+    setRedOAuth(red);
+    setIgConectado(p.get(red) === 'conectado');
+    setIgError(p.get(`${red}_error`));
     setTab('config');
     router.replace(`/dashboard/negocios/${id}`);
   }, [id]);
+
+  // Los textos del resultado, según la red que volvió. Se agrupa acá y no en el
+  // JSX para no repetir tres ternarios en cada sitio donde se pinta.
+  const oauthT = redOAuth === 'fb'
+    ? {
+      exito: t.config.fbExito,
+      titulo: t.config.fbErrorTitulo,
+      mensajes: t.config.fbError,
+      generico: t.config.fbErrorGenerico,
+      comoVincular: t.config.fbComoVincular,
+      // Facebook solo tiene un fallo con arreglo guiado; Instagram tiene dos.
+      pasosPara: (err) => (err === 'sin_paginas' ? t.config.fbPasos : null),
+    }
+    : {
+      exito: t.config.igExito,
+      titulo: t.config.igErrorTitulo,
+      mensajes: t.config.igError,
+      generico: t.config.igErrorGenerico,
+      comoVincular: t.config.igComoVincular,
+      pasosPara: (err) => (err === 'sin_paginas' ? t.config.igPasosPermiso
+        : err === 'sin_cuenta_business' ? t.config.igPasos : null),
+    };
 
   useEffect(() => {
     if (compBusqueda.length < 3) { setCompResultados([]); return; }
@@ -3263,7 +3330,7 @@ export default function DetallePage() {
               este caso tiene solución, así que además del error van los pasos. */}
           {igConectado && (
             <div style={{ background:'rgba(34,197,94,0.1)', border:'1px solid rgba(34,197,94,0.3)', borderRadius:10, padding:'12px 16px' }}>
-              <p style={{ color:'#22c55e', fontSize:13, fontWeight:500, margin:0, display:'flex', alignItems:'center', gap:8 }}><Icon name="checkCirc" size={15} /> {t.config.igExito}</p>
+              <p style={{ color:'#22c55e', fontSize:13, fontWeight:500, margin:0, display:'flex', alignItems:'center', gap:8 }}><Icon name="checkCirc" size={15} /> {oauthT.exito}</p>
             </div>
           )}
           {/* El error NO va aquí: es un modal a nivel de página (abajo del todo).
@@ -3462,25 +3529,24 @@ export default function DetallePage() {
             style={{ background:'var(--surface)', border:'1px solid rgba(239,68,68,0.35)', borderRadius:16, padding:24, maxWidth:460, width:'100%', maxHeight:'85vh', overflowY:'auto' }}>
             <div style={{ display:'flex', alignItems:'flex-start', gap:10, marginBottom:10 }}>
               <span style={{ flexShrink:0, marginTop:1 }}><Icon name="alerta" size={20} color="#f87171" /></span>
-              <h3 style={{ color:'var(--text)', fontSize:16, fontWeight:700, margin:0, flex:1 }}>{t.config.igErrorTitulo}</h3>
+              <h3 style={{ color:'var(--text)', fontSize:16, fontWeight:700, margin:0, flex:1 }}>{oauthT.titulo}</h3>
               <button onClick={() => setIgError(null)} aria-label={t.config.cancelar}
                 style={{ flexShrink:0, background:'none', border:'none', color:'var(--text-3)', cursor:'pointer', padding:2, lineHeight:0 }}>
                 <Icon name="cerrar" size={16} />
               </button>
             </div>
             <p style={{ color:'var(--text-2)', fontSize:13.5, margin:'0 0 4px', lineHeight:1.6 }}>
-              {t.config.igError[igError] || t.config.igErrorGenerico}
+              {oauthT.mensajes[igError] || oauthT.generico}
             </p>
             {/* Cada fallo lleva SUS pasos: a quien ya tiene la página vinculada
                 y solo reutilizó un permiso viejo, la lista de "cómo vincular una
                 página" le dice que arregle algo que ya está bien — que es
                 exactamente donde se atascó el primer usuario que lo vivió. */}
-            {(igError === 'sin_cuenta_business' || igError === 'sin_paginas') && (
+            {oauthT.pasosPara(igError) && (
               <>
-                <p style={{ color:'var(--text-3)', fontSize:11, fontWeight:600, textTransform:'uppercase', letterSpacing:0.5, margin:'18px 0 8px' }}>{t.config.igComoVincular}</p>
+                <p style={{ color:'var(--text-3)', fontSize:11, fontWeight:600, textTransform:'uppercase', letterSpacing:0.5, margin:'18px 0 8px' }}>{oauthT.comoVincular}</p>
                 <ol style={{ color:'var(--text-2)', fontSize:13, margin:0, paddingLeft:20, lineHeight:1.7 }}>
-                  {(igError === 'sin_paginas' ? t.config.igPasosPermiso : t.config.igPasos)
-                    .map((paso, i) => <li key={i} style={{ marginBottom:6 }}>{paso}</li>)}
+                  {oauthT.pasosPara(igError).map((paso, i) => <li key={i} style={{ marginBottom:6 }}>{paso}</li>)}
                 </ol>
               </>
             )}

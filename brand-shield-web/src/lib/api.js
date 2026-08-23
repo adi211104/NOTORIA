@@ -174,6 +174,7 @@ export const reclamaciones = {
 export const redes = {
   estado:            (negocioId) => api(`/api/redes/${negocioId}/estado`),
   conectarInstagram: (negocioId) => api(`/api/redes/${negocioId}/instagram/conectar`, { method:'POST' }),
+  conectarFacebook:  (negocioId) => api(`/api/redes/${negocioId}/facebook/conectar`, { method:'POST' }),
   conectarTikTok:    (negocioId) => api(`/api/redes/${negocioId}/tiktok/conectar`,    { method:'POST' }),
   // red: 'tiktok' | 'instagram'. Borra los tokens del negocio y, en TikTok,
   // revoca del lado de la plataforma si ningún otro negocio comparte la cuenta.

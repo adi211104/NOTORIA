@@ -346,7 +346,7 @@ router.post('/cancelar', async (req, res, next) => {
   try {
     const usuario = await prisma.usuario.findUnique({
       where: { id: req.usuario.id },
-      select: { id: true, email: true, nombre: true, plan: true, suscripcionActiva: true, fechaVencimiento: true },
+      select: { id: true, email: true, nombre: true, plan: true, suscripcionActiva: true, fechaVencimiento: true, idioma: true },
     });
 
     if (usuario.plan === 'GRATIS') {
