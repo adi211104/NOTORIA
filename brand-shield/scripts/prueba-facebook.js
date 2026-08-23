@@ -134,8 +134,22 @@ const correr = async () => {
   check('sin reseñas devuelve [] de verdad', Array.isArray(r) && r.length === 0);
 
   respuesta = { overall_star_rating: 4.3, rating_count: 87 };
-  const rat = await obtenerRatingFacebook('pag1', 'tok');
+  let rat = await obtenerRatingFacebook('pag1', 'tok');
   check('el rating de la página se lee', rat.ratingActual === 4.3 && rat.totalResenas === 87, JSON.stringify(rat));
+  check('  …y no se marca como sin valoraciones', rat.sinValoraciones === false);
+
+  // 🔴 Caso REAL, medido el 2026-08-23 contra la página «Notoria»: una página sin
+  // reseñas devuelve exactamente esto. Ese 0 es la ausencia de nota, no un cero.
+  respuesta = { overall_star_rating: 0, rating_count: 0 };
+  rat = await obtenerRatingFacebook('pag1', 'tok');
+  check('🔴 una página SIN reseñas se marca `sinValoraciones`',
+    rat.sinValoraciones === true,
+    'guardar ese 0 como nota haría que la primera reseña pareciera una subida de 4.5 puntos');
+
+  const workerSrc = require('fs').readFileSync(require('path').join(__dirname, '..', 'src', 'workers', 'monitoreo.worker.js'), 'utf8');
+  check('  …y el worker NO crea snapshot en ese caso',
+    workerSrc.includes('rating && !rating.sinValoraciones'),
+    'un snapshot de 0★ envenena progreso.js y compararMediciones');
 
   // ── 5. El interruptor ───────────────────────────────────
   bloque('5. El interruptor de visibilidad');

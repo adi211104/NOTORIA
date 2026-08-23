@@ -753,9 +753,36 @@ la misma lista que las demás (`redesVisibles`), gobernada por el interruptor.
   Instagram, así que enseñarle esa lista mandaría a arreglar algo que no aplica.
 - `node scripts/prueba-facebook.js` — 40 comprobaciones.
 
-⚠️ **Lo que las pruebas NO cubren, y hay que hacer antes de encender el interruptor:** que Meta
-responda eso de verdad. Nadie ha llamado nunca a `/{page-id}/ratings` con un token válido. Es la
-misma distinción que costó meses con `obtenerComentariosTikTok`.
+### ✅ Probado contra la API de verdad el 2026-08-23
+
+Ya no es documentación. Se llamó desde el Explorador de la Graph API con un **token de PÁGINA
+real** (página «Notoria», id `1211927292012805`) y `pages_read_user_content` concedido.
+
+🔑 **La clave que desbloqueó esto: con acceso ESTÁNDAR el permiso se concede a quien tiene rol
+en la app.** O sea que el dueño podía probarlo sin esperar al App Review — lo mismo que ya valía
+para Instagram. Estuvo en la lista de «bloqueado» más tiempo del necesario.
+
+| | |
+|---|---|
+| ✅ `/{page-id}/ratings` existe y responde 200 en v26.0 | no es un endpoint fantasma |
+| ✅ `pages_read_user_content` es **el permiso correcto** | con él la llamada pasa |
+| ✅ El Explorador reconoce `recommendation_type`, `has_rating`, `has_review` | y descarta uno inventado |
+| ✅ `overall_star_rating` y `rating_count` devuelven valores | la otra mitad del scraper |
+| ⚠️ **La forma de un `Recommendation` real, NO** | la página no tiene reseñas: `{"data": []}` |
+
+⚠️ **Y una trampa que el control destapó: con la colección vacía Meta NO valida los campos.** Se
+pidió un campo inventado y devolvió `[]` sin error, ni siquiera con `debug=all`. Así que el éxito
+de la llamada **no** prueba que los siete campos existan; eso lo dice el esquema del Explorador,
+no la respuesta. Sin ese control se habría dado por probado algo que no lo estaba.
+
+🔴 **El hallazgo que solo daba la llamada real: `overall_star_rating: 0` con `rating_count: 0`.**
+Ese **0 no es una nota, es la ausencia de nota** — y es el mismo error que `sinEstrella`, por
+otro camino. Guardarlo como rating crea un snapshot de «0★» que envenena todo lo que compara
+mediciones: el día que llegara la primera reseña de 4.5★, `lib/progreso.js` restaría 4.5 − 0 y
+el panel cantaría una subida de 4.5 puntos que no ocurrió; y perder la única reseña se leería
+como un desplome. Ahora el scraper devuelve **`sinValoraciones`** y el worker **no crea
+snapshot** en ese caso. Se pierde el «0 reseñas» como línea base, y es aceptable: cualquier
+comparación necesita dos lecturas igualmente, así que como mucho se cuenta de menos.
 
 ### 8.4 Menciones
 

@@ -447,7 +447,10 @@ const procesarNegocio = async (negocio, ctx = {}) => {
     }
 
     const rating = await obtenerRatingFacebook(negocio.facebookPageId, negocio.facebookAccessToken);
-    if (rating) {
+    // `sinValoraciones` no es lo mismo que `0★`: ver la nota en el scraper. De
+    // una página que todavía no tiene ninguna reseña no hay nota que guardar, y
+    // apuntar un 0 haría que la primera reseña pareciera una subida de golpe.
+    if (rating && !rating.sinValoraciones) {
       await prisma.snapshot.create({
         data: {
           plataforma: 'FACEBOOK',

@@ -2,38 +2,39 @@
 // Obtiene ratings y reseñas de páginas de Facebook via Graph API
 // El cliente debe haber conectado su página primero (flujo OAuth)
 //
-// ESTADO REAL, comprobado el 2026-08-22 contra la documentación oficial — no
-// contra la memoria ni contra una sonda. Este archivo NO se ha ejecutado nunca
-// contra la API de verdad, así que lo de abajo es todo lo que se sabe:
+// ── PROBADO CONTRA LA API DE VERDAD el 2026-08-23 ────────────────────────────
 //
-//   ✅ El endpoint EXISTE. `/{page-id}/ratings` sigue vivo en v26.0, sin aviso de
-//      deprecación, y devuelve nodos `Recommendation`.
-//   ✅ Los campos que usa este stub son REALES: `rating` (1-5), `review_text`,
-//      `reviewer`, `created_time`, y en el nodo Page `overall_star_rating` y
-//      `rating_count`. No hay que reescribirlo entero, como se llegó a suponer.
-//   ⚠️ Le FALTA `recommendation_type` (positive/negative) y los booleanos
-//      `has_rating` / `has_review`: desde 2018 una recomendación puede no traer
-//      estrella. Sin eso caería en `rating: 0`, y el detector lo leería como una
-//      reseña de cero estrellas — peor que no leerla.
-//   🔴 BLOQUEADO POR PERMISO, no por la API: `/ratings` exige
-//      **`pages_read_user_content`**, que NO está entre los cinco del App Review
-//      enviado el 2026-08-15. Va en la segunda solicitud, con `business_management`.
-//      ⚠️ NO es `pages_read_engagement`, que es lo que se supuso durante meses.
-//   ✅ NO hace falta la feature *Page Public Content Access*: esa es para leer
-//      páginas AJENAS, y aquí el cliente conecta la suya.
+// Ya no es documentación ni una sonda: se llamó desde el Explorador de la Graph
+// API con un token de PÁGINA real (página «Notoria», id 1211927292012805) y el
+// permiso `pages_read_user_content` concedido.
 //
-// ── ESTADO 2026-08-23: terminado, pero OCULTO tras interruptor ───────────────
+// LO QUE QUEDÓ PROBADO:
+//   ✅ `/{page-id}/ratings` existe y responde 200 en v26.0. No es un endpoint
+//      fantasma — que es justo lo que hundió a `obtenerComentariosTikTok`.
+//   ✅ **`pages_read_user_content` es el permiso correcto.** Se concede con
+//      acceso estándar a quien tiene rol en la app, así que se pudo probar sin
+//      esperar al App Review. Con él, la llamada pasa.
+//   ✅ El Explorador reconoce `recommendation_type`, `has_rating` y `has_review`
+//      como campos de esa arista, y descarta uno inventado.
+//   ✅ En el nodo Page, `overall_star_rating` y `rating_count` devuelven valores.
 //
-// Los tres campos que faltaban ya están, y la recomendación sin estrella se
-// trata como corresponde. Lo que NO cambió es que sigue haciendo falta el
-// permiso, así que la función vive detrás de `lib/facebookVisible.js`, igual
-// que Instagram: el código está listo y nadie lo ve hasta que Meta apruebe.
+// LO QUE SIGUE SIN PROBARSE, y hay que decirlo:
+//   ⚠️ **La forma de un nodo `Recommendation` real.** La página no tiene ninguna
+//      reseña, así que la respuesta fue `{"data": []}`. Y ojo: con la colección
+//      vacía Meta **no valida los campos** — se comprobó pidiendo uno inventado y
+//      también devolvió `[]` sin error, ni siquiera con `debug=all`. O sea que el
+//      éxito de la llamada NO prueba que los siete campos existan; eso lo dice el
+//      esquema del Explorador, no la respuesta.
 //
-// ⚠️ La advertencia original de este archivo —«no lo escribas a ciegas»— se
-// respetó en lo que de verdad protegía: no se inventó ningún endpoint. Pero
-// queda su mitad válida y hay que hacerla ANTES de encender el interruptor para
-// todos: **una llamada real contra una página con reseñas**. Las pruebas cubren
-// la forma DOCUMENTADA de la respuesta, no la respuesta de verdad.
+// 🔴 EL HALLAZGO QUE SOLO DABA LA LLAMADA REAL: una página sin reseñas devuelve
+// `{overall_star_rating: 0, rating_count: 0}`. Ese **0 no es una nota, es la
+// ausencia de nota** — ver `sinValoraciones` abajo.
+//
+// ── Estado del producto: terminado y OCULTO tras interruptor ─────────────────
+//
+// `lib/facebookVisible.js`, igual que Instagram. El código está listo y nadie lo
+// ve hasta que Meta apruebe el permiso para clientes reales — hoy solo funciona
+// para cuentas con rol en la app.
 //
 // Fuentes:
 //   https://developers.facebook.com/docs/graph-api/reference/page/ratings/
@@ -55,9 +56,27 @@ const obtenerRatingFacebook = async (pageId, accessToken) => {
       },
     });
 
+    // 🔴 `overall_star_rating: 0` significa «no hay valoraciones», NO «cero
+    // estrellas». Comprobado en vivo el 2026-08-23 contra una página real sin
+    // reseñas: Meta devuelve `{overall_star_rating: 0, rating_count: 0}`.
+    //
+    // Es el mismo error que `sinEstrella`, por otro camino. Guardar ese 0 como
+    // si fuera una nota crea un snapshot de «0★» que envenena todo lo que
+    // compara mediciones: el día que llegue la primera reseña de 4.5★,
+    // `lib/progreso.js` restaría 4.5 − 0 y el panel cantaría una subida de 4.5
+    // puntos que no ocurrió. Y al revés, perder la única reseña se leería como
+    // un desplome.
+    //
+    // Se señala aparte y el worker no crea snapshot: de una página sin
+    // valoraciones no hay rating que registrar. Se pierde el «0 reseñas» como
+    // línea base, y es aceptable — cualquier comparación necesita dos lecturas
+    // igualmente, así que como mucho se cuenta de menos. Un conteo corto se
+    // nota; un dato falso, no.
+    const sinValoraciones = !data.rating_count;
     return {
       ratingActual: data.overall_star_rating || 0,
       totalResenas: data.rating_count || 0,
+      sinValoraciones,
     };
   } catch (error) {
     console.error(`[Facebook] Error obteniendo rating: ${error.message}`);
