@@ -83,6 +83,7 @@ const SOLO_ESPANOL = {
   enviarAvisoReclamacionInterno: 'DELIBERADO: va a contabilidad, no a un cliente',
   enviarRespuestaReclamacion: 'DELIBERADO: Libro de Reclamaciones',
   enviarAvisoPlazoReclamaciones: 'DELIBERADO: aviso interno',
+  enviarAvisoAnulacionPendiente: 'DELIBERADO: va a contabilidad y habla de un comprobante peruano',
 };
 
 // Extrae el cuerpo de una función `const nombre = async (...) => { ... };`

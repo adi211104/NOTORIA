@@ -7,7 +7,8 @@ const prisma = require('../../lib/prisma');
 const culqi = require('../../lib/culqi');
 const tributario = require('../../lib/tributario');
 const { emitirComprobante, pdfDeComprobante } = require('../../services/comprobante.service');
-const { enviarCancelacion } = require('../../utils/emails');
+const { enviarCancelacion, enviarAvisoAnulacionPendiente } = require('../../utils/emails');
+const anulacion = require('../../lib/anulacionPendiente');
 const { autenticar, permitir } = require('../middlewares/auth.middleware');
 
 const router = express.Router();
@@ -97,7 +98,7 @@ const procesarReembolso = async (datos) => {
 
   const pago = await prisma.pago.findUnique({
     where: { culqiCargoId: cargoId },
-    select: { id: true, usuarioId: true },
+    select: { id: true, usuarioId: true, culqiCargoId: true, estado: true, comprobante: true },
   });
   if (!pago) {
     // Puede ser legítimo (un cargo hecho fuera de Notoria), pero si empieza a
@@ -109,6 +110,25 @@ const procesarReembolso = async (datos) => {
   await prisma.pago.update({ where: { id: pago.id }, data: { estado: 'REEMBOLSADO' } });
   await prisma.usuario.update({ where: { id: pago.usuarioId }, data: { suscripcionActiva: false } });
   console.log(`[Culqi webhook] Reembolso aplicado al cargo ${cargoId}`);
+
+  // 🔴 Devolver el dinero NO anula el comprobante ante SUNAT, y el plazo para
+  // anularlo son 7 días. Sin este aviso queda declarada una venta cuyo importe
+  // se devolvió — con su IGV a pagar. Se descubrió haciéndolo a mano en la
+  // primera prueba de cobro real: alguien tuvo que ACORDARSE, y con un cliente
+  // de verdad eso no ocurre.
+  //
+  // Va con su propio catch: un fallo del correo no puede tumbar el webhook, o
+  // Culqi lo reintentaría y acabaría desactivando la suscripción de eventos.
+  const pagoReembolsado = { ...pago, estado: 'REEMBOLSADO' };
+  if (anulacion.necesitaAnulacion(pago.comprobante, pagoReembolsado)) {
+    await enviarAvisoAnulacionPendiente({
+      comprobante: pago.comprobante,
+      pago: pagoReembolsado,
+      diasRestantes: anulacion.diasRestantes(pago.comprobante),
+      comando: anulacion.comandoParaAnular(pago.comprobante),
+      primerAviso: true,
+    }).catch((e) => console.error('[Anulación] No se pudo avisar del comprobante pendiente:', e.message));
+  }
 };
 
 router.post('/culqi/webhook', async (req, res) => {

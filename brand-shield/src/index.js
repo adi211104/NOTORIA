@@ -24,6 +24,7 @@ const { iniciarMonitoreo, iniciarReportesMensuales, iniciarResumenesAlertas, ini
 const { iniciarResumenSemanal } = require('./workers/resumenSemanal.worker');
 const { iniciarDrip } = require('./workers/drip.worker');
 const { iniciarRecordatoriosVerificacion } = require('./workers/verificacion.worker');
+const { iniciarAvisoAnulaciones } = require('./workers/anulaciones.worker');
 const { iniciarEnvioSunat } = require('./workers/envioSunat.worker');
 const { iniciarResumenSunat } = require('./workers/resumenSunat.worker');
 
@@ -196,6 +197,7 @@ app.listen(PORT, () => {
     iniciarResumenSunat();
     iniciarDrip();
     iniciarRecordatoriosVerificacion();
+    iniciarAvisoAnulaciones();
     console.log('🔄 Monitoreo periódico iniciado');
     console.log('📄 Cron de reportes mensuales iniciado');
     console.log('📬 Cron de resúmenes de alertas iniciado');

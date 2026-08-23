@@ -1022,8 +1022,38 @@ en el identificador.
 
 🔴 **Reembolsar en Culqi NO anula el comprobante.** Son dos sistemas independientes: el dinero
 vuelve y la boleta sigue emitida, declarada y con su IGV. Cada devolución de un cobro ya
-facturado exige anular aparte, dentro de plazo. `scripts/reembolsar-cargo.js` lo avisa antes
-de devolver nada y dice qué comprobante habría que anular.
+facturado exige anular aparte, dentro de plazo.
+
+✅ **Desde el 2026-08-23 el producto avisa solo** (`lib/anulacionPendiente.js` +
+`workers/anulaciones.worker.js`). Antes no había nada: en la primera prueba de cobro real
+alguien tuvo que **acordarse**, y con un cliente de verdad eso no ocurre. Es el único error del
+circuito de cobro que cuesta dinero.
+
+- **Dos disparadores, y hacen falta los dos.** El webhook de Culqi avisa **en el acto**, y un
+  cron a las 8:00 **repite cada día hasta que se anule**. Un correo suelto que llega de noche y
+  un plazo que vence en siete días es justo la combinación que falla.
+- **Modo urgente de verdad:** `X-Priority: 1`, `Importance: high` y `X-MSMail-Priority: High`,
+  no solo mayúsculas en el asunto. Va a `EMAIL_CONTABILIDAD`.
+- **El correo trae el comando exacto** (`scripts/anular-boleta.js <numero> --aplicar`). Un aviso
+  que dice «hay que anularlo» y obliga a buscar cómo es un aviso a medias, y este llega con el
+  reloj corriendo.
+- 🔴 **Los dos plazos son de 7 días pero cuentan desde sitios distintos**, y ese es el error
+  caro: la **boleta** desde el CDR del resumen que la informó (`enviadoEn`), la **factura**
+  desde la emisión. Darle a la factura el ancla de la boleta le regalaría días que no tiene.
+- ⚠️ **`diasRestantes` usa `floor`, no `ceil`.** El límite es el FIN del séptimo día, así que a
+  media tarde la resta da 6.46: redondear hacia arriba diría «quedan 7» cuando quedan seis
+  completos. Con un plazo legal detrás, equivocarse por exceso es el lado peligroso.
+- **Sigue avisando después de vencer**, pero solo una semana más: ya no se puede anular, pero
+  hay que emitir una nota de crédito y alguien tiene que enterarse. Pasada esa ventana calla —
+  un aviso diario eterno se convierte en ruido y se aprende a ignorar.
+- **Sin columna nueva:** «pendiente de anular» se deriva de `Pago.estado === 'REEMBOLSADO'` y
+  `Comprobante.estadoSunat === 'ACEPTADO'`.
+- `node scripts/prueba-anulacion-pendiente.js` — 31 comprobaciones, casi todas sobre los
+  silencios: un VOUCHER no se anula, uno ya anulado no se repite, uno que SUNAT no aceptó no
+  está vivo. Si eso se rompe, el aviso se vuelve ruido y deja de servir el día que importa.
+- ✅ **Probado en vivo el 2026-08-23**: el correo llegó `delivered` a `didier@usenotoria.app`
+  con el asunto «🔴 URGENTE — anular B001-00000001 (quedan 7 días)», y contra los datos reales
+  el worker **calla** correctamente, porque esa boleta ya está anulada.
 
 ⚠️ **El webhook de reembolso apaga `suscripcionActiva`.** Es lo correcto para un cobro de
 suscripción, pero tras un cobro suelto hay que restaurar el campo a mano.
@@ -1805,6 +1835,7 @@ textos por otros inventados. El procedimiento está en la cabecera del component
 | `anular-boleta.js <numero> [--aplicar]` | Anula una boleta aceptada, en un resumen con la línea en estado 3. Solo marca `ANULADO` si SUNAT aceptó. Plazo: 7 días. ⚠️ Anular no es corregir: si cambia el importe, toca nota de crédito |
 | `reembolsar-cargo.js <chargeId> [--aplicar]` | Devuelve un cargo de Culqi. Avisa **antes** de qué comprobante quedaría sin anular, porque el reembolso no lo anula. El monto sale del `Pago`, no de un argumento |
 | `lib-env-produccion.js` | No es un script: lo requieren los demás. Arregla la trampa de `railway run`, que da los secretos de producción pero pisa `DATABASE_URL` con el host **interno** de Postgres, inalcanzable desde fuera. Costó tiempo dos veces antes de vivir en un solo sitio |
+| `prueba-anulacion-pendiente.js` | 31 comprobaciones del aviso por comprobante reembolsado y sin anular: los dos anclajes del plazo, el `floor` que no sobreestima, y sobre todo los silencios (VOUCHER, ya anulado, no aceptado) |
 | `sonda-sunat-produccion.js` | 🔴 **Correr ANTES de cualquier cobro real.** Comprueba contra el endpoint de PRODUCCIÓN que el certificado se descifra y que las credenciales SOL autentican, con `getStatus` sobre un ticket inventado: es solo lectura, no numera ni consume nada. Lleva control con clave falsa. ⚠️ El ticket debe ser **numérico** (`AAAAMMDD`+correlativo): con uno alfanumérico SUNAT devuelve 200 con el cuerpo VACÍO y la sonda parece rota cuando el mal formado es el dato |
 | `verificar-culqi-live.js` | Prueba llaves **live sin cobrar**: espacios/BOM, mismo entorno, que la secreta autentique, que la pública siga viva (401 = llave mala, **400 = llave buena** rechazando la tarjeta) y que el **bundle desplegado** traiga esa misma llave — lo único que detecta un `vercel env add` sin `vercel --prod` |
 | `auditar-pagos.js` | Foto de solo lectura de los cobros |

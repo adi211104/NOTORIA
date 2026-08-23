@@ -833,6 +833,84 @@ const enviarRespuestaReclamacion = async (r) => {
 
 // Aviso interno de plazos por vencer. Lo manda el cron diario: sin él, cumplir
 // los 15 días hábiles dependería de que alguien se acuerde de mirar el libro.
+// ── Aviso: hay un comprobante devuelto que sigue vivo ante SUNAT ──────────
+//
+// 🔴 Este es el correo que evita el único error del circuito de cobro que cuesta
+// dinero de verdad. Reembolsar en Culqi NO anula el comprobante: el importe
+// vuelve al cliente y la boleta sigue declarada, con su IGV a pagar. El plazo
+// para anularla son 7 días y después ya no hay vuelta atrás — toca nota de
+// crédito.
+//
+// Va en **modo urgente de verdad**, no solo con mayúsculas en el asunto:
+// `X-Priority`, `Importance` y `X-MSMail-Priority` son las cabeceras que Gmail y
+// Outlook usan para marcarlo. Un aviso con reloj corriendo que llega igual que
+// cualquier resumen semanal se lee cuando ya es tarde.
+//
+// En español a propósito: va a contabilidad, no a un cliente.
+const enviarAvisoAnulacionPendiente = async ({ comprobante, pago, diasRestantes, comando, primerAviso }) => {
+  const destino = process.env.EMAIL_CONTABILIDAD;
+  // 🔴 Sin destino, `return` silencioso — el mismo patrón que los otros cuatro
+  // avisos contables. Es deliberado, pero conviene saber que apaga la función
+  // entera: ver la nota de EMAIL_CONTABILIDAD en CLAUDE.md §3.
+  if (!destino) {
+    console.error('[Anulación] EMAIL_CONTABILIDAD sin definir: NADIE se enterará de que hay un comprobante por anular');
+    return;
+  }
+
+  const vencido = diasRestantes < 0;
+  const importe = `S/${(comprobante.total / 100).toFixed(2)}`;
+
+  const res = await getResend().emails.send({
+    from: FROM(), to: destino,
+    subject: vencido
+      ? `🔴 FUERA DE PLAZO — ${comprobante.numero} reembolsado y SIN ANULAR`
+      : `🔴 URGENTE — anular ${comprobante.numero} (quedan ${diasRestantes} día${diasRestantes === 1 ? '' : 's'})`,
+    // Las cabeceras que de verdad marcan el correo como prioritario.
+    headers: {
+      'X-Priority': '1',
+      'X-MSMail-Priority': 'High',
+      Importance: 'high',
+    },
+    html: base(`
+      ${h1(vencido ? 'Comprobante reembolsado FUERA DE PLAZO' : 'Hay que anular un comprobante')}
+      <div style="background:#FEF2F2;border-left:4px solid #B91C1C;padding:14px 18px;margin:0 0 16px;">
+        <p style="color:#B91C1C;font-size:14px;font-weight:700;margin:0 0 6px;">
+          Se devolvió el dinero, pero el comprobante sigue vivo ante SUNAT.
+        </p>
+        <p style="color:#5C5B57;font-size:13px;margin:0;line-height:1.6;">
+          Reembolsar en Culqi y anular ante SUNAT son dos cosas distintas. Mientras no se anule,
+          esta operación cuenta como venta declarada y su IGV se paga.
+        </p>
+      </div>
+
+      <div style="background:#FAF9F5;border:1px solid #E8E6DC;border-radius:6px;padding:14px 18px;margin-bottom:16px;">
+        <p style="margin:0 0 4px;color:#141413;font-size:14px;font-weight:700;">${esc(comprobante.numero)} · ${comprobante.tipo}</p>
+        <p style="margin:0;color:#5C5B57;font-size:13px;">Importe ${importe} · emitido el ${fechaLarga(comprobante.fechaEmision, 'es')}</p>
+        <p style="margin:6px 0 0;color:#5C5B57;font-size:13px;">Cargo devuelto: <code>${esc(pago.culqiCargoId || '—')}</code></p>
+        <p style="margin:6px 0 0;font-size:13px;font-weight:700;color:${vencido ? '#B91C1C' : '#B45309'};">
+          ${vencido
+            ? `El plazo venció hace ${Math.abs(diasRestantes)} día(s). Ya NO se puede anular: corresponde una nota de crédito.`
+            : `Quedan ${diasRestantes} día(s) del plazo de 7.`}
+        </p>
+      </div>
+
+      ${vencido ? '' : `${p('Para anularlo, desde <code>brand-shield/</code>:')}
+      <div style="background:#141413;border-radius:6px;padding:12px 16px;margin-bottom:14px;">
+        <code style="color:#4CAF66;font-size:12px;word-break:break-all;">${esc(comando)}</code>
+      </div>`}
+
+      ${hr()}
+      <p style="color:#9C9B96;font-size:12px;margin:0;">
+        ${primerAviso
+          ? 'Este aviso se dispara en cuanto Culqi notifica el reembolso, y se repite cada día hasta que el comprobante quede anulado.'
+          : 'Recordatorio diario: el comprobante sigue sin anular.'}
+      </p>
+    `),
+  });
+  console.log(`[Anulación] Aviso enviado a ${destino} — ${comprobante.numero} (${diasRestantes} días)`);
+  return res;
+};
+
 const enviarAvisoPlazoReclamaciones = async (pendientes) => {
   const destino = process.env.EMAIL_RECLAMACIONES || 'hola@usenotoria.app';
   const fila = (x) => {
@@ -1020,4 +1098,4 @@ const enviarSalidaEquipo = async ({ miembro, cuenta }) => {
   });
 };
 
-module.exports = { enviarBienvenida, enviarVerificacion, enviarConfirmacionContrasena, enviarRecuperacionContrasena, enviarAlertaCritica, enviarResumenAlertas, enviarResumenSemanal, enviarResumenSemanalConsolidado, enviarComprobante, enviarDrip, enviarCargoReclamacion, enviarAvisoReclamacionInterno, enviarRespuestaReclamacion, enviarAvisoPlazoReclamaciones, enviarConfirmacionCambioPassword, enviarCobroFallido, enviarCancelacion, enviarInvitacionEquipo, enviarAvisoNuevoMiembro, enviarSalidaEquipo, getResend, FROM, base, h1, p, btn, hr };
+module.exports = { enviarBienvenida, enviarVerificacion, enviarConfirmacionContrasena, enviarRecuperacionContrasena, enviarAlertaCritica, enviarResumenAlertas, enviarResumenSemanal, enviarResumenSemanalConsolidado, enviarComprobante, enviarDrip, enviarCargoReclamacion, enviarAvisoReclamacionInterno, enviarRespuestaReclamacion, enviarAvisoPlazoReclamaciones, enviarAvisoAnulacionPendiente, enviarConfirmacionCambioPassword, enviarCobroFallido, enviarCancelacion, enviarInvitacionEquipo, enviarAvisoNuevoMiembro, enviarSalidaEquipo, getResend, FROM, base, h1, p, btn, hr };
