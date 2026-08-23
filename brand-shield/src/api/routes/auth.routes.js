@@ -98,6 +98,12 @@ router.post('/registro', async (req, res, next) => {
         // Lo necesita `firmarSesion`. En una cuenta recién creada siempre vale 0,
         // pero se pide igual para no depender de eso.
         tokenVersion: true,
+        // Lo necesita el correo de verificación, que es bilingüe. Hoy una cuenta
+        // nueva siempre nace con el default 'es', así que pedirlo no cambia nada
+        // — pero que salga en español por el default y no por un `undefined` que
+        // cae al fallback son dos cosas distintas el día que el registro empiece
+        // a guardar el idioma del navegador.
+        idioma: true,
       },
     });
 

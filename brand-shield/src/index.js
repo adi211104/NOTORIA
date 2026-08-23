@@ -23,6 +23,7 @@ const equipoRoutes = require('./api/routes/equipo.routes');
 const { iniciarMonitoreo, iniciarReportesMensuales, iniciarResumenesAlertas, iniciarRenovacionesCulqi, iniciarBajadaDePlanes, iniciarEscalacionUrgencias, iniciarAvisoReclamaciones } = require('./workers/monitoreo.worker');
 const { iniciarResumenSemanal } = require('./workers/resumenSemanal.worker');
 const { iniciarDrip } = require('./workers/drip.worker');
+const { iniciarRecordatoriosVerificacion } = require('./workers/verificacion.worker');
 const { iniciarEnvioSunat } = require('./workers/envioSunat.worker');
 const { iniciarResumenSunat } = require('./workers/resumenSunat.worker');
 
@@ -194,6 +195,7 @@ app.listen(PORT, () => {
     iniciarEnvioSunat();
     iniciarResumenSunat();
     iniciarDrip();
+    iniciarRecordatoriosVerificacion();
     console.log('🔄 Monitoreo periódico iniciado');
     console.log('📄 Cron de reportes mensuales iniciado');
     console.log('📬 Cron de resúmenes de alertas iniciado');

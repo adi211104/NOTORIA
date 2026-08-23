@@ -507,8 +507,158 @@ completa sin ellos.
 
 ## 7. Pendiente aparte, no bloquea el envío
 
-**Rotar `META_APP_SECRET`.** Se compartió por chat el 2026-08-06 y sigue sin
-rotarse (verificado el 2026-08-14: el secreto actual es válido, o sea el mismo).
-Al rotarlo hay que recargarlo en Railway o el OAuth deja de funcionar con un
-error genérico de credenciales que no menciona el secreto. Ese secreto **también
-firma los webhooks**, así que Meta empieza a firmar con el nuevo de inmediato.
+~~**Rotar `META_APP_SECRET`.**~~ ✅ **Hecho el 2026-08-22** y comprobado contra la
+Graph API con `railway run --service api node scripts/verificar-meta-secret.js`.
+Se rotó con el App Review en curso a sabiendas: la única ventana en que el OAuth
+falla es la del redespliegue de Railway, uno o dos minutos.
+
+⚠️ **`META_IG_APP_SECRET` NO se tocó, y no debe tocarse.** Es con ese —el de la
+app de Instagram `1305555994987658`— con el que Meta firma los webhooks de
+Instagram, y hoy **no hay forma de validarlo**: la única prueba sería un
+comentario real, que no llegará hasta que aprueben. `verificar-meta-secret.js`
+devuelve «no concluyente» para ese, no «rechazado», precisamente porque el flujo
+que se usa para comprobarlo ni siquiera llega a mirar el secreto (se descubrió
+con una llamada de control usando un secreto inventado, que daba el mismo error).
+
+---
+
+## 8. SEGUNDA SOLICITUD — preparada, esperando a que se resuelva la primera
+
+> **No se puede enviar todavía.** Meta no admite una segunda revisión mientras la
+> primera está *in progress*. Esta sección existe para que el día que aprueben la
+> primera el envío sea pegar y darle a Enviar, no empezar a redactar.
+
+**Escrita el 2026-08-23.** Lo que falta por hacer cuando llegue el momento está
+al final, en el checklist.
+
+### 8.1 Qué se pide, y por qué son DOS y no uno
+
+| Permiso | Qué desbloquea | Por qué quedó fuera de la primera |
+|---|---|---|
+| `business_management` | Que `me/accounts` liste las páginas que viven dentro de un **portfolio comercial**. Sin él, cualquier cliente que haya verificado su empresa, trabajado con una agencia o corrido anuncios recibe «0 páginas utilizables» | Su botón *Request advanced access* estaba **deshabilitado** al enviar: Meta no lo activa hasta ~24 h después de la primera llamada registrada |
+| `pages_read_user_content` | **Facebook Reviews**: leer `/{page-id}/ratings` de la página que el cliente conecta | No se había investigado. Se daba por hecho que bastaba `pages_read_engagement`, y es falso |
+
+🔴 **`pages_read_user_content` es el permiso correcto, NO `pages_read_engagement`.**
+Esto se supuso mal durante meses. Con la primera solicitud aprobada tal cual,
+Facebook Reviews **seguiría sin funcionar** y el fallo habría parecido un bug del
+scraper. Comprobado el 2026-08-22 contra la documentación oficial de
+`/{page-id}/ratings` y del nodo `Recommendation`.
+
+✅ **NO hace falta la feature *Page Public Content Access***, que es la difícil de
+conseguir: esa es para leer páginas **ajenas**. Acá el cliente conecta la suya y
+concede el permiso él mismo.
+
+### 8.2 Textos en inglés (para pegar en "How will you use this permission?")
+
+**business_management**
+```
+Notoria is a reputation-monitoring tool for restaurants and hotels in Peru.
+
+HOW THE APP USES IT
+We call me/accounts during the connection flow to list the Facebook Pages the
+person administers, so they can pick the one linked to the business they want to
+monitor. We do not create, modify or manage any Business Portfolio: the
+permission is used only so that Pages owned by a portfolio appear in that list.
+
+VALUE FOR THE PERSON USING THE APP
+Most of our target customers are small restaurant and hotel groups whose Page
+was verified through a Business Portfolio, or was set up by a marketing agency.
+For all of them, me/accounts returns an empty list without this permission, and
+the connection simply fails with no explanation the owner can act on.
+
+WHY IT IS NECESSARY
+It is not an enhancement: without it the product does not work at all for that
+segment. We confirmed this on our own demo account, whose Page belongs to a
+portfolio and was invisible to me/accounts until business_management was
+granted.
+```
+
+**pages_read_user_content**
+```
+Notoria is a reputation-monitoring tool for restaurants and hotels in Peru. It
+brings together, in a single inbox, the reviews a business receives across
+platforms, so the owner does not have to check each one separately.
+
+HOW THE APP USES IT
+Once the owner connects their own Facebook Page, we read the reviews and
+recommendations left on it through the /{page-id}/ratings edge: the rating, the
+recommendation type, the review text, the reviewer's name and the creation time.
+We store them so the dashboard can show new reviews, flag the negative ones and
+alert the owner by email the same day one appears. We only ever read the Pages
+the person explicitly selects during authorization, and only their own.
+
+VALUE FOR THE PERSON USING THE APP
+A negative review answered the same day changes what the next customer reads.
+Today our users already get this for their Google listing, and the most frequent
+request is the same thing for Facebook. Without it they have to remember to open
+the Page every day, which is exactly the habit the product exists to replace.
+
+WHY IT IS NECESSARY
+/{page-id}/ratings requires pages_read_user_content. There is no other endpoint
+that returns the reviews of a Page: pages_read_engagement covers posts and
+engagement metrics, not the ratings edge. Without this permission the Facebook
+part of the product cannot exist.
+```
+
+### 8.3 Screencast — qué tiene que enseñar
+
+El de la primera solicitud **no sirve**: no enseña ni una página en portfolio ni
+una reseña de Facebook. Hay que grabar uno nuevo, y sigue valiendo la regla del
+anterior — es **el mismo archivo subido en los dos permisos**.
+
+| Momento | Qué se ve | Cubre |
+|---|---|---|
+| 0:00 | Login en usenotoria.app con la cuenta de prueba | contexto |
+| 0:15 | Panel → Conexiones → «Conectar Facebook» | contexto |
+| 0:25 | Diálogo de Facebook: se ve la **página que está dentro del portfolio** apareciendo en la lista | `business_management` |
+| 0:45 | Vuelta al panel con la página conectada | ambos |
+| 1:00 | Pestaña Reseñas: se ven **reseñas reales de Facebook** con su estrella y su texto | `pages_read_user_content` |
+| 1:20 | Una reseña negativa y el correo de alerta que produjo | `pages_read_user_content` |
+| 1:40 | Conexiones → Desconectar, y la página desaparece | borrado de datos |
+
+🔴 **Nada de esto se puede grabar hoy**: sin el permiso concedido,
+`/{page-id}/ratings` devuelve error y la pestaña estaría vacía. El screencast se
+graba **después** de que Meta conceda acceso *estándar* (que se tiene por
+defecto) sobre la página propia — comprobar primero con el Explorador de la API
+que la llamada devuelve datos con la cuenta de prueba.
+
+### 8.4 Lo que hay que TERMINAR en el código antes de grabar
+
+El scraper existe pero **está deliberadamente a medias**, y su cabecera lo dice
+en rojo: no se termina hasta tener el permiso y una página real con reseñas. Lo
+que le falta, ya identificado el 2026-08-22, es poco y concreto:
+
+1. `recommendation_type` (`positive` / `negative`) y los booleanos `has_rating`
+   y `has_review` en el `fields` de la petición.
+2. Tratar la recomendación **sin estrella**: desde 2018 una recomendación puede
+   venir sin `rating`, y hoy el stub cae en `rating: 0`, que el detector leería
+   como una reseña de cero estrellas — peor que no leerla. Lo correcto es derivar
+   la estrella del `recommendation_type` (positive → 5, negative → 1) o marcarla
+   como sin rating y dejarla fuera del promedio.
+3. La **ruta para conectar la página**. Hoy no existe y por eso `facebookPageId`
+   no se llena nunca. El OAuth ya está: el callback de Instagram pide
+   `me/accounts` y **ya trae la página**, solo descarta las que no tienen
+   Instagram (`redes.routes.js:128`). Es un desvío, no una integración nueva.
+4. Cablear la fuente en el worker y devolver Facebook a las páginas públicas de
+   las que se retiró.
+
+⚠️ **En ese orden y no antes.** Escribir el cliente entero contra mocks es
+exactamente lo que pasó con `obtenerComentariosTikTok`, que apuntó meses a un
+endpoint inexistente y pasaba todas las pruebas.
+
+### 8.5 Checklist del día que se envíe
+
+- [ ] La primera solicitud está **resuelta** (aprobada o rechazada), no *in progress*
+- [ ] El botón *Request advanced access* de `business_management` está **habilitado**
+      (si sigue gris, hacer una llamada a `me/businesses` desde el Explorador y
+      esperar hasta 24 h — es lo que pasó en agosto)
+- [ ] `pages_read_user_content` aparece en la Configuración de Facebook Login
+- [ ] `/{page-id}/ratings` devuelve datos con la cuenta de prueba en el Explorador
+- [ ] Los cuatro puntos de §8.4 están hechos y desplegados
+- [ ] Screencast nuevo grabado según §8.3
+- [ ] La cuenta de prueba de §3 sigue funcionando (contraseña y correo de
+      `revisormeta@usenotoria.app`, cuya regla de Email Routing existe desde el
+      2026-08-20 — sin ella el correo se descarta en silencio)
+- [ ] 📅 **Antes del 5 de octubre de 2026**: vence la renovación anual de acceso a
+      datos de Meta. Si se pasa, se pierde el acceso a las APIs, y eso NO depende
+      del App Review

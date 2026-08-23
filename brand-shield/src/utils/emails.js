@@ -84,20 +84,64 @@ const enviarBienvenida = async (usuario) => {
 };
 
 // ── 2. Verificación de email ──────────────────────────────
-const enviarVerificacion = async (usuario, token) => {
-  console.log('[Email] Enviando verificación a:', usuario.email, '| token:', token.slice(0,8)+'...');
+// Verificación de correo. Tiene DOS formas: la del registro y el RECORDATORIO
+// que manda el cron a quien nunca lo confirmó.
+//
+// 🔴 El recordatorio no repite «confirma tu correo» y ya. Dice lo que la persona
+// se está perdiendo, porque ese es el hecho que mueve a hacer clic una semana
+// después: mientras la cuenta no esté verificada NO le sale absolutamente nada
+// de Notoria — el drip de onboarding lleva `emailVerificado: true` en su `where`,
+// así que esas cuentas quedan fuera de todo. Foto del 2026-08-23: 4 de 11
+// usuarios sin verificar, dos de ellos desde hacía 49 días, sin haber recibido
+// una sola palabra desde el correo del registro.
+const VERIFICACION = {
+  es: {
+    asunto: 'Confirma tu email — Notoria',
+    asuntoRecordatorio: 'Tu cuenta de Notoria sigue sin activar',
+    titulo: 'Confirma tu correo electrónico',
+    tituloRecordatorio: 'Tu cuenta sigue sin activar',
+    intro: 'Haz clic en el botón para activar tu cuenta de Notoria:',
+    introRecordatorio: (dias) => `Creaste tu cuenta hace ${dias} ${dias === 1 ? 'día' : 'días'} y todavía no confirmaste tu correo. Mientras siga así <strong>no podemos avisarte de nada</strong>: si mañana aparece una reseña de 1★ en tu negocio, el aviso no te va a llegar.`,
+    cta: 'Confirmar mi email →',
+    ctaRecordatorio: 'Activar mi cuenta →',
+    ignora: 'Si no creaste una cuenta en Notoria, ignora este mensaje. El enlace expira en 24 horas.',
+    copiar: 'Si el botón no funciona, copia este enlace:',
+  },
+  en: {
+    asunto: 'Confirm your email — Notoria',
+    asuntoRecordatorio: 'Your Notoria account is still inactive',
+    titulo: 'Confirm your email address',
+    tituloRecordatorio: 'Your account is still inactive',
+    intro: 'Click the button to activate your Notoria account:',
+    introRecordatorio: (dias) => `You created your account ${dias} ${dias === 1 ? 'day' : 'days'} ago and still haven't confirmed your email. Until you do, <strong>we can't alert you about anything</strong>: if a 1★ review shows up on your business tomorrow, the alert won't reach you.`,
+    cta: 'Confirm my email →',
+    ctaRecordatorio: 'Activate my account →',
+    ignora: "If you didn't create a Notoria account, ignore this message. The link expires in 24 hours.",
+    copiar: "If the button doesn't work, copy this link:",
+  },
+};
+
+/**
+ * @param {object} usuario
+ * @param {string} token
+ * @param {{ recordatorio?: boolean, diasDesdeRegistro?: number }} [opciones]
+ */
+const enviarVerificacion = async (usuario, token, opciones = {}) => {
+  const { recordatorio = false, diasDesdeRegistro = 0 } = opciones;
+  const t = VERIFICACION[usuario.idioma] || VERIFICACION.es;
+  console.log(`[Email] Enviando ${recordatorio ? 'RECORDATORIO de ' : ''}verificación a:`, usuario.email, '| token:', token.slice(0,8)+'...');
   const url = `${FRONT()}/verificar-email?token=${token}`;
   const r = getResend();
   const res = await r.emails.send({
     from: FROM(), to: usuario.email,
-    subject: 'Confirma tu email — Notoria',
+    subject: recordatorio ? t.asuntoRecordatorio : t.asunto,
     html: base(`
-      ${h1('Confirma tu correo electrónico')}
-      ${p('Haz clic en el botón para activar tu cuenta de Notoria:')}
-      ${btn('Confirmar mi email →', url)}
+      ${h1(recordatorio ? t.tituloRecordatorio : t.titulo)}
+      ${p(recordatorio ? t.introRecordatorio(diasDesdeRegistro) : t.intro)}
+      ${btn(recordatorio ? t.ctaRecordatorio : t.cta, url)}
       ${hr()}
-      <p style="color:#9C9B96;font-size:12px;margin:0;">Si no creaste una cuenta en Notoria, ignora este mensaje. El enlace expira en 24 horas.</p>
-      <p style="color:#9C9B96;font-size:12px;margin:8px 0 0;">Si el botón no funciona, copia este enlace: <br><a href="${url}" style="color:#0B7324;word-break:break-all;">${url}</a></p>
+      <p style="color:#9C9B96;font-size:12px;margin:0;">${t.ignora}</p>
+      <p style="color:#9C9B96;font-size:12px;margin:8px 0 0;">${t.copiar} <br><a href="${url}" style="color:#0B7324;word-break:break-all;">${url}</a></p>
     `),
   });
   console.log('[Email] Verificación resultado:', JSON.stringify(res));

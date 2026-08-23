@@ -4,6 +4,7 @@ const prisma = require('../../lib/prisma');
 const { negocioPublico, negociosPublicos } = require('../../lib/negocioPublico');
 const { buscarNegocioEnGoogle, obtenerUbicacionNegocio, buscarCompetidoresCercanos, obtenerResenasVisibles } = require('../../scrapers/google.scraper');
 const { informeRating } = require('../../lib/rating');
+const { compararMeses, ordenarPorCrecimiento, hayAlgoQueContar } = require('../../lib/progreso');
 const { generarAfiche } = require('../../utils/afiche.generator');
 const { emitirCodigo, VIGENCIA_DIAS } = require('../../lib/constancia');
 const { generarConstancia } = require('../../utils/constancia.pdf');
@@ -297,6 +298,66 @@ router.get('/:id/simulador', async (req, res, next) => {
     if (!informe) return res.status(409).json({ error: 'No hay datos suficientes para calcular el simulador.', codigo: 'SIN_DATOS' });
 
     res.json({ ...informe, medidoEn: snap.tomadoEn });
+  } catch (error) { next(error); }
+});
+
+// ── GET /api/negocios/:id/progreso ────────────────────────
+//
+// Este mes contra el anterior, para el negocio y para los competidores que el
+// cliente sigue. Sale entero de los snapshots que ya se guardan: cero llamadas
+// a Google, así que se puede pedir las veces que haga falta.
+//
+// 🔴 Mide RESEÑAS GANADAS, no rating, y eso no es un atajo. Con 49 días de
+// historial real delante (2026-08-23) los cinco negocios más antiguos daban
+// 4.8→4.8, 3.9→3.9, 4.0→4.0 y 4.5→4.5: una ficha con cientos de reseñas no
+// mueve su promedio en un mes. Lo que sí se movió en ese mismo periodo fueron
+// las reseñas — 14, 5, 3 — y además es lo único que el dueño puede empujar.
+// El rating viaja igual, como dato de apoyo, con su `ratingSignificativo`.
+//
+// ⚠️ Responde 409 SIN_DATOS cuando no hay nada que contar, en vez de devolver
+// una lista de ceros. Es la regla de producto del proyecto: lo que no se puede
+// entregar no se muestra, y una pantalla de progreso con todo en cero le dice
+// al cliente que su mes fue plano cuando lo que pasa es que aún no hay medición
+// suficiente. El panel debe esconder la sección ante ese 409, no pintarla vacía.
+router.get('/:id/progreso', async (req, res, next) => {
+  try {
+    const negocio = await prisma.negocio.findFirst({
+      where: dondeNegocio(req, { id: req.params.id }),
+      select: {
+        id: true, nombre: true,
+        snapshots: { where: { plataforma: 'GOOGLE' }, select: { tomadoEn: true, ratingActual: true, totalResenas: true } },
+        competidores: {
+          select: {
+            id: true, nombre: true,
+            snapshots: { select: { tomadoEn: true, ratingActual: true, totalResenas: true } },
+          },
+        },
+      },
+    });
+    if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
+
+    const ahora = new Date();
+    const propio = { id: negocio.id, nombre: negocio.nombre, esPropio: true, ...compararMeses(negocio.snapshots, ahora) };
+    const rivales = negocio.competidores.map((c) => ({
+      id: c.id, nombre: c.nombre, esPropio: false, ...compararMeses(c.snapshots, ahora),
+    }));
+
+    // El corte mira SOLO el negocio propio. Que un competidor haya crecido no es
+    // motivo para abrirle una pantalla de progreso a quien todavía no tiene
+    // ninguna medición suya: leería el mes de otro como si fuera el propio.
+    if (!hayAlgoQueContar([propio])) {
+      return res.status(409).json({
+        error: 'Todavía no hay suficiente historial para comparar este mes con el anterior.',
+        codigo: 'SIN_DATOS',
+      });
+    }
+
+    res.json({
+      negocio: propio,
+      // Ordenados juntos: la gracia es ver en qué puesto quedó uno.
+      ranking: ordenarPorCrecimiento([propio, ...rivales]),
+      medidoEn: ahora,
+    });
   } catch (error) { next(error); }
 });
 

@@ -268,7 +268,43 @@ const alertarResenaNegativa = async (negocio, resena, esPrimerBarrido) => {
 /**
  * Procesa un negocio: obtiene reseñas, guarda nuevas, detecta anomalías y notifica
  */
-const procesarNegocio = async (negocio) => {
+// Una ficha de Google, una sola llamada por ciclo — aunque la vigilen varios.
+//
+// 🔴 Dos cuentas distintas pueden monitorear el MISMO local, y no es hipotético:
+// el 2026-08-23 había 10 negocios activos y solo 9 `googlePlaceId` distintos
+// («Cebichería Fabián» la seguían dos usuarios, con 541 snapshots entre los dos).
+// Cada uno gastaba su propia consulta a Places por la misma ficha. Hoy es
+// calderilla; con clientes de verdad es un costo variable que se duplica sin que
+// nada lo delate, porque en la factura de Google no se distingue.
+//
+// El caché vive UN CICLO y se pasa explícito. Nada de memo con TTL dentro del
+// scraper: entre ciclos los datos tienen que volver a pedirse, que es la razón de
+// ser del producto.
+//
+// ⚠️ La clave no puede ser solo el placeId. `conContacto` cambia los campos que
+// se piden (Contact Data se factura aparte y solo lo tienen NEGOCIO y
+// FRANQUICIA), así que una respuesta SIN contacto no sirve para quien sí lo
+// paga. Al revés sí: la que trae contacto es un superconjunto y vale para los
+// dos. Servir una sin contacto a un plan que lo incluye apagaría en silencio la
+// vigilancia de teléfono y horario de ese cliente.
+const obtenerFichaGoogleCompartida = async (placeId, conContacto, cache) => {
+  if (!cache) return obtenerResenasGoogle(placeId, { conContacto });
+
+  const guardado = cache.get(placeId);
+  if (guardado && (guardado.conContacto || !conContacto)) {
+    console.log(`[Worker] Ficha ${placeId} reutilizada del ciclo (una llamada menos a Places)`);
+    return guardado.datos;
+  }
+
+  const datos = await obtenerResenasGoogle(placeId, { conContacto });
+  // Solo se guarda lo que sirvió. Un `null` (fallo de red, cuota agotada) no se
+  // cachea: el siguiente negocio que comparta la ficha merece su propio intento,
+  // y no heredar un fallo ajeno.
+  if (datos) cache.set(placeId, { datos, conContacto });
+  return datos;
+};
+
+const procesarNegocio = async (negocio, ctx = {}) => {
   console.log(`[Worker] Procesando: ${negocio.nombre} (${negocio.id})`);
 
   // ── GOOGLE ────────────────────────────────────────────────
@@ -276,9 +312,11 @@ const procesarNegocio = async (negocio) => {
     // Los datos de contacto (teléfono, horario, dirección) solo se piden en los
     // planes que los incluyen: son del grupo Contact Data de Places y se
     // facturan aparte. Ver lib/fichaGoogle.js.
-    const datos = await obtenerResenasGoogle(negocio.googlePlaceId, {
-      conContacto: puedeVigilarFicha(negocio.usuario?.plan),
-    });
+    const datos = await obtenerFichaGoogleCompartida(
+      negocio.googlePlaceId,
+      puedeVigilarFicha(negocio.usuario?.plan),
+      ctx.fichasGoogle,
+    );
     if (datos) {
       // Lo primero, antes que las reseñas: que la ficha exista y esté abierta es
       // más urgente que cualquier reseña que haya en ella. Va con su propio
@@ -559,6 +597,14 @@ const iniciarMonitoreo = () => {
               nombre: true,
               prefsAlertas: true,
               plan: true,
+              // 🔴 `idioma` NO es opcional acá: `enviarAlertaCritica` compone el
+              // correo con `ALERTA[usuario.idioma] || ALERTA.es`, así que sin
+              // seleccionarlo llega `undefined` y TODA alerta sale en español —
+              // incluidas las de quien tiene el panel en inglés. Es el mismo
+              // error que ya pasó con el texto de las invitaciones de equipo
+              // (§11) y con la limpieza del landing (§15): el lado inglés se
+              // olvida porque nada falla, solo sale en el idioma que no es.
+              idioma: true,
             },
           },
         },
@@ -576,8 +622,18 @@ const iniciarMonitoreo = () => {
       // No se escribe `ultimoEscaneo`: es el reloj del botón manual, y el cron no
       // debe gastárselo al usuario (ver la nota de leTocaEscaneo). El registro de
       // esta pasada lo deja el propio Snapshot que crea `procesarNegocio`.
+      // Una ficha compartida por dos cuentas se pide UNA vez por ciclo (ver
+      // `obtenerFichaGoogleCompartida`). El caché muere con la pasada.
+      const fichasGoogle = new Map();
+
+      // Se atiende primero a quien tiene derecho a los datos de contacto. Si un
+      // plan GRATIS que comparte ficha fuera primero, dejaría cacheada una
+      // respuesta SIN contacto que no le sirve al de pago, y habría que pedirla
+      // otra vez: el caché no ahorraría nada justo en el caso mixto.
+      toca.sort((x, y) => Number(puedeVigilarFicha(y.usuario?.plan)) - Number(puedeVigilarFicha(x.usuario?.plan)));
+
       for (const negocio of toca) {
-        await procesarNegocio(negocio);
+        await procesarNegocio(negocio, { fichasGoogle });
         // Excepción: un negocio SIN ficha de Google nunca genera un Snapshot, así
         // que no tiene el otro reloj y sin esto se escanearía cada hora —
         // machacando TikTok o Instagram si los tiene conectados. Solo en ese caso
@@ -620,11 +676,15 @@ const ejecutarAhora = async (negocioId = null, { global: barridoGlobal = false }
   const negocios = await prisma.negocio.findMany({
     where,
     include: {
-      usuario: { select: { id: true, email: true, nombre: true, prefsAlertas: true, plan: true } },
+      usuario: { select: { id: true, email: true, nombre: true, prefsAlertas: true, plan: true, idioma: true } },
     },
   });
+  // Mismo caché por pasada que en el cron: `ejecutarAhora` sin `negocioId`
+  // recorre la plataforma entera, que es justo donde más fichas se repiten.
+  const fichasGoogle = new Map();
+  negocios.sort((x, y) => Number(puedeVigilarFicha(y.usuario?.plan)) - Number(puedeVigilarFicha(x.usuario?.plan)));
   for (const negocio of negocios) {
-    await procesarNegocio(negocio);
+    await procesarNegocio(negocio, { fichasGoogle });
   }
   console.log('[Worker] Ejecución manual completada.');
 };
@@ -1371,4 +1431,8 @@ module.exports = {
   // (primer barrido, reseña vieja, rating por encima del umbral): si una se
   // rompe, no falla nada — simplemente se deja de avisar, o se avisa de más.
   alertarResenaNegativa, UMBRAL_RESENA_NEGATIVA, DIAS_RESENA_RECIENTE,
+  // El caché de fichas por ciclo. Se exporta para poder probar sus dos reglas
+  // sutiles: que una respuesta CON contacto sirve para quien no lo paga pero no
+  // al revés, y que un fallo no se cachea.
+  obtenerFichaGoogleCompartida,
 };

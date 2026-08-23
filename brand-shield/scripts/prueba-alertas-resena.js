@@ -191,6 +191,60 @@ const correr = async () => {
   check('la pantalla de Alertas ofrece "Cada reseña negativa": esto es lo que la cumple',
     typeof alertarResenaNegativa === 'function');
 
+  // ── 6. El correo sale en el idioma del usuario ──────────
+  //
+  // 🔴 Esta sección nace de un fallo REAL encontrado el 2026-08-23: el worker
+  // cargaba el negocio con `usuario: { select: { id, email, nombre,
+  // prefsAlertas, plan } }` — sin `idioma`. `enviarAlertaCritica` compone el
+  // correo con `ALERTA[usuario.idioma] || ALERTA.es`, así que llegaba
+  // `undefined` y TODA alerta salía en español, incluidas las de quien tiene el
+  // panel en inglés. No fallaba nada: salía en el idioma que no era.
+  //
+  // Se comprueba leyendo el FUENTE porque el fallo no está en la lógica de
+  // `alertarResenaNegativa` —que recibe el usuario ya cargado— sino en la
+  // consulta que lo alimenta. Un doble de Prisma nunca lo habría visto: el mock
+  // devuelve el objeto entero, con `idioma` y todo.
+  bloque('6. El correo sale en el idioma del usuario, no siempre en español');
+
+  const fs = require('fs');
+  const path = require('path');
+  const fuenteWorker = fs.readFileSync(path.join(__dirname, '..', 'src', 'workers', 'monitoreo.worker.js'), 'utf8');
+  const fuenteEmails = fs.readFileSync(path.join(__dirname, '..', 'src', 'utils', 'emails.js'), 'utf8');
+
+  // Los `select` de usuario que alimentan el camino de alertas son los que
+  // llevan `prefsAlertas` (el resumen mensual y la escalación usan los suyos y
+  // ya traían idioma). Todos tienen que pedir el idioma.
+  // Se recorta una ventana alrededor de cada `prefsAlertas: true` en vez de
+  // partir el archivo con una expresión regular: el select está escrito de dos
+  // formas distintas (una en varias líneas, otra en una sola) y una ventana de
+  // caracteres cubre las dos sin depender del formato.
+  //
+  // ⚠️ Se filtra por los que piden TAMBIÉN `plan`, y no por todos los que piden
+  // `prefsAlertas`. Hay un tercero —el de `enviarResumenAlertas`, que carga
+  // usuarios sueltos sin negocio— que tampoco pide idioma, pero ese correo NO
+  // lee `usuario.idioma` en ninguna parte: está escrito solo en español, igual
+  // que los dos resúmenes semanales. Eso es otro hueco y se arregla traduciendo
+  // la plantilla, no añadiendo una columna al select. Meterlo acá haría fallar
+  // esta prueba por algo que esta prueba no cubre.
+  const VENTANA = 1500; // holgada: uno de los selects lleva un comentario largo entre `prefsAlertas` e `idioma`
+  const selectsDeAlertas = [];
+  for (let i = fuenteWorker.indexOf('prefsAlertas: true'); i !== -1; i = fuenteWorker.indexOf('prefsAlertas: true', i + 1)) {
+    const ventana = fuenteWorker.slice(Math.max(0, i - VENTANA), i + VENTANA);
+    if (ventana.includes('plan: true')) selectsDeAlertas.push(ventana);
+  }
+
+  check('hay al menos un select de usuario en el camino de alertas',
+    selectsDeAlertas.length > 0,
+    'si esto falla, cambió la forma de cargar el negocio y hay que revisar esta prueba entera');
+
+  check('TODO select que pide prefsAlertas pide también idioma',
+    selectsDeAlertas.every((bloqueTexto) => bloqueTexto.includes('idioma: true')),
+    'sin idioma el correo de alerta sale siempre en español');
+
+  check('enviarAlertaCritica sigue eligiendo el idioma con usuario.idioma',
+    fuenteEmails.includes('ALERTA[usuario.idioma]'),
+    'si esto cambia, la comprobación de arriba deja de significar algo');
+
   // ── Resumen ─────────────────────────────────────────────
   console.log('\n──────────────────────────────────────────────────────');
   console.log(`${pasadas} pasadas · ${fallidas} fallidas`);

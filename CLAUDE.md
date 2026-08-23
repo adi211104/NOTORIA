@@ -1160,6 +1160,35 @@ porque desde Alertas no se puede responder. Es bilingüe, como el drip.
   traen. Al tocar este correo, correr `scripts/prueba-escape-emails.js`, que cubre los tres.
 - El genérico tampoco dice ya «detectamos actividad inusual»: era falso para una reseña de 1★
   y para una ficha alterada.
+- 🔴 **«Es bilingüe» era falso hasta el 2026-08-23, y el fallo no estaba en la plantilla.**
+  `enviarAlertaCritica` elige con `ALERTA[usuario.idioma] || ALERTA.es`, pero los DOS `select`
+  del worker que cargan el negocio pedían `id, email, nombre, prefsAlertas, plan` **sin
+  `idioma`**: llegaba `undefined` y toda alerta salía en español. La escalación de 24 h y el
+  reporte mensual sí lo pedían, así que el fallo afectaba justo al correo más frecuente. No es
+  teórico: **la única cuenta con `idioma: 'en'` es la del dueño**, plan NEGOCIO y alertas
+  inmediatas. Es el mismo error que ya pasó con las invitaciones de equipo (§11) y con la
+  limpieza del landing (§15) — el lado inglés se olvida porque nada falla, solo sale en el
+  idioma que no es. Lo vigila el bloque 6 de `prueba-alertas-resena.js`, que **lee el fuente**:
+  un doble de Prisma nunca lo habría visto, porque el mock devuelve el objeto entero.
+  ⚠️ `enviarResumenAlertas` y los dos resúmenes semanales **siguen siendo solo español**, y eso
+  es otro hueco: se arregla traduciendo la plantilla, no añadiendo la columna al select.
+
+**Una ficha de Google se pide UNA vez por ciclo, aunque la vigilen varias cuentas**
+(`obtenerFichaGoogleCompartida`, 2026-08-23). Dos usuarios distintos pueden monitorear el mismo
+local y no es hipotético: ese día había **10 negocios activos y solo 9 `googlePlaceId`
+distintos** — «Cebichería Fabián» la seguían dos cuentas, con 541 snapshots entre las dos, cada
+una gastando su propia consulta a Places. Hoy es calderilla; con clientes de verdad es un costo
+variable que se duplica sin que nada lo delate, porque la factura de Google no lo distingue.
+- El caché vive **un ciclo** y se pasa explícito (`ctx.fichasGoogle`). Nada de memo con TTL
+  dentro del scraper: entre ciclos los datos tienen que volver a pedirse, que es el producto.
+- ⚠️ **La clave no puede ser solo el placeId.** `conContacto` cambia los campos pedidos (Contact
+  Data se factura aparte y solo lo tienen NEGOCIO y FRANQUICIA). Una respuesta **con** contacto
+  sirve para quien no lo paga —es superconjunto—, pero **al revés no**: servirla apagaría en
+  silencio la vigilancia de teléfono y horario de un cliente que sí la paga. Por eso el ciclo
+  además **ordena primero a los planes con contacto**, o en el caso mixto el caché no ahorraría.
+- ⚠️ **Un `null` no se cachea.** Heredar un fallo ajeno convierte un error en varios justo
+  cuando la cuota de Places se agota, que es cuando más importa.
+- `node scripts/prueba-ficha-compartida.js` — 12 comprobaciones, casi todas sobre esas dos reglas.
 
 **Canal único: correo.** `revisarEscalacionesUrgentes()` manda un recordatorio de las reseñas
 de ≤2★ sin responder tras 24 h llamando a `enviarAlertaEmail()` **directo y no a
@@ -1201,6 +1230,32 @@ reserva a las reseñas **de 3★ o menos**: marcar un 5★ sin respuesta era rui
 red ni base: cuántas 5★ faltan para cada meta, cuántas 1★ para caer bajo 4.5★, cuánto mueve
 una sola de 1★. Va en el panel **y en el analizador gratuito del landing**, que antes, cuando
 no había nada sospechoso —o sea casi siempre— dejaba ir al visitante sin motivo para registrarse.
+
+**Progreso mensual** (`src/lib/progreso.js`, `GET /api/negocios/:id/progreso`, 2026-08-23).
+Este mes contra el anterior, para el negocio y para los competidores que sigue. Sale entero de
+los snapshots que ya se guardan: **cero llamadas a Google**.
+
+🔴 **Mide reseñas ganadas, NO rating, y eso no es un atajo.** La idea original del pendiente
+(§19 D) era rankear por nota. Con 49 días de datos reales delante eso no funciona: los cinco
+negocios más antiguos daban 4.8→4.8, 3.9→3.9, 4.0→4.0 y 4.5→4.5. Una ficha con 1118 reseñas no
+mueve su promedio en un mes. Lo que sí se movió en el mismo periodo fueron las reseñas —14, 5,
+3— y además es lo único que el dueño puede empujar. El rating viaja igual, de apoyo.
+- ⚠️ **`null` no es `0`.** Un periodo sin dos lecturas devuelve `null` («no lo sabemos»), no
+  cero («tu mes fue plano»). Los sujetos sin medición se ordenan **al final**, no mezclados con
+  los que no crecieron: son afirmaciones distintas.
+- ⚠️ **Un delta de reseñas negativo se informa en negativo.** Google borra reseñas — pasó el 31
+  de julio (11 → 10). Aplastarlo a 0 escondería justo el caso que importa.
+- ⚠️ **Un movimiento de rating de 0.1 NO se declara mejora**: Google publica la nota redondeada
+  a un decimal, así que cabe entero dentro del redondeo. El umbral es **0.2**
+  (`ratingSignificativo`); por debajo el número se muestra pero la interfaz no canta victoria.
+- **Responde 409 `SIN_DATOS` cuando no hay nada que contar**, en vez de una lista de ceros
+  (`hayAlgoQueContar`). El panel debe **esconder** la sección ante ese 409, no pintarla vacía:
+  es la regla de «lo que no podemos entregar no se muestra» aplicada a una pantalla.
+- El corte mira **solo el negocio propio**: que un competidor haya crecido no es motivo para
+  abrirle una pantalla de progreso a quien no tiene medición suya.
+- Medido contra producción el 2026-08-23: **4 de 10 negocios con movimiento este mes**, 6 con
+  los dos meses medidos, 3 competidores con 422 snapshots. Hay señal; **falta la UI**.
+- `node scripts/prueba-progreso.js` — 28 comprobaciones.
 
 **Afiche de la pared** (`src/utils/afiche.generator.js`, `GET /api/negocios/:id/afiche.pdf`).
 Un A4 para imprimir y colgar donde trabaja el equipo: la nota a 96 pt, las reseñas nuevas, las
@@ -1268,6 +1323,40 @@ por búsqueda, caché en memoria de 6 h por placeId, teaser con UNA muestra sosp
 real, día 5 valor con cifras, día 7 promo solo a GRATIS sin promo usada. Ventana 30 días, solo
 emails verificados, máx. 1 etapa/día, y **la etapa avanza ANTES de enviar** (un fallo de
 Resend pierde ese correo, no lo duplica).
+
+**Recordatorio de activación de cuenta** (`lib/verificacion.js` + `workers/verificacion.worker.js`,
+cron diario 10:30 Lima, añadido el 2026-08-23).
+
+🔴 **Por qué existe.** Una cuenta sin verificar no recibe **nada**: el drip filtra por
+`emailVerificado: true` y las alertas necesitan un negocio conectado, que es justo lo que esa
+gente no llega a hacer. El único correo que se les mandaba era el del registro, con un enlace
+que caduca a las **24 h**. Si no lo abrían ese día, la cuenta quedaba muerta en silencio — sin
+error, sin log, sin rebote. Foto del 2026-08-23: **4 de 11 usuarios sin verificar**, dos de
+ellos del 5 de julio, y dos de esos cuatro con negocios ya cargados.
+
+- **Cero cambios de schema.** `tokenVerificaExpira` se reescribe en cada envío del correo de
+  verificación (registro, reenvío manual desde el panel y este recordatorio), siempre a
+  «ahora + 24 h», así que **ya es la marca del último envío**: basta restarle esas horas.
+  Ventaja que una columna propia no daría: si la persona pulsa «reenviar» en Configuración, el
+  cron lo ve y no duplica. Las dos vías comparten marcador sin coordinarse.
+- **Ventana en vez de contador.** Contar envíos exigiría columna. Se insiste entre el día 2 y
+  el 10 de vida de la cuenta con **4 días de espaciado mínimo**, lo que se autolimita solo:
+  ⚠️ **salen exactamente DOS correos, el día 4 y el día 8** — los días 2 y 3 los bloquea el
+  espaciado, porque el correo del registro cuenta. `VENTANA_DIAS.desde = 2` es un suelo de
+  seguridad, no el día en que sale algo.
+- **Robusto ante un cron caído**: con días exactos ({2, 7}) perder una pasada significaría
+  perder ese recordatorio para siempre — justo el fallo silencioso que esto viene a cerrar.
+- 🔴 **El token se REGENERA en cada recordatorio**, y se guarda **antes** de enviar. El del
+  registro ya caducó: reenviarlo tal cual sería mandar un enlace muerto, que es peor que no
+  escribir — la persona hace clic, ve un error y concluye que el producto está roto.
+- **El correo dice qué se está perdiendo**, no «confirma tu correo» otra vez: ese es el hecho
+  que mueve a hacer clic una semana después. Asunto distinto al del registro (repetirlo parece
+  un duplicado y se ignora) y **bilingüe**.
+- ⚠️ Pasados los **10 días se deja de insistir**: escribirle a un buzón que nunca confirmó nada
+  es spam, y quema el dominio del que depende la entrega de *todos* los avisos del producto.
+  Las cuentas viejas que quedaron fuera se recuperan con
+  **`scripts/recordar-verificacion.js`**, una pasada única y manual — no un cron.
+- `node scripts/prueba-verificacion.js` — 31 comprobaciones.
 
 ---
 
@@ -1519,7 +1608,12 @@ textos por otros inventados. El procedimiento está en la cabecera del component
 | `prueba-equipo.js` | 48 comprobaciones de roles, asientos, corte por bajada de plan y alcance |
 | `cargar-secreto.sh <VAR> [largo]` | Carga un secreto en Railway pidiéndolo por teclado: no pasa por la línea de comandos ni queda en el historial. Limpia BOM, saltos y espacios, y **se niega a cargar** si quedan caracteres no imprimibles o si no mide lo esperado. Nació porque copiar el comando desde un chat arrastró un `U+0096` invisible y bash respondió `$'Âprintf': command not found` |
 | `verificar-meta-secret.js` | Comprueba los secretos de Meta **contra la Graph API**, sin imprimirlos. Que la variable esté puesta y mida 32 caracteres no prueba nada: un secreto rotado en el panel y no recargado aquí tiene la misma pinta que uno correcto |
-| `prueba-alertas-resena.js` | 28 comprobaciones del aviso por reseña negativa. Lo que vigila son las **condiciones de silencio** (primer barrido, antigüedad, umbral, que pase por `notificar()`): si una se rompe, no falla nada — simplemente se deja de avisar |
+| `ensayo-alertas.js [--aplicar] [--negocio <id>] [--conservar]` | **Ensayo EN VIVO** de la cadena de alertas: llama a la `alertarResenaNegativa` real con un caso positivo y **tres controles de silencio**, y borra las alertas que creó. 🔴 Se niega a correr sobre un negocio que no sea de una cuenta del dueño: manda correo de verdad. ⚠️ `railway run` NO sirve (inyecta la URL **interna** de Postgres, inalcanzable desde fuera) — correr en local con `FRONTEND_URL=https://usenotoria.app` |
+| `recordar-verificacion.js [--aplicar]` | Pasada **única y manual**: manda el enlace de activación a las cuentas que quedaron sin verificar antes de que existiera el cron (las que caen fuera de su ventana de 10 días). Respeta el espaciado, así que correrlo dos veces no duplica |
+| `prueba-verificacion.js` | 31 comprobaciones del recordatorio: ventana, espaciado, el marcador derivado de `tokenVerificaExpira` y que el token se guarde antes de enviarse |
+| `prueba-ficha-compartida.js` | 12 comprobaciones del caché de fichas por ciclo. Vigila las dos reglas invisibles: que una respuesta sin Contact Data no se le sirva a quien lo paga, y que un fallo no se cachee |
+| `prueba-progreso.js` | 28 comprobaciones de la comparación mensual: `null` distinto de 0, deltas negativos y el umbral de 0.2 del rating |
+| `prueba-alertas-resena.js` | 31 comprobaciones del aviso por reseña negativa. Lo que vigila son las **condiciones de silencio** (primer barrido, antigüedad, umbral, que pase por `notificar()`): si una se rompe, no falla nada — simplemente se deja de avisar |
 | `prueba-escape-emails.js` | 11 comprobaciones de que el texto ajeno no inyecta HTML en los correos, incluidas las que verifican que escapar **no estropee el texto normal** (★, el apóstrofo de un cliente llamado "Tito's", el ampersand) |
 | `prueba-instagram-visible.js` | 12 comprobaciones del interruptor de Instagram |
 | `prueba-instagram-comentarios.js` · `prueba-instagram-webhook.js` · `prueba-instagram-menciones.js` | Comentarios (37, incluida la paginación), webhook (33+) y menciones (23), con axios interceptado |
@@ -1602,11 +1696,33 @@ solicitud, que ahora lleva **dos** permisos:
 
 El detalle del paquete está en `docs/app-review-meta.md`.
 
+✅ **La segunda solicitud quedó REDACTADA el 2026-08-23** en la §8 de ese documento: los textos
+en inglés de los dos permisos listos para pegar, el guion del screencast nuevo (el de la primera
+no sirve: no enseña ni una página en portfolio ni una reseña de Facebook), los cuatro puntos que
+faltan por terminar en el scraper y el checklist del día del envío. **No se puede enviar
+todavía** —Meta no admite una segunda revisión con la primera *in progress*—, así que el día que
+aprueben es pegar y darle a Enviar, no empezar a escribir.
+
 **Al aprobar Google:** verificar que la cuota deje de ser 0, habilitar
 `mybusiness.googleapis.com` (la v4, que ni aparece en la Biblioteca) y recién ahí probar el
 flujo entero.
 
 ### B. Solo las puede hacer el dueño (fuera del código)
+
+> **Dos comandos listos y esperando aprobación (2026-08-23).** Los dos escriben en producción
+> y mandan correo de verdad, así que no se corren solos:
+>
+> ```bash
+> cd brand-shield
+> # 1. Ensayo de la cadena de alertas: 1 caso positivo + 3 controles de silencio,
+> #    sobre un negocio del propio dueño, y borra lo que crea al terminar.
+> #    ⚠️ NO usar `railway run`: inyecta la URL interna de Postgres y falla.
+> FRONTEND_URL=https://usenotoria.app node scripts/ensayo-alertas.js --aplicar
+>
+> # 2. Recuperar las 4 cuentas que nunca verificaron su correo (dos desde el 5 de julio).
+> node scripts/recordar-verificacion.js            # listado, no manda nada
+> node scripts/recordar-verificacion.js --aplicar  # manda los 4 correos
+> ```
 
 1. 🔴 **Probar un cobro real pequeño.** Es lo único que queda: **todo lo verificable sin
    gastar dinero ya se verificó el 2026-08-19** y está bien. Lo comprobado, para no repetirlo:
@@ -1689,8 +1805,14 @@ flujo entero.
 
 ### D. Se pueden hacer solas, pero necesitan tiempo o datos
 
-- **Ranking "quién subió más este mes"**: solo se calcula con historial propio, así que hay que
-  dejar pasar meses de snapshots. Cada semana que pasa es ventaja acumulada.
+- ~~**Ranking "quién subió más este mes"**~~ → **el motor está hecho y probado (2026-08-23);
+  lo que falta es la UI.** El bloqueo era «faltan meses de snapshots» y caducó: hay historial
+  desde el 5 de julio. Pero medirlo reveló que **la métrica original no sirve**: en 49 días
+  ningún rating se movió (4.8→4.8, 3.9→3.9, 4.0→4.0, 4.5→4.5), porque una ficha con cientos de
+  reseñas no mueve su promedio en un mes. Lo que sí tiene señal es el **volumen de reseñas
+  nuevas**: 4 de 10 negocios se movieron este mes y 6 tienen los dos meses medidos. `lib/progreso.js`
+  + `GET /api/negocios/:id/progreso` ya lo calculan (§13); falta la pantalla, y el endpoint
+  responde **409 `SIN_DATOS`** para que esa pantalla pueda esconderse sola cuando no hay nada.
 
 ### E. Aplazados a propósito — decididos, pero no ahora
 
@@ -1723,11 +1845,25 @@ esa clave se perdiera durante la espera, no hay app que publicar. Y releer los r
 alta en la consola, que Google los cambia.
 
 
-### Estado de la base de producción (última lectura, 2026-08-22)
+### Estado de la base de producción (última lectura, 2026-08-23)
 
-`11 usuarios · 15 negocios (10 activos) · 1783 snapshots · 84 reseñas (12 de ≤2★, 3
-sospechosas) · 0 pagos · 0 comprobantes · series sin iniciar · 0 miembros · 0 invitaciones
-· 0 reclamaciones · 0 promo_tarjetas`.
+`11 usuarios (4 SIN VERIFICAR) · 15 negocios (10 activos, pero solo 9 place IDs distintos) ·
+1808 snapshots · 85 reseñas (12 de ≤2★, 11 sin responder) · 0 alertas · 0 pagos ·
+0 comprobantes · series sin iniciar · 0 miembros · 0 invitaciones · 0 reclamaciones ·
+0 promo_tarjetas · 3 competidores con 422 snapshots`.
+
+🔴 **Las 0 alertas del 2026-08-23 NO son un bug, y perseguirlas costó media mañana bien
+gastada.** El aviso por reseña negativa se desplegó el día 22 y **el contenedor lo tiene**
+(comprobado con `railway ssh … grep -c alertarResenaNegativa`). Sigue en cero porque desde el
+deploy no ha entrado ninguna reseña de ≤2★ *nueva*: las 12 que hay están silenciadas a propósito
+por antigüedad. Se descartó también que fallara `CAIDA_RATING`: el único movimiento de rating en
+49 días (Geyser 4.1→4.0, el **31 de julio**) es **anterior** al commit `0b2a896` del 17 de agosto
+que introdujo la comparación contra el snapshot anterior.
+
+⚠️ **Consecuencia que conviene tener presente: ninguna de las seis señales del detector se ha
+ejercitado nunca en producción.** Todo desplegado, todo con pruebas unitarias, cero
+confirmaciones en vivo — y esperando no llegan, porque el aviso solo se dispara con una reseña
+nueva. Para eso está `scripts/ensayo-alertas.js` (§18).
 
 **Lo que esa foto confirma que funciona**, medido y no supuesto:
 - **La cadencia por plan es exacta.** Contando snapshots de los últimos 3 días: los negocios
@@ -1737,15 +1873,33 @@ sospechosas) · 0 pagos · 0 comprobantes · series sin iniciar · 0 miembros ·
   entregan (el registro de Cloudflare muestra *"Alerta en KFC — Notoria"* reenviado).
 - **Lo que reveló:** 1783 escaneos con **0 alertas**. De ahí salió `alertarResenaNegativa`
   (§12). Es el ejemplo de por qué esta foto se toma: ningún log decía nada.
-- ⚠️ **3 de los 11 usuarios no han verificado su correo** (`dhazzez15@`, `cehakax956@` —una
-  dirección desechable— y `josephsalas108@`). El drip de onboarding **solo va a verificados**,
-  así que esos tres no reciben absolutamente nada. Confirmado el 2026-08-20 por otra vía: Culqi reporta **0 cargos** en el
-entorno live. Las cuentas con plan NEGOCIO concedido a mano (`didier@usenotoria.app`,
+- ⚠️ **4 de los 11 usuarios no han verificado su correo** (relectura del 2026-08-23):
+  `mchb389@` y `josephsalas108@` desde el **5 de julio**, `cehakax956@careney.com` —una
+  dirección desechable— desde el 11 de agosto, y `dhazzez15@` desde el 17. **Dos de ellos ya
+  tienen negocios cargados** (1 y 2), o sea que llegaron lejos y aun así no activaron. El drip
+  **solo va a verificados**, así que ese tercio del padrón no recibía absolutamente nada. Ya hay
+  cron de recordatorio (§13) — pero solo alcanza a las cuentas de menos de 10 días, así que a
+  estas cuatro **hay que recuperarlas a mano** con `scripts/recordar-verificacion.js --aplicar`.
+  Confirmado el 2026-08-20 por otra vía: Culqi reporta **0 cargos** en el entorno live. Las cuentas con plan NEGOCIO concedido a mano (`didier@usenotoria.app`,
 `didierprincipe@gmail.com`) **son del dueño**, no tocarlas.
 
 ### 🔴 Bugs abiertos en producción
 
 Ninguno conocido.
+
+**Corregido el 2026-08-23 — todas las alertas salían en español, también para quien tiene el
+panel en inglés.** El fallo no estaba en la plantilla sino **en el `select` que la alimenta**:
+los dos `findMany` del worker pedían `prefsAlertas` y `plan` pero no `idioma`, así que
+`enviarAlertaCritica` recibía `undefined` y caía al fallback. La escalación de 24 h y el reporte
+mensual sí lo pedían — o sea que el único correo afectado era **el más frecuente**. Detalle en
+§12.
+
+🔴 **Las dos lecciones, que son distintas de las de siempre:**
+1. **Un doble de Prisma nunca habría encontrado esto**, porque el mock devuelve el objeto
+   entero, con `idioma` y todo. Lo que lo caza es una prueba que **lee el fuente** y comprueba
+   la forma de la consulta. Está en el bloque 6 de `prueba-alertas-resena.js`.
+2. **Apareció mientras se preparaba el ensayo de otra cosa.** No salió de leer código buscando
+   fallos: salió de preguntarse qué objeto exacto recibe la función que se iba a ejercitar.
 
 **Corregido el 2026-08-22 — el producto no avisaba de las reseñas negativas.** 1783
 escaneos y 0 alertas: ninguna señal creaba alerta por una reseña individual, y la pantalla
