@@ -1890,6 +1890,26 @@ y rechaza otra cosa). Así se descartaron rutas enteras de TikTok sin credencial
 
 ## 19. Pendientes, ordenados por quién los desbloquea
 
+> ### ✅ La lista de CÓDIGO está vacía (2026-08-23)
+>
+> No queda nada que programar. Lo que sigue abierto lo desbloquea un tercero, el dueño, o es
+> una decisión de negocio. Si alguien vuelve buscando «qué falta por hacer», la respuesta
+> honesta es: **nada que dependa de escribir código**.
+>
+> Dos cosas que estuvieron en esa lista y **NO son pendientes, son decisiones tomadas**. Se
+> dejan escritas para que nadie las vuelva a apuntar como tarea:
+>
+> 1. **Ver la forma de un `Recommendation` real de Facebook.** No falta trabajo: falta el dato.
+>    La página del dueño no tiene ninguna reseña, y el resto de la integración ya se probó
+>    contra la API real (§8.5). El día que haya a mano una página con reseñas es una llamada de
+>    treinta segundos; hasta entonces no bloquea nada, porque el interruptor sigue apagado.
+>
+> 2. **Los 5 correos que siguen en español.** El comprobante electrónico y los cuatro del Libro
+>    de Reclamaciones. **Traducirlos sería un error, no una mejora**: son documentos e
+>    instrumentos legales peruanos, y su texto tiene que decir lo que dice la norma.
+>    `scripts/prueba-correos-idioma.js` los tiene en `SOLO_ESPANOL` con el motivo escrito, y
+>    obliga a clasificar cualquier correo nuevo — así la decisión no se pierde.
+
 ### A. Esperando a un tercero — solo vigilar el correo
 
 | Qué | Desde | Qué bloquea |
