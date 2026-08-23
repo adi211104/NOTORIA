@@ -138,6 +138,10 @@ export const negociosApi = {
   // Aritmética del rating: cuántas reseñas faltan para cada meta y qué pasa ante
   // una ráfaga de 1★. No gasta cuota de Google: sale del último snapshot.
   simulador: (id)     => api(`/api/negocios/${id}/simulador`),
+  // Este mes contra el anterior. Sale de los snapshots guardados, cero llamadas
+  // a Google, así que se puede pedir al abrir la ficha. Responde 409 SIN_DATOS
+  // cuando todavía no hay historial: la tarjeta debe esconderse, no pintar ceros.
+  progreso:  (id)     => api(`/api/negocios/${id}/progreso`),
 };
 
 export const alertas = {

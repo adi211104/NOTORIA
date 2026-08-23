@@ -1069,7 +1069,7 @@ const iniciarResumenesAlertas = () => {
     try {
       const usuarios = await prisma.usuario.findMany({
         where: { prefsAlertas: { not: null } },
-        select: { id: true, email: true, nombre: true, prefsAlertas: true },
+        select: { id: true, email: true, nombre: true, prefsAlertas: true, idioma: true },
       });
 
       for (const u of usuarios) {

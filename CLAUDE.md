@@ -1179,8 +1179,34 @@ porque desde Alertas no se puede responder. Es bilingüe, como el drip.
   limpieza del landing (§15) — el lado inglés se olvida porque nada falla, solo sale en el
   idioma que no es. Lo vigila el bloque 6 de `prueba-alertas-resena.js`, que **lee el fuente**:
   un doble de Prisma nunca lo habría visto, porque el mock devuelve el objeto entero.
-  ⚠️ `enviarResumenAlertas` y los dos resúmenes semanales **siguen siendo solo español**, y eso
-  es otro hueco: se arregla traduciendo la plantilla, no añadiendo la columna al select.
+  ✅ **Los tres resúmenes se tradujeron el mismo día** (ver abajo).
+
+**El idioma de un correo son DOS mitades, y fallar cualquiera da el mismo resultado mudo.**
+El 2026-08-23 el fallo apareció por los dos caminos el mismo día: `enviarAlertaCritica` tenía la
+plantilla traducida pero el `select` sin `idioma`; `enviarResumenSemanal` —**el correo que más
+manda el producto**, 38 envíos en el historial de Resend— no estaba traducido *ni* su worker
+pedía el idioma. En los dos casos el correo sale, se entrega y está en el idioma que no es: cero
+errores, cero logs.
+
+Estado tras la limpieza — **6 de 20 correos son bilingües, y los otros 14 lo son por decisión
+escrita**, no por olvido:
+
+| Bilingües | `enviarVerificacion` · `enviarAlertaCritica` · `enviarDrip` · `enviarResumenSemanal` · `enviarResumenSemanalConsolidado` · `enviarResumenAlertas` |
+|---|---|
+| **Español a propósito** | Comprobante (documento fiscal peruano) y los cuatro del **Libro de Reclamaciones** (instrumento legal de la Ley 29571). Traducirlos sería un error, no una mejora |
+| **Español pendiente** | Bienvenida, contraseñas, cobro fallido, cancelación y los tres de equipo. Volumen bajo |
+
+- 🔴 **El insight semanal lo escribe la IA, así que el idioma se le pide a ELLA**
+  (`PROMPT_INSIGHT` en `resumenSemanal.worker.js`). Traducir la plantilla y dejar el insight en
+  español daba un correo en inglés con una frase suelta en español en medio, que se lee peor que
+  no tener insight. El insight cacheado en `Negocio.ultimoInsightSemanal` queda en el idioma del
+  dueño, que es lo correcto: ese tooltip lo lee él.
+- 🔴 **`periodo` del digest de alertas viaja como VALOR** (`'semanal'`/`'mensual'`), no como
+  texto ya redactado. Antes se interpolaba tal cual y un usuario en inglés leía «Tu resumen
+  semanal de alertas». Misma regla que las invitaciones de equipo (§11).
+- ⚠️ **`node scripts/prueba-correos-idioma.js` obliga a clasificar cada correo nuevo**: si no
+  está en `BILINGUES` ni en `SOLO_ESPANOL`, la prueba falla a propósito. Comprueba las dos
+  mitades —la plantilla y el `select` de cada worker— y renderiza el semanal en los dos idiomas.
 
 **Una ficha de Google se pide UNA vez por ciclo, aunque la vigilen varias cuentas**
 (`obtenerFichaGoogleCompartida`, 2026-08-23). Dos usuarios distintos pueden monitorear el mismo
@@ -1263,7 +1289,13 @@ mueve su promedio en un mes. Lo que sí se movió en el mismo periodo fueron las
 - El corte mira **solo el negocio propio**: que un competidor haya crecido no es motivo para
   abrirle una pantalla de progreso a quien no tiene medición suya.
 - Medido contra producción el 2026-08-23: **4 de 10 negocios con movimiento este mes**, 6 con
-  los dos meses medidos, 3 competidores con 422 snapshots. Hay señal; **falta la UI**.
+  los dos meses medidos, 3 competidores con 422 snapshots.
+- ✅ **La UI existe desde el 2026-08-23**: una tarjeta en la pestaña **Resumen** de la ficha,
+  con el número grande del mes, el del mes pasado, la frase de aceleración y el ranking contra
+  los competidores. Se pide al abrir la ficha (no gasta cuota de Google) y **el 409 se traga en
+  silencio**: `progresoMes` queda en `null` y la tarjeta no se renderiza.
+  ⚠️ La variable de estado se llama `progresoMes` y **no `progreso`**, que ya estaba ocupado por
+  el porcentaje de la barra de escaneo en esa misma página.
 - `node scripts/prueba-progreso.js` — 28 comprobaciones.
 
 **Afiche de la pared** (`src/utils/afiche.generator.js`, `GET /api/negocios/:id/afiche.pdf`).
@@ -1623,6 +1655,7 @@ textos por otros inventados. El procedimiento está en la cabecera del component
 | `prueba-ficha-compartida.js` | 12 comprobaciones del caché de fichas por ciclo. Vigila las dos reglas invisibles: que una respuesta sin Contact Data no se le sirva a quien lo paga, y que un fallo no se cachee |
 | `prueba-progreso.js` | 28 comprobaciones de la comparación mensual: `null` distinto de 0, deltas negativos y el umbral de 0.2 del rating |
 | `prueba-alertas-resena.js` | 31 comprobaciones del aviso por reseña negativa. Lo que vigila son las **condiciones de silencio** (primer barrido, antigüedad, umbral, que pase por `notificar()`): si una se rompe, no falla nada — simplemente se deja de avisar |
+| `prueba-correos-idioma.js` | 24 comprobaciones del idioma de los correos. Obliga a clasificar cada correo nuevo como bilingüe o solo-español, verifica las **dos mitades** (plantilla y `select` del worker) y renderiza el resumen semanal en los dos idiomas para comparar la salida real |
 | `prueba-escape-emails.js` | 11 comprobaciones de que el texto ajeno no inyecta HTML en los correos, incluidas las que verifican que escapar **no estropee el texto normal** (★, el apóstrofo de un cliente llamado "Tito's", el ampersand) |
 | `prueba-instagram-visible.js` | 12 comprobaciones del interruptor de Instagram |
 | `prueba-instagram-comentarios.js` · `prueba-instagram-webhook.js` · `prueba-instagram-menciones.js` | Comentarios (37, incluida la paginación), webhook (33+) y menciones (23), con axios interceptado |

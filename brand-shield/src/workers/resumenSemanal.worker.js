@@ -16,7 +16,18 @@ const MODELO = 'openai/gpt-oss-20b';
 // Genera 1-2 frases tipo "3 personas mencionaron demora en el servicio" a partir
 // de los textos de reseñas de la semana. No consume el contador `iaUsos` del
 // usuario (es un envío automático, no una acción invocada por él).
-const generarInsightSemanal = async (negocio, resenas) => {
+// El insight lo escribe la IA, así que el idioma se le pide a ELLA: traducir la
+// plantilla y dejar el insight en español produciría un correo en inglés con una
+// frase suelta en español en el medio, que se lee peor que no tener insight.
+//
+// ⚠️ El insight se cachea en `Negocio.ultimoInsightSemanal` para el tooltip del
+// panel. Queda en el idioma del dueño, que es lo correcto: el tooltip lo lee él.
+const PROMPT_INSIGHT = {
+  es: 'Eres un analista de reputación online para negocios en Latinoamérica. A partir de reseñas recientes, escribes UNA sola frase corta (máximo 25 palabras) en español neutro que resuma el tema más repetido, en el estilo "3 personas mencionaron demora en el servicio". Si no hay un tema claro y repetido, responde con una frase breve sobre el tono general. Sin emojis, sin comillas, sin encabezados. Devuelve únicamente la frase.',
+  en: 'You are an online reputation analyst for businesses in Latin America. From recent reviews, you write ONE short sentence (25 words maximum) in plain English summarising the most repeated theme, in the style "3 people mentioned slow service". If there is no clear repeated theme, reply with a brief sentence about the overall tone. No emojis, no quotation marks, no headings. Return only the sentence.',
+};
+
+const generarInsightSemanal = async (negocio, resenas, idioma = 'es') => {
   if (!process.env.GROQ_API_KEY) return null;
   const textos = resenas.filter((r) => r.texto?.trim()).map((r) => `- ${r.rating}★: "${r.texto.slice(0, 300)}"`);
   if (textos.length === 0) return null;
@@ -30,7 +41,7 @@ const generarInsightSemanal = async (negocio, resenas) => {
       messages: [
         {
           role: 'system',
-          content: 'Eres un analista de reputación online para negocios en Latinoamérica. A partir de reseñas recientes, escribes UNA sola frase corta (máximo 25 palabras) en español neutro que resuma el tema más repetido, en el estilo "3 personas mencionaron demora en el servicio". Si no hay un tema claro y repetido, responde con una frase breve sobre el tono general. Sin emojis, sin comillas, sin encabezados. Devuelve únicamente la frase.',
+          content: PROMPT_INSIGHT[idioma] || PROMPT_INSIGHT.es,
         },
         { role: 'user', content: `Negocio: ${negocio.nombre}\n\nReseñas de esta semana:\n${textos.join('\n')}` },
       ],
@@ -72,7 +83,7 @@ const procesarUsuario = async (usuario, negocios) => {
 
   for (const negocio of negocios) {
     const cifras = await calcularCifrasSemana(negocio);
-    const insight = conInsight ? await generarInsightSemanal(negocio, cifras._resenas) : null;
+    const insight = conInsight ? await generarInsightSemanal(negocio, cifras._resenas, usuario?.idioma) : null;
     resultados.push({ negocio, datos: { ...cifras, insight } });
 
     // Cachear el insight para el tooltip del semáforo en el dashboard (evita
@@ -107,7 +118,11 @@ const ejecutarAhora = async () => {
   console.log('[ResumenSemanal] Ejecución iniciada...');
   const negocios = await prisma.negocio.findMany({
     where: { activo: true, resumenSemanalActivo: true },
-    include: { usuario: { select: { id: true, email: true, nombre: true, plan: true } } },
+    // `idioma` NO es opcional: el correo lo usa para elegir plantilla Y para
+    // pedirle el insight a Groq en ese idioma. Sin él salía todo en español,
+    // también para quien tiene el panel en inglés — ver la nota de RESUMEN en
+    // utils/emails.js.
+    include: { usuario: { select: { id: true, email: true, nombre: true, plan: true, idioma: true } } },
   });
 
   const porUsuario = {};

@@ -281,15 +281,22 @@ const enviarAlertaCritica = async (usuario, negocio, alerta) => {
 };
 
 // ── 5. Resumen periódico de alertas (frecuencia semanal/mensual) ──
+// ⚠️ `periodo` es un VALOR ('semanal' | 'mensual'), no un texto ya redactado.
+// Antes se interpolaba tal cual en el asunto y en el cuerpo, así que un usuario
+// en inglés leía «Tu resumen semanal de alertas». Es la regla de §11: lo que
+// lleva idioma se compone donde se conoce el idioma, y del llamador solo viaja
+// el valor.
 const enviarResumenAlertas = async (usuario, alertas, periodo) => {
+  const t = textosResumen(usuario);
+  const per = t.periodo[periodo] || periodo;
   const r = getResend();
   const porNegocio = {};
   for (const a of alertas) {
-    const nombre = a.negocio?.nombre || 'Tu negocio';
+    const nombre = a.negocio?.nombre || (usuario?.idioma === 'en' ? 'Your business' : 'Tu negocio');
     (porNegocio[nombre] = porNegocio[nombre] || []).push(a);
   }
   const bloques = Object.entries(porNegocio).map(([nombre, lista]) => `
-    <p style="color:#141413;font-size:14px;font-weight:700;margin:14px 0 6px;">${nombre} (${lista.length})</p>
+    <p style="color:#141413;font-size:14px;font-weight:700;margin:14px 0 6px;">${esc(nombre)} (${lista.length})</p>
     ${lista.slice(0, 10).map(a => `
       <div style="background:#FAF9F5;border:1px solid #E8E6DC;border-radius:6px;padding:10px 14px;margin-bottom:6px;">
         <p style="color:#9C9B96;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin:0 0 3px;">${esc(a.tipo?.replace(/_/g, " "))}</p>
@@ -299,13 +306,13 @@ const enviarResumenAlertas = async (usuario, alertas, periodo) => {
 
   const res = await r.emails.send({
     from: FROM(), to: usuario.email,
-    subject: `Tu resumen ${periodo} de alertas — Notoria`,
+    subject: t.asuntoAlertas(per),
     html: base(`
-      ${h1(`Resumen ${periodo} de alertas`)}
-      ${p(`Hola <strong>${usuario.nombre?.split(' ')[0] || ''}</strong>, esto es lo que Notoria detectó en el período:`)}
+      ${h1(t.tituloAlertas(per))}
+      ${p(t.saludoAlertas(esc(usuario.nombre?.split(' ')[0] || '')))}
       ${bloques}
-      ${btn('Ver todo en el dashboard →', `${FRONT()}/dashboard/alertas`)}
-      <p style="color:#9C9B96;font-size:11px;margin:10px 0 0;">Recibes este resumen porque configuraste alertas ${periodo === 'semanal' ? 'semanales' : 'mensuales'}. Puedes cambiarlo en Alertas → Configurar notificaciones.</p>
+      ${btn(t.verAlertas, `${FRONT()}/dashboard/alertas`)}
+      <p style="color:#9C9B96;font-size:11px;margin:10px 0 0;">${t.porQue(periodo)}</p>
     `),
   });
   return res;
@@ -317,40 +324,95 @@ const enviarResumenAlertas = async (usuario, alertas, periodo) => {
 const flechaVariacion = (variacion) => variacion > 0 ? '▲' : variacion < 0 ? '▼' : '—';
 const colorVariacion  = (variacion) => variacion > 0 ? '#0B7324' : variacion < 0 ? '#B74040' : '#9C9B96';
 
-const bloqueCifrasNegocio = (negocio, d) => `
-  <p style="color:#141413;font-size:14px;font-weight:700;margin:14px 0 8px;">${negocio.nombre}</p>
+// Textos de los tres correos de resumen (semanal por negocio, semanal
+// consolidado y el digest de alertas).
+//
+// 🔴 Eran solo español hasta el 2026-08-23, y el semanal es **el correo que más
+// manda el producto**: 38 envíos en el historial de Resend, más que ningún otro.
+// El fallo tenía las dos mitades que ya conocemos: la plantilla sin traducir Y
+// el `select` del worker sin `idioma` (mismo caso que las alertas, §12). Por eso
+// se arreglan juntas: traducir la plantilla sin tocar la consulta no habría
+// cambiado ni un correo.
+const RESUMEN = {
+  es: {
+    asuntoSemanal: (n) => `Tu resumen semanal de ${n} — Notoria`,
+    tituloSemanal: 'Tu resumen semanal',
+    saludo: (nombre) => `Hola <strong>${nombre}</strong>, esto pasó esta semana en tu reputación:`,
+    ratingActual: 'Rating actual',
+    variacion: 'Variación 7 días',
+    resenasNuevas: 'Reseñas nuevas',
+    promoIa: (url) => `El plan Negocio incluye un análisis con IA de qué mencionan tus clientes cada semana. <a href="${url}" style="color:#0B7324;">Conoce más →</a>`,
+    verPanel: 'Ver panel de control →',
+    asuntoConsolidado: (n) => `Tu resumen semanal consolidado (${n} locales) — Notoria`,
+    tituloConsolidado: 'Tu resumen semanal — todos tus locales',
+    saludoConsolidado: (nombre, n) => `Hola <strong>${nombre}</strong>, este es el resumen ejecutivo de tus ${n} negocios:`,
+    // El periodo llega como VALOR ('semanal' | 'mensual'), no como texto ya
+    // redactado: es la regla de §11 — lo que lleva idioma se compone acá.
+    periodo: { semanal: 'semanal', mensual: 'mensual' },
+    asuntoAlertas: (per) => `Tu resumen ${per} de alertas — Notoria`,
+    tituloAlertas: (per) => `Resumen ${per} de alertas`,
+    saludoAlertas: (nombre) => `Hola <strong>${nombre}</strong>, esto es lo que Notoria detectó en el período:`,
+    verAlertas: 'Ver todo en el panel →',
+    porQue: (per) => `Recibes este resumen porque configuraste alertas ${per === 'mensual' ? 'mensuales' : 'semanales'}. Puedes cambiarlo en Alertas → Configurar notificaciones.`,
+  },
+  en: {
+    asuntoSemanal: (n) => `Your weekly summary for ${n} — Notoria`,
+    tituloSemanal: 'Your weekly summary',
+    saludo: (nombre) => `Hi <strong>${nombre}</strong>, here is what happened to your reputation this week:`,
+    ratingActual: 'Current rating',
+    variacion: '7-day change',
+    resenasNuevas: 'New reviews',
+    promoIa: (url) => `The Business plan includes a weekly AI analysis of what your customers mention. <a href="${url}" style="color:#0B7324;">Learn more →</a>`,
+    verPanel: 'Open dashboard →',
+    asuntoConsolidado: (n) => `Your weekly summary across ${n} locations — Notoria`,
+    tituloConsolidado: 'Your weekly summary — all your locations',
+    saludoConsolidado: (nombre, n) => `Hi <strong>${nombre}</strong>, here is the executive summary of your ${n} businesses:`,
+    periodo: { semanal: 'weekly', mensual: 'monthly' },
+    asuntoAlertas: (per) => `Your ${per} alert summary — Notoria`,
+    tituloAlertas: (per) => `${per.charAt(0).toUpperCase()}${per.slice(1)} alert summary`,
+    saludoAlertas: (nombre) => `Hi <strong>${nombre}</strong>, this is what Notoria detected during the period:`,
+    verAlertas: 'See everything in the dashboard →',
+    porQue: (per) => `You get this summary because you set alerts to ${per === 'mensual' ? 'monthly' : 'weekly'}. You can change it in Alerts → Notification settings.`,
+  },
+};
+
+const textosResumen = (usuario) => RESUMEN[usuario?.idioma] || RESUMEN.es;
+
+const bloqueCifrasNegocio = (negocio, d, t = RESUMEN.es) => `
+  <p style="color:#141413;font-size:14px;font-weight:700;margin:14px 0 8px;">${esc(negocio.nombre)}</p>
   <div style="display:flex;gap:10px;margin-bottom:${d.insight ? '10px' : '4px'};">
     <div style="flex:1;background:#FAF9F5;border:1px solid #E8E6DC;border-radius:6px;padding:12px 14px;text-align:center;">
-      <p style="color:#9C9B96;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 4px;">Rating actual</p>
+      <p style="color:#9C9B96;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 4px;">${t.ratingActual}</p>
       <p style="color:#141413;font-size:20px;font-weight:800;margin:0;">${d.ratingActual?.toFixed(1) ?? '—'}★</p>
     </div>
     <div style="flex:1;background:#FAF9F5;border:1px solid #E8E6DC;border-radius:6px;padding:12px 14px;text-align:center;">
-      <p style="color:#9C9B96;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 4px;">Variación 7 días</p>
+      <p style="color:#9C9B96;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 4px;">${t.variacion}</p>
       <p style="color:${colorVariacion(d.variacion)};font-size:20px;font-weight:800;margin:0;">${flechaVariacion(d.variacion)} ${Math.abs(d.variacion ?? 0).toFixed(1)}</p>
     </div>
     <div style="flex:1;background:#FAF9F5;border:1px solid #E8E6DC;border-radius:6px;padding:12px 14px;text-align:center;">
-      <p style="color:#9C9B96;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 4px;">Reseñas nuevas</p>
+      <p style="color:#9C9B96;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 4px;">${t.resenasNuevas}</p>
       <p style="color:#141413;font-size:20px;font-weight:800;margin:0;">${d.resenasNuevas ?? 0}</p>
     </div>
   </div>
   ${d.insight ? `
   <div style="background:${'rgba(11,115,36,0.08)'};border-left:3px solid #0B7324;padding:10px 14px;margin-bottom:4px;">
-    <p style="color:#141413;font-size:13px;margin:0;line-height:1.6;">${d.insight}</p>
+    <p style="color:#141413;font-size:13px;margin:0;line-height:1.6;">${esc(d.insight)}</p>
   </div>` : ''}
 `;
 
 const enviarResumenSemanal = async (usuario, negocio, datos) => {
+  const t = textosResumen(usuario);
   const r = getResend();
   const res = await r.emails.send({
     from: FROM(), to: usuario.email,
-    subject: `Tu resumen semanal de ${negocio.nombre} — Notoria`,
+    subject: t.asuntoSemanal(negocio.nombre),
     html: base(`
-      ${h1('Tu resumen semanal')}
-      ${p(`Hola <strong>${usuario.nombre?.split(' ')[0] || ''}</strong>, esto pasó esta semana en tu reputación:`)}
-      ${bloqueCifrasNegocio(negocio, datos)}
-      ${!datos.insight ? `<p style="color:#9C9B96;font-size:12px;margin:6px 0 0;">El plan Negocio incluye un análisis con IA de qué mencionan tus clientes cada semana. <a href="${FRONT()}/dashboard/planes" style="color:#0B7324;">Conoce más →</a></p>` : ''}
+      ${h1(t.tituloSemanal)}
+      ${p(t.saludo(esc(usuario.nombre?.split(' ')[0] || '')))}
+      ${bloqueCifrasNegocio(negocio, datos, t)}
+      ${!datos.insight ? `<p style="color:#9C9B96;font-size:12px;margin:6px 0 0;">${t.promoIa(`${FRONT()}/dashboard/planes`)}</p>` : ''}
       ${hr()}
-      ${btn('Ver dashboard →', `${FRONT()}/dashboard/negocios/${negocio.id}`)}
+      ${btn(t.verPanel, `${FRONT()}/dashboard/negocios/${negocio.id}`)}
     `),
   });
   return res;
@@ -358,19 +420,20 @@ const enviarResumenSemanal = async (usuario, negocio, datos) => {
 
 // Franquicia con más de 1 negocio activo: un solo email con el desglose por local
 const enviarResumenSemanalConsolidado = async (usuario, negocios, resumenGlobal) => {
+  const t = textosResumen(usuario);
   const r = getResend();
-  const bloques = negocios.map((n) => bloqueCifrasNegocio(n.negocio, n.datos)).join(hr());
+  const bloques = negocios.map((n) => bloqueCifrasNegocio(n.negocio, n.datos, t)).join(hr());
   const res = await r.emails.send({
     from: FROM(), to: usuario.email,
-    subject: `Tu resumen semanal consolidado (${negocios.length} locales) — Notoria`,
+    subject: t.asuntoConsolidado(negocios.length),
     html: base(`
-      ${h1('Tu resumen semanal — todos tus locales')}
-      ${p(`Hola <strong>${usuario.nombre?.split(' ')[0] || ''}</strong>, este es el resumen ejecutivo de tus ${negocios.length} negocios:`)}
-      ${resumenGlobal ? `<div style="background:rgba(11,115,36,0.08);border-left:3px solid #0B7324;padding:12px 16px;margin-bottom:14px;"><p style="color:#141413;font-size:13px;margin:0;line-height:1.65;">${resumenGlobal}</p></div>` : ''}
+      ${h1(t.tituloConsolidado)}
+      ${p(t.saludoConsolidado(esc(usuario.nombre?.split(' ')[0] || ''), negocios.length))}
+      ${resumenGlobal ? `<div style="background:rgba(11,115,36,0.08);border-left:3px solid #0B7324;padding:12px 16px;margin-bottom:14px;"><p style="color:#141413;font-size:13px;margin:0;line-height:1.65;">${esc(resumenGlobal)}</p></div>` : ''}
       ${hr()}
       ${bloques}
       ${hr()}
-      ${btn('Ver dashboard →', `${FRONT()}/dashboard`)}
+      ${btn(t.verPanel, `${FRONT()}/dashboard`)}
     `),
   });
   return res;

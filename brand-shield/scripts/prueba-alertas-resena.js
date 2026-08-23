@@ -219,18 +219,14 @@ const correr = async () => {
   // formas distintas (una en varias líneas, otra en una sola) y una ventana de
   // caracteres cubre las dos sin depender del formato.
   //
-  // ⚠️ Se filtra por los que piden TAMBIÉN `plan`, y no por todos los que piden
-  // `prefsAlertas`. Hay un tercero —el de `enviarResumenAlertas`, que carga
-  // usuarios sueltos sin negocio— que tampoco pide idioma, pero ese correo NO
-  // lee `usuario.idioma` en ninguna parte: está escrito solo en español, igual
-  // que los dos resúmenes semanales. Eso es otro hueco y se arregla traduciendo
-  // la plantilla, no añadiendo una columna al select. Meterlo acá haría fallar
-  // esta prueba por algo que esta prueba no cubre.
+  // ⚠️ Aplica a los TRES selects con `prefsAlertas`, incluido el de
+  // `enviarResumenAlertas`. Al principio ese quedó excluido porque su correo era
+  // solo español; se tradujo el mismo día, así que la excepción murió.
+  // `scripts/prueba-correos-idioma.js` cubre el inventario completo.
   const VENTANA = 1500; // holgada: uno de los selects lleva un comentario largo entre `prefsAlertas` e `idioma`
   const selectsDeAlertas = [];
   for (let i = fuenteWorker.indexOf('prefsAlertas: true'); i !== -1; i = fuenteWorker.indexOf('prefsAlertas: true', i + 1)) {
-    const ventana = fuenteWorker.slice(Math.max(0, i - VENTANA), i + VENTANA);
-    if (ventana.includes('plan: true')) selectsDeAlertas.push(ventana);
+    selectsDeAlertas.push(fuenteWorker.slice(Math.max(0, i - VENTANA), i + VENTANA));
   }
 
   check('hay al menos un select de usuario en el camino de alertas',

@@ -447,6 +447,26 @@ const TEXTOS = {
       constError:'No pudimos emitir la constancia. Escanea el negocio y vuelve a intentarlo.',
     },
     resumen: {
+      // Este mes contra el anterior. Mide RESEÑAS GANADAS y no rating: con 49
+      // días de datos reales ninguna ficha movió su promedio, porque una con
+      // cientos de reseñas no lo mueve en un mes. Ver lib/progreso.js.
+      progreso: {
+        titulo:'Este mes contra el anterior',
+        sub:'Cuántas reseñas nuevas entraron. Es lo que de verdad se mueve en un mes y lo único que puedes empujar: el promedio de una ficha con cientos de reseñas casi no cambia.',
+        tuNegocio:'Tu negocio',
+        esteMes:'Este mes',
+        mesPasado:'Mes pasado',
+        sinMedir:'sin medir',
+        resenas:(n) => `${n > 0 ? '+' : ''}${n}`,
+        mejor:(n) => `${n} más que el mes pasado`,
+        peor:(n) => `${Math.abs(n)} menos que el mes pasado`,
+        igual:'el mismo ritmo que el mes pasado',
+        ratingQuieto:'Tu nota no se movió, que con este volumen de reseñas es lo normal.',
+        ratingMovio:(d) => `Tu nota ${d > 0 ? 'subió' : 'bajó'} ${Math.abs(d).toFixed(1)} puntos.`,
+        perdidas:'Google eliminó reseñas de tu ficha este mes.',
+        posicion:(n, total) => `Vas ${n}.º de ${total} contando a tus competidores.`,
+        soloTu:'Agrega competidores en la pestaña Competencia para compararte.',
+      },
       scoreTitulo:'Score de reputación Notoria',
       score: {
         niveles:{ excelente:'Excelente', bueno:'Bueno', enRiesgo:'En riesgo', critico:'Crítico' },
@@ -854,6 +874,23 @@ const TEXTOS = {
       constError:'We could not issue the certificate. Scan the business and try again.',
     },
     resumen: {
+      progreso: {
+        titulo:'This month vs. last',
+        sub:'How many new reviews came in. It is what actually moves in a month, and the only part you can push: the average of a listing with hundreds of reviews barely changes.',
+        tuNegocio:'Your business',
+        esteMes:'This month',
+        mesPasado:'Last month',
+        sinMedir:'not measured',
+        resenas:(n) => `${n > 0 ? '+' : ''}${n}`,
+        mejor:(n) => `${n} more than last month`,
+        peor:(n) => `${Math.abs(n)} fewer than last month`,
+        igual:'same pace as last month',
+        ratingQuieto:'Your rating did not move, which is normal at this review volume.',
+        ratingMovio:(d) => `Your rating went ${d > 0 ? 'up' : 'down'} ${Math.abs(d).toFixed(1)} points.`,
+        perdidas:'Google removed reviews from your listing this month.',
+        posicion:(n, total) => `You are ${n} of ${total}, counting your competitors.`,
+        soloTu:'Add competitors in the Competition tab to compare yourself.',
+      },
       scoreTitulo:'Notoria reputation score',
       score: {
         niveles:{ excelente:'Excellent', bueno:'Good', enRiesgo:'At risk', critico:'Critical' },
@@ -1210,6 +1247,11 @@ export default function DetallePage() {
   const [espejoError, setEspejoError] = useState('');
   const [espejoCargando, setEspejoCargando] = useState(false);
   const [simulador, setSimulador] = useState(null);
+  // Progreso mensual. A diferencia del espejo NO gasta consultas a Google —sale
+  // de los snapshots ya guardados—, así que se pide al abrir la ficha. `null`
+  // significa «no hay nada que contar» y la tarjeta no se pinta: el backend
+  // responde 409 SIN_DATOS antes que una lista de ceros, y aquí se respeta.
+  const [progresoMes, setProgresoMes] = useState(null);
   const [afiche, setAfiche] = useState('');   // '' | 'generando' | 'error'
   const [constancia, setConstancia] = useState('');
   // Comentarios de redes en publicaciones propias (TikTok)
@@ -1383,6 +1425,20 @@ export default function DetallePage() {
       .catch(err => setCompetenciaAutoError(err.message || t.competenciaAuto.error))
       .finally(() => setCompetenciaAutoCargando(false));
   }, [tab, usuario?.plan, id]);
+
+  // ── Progreso mensual ─────────────────────────────────────────────────────
+  // Un 409 SIN_DATOS no es un error que haya que enseñar: es «todavía no hay dos
+  // meses medidos». Se traga en silencio y la tarjeta simplemente no aparece,
+  // que es la regla de «lo que no podemos entregar no se muestra» aplicada a una
+  // sección. Por eso no hay estado de error acá, a diferencia del espejo.
+  useEffect(() => {
+    if (!id) return;
+    let vigente = true;
+    negociosApi.progreso(id)
+      .then((d) => { if (vigente) setProgresoMes(d); })
+      .catch(() => { if (vigente) setProgresoMes(null); });
+    return () => { vigente = false; };
+  }, [id]);
 
   // ── «Cómo te ven»: espejo + simulador ────────────────────────────────────
   // Se cargan al abrir la pestaña y no antes: el espejo consume una consulta a
@@ -1879,6 +1935,68 @@ export default function DetallePage() {
               </div>
             </Card>
           )}
+          {/* Progreso mensual. Solo aparece si el backend devolvió algo: un 409
+              SIN_DATOS deja `progresoMes` en null y esta tarjeta no existe. Pintar
+              una fila de ceros le diría al cliente que su mes fue plano cuando
+              lo que pasa es que aún no hay dos meses medidos. */}
+          {progresoMes?.negocio?.actual && (() => {
+            const tp = t.resumen.progreso;
+            const mio = progresoMes.negocio;
+            const rank = progresoMes.ranking || [];
+            const puesto = rank.findIndex((x) => x.esPropio) + 1;
+            const acel = mio.aceleracion;
+            const frase = acel === null ? null : acel > 0 ? tp.mejor(acel) : acel < 0 ? tp.peor(acel) : tp.igual;
+            return (
+              <Card style={{ gridColumn:'1/-1' }}>
+                <ST>{tp.titulo}</ST>
+                <p style={{ fontSize:12.5, color:'var(--text-3)', margin:'0 0 16px', lineHeight:1.5 }}>{tp.sub}</p>
+
+                <div style={{ display:'flex', gap:28, alignItems:'flex-end', flexWrap:'wrap', marginBottom:14 }}>
+                  <div>
+                    <div style={{ fontSize:38, fontWeight:700, lineHeight:1, color: mio.actual.resenasNuevas > 0 ? '#0B7324' : mio.actual.resenasNuevas < 0 ? '#ef4444' : 'var(--text-2)' }}>
+                      {tp.resenas(mio.actual.resenasNuevas)}
+                    </div>
+                    <div style={{ fontSize:11.5, color:'var(--text-3)', marginTop:4 }}>{tp.esteMes}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize:22, fontWeight:600, lineHeight:1, color:'var(--text-3)' }}>
+                      {mio.previo ? tp.resenas(mio.previo.resenasNuevas) : tp.sinMedir}
+                    </div>
+                    <div style={{ fontSize:11.5, color:'var(--text-3)', marginTop:4 }}>{tp.mesPasado}</div>
+                  </div>
+                  {frase && (
+                    <div style={{ fontSize:13, color:'var(--text-2)', paddingBottom:2 }}>{frase}</div>
+                  )}
+                </div>
+
+                <p style={{ fontSize:12.5, color:'var(--text-2)', margin:'0 0 4px' }}>
+                  {mio.actual.resenasNuevas < 0
+                    ? tp.perdidas
+                    : mio.actual.ratingSignificativo
+                      ? tp.ratingMovio(mio.actual.deltaRating)
+                      : tp.ratingQuieto}
+                </p>
+
+                {rank.length > 1 ? (
+                  <div style={{ marginTop:14, borderTop:'1px solid var(--border-c)', paddingTop:12 }}>
+                    <p style={{ fontSize:12.5, color:'var(--text-2)', margin:'0 0 10px' }}>{tp.posicion(puesto, rank.length)}</p>
+                    {rank.map((x) => (
+                      <div key={x.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, padding:'5px 0' }}>
+                        <span style={{ fontSize:12.5, color: x.esPropio ? 'var(--text)' : 'var(--text-3)', fontWeight: x.esPropio ? 600 : 400, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                          {x.esPropio ? `${x.nombre} (${tp.tuNegocio})` : x.nombre}
+                        </span>
+                        <span style={{ fontSize:12.5, flexShrink:0, color: !x.actual ? 'var(--text-3)' : x.actual.resenasNuevas > 0 ? '#0B7324' : 'var(--text-3)' }}>
+                          {x.actual ? tp.resenas(x.actual.resenasNuevas) : tp.sinMedir}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ fontSize:11.5, color:'var(--text-3)', margin:'10px 0 0' }}>{tp.soloTu}</p>
+                )}
+              </Card>
+            );
+          })()}
           <Card><ST>{t.resumen.historial}</ST><GraficaRating snapshots={negocio.snapshots} /></Card>
           <Card>
             <ST>{t.resumen.distribucion}</ST>
