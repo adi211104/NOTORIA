@@ -1891,7 +1891,16 @@ flujo entero.
 
    Con esto se cierran **dos** pendientes que llevaban meses: el envío a producción de
    SUNAT (que nunca se había hecho) y el webhook de Culqi (que solo un reembolso real podía
-   confirmar). Lo comprobado, para no repetirlo:
+   confirmar).
+
+   ⚠️ **La página y el endpoint del cobro de prueba se RETIRARON el mismo día**, después de
+   usarse: un endpoint que cobra a una tarjeta y gasta un correlativo fiscal no se deja vivo
+   esperando a que alguien lo llame por accidente. Si hay que repetir la prueba tras tocar la
+   facturación, están en el commit **`6129adf`** (`git show 6129adf -- <ruta>`), y en
+   `pago.routes.js` quedó la nota que lo recuerda. **Antes de usarlos, correr
+   `scripts/sonda-sunat-produccion.js`** — es lo que evitó cobrar con las credenciales rotas.
+
+   Lo comprobado, para no repetirlo:
 
    - **Culqi** (`railway run node scripts/verificar-culqi-live.js`): las dos llaves son del
      entorno **live**, la secreta autentica, la pública es reconocida, y **el bundle desplegado
