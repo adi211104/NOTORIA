@@ -136,6 +136,20 @@ comm -23 /tmp/code.txt /tmp/rw.txt   # se leen pero no están
 comm -13 /tmp/code.txt /tmp/rw.txt   # están pero no se leen
 ```
 
+📋 **Inventario completo en `docs/secretos.md`** (sin valores): qué secreto existe, dónde está
+su única copia y —lo que de verdad ordena la lista— **qué haría falta para volver a tenerlo si
+se perdiera**. Con esa vara solo dos son graves: la contraseña del certificado
+(`SUNAT_CERT_PASSWORD`, sin la cual el `.p12` es un archivo inútil y hay que tramitar otro ante
+SUNAT) y el keystore de Android. `SUNAT_SOL_CLAVE`, que es la que suele preocupar, se resetea
+en cinco minutos.
+- ⚠️ **Railway no es un respaldo**, es un servicio del que se depende.
+- ⚠️ El `certificado.p12` real vive en `C:\Users\Admin\Downloads\` — una carpeta que se limpia
+  sola. Los `.p12` están cubiertos por `.gitignore` y ninguno está en git (comprobado el
+  2026-08-23).
+- ⚠️ **Anotar los PERMISOS junto a la clave, no solo el valor.** El usuario SOL `NOTORIAS`
+  estaba activo y con el nombre correcto y aun así fallaba, porque no tenía asignada ninguna
+  opción del menú (§9).
+
 **Reglas de secretos:**
 - Las llaves **live no van en archivos locales**. `.env` y `.env.local` se quedan con las de
   test; `set-culqi-keys.js` se niega a escribir `*_live_*`.
