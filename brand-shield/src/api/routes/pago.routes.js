@@ -147,6 +147,96 @@ router.use(autenticar);
 // qué ver el encargado del local ni el community manager.
 router.use(permitir('facturacion'));
 
+// ── POST /api/pagos/prueba-sunat ──────────────────────────
+//
+// Cobro real de S/1.00 para ejercitar el circuito ENTERO en producción:
+// Culqi → `Pago` → comprobante → SUNAT → reembolso → webhook.
+//
+// 🔴 POR QUÉ EXISTE UN ENDPOINT APARTE, y no se prueba con un plan de verdad.
+// El plan más barato son S/59 y activaría una suscripción real con su
+// renovación mensual. Esto cobra un sol, no toca `plan` ni `suscripcionActiva`,
+// y no programa ninguna renovación: solo deja el rastro que hace falta para
+// comprobar que cada eslabón funciona.
+//
+// 🔴 CERROJO: solo cuentas del dueño. Un endpoint que cobra a la tarjeta de
+// quien lo llame no puede quedar abierto, ni siquiera por S/1 — y menos aún
+// gastando un correlativo de la numeración fiscal en cada llamada.
+//
+// ⚠️ LO QUE ESTO DEJA DETRÁS, y no es reversible del todo: el comprobante que se
+// emita consume el siguiente correlativo de su serie, que no admite huecos.
+// Reembolsar en Culqi NO lo anula ante SUNAT — son dos sistemas distintos—, así
+// que para no declarar una venta que se devolvió hay que anular el comprobante
+// aparte (boletas: resumen diario en estado 3, dentro de 7 días).
+const CUENTAS_PRUEBA_COBRO = ['didier@usenotoria.app', 'didierprincipe@gmail.com'];
+const MONTO_PRUEBA = 100; // céntimos = S/1.00
+
+router.post('/prueba-sunat', async (req, res) => {
+  const { token } = req.body;
+
+  if (!culqi.configurado()) {
+    return res.status(501).json({ error: 'Culqi no está configurado.' });
+  }
+  if (!CUENTAS_PRUEBA_COBRO.includes(req.usuario.email)) {
+    // 404 y no 403: para cualquier otra cuenta esta función no existe.
+    return res.status(404).json({ error: 'Ruta no encontrada' });
+  }
+  if (!token) return res.status(400).json({ error: 'Falta el token de la tarjeta.' });
+
+  try {
+    const usuario = await prisma.usuario.findUnique({ where: { id: req.usuario.id } });
+
+    const cuentaCulqi = await culqi.obtenerOCrearCliente({
+      email: usuario.email, nombre: usuario.nombre, direccion: usuario.direccionFiscal,
+    });
+    const tarjeta = await culqi.crearTarjeta({ customerId: cuentaCulqi.id, tokenId: token });
+
+    const cargo = await culqi.crearCargo({
+      monto: MONTO_PRUEBA,
+      moneda: MONEDA,
+      email: usuario.email,
+      sourceId: tarjeta.id,
+      descripcion: 'Notoria - prueba tecnica de emision electronica',
+    });
+
+    // Se registra como pago real —lo es— pero NO se toca el plan, ni
+    // `suscripcionActiva`, ni `fechaVencimiento`: nada que dispare el cron de
+    // renovación. `tipo: 'PRUEBA'` lo deja identificable en Facturación y en
+    // cualquier auditoría posterior.
+    const pago = await registrarPago({
+      usuarioId: usuario.id,
+      plan: usuario.plan,
+      periodo: 'mensual',
+      tipo: 'PRUEBA',
+      monto: MONTO_PRUEBA,
+      titular: usuario.nombre,
+      cargo,
+    });
+
+    // El mismo `emitirComprobante` que usa el cobro de verdad. Si se probara con
+    // una copia, la prueba no diría nada sobre el camino real.
+    const comprobante = pago ? await emitirComprobante({ pago, usuario }) : null;
+
+    console.log(`[PruebaSUNAT] Cargo ${cargo.id} · pago ${pago?.id} · comprobante ${comprobante?.numero || 'NINGUNO'}`);
+
+    res.json({
+      mensaje: 'Cobro de prueba realizado',
+      cargoId: cargo.id,
+      pagoId: pago?.id || null,
+      monto: MONTO_PRUEBA,
+      moneda: MONEDA,
+      comprobante: comprobante
+        ? { id: comprobante.id, tipo: comprobante.tipo, numero: comprobante.numero, estadoSunat: comprobante.estadoSunat }
+        : null,
+    });
+  } catch (error) {
+    const culqiError = error.response?.data;
+    console.error('[PruebaSUNAT] Error:', culqiError?.merchant_message || culqiError?.user_message || error.message);
+    res.status(400).json({
+      error: culqiError?.user_message || error.message || 'No se pudo procesar el cobro.',
+    });
+  }
+});
+
 // ── POST /api/pagos/culqi ──────────────────────────────────
 // Recibe el token del widget de Checkout, guarda la tarjeta y cobra el primer periodo.
 router.post('/culqi', async (req, res) => {

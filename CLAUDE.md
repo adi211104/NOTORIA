@@ -488,7 +488,8 @@ puede anunciar es el **retracto de 7 días** con devolución del 100% en `/devol
 símbolos `< >`**. Nunca poner ahí la contraseña del propio CulqiPanel.
 Los **contracargos NO llegan por webhook** (Culqi no expone ese recurso): se vigilan en
 *Controversias*. Culqi **no expone la configuración del webhook por API** ni dispara ping de
-prueba, así que solo un reembolso real lo confirma — por eso el endpoint **registra también
+prueba, así que solo un reembolso real lo confirma — ✅ **y se hizo el 2026-08-23: llegó
+`refund.creation.succeeded` y dejó el pago en `REEMBOLSADO`** (§19 B1) — por eso el endpoint **registra también
 los rechazos**, para distinguir "mal configurado" de "nadie lo ha llamado".
 
 **Requisitos de la web que Culqi exige** (subsanados tras una observación): información
@@ -917,6 +918,60 @@ cosas seguidas, y comprobar con `railway ssh` que el contenedor ya tiene el domi
 antes de que entre el siguiente pago.
 
 `node scripts/prueba-emisor.js` — 17 comprobaciones. **Correrlo al tocar el domicilio.**
+
+### Lo que enseñó el primer envío REAL a producción (2026-08-23)
+
+Todo se había validado contra `e-beta` y pasaba con código 0. Contra producción apareció lo
+que beta no podía enseñar:
+
+🔴 **Un usuario SOL secundario puede existir, estar Activo y aun así no servir.** El nuestro
+(`NOTORIAS`) no tenía **ninguna opción asignada**, y SUNAT responde a eso con
+`0102 — Usuario o contrasena incorrectos`: el mismo código que ante una clave mala. El
+mensaje manda a cambiar una contraseña cuando lo que falta es un permiso.
+- Se asigna en Clave SOL → *Administración de usuarios secundarios* → **Modificar Programas**:
+  `TRIBUTARIOS → Comprobantes de pago → SEE - Del Contribuyente y Envío de Documentos`, con
+  sus dos ramas: *Servicio de Envío de Documentos Electrónicos por Servicio Web* (lo que usan
+  `sendBill` y `sendSummary`) y *Consultar Envíos de CPE* (lo que usa `getStatus`).
+- ⚠️ El panel derecho solo enseña las opciones del nodo seleccionado, pero la selección **sí
+  se acumula** entre nodos. Se comprueba con el enlace «Resumen de opciones asignadas» antes
+  de grabar; el nodo padre por sí solo no asigna nada.
+- ⚠️ Los **«Asignar Roles»** son todos de aduanas y VUCE: ninguno aplica a facturación.
+- En nuestro caso hacían falta **las dos cosas**: el permiso Y una contraseña nueva.
+
+⚠️ **El usuario PRINCIPAL y el secundario pueden medir lo mismo.** Acá son `LEOTHDAY` y
+`NOTORIAS`, los dos de 8 caracteres: comprobar el largo de `SUNAT_SOL_USUARIO` no distingue
+cuál está configurado. Hay que comparar la cadena.
+
+🔴 **`getStatus` con un ticket ALFANUMÉRICO devuelve HTTP 200 con el cuerpo VACÍO** — ni
+Fault, ni statusCode, ni content. Parece que el método está roto y lo que está mal es el
+dato: los tickets son numéricos (`AAAAMMDD` + correlativo).
+
+⚠️ **Las credenciales van dentro de un XML y hay que escaparlas.** SUNAT admite símbolos en
+la clave SOL, y un `&` rompería el sobre SOAP — con el **mismo `0102`** por respuesta. Ya está
+escapado en `billService.credenciales()`.
+
+⚠️ **El CDR de una boleta vive en el RESUMEN, no en el comprobante.** `Comprobante.cdrXml`
+queda `null` y `ResumenSunat.cdrXml` tiene el documento. Es correcto —el CDR es del resumen y
+las boletas heredan su estado— pero al buscar el comprobante de conservación hay que ir al
+resumen.
+
+**Anular una boleta: `scripts/anular-boleta.js`.** Arma un resumen con la línea en estado 3,
+lo firma, lo manda y solo marca `ANULADO` **si SUNAT aceptó** — marcarlo antes dejaría en la
+base una boleta anulada que para SUNAT sigue viva, y nadie volvería a intentarlo. Usa el mismo
+contador de correlativos que los resúmenes normales: dos series de RC del mismo día chocarían
+en el identificador.
+
+🔴 **Reembolsar en Culqi NO anula el comprobante.** Son dos sistemas independientes: el dinero
+vuelve y la boleta sigue emitida, declarada y con su IGV. Cada devolución de un cobro ya
+facturado exige anular aparte, dentro de plazo. `scripts/reembolsar-cargo.js` lo avisa antes
+de devolver nada y dice qué comprobante habría que anular.
+
+⚠️ **El webhook de reembolso apaga `suscripcionActiva`.** Es lo correcto para un cobro de
+suscripción, pero tras un cobro suelto hay que restaurar el campo a mano.
+
+⚠️ **`reembolsar` exige el importe.** Sin `amount`, Culqi responde «No existe el monto que
+intentas devolver o no está definido» — que suena a que el cargo no existe cuando lo que falta
+es el campo.
 
 **Trámites fuera del código:** afiliación al SEE-Del Contribuyente ✅ · usuario SOL secundario
 solo con permiso de emisión · Registro de Exportadores de Servicios (sin él, las ventas al
@@ -1687,6 +1742,10 @@ textos por otros inventados. El procedimiento está en la cabecera del component
 | `dar-plan.js <email> <PLAN>` | Cambia el plan a mano. No crea `Pago` ni comprobante (la numeración es correlativa y no admite huecos) |
 | `escanear.js` | Fuerza un ciclo sin cooldown (`railway run --service api`) |
 | `enlaces-venta.js "<búsqueda>" [--paginas N] [--csv]` | Prospección: genera enlaces `/para` ordenados por prioridad |
+| `forzar-resumen-sunat.js [--aplicar]` | Manda el resumen diario de las boletas de HOY sin esperar a que el día cierre. El cron solo agrupa días cerrados, y esa regla es correcta; esto usa la costura `agruparPendientes({ incluirHoy: true })`, que el cron **nunca** usa. ⚠️ Solo es seguro si no van a entrar más boletas ese día |
+| `anular-boleta.js <numero> [--aplicar]` | Anula una boleta aceptada, en un resumen con la línea en estado 3. Solo marca `ANULADO` si SUNAT aceptó. Plazo: 7 días. ⚠️ Anular no es corregir: si cambia el importe, toca nota de crédito |
+| `reembolsar-cargo.js <chargeId> [--aplicar]` | Devuelve un cargo de Culqi. Avisa **antes** de qué comprobante quedaría sin anular, porque el reembolso no lo anula. El monto sale del `Pago`, no de un argumento |
+| `lib-env-produccion.js` | No es un script: lo requieren los demás. Arregla la trampa de `railway run`, que da los secretos de producción pero pisa `DATABASE_URL` con el host **interno** de Postgres, inalcanzable desde fuera. Costó tiempo dos veces antes de vivir en un solo sitio |
 | `sonda-sunat-produccion.js` | 🔴 **Correr ANTES de cualquier cobro real.** Comprueba contra el endpoint de PRODUCCIÓN que el certificado se descifra y que las credenciales SOL autentican, con `getStatus` sobre un ticket inventado: es solo lectura, no numera ni consume nada. Lleva control con clave falsa. ⚠️ El ticket debe ser **numérico** (`AAAAMMDD`+correlativo): con uno alfanumérico SUNAT devuelve 200 con el cuerpo VACÍO y la sonda parece rota cuando el mal formado es el dato |
 | `verificar-culqi-live.js` | Prueba llaves **live sin cobrar**: espacios/BOM, mismo entorno, que la secreta autentique, que la pública siga viva (401 = llave mala, **400 = llave buena** rechazando la tarjeta) y que el **bundle desplegado** traiga esa misma llave — lo único que detecta un `vercel env add` sin `vercel --prod` |
 | `auditar-pagos.js` | Foto de solo lectura de los cobros |
@@ -1818,17 +1877,22 @@ flujo entero.
 > node scripts/recordar-verificacion.js --aplicar  # manda los 4 correos
 > ```
 
-1. 🔴 **Probar un cobro real pequeño — BLOQUEADO el 2026-08-23: SUNAT producción rechaza
-   nuestras credenciales SOL.** Ver el bug abierto al final de este archivo. Hasta arreglarlo no
-   se cobra: el cargo pasaría por Culqi y el comprobante sería rechazado, dejando al cliente
-   pagado, sin documento y con un correlativo gastado.
+1. ✅ **HECHO el 2026-08-23: cobro real de S/1, emisión a SUNAT producción, reembolso,
+   webhook y anulación. El circuito entero, de punta a punta, con dinero de verdad.**
 
-   ⚠️ **La frase que había aquí —«todo lo verificable sin gastar dinero ya se verificó y está
-   bien»— era FALSA**, y conviene entender por qué para no repetirlo: lo que se verificó el
-   2026-08-19 fue que el **certificado** se abre dentro del contenedor. Nunca se le habló al
-   endpoint de producción. Que las variables SOL estén puestas y midan lo que deben no prueba
-   que SUNAT las acepte — exactamente el mismo error que `verificar-meta-secret.js` enseñó con
-   los secretos de Meta. Lo comprobado de verdad, para no repetirlo:
+   | Paso | Resultado |
+   |---|---|
+   | Cargo en Culqi LIVE | `chr_live_NBN9yyL1TufEiX0k` · S/1.00 · `outcome.type: venta_exitosa` |
+   | Comprobante | **BOLETA B001-00000001** — gravadas S/0.85 + IGV S/0.15 |
+   | Resumen diario | `RC-20260823-1` · ticket `202621700634581` · **ACEPTADO (0)** |
+   | Reembolso | `ref_live_62tvV00vQKPBjACB` · S/1.00 |
+   | **Webhook de Culqi** | ✅ llegó `refund.creation.succeeded` y dejó el pago en `REEMBOLSADO` |
+   | Anulación | `RC-20260823-2` · ticket `202621700702630` · **ACEPTADO (0)** |
+
+   Con esto se cierran **dos** pendientes que llevaban meses: el envío a producción de
+   SUNAT (que nunca se había hecho) y el webhook de Culqi (que solo un reembolso real podía
+   confirmar). Lo comprobado, para no repetirlo:
+
    - **Culqi** (`railway run node scripts/verificar-culqi-live.js`): las dos llaves son del
      entorno **live**, la secreta autentica, la pública es reconocida, y **el bundle desplegado
      en usenotoria.app usa esa misma llave pública** — que es lo único que detecta un
@@ -1850,6 +1914,12 @@ flujo entero.
    ⚠️ Lo que sigue **sin** probarse contra producción: el envío real a SUNAT. La generación y
    la firma se validaron contra `e-beta` en su momento, pero **nada se ha mandado nunca al
    endpoint de producción**. Ese sigue siendo el riesgo del primer cobro.
+
+   🔴 **Y lo que casi sale mal: SUNAT producción rechazaba nuestras credenciales.** Se
+   descubrió con `scripts/sonda-sunat-produccion.js` **antes** de cobrar. Sin esa sonda, el
+   cargo habría pasado y el comprobante se habría quedado en `PENDIENTE` para siempre:
+   cliente pagado, sin documento y con un correlativo gastado. Ver el detalle abajo.
+
 2. ~~Cambiar el domicilio fiscal en SUNAT.~~ **Cerrado el 2026-08-22 como decisión, no como
    tarea:** el dueño prefiere dejarlo. Ver §15. De paso quedó verificado que el domicilio del
    código **coincide campo por campo con la ficha RUC real** —calle, `LA PERLA`, y provincia
@@ -1938,8 +2008,8 @@ alta en la consola, que Google los cambia.
 ### Estado de la base de producción (última lectura, 2026-08-23)
 
 `11 usuarios (4 SIN VERIFICAR) · 15 negocios (10 activos, pero solo 9 place IDs distintos) ·
-1808 snapshots · 85 reseñas (12 de ≤2★, 11 sin responder) · 0 alertas · 0 pagos ·
-0 comprobantes · series sin iniciar · 0 miembros · 0 invitaciones · 0 reclamaciones ·
+1808 snapshots · 85 reseñas (12 de ≤2★, 11 sin responder) · 0 alertas · 1 pago (S/1, REEMBOLSADO) ·
+1 comprobante (B001-00000001, ANULADO) · serie B001 en 1 · 0 miembros · 0 invitaciones · 0 reclamaciones ·
 0 promo_tarjetas · 3 competidores con 422 snapshots`.
 
 🔴 **Las 0 alertas del 2026-08-23 NO son un bug, y perseguirlas costó media mañana bien
@@ -2001,8 +2071,11 @@ es, además, imposible.
 
 ### 🔴 Bugs abiertos en producción
 
-🔴 **SUNAT producción rechaza nuestras credenciales SOL (`0102 — Usuario o contrasena
-incorrectos`).** Encontrado el 2026-08-23 con `scripts/sonda-sunat-produccion.js`, **antes** de
+✅ **RESUELTO el mismo 2026-08-23 — SUNAT producción rechazaba nuestras credenciales SOL
+(`0102`).** Hicieron falta dos cosas: asignarle permisos al usuario secundario Y una clave
+nueva. El detalle de lo aprendido está en §9; esto queda como registro de qué pasó.
+
+~~🔴 SUNAT producción rechaza nuestras credenciales SOL.~~ Encontrado el 2026-08-23 con `scripts/sonda-sunat-produccion.js`, **antes** de
 cobrar nada. Es el fallo que llevaba meses escondido detrás de un supuesto.
 
 - **Qué SÍ funciona:** el endpoint de producción responde, y el certificado se abre y descifra
@@ -2027,10 +2100,11 @@ cobrar nada. Es el fallo que llevaba meses escondido detrás de un supuesto.
   - **Y aun así sigue dando 0102**, así que lo que queda es la contraseña. La guardada está
     bien formada —11 caracteres, letras y dígitos, sin símbolos, sin BOM ni espacios— o sea que
     no es un problema de codificación: simplemente no es la que espera SUNAT.
-- **Lo que falta, y solo lo puede hacer el dueño:** cambiar la clave de `NOTORIAS` desde la
-  ficha del usuario secundario (6-12 caracteres) y cargarla con
-  `bash scripts/cargar-secreto.sh SUNAT_SOL_CLAVE`, que la pide por teclado y no la deja en el
-  historial. Después, `railway run --service api node scripts/sonda-sunat-produccion.js`.
+- ✅ **Resuelto:** el dueño cambió la clave de `NOTORIAS` en el portal y se cargó con
+  `bash scripts/cargar-secreto.sh SUNAT_SOL_CLAVE`. La sonda pasó a verde y, acto seguido,
+  SUNAT aceptó la primera boleta real.
+  ⚠️ **Esa clave vive SOLO en Railway.** Si se pierde, se vuelve al 0102 y no hay forma de
+  recuperarla desde el código: hay que cambiarla otra vez en el portal de SUNAT.
 - ⚠️ **Consecuencia si no se arregla:** el primer cobro real cobra bien por Culqi y el
   comprobante se queda en `PENDIENTE` para siempre — cliente pagado, sin documento, y con un
   correlativo consumido que no admite huecos.

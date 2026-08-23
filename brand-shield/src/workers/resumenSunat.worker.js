@@ -47,7 +47,18 @@ const proximoCorrelativo = async (fechaGeneracion) => {
 // solo día, y si se mandara el de hoy a media tarde, las boletas emitidas
 // después obligarían a un segundo resumen del mismo día. Esperar al día
 // siguiente da un resumen por día y sobra plazo: hay 7 días.
-const agruparPendientes = async () => {
+// `incluirHoy` es una costura para las pruebas, no un atajo del producto.
+//
+// El cron NUNCA lo usa: agrupar el día en curso obligaría a un segundo resumen
+// para las boletas que entren después, y ese es el motivo de que la regla
+// exista. Pero para ejercitar el circuito contra SUNAT en el mismo día en que se
+// emite la boleta —que es la única forma de verlo entero de una sentada— hace
+// falta poder saltárselo a propósito y por una vez.
+//
+// Se hace así, con un parámetro que por defecto es `false`, en vez de copiar la
+// función en un script: una copia probaría la copia. Ver
+// `scripts/forzar-resumen-sunat.js`.
+const agruparPendientes = async ({ incluirHoy = false } = {}) => {
   const boletas = await prisma.comprobante.findMany({
     where: { tipo: 'BOLETA', estadoSunat: 'PENDIENTE', resumenId: null },
     orderBy: { fechaEmision: 'asc' },
@@ -58,7 +69,7 @@ const agruparPendientes = async () => {
   const porDia = new Map();
   for (const b of boletas) {
     const dia = diaDe(b.fechaEmision);
-    if (dia >= hoy) continue; // el día de hoy todavía puede recibir más boletas
+    if (!incluirHoy && dia >= hoy) continue; // el día de hoy todavía puede recibir más boletas
     if (!porDia.has(dia)) porDia.set(dia, []);
     porDia.get(dia).push(b);
   }
@@ -374,4 +385,8 @@ const iniciarResumenSunat = () => {
 module.exports = {
   iniciarResumenSunat, procesarResumenes, agruparPendientes,
   enviarResumen, consultarResumen, marcarVencidos, propagarABoletas,
+  // Para `scripts/anular-boleta.js`: la anulación arma su propio resumen (con
+  // las líneas en estado 3) y necesita el mismo contador de correlativos, no
+  // uno paralelo — dos series de RC del mismo día chocarían en el identificador.
+  proximoCorrelativo, TIPO_RC,
 };

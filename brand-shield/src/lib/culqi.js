@@ -156,7 +156,34 @@ const huellaTarjeta = (objeto) => {
   return crypto.createHmac('sha256', secreto).update(`${bin}|${last4}`).digest('hex');
 };
 
+// Reembolso de un cargo.
+//
+// 🔴 Devolver el dinero NO anula el comprobante ante SUNAT. Son dos sistemas
+// independientes: Culqi devuelve el importe y la boleta o factura sigue emitida
+// y declarada. Anularla es un trámite aparte —resumen diario en estado 3 para
+// boletas, comunicación de baja para facturas— y tiene su propio plazo. Quien
+// llame a esto tiene que ocuparse también de eso, o quedará declarada una venta
+// cuyo dinero se devolvió.
+//
+// ⚠️ El importe es OBLIGATORIO y va en CÉNTIMOS. La documentación deja entender
+// que omitirlo devuelve el cargo entero, y no: Culqi responde «No existe el
+// monto que intentas devolver o no está definido», un mensaje que suena a que
+// el cargo no existe cuando lo que falta es el campo.
+//
+// ⚠️ `reason` es un enum de Culqi, no texto libre: solicitud_comprador,
+// expiracion_solicitud, aceptacion_incorrecta o duplicidad. Cualquier otra cosa
+// se rechaza con parameter_error.
+const reembolsar = async ({ cargoId, monto, motivo = 'solicitud_comprador' }) => {
+  if (!monto) throw new Error('reembolsar: falta `monto` (en céntimos). Culqi lo exige.');
+  const { data } = await cliente().post('/refunds', {
+    charge_id: cargoId,
+    amount: monto,
+    reason: motivo,
+  });
+  return data;
+};
+
 module.exports = {
   configurado, crearCliente, obtenerOCrearCliente, buscarClientePorEmail,
-  crearTarjeta, crearCargo, datosTarjeta, huellaTarjeta,
+  crearTarjeta, crearCargo, datosTarjeta, huellaTarjeta, reembolsar,
 };
