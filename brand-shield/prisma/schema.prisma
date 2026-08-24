@@ -85,6 +85,10 @@ model Usuario {
 
 enum Plan {
   GRATIS
+  // Escalón intermedio para una tienda o un negocio de barrio con un solo local
+  // (2026-08-24). Lo que puede y lo que no vive en src/lib/planes.js, que es la
+  // fuente única de capacidades — acá solo existe el valor.
+  IMPULSO
   NEGOCIO
   FRANQUICIA
 }

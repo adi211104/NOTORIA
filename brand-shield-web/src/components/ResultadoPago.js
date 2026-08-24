@@ -1,4 +1,5 @@
 'use client';
+import { nombrePlan } from '../lib/planes';
 // Confirmación del pago, a pantalla completa.
 //
 // Antes el resultado se pintaba como una franja arriba de la página y a los
@@ -119,7 +120,7 @@ export default function ResultadoPago({ estado, datos, error, onCerrar, onIrAlPa
         {exito ? (
           <>
             <p style={{ fontSize: 14.5, color: '#5C5B57', lineHeight: 1.7, margin: '0 0 20px' }}>
-              Tu plan <strong>{datos?.usuario?.plan === 'FRANQUICIA' ? 'Franquicia' : 'Negocio'}</strong> ya está activo.
+              Tu plan <strong>{nombrePlan(datos?.usuario?.plan, 'es')}</strong> ya está activo.
               Te enviamos el comprobante a tu correo.
             </p>
 

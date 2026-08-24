@@ -1,4 +1,21 @@
 'use client';
+import { nombrePlanLargo, planMinimoCon } from '../../../lib/planes';
+import { precioMensualDe } from '../../../lib/catalogo';
+
+// 🔴 El CTA decía "Activar con Plan Negocio — S/59/mes" con el nombre y el precio
+// escritos a mano. Desde que el reporte mensual entra en Impulso (2026-08-24) eso
+// le vendía al cliente un plan del doble de precio del que necesita — el peor
+// error posible en un texto de venta, porque parece deliberado. Ahora sale del
+// plan MÍNIMO que incluye la función, así que se corrige solo si vuelve a moverse.
+const ctaActivar = (idioma) => {
+  const plan = planMinimoCon('reporteMensual');
+  const precio = precioMensualDe(plan);
+  const nombre = nombrePlanLargo(plan, idioma);
+  return idioma === 'en'
+    ? `Activate with the ${nombre} — S/${precio}/mo`
+    : `Activar con ${nombre} — S/${precio}/mes`;
+};
+import { puede as planIncluye } from '../../../lib/planes';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '../../../context/AuthContext';
@@ -52,7 +69,7 @@ const TEXTOS = {
       sub: 'Documentos profesionales mensuales de tu reputación',
       cardTitulo: 'Reportes automáticos que trabajan mientras tú descansas',
       cardTexto: 'El día 1 de cada mes, Notoria genera un PDF profesional con todo lo que pasó con tu reputación y lo envía directo a tu email.',
-      activarCta: 'Activar con Plan Negocio — S/59/mes',
+      activarCta: ctaActivar('es'),
       beneficios: [
         { ico: 'grafica', t: 'Evolución mensual completa', d: 'Gráficas de rating, volumen de reseñas y tendencias. Todo en un documento sin entrar al dashboard.' },
         { ico: 'manos', t: 'Documento para socios e inversores', d: 'Un PDF con logo y datos reales que puedes presentar en reuniones de negocio o a entidades financieras.' },
@@ -119,7 +136,7 @@ const TEXTOS = {
       sub: 'Professional monthly reports on your reputation',
       cardTitulo: 'Automatic reports that work while you rest',
       cardTexto: 'On the 1st of every month, Notoria generates a professional PDF with everything that happened to your reputation and sends it straight to your inbox.',
-      activarCta: 'Activate with the Business Plan — S/59/mo',
+      activarCta: ctaActivar('en'),
       beneficios: [
         { ico: 'grafica', t: 'Complete monthly evolution', d: 'Rating, review volume and trend charts. All in one document, no dashboard required.' },
         { ico: 'manos', t: 'A document for partners and investors', d: 'A PDF with your logo and real data you can present in business meetings or to financial institutions.' },
@@ -293,7 +310,9 @@ export default function ReportesPage() {
   const [errorGen, setErrorGen] = useState('');
   const [cargando, setCargando] = useState(true);
 
-  const planPago = usuario?.plan === 'NEGOCIO' || usuario?.plan === 'FRANQUICIA';
+  // 🔴 Impulso incluye el reporte mensual desde el 2026-08-24. Con la condición
+  // escrita a mano, ese plan pagaba y veía una pantalla de "actualiza tu plan".
+  const planPago = planIncluye(usuario?.plan, 'reporteMensual');
 
   useEffect(() => {
     if (!planPago) { setCargando(false); return; }

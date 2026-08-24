@@ -13,6 +13,7 @@
 
 const prisma = require('../lib/prisma');
 const tributario = require('../lib/tributario');
+const { etiquetaDe } = require('../lib/planes');
 const { generarPDFComprobante } = require('./comprobante.pdf');
 const { enviarComprobante, getResend, FROM, base, h1, p, hr } = require('../utils/emails');
 
@@ -83,9 +84,12 @@ const avisarReceptorIncompleto = async ({ pago, usuario, receptor, tipoFiscal, m
 const formatearNumero = (serie, correlativo) => `${serie}-${String(correlativo).padStart(8, '0')}`;
 
 const descripcionDe = (pago) => {
-  const planes = { NEGOCIO: 'Plan Negocio', FRANQUICIA: 'Plan Franquicia', GRATIS: 'Plan Gratuito' };
+  // El nombre sale de lib/planes.js. Antes era un mapa local de tres entradas y
+  // un plan nuevo caía al `|| pago.plan`, o sea que la BOLETA salía impresa
+  // diciendo "Notoria — IMPULSO" en vez de "Plan Impulso". No revienta nada,
+  // pero queda en un documento fiscal que se le manda al cliente.
   const periodo = pago.periodo === 'anual' ? '12 meses' : '1 mes';
-  return `Notoria — ${planes[pago.plan] || pago.plan}, suscripción por ${periodo}`;
+  return `Notoria — ${etiquetaDe(pago.plan)}, suscripción por ${periodo}`;
 };
 
 // Emite el comprobante de un pago exitoso.

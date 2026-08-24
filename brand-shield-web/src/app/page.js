@@ -205,7 +205,10 @@ const TEXTOS = {
       planes: [
         { n:'Gratuito', p:0,
           si:['1 negocio monitoreado','Escaneo cada 24 horas','Aviso si tu ficha aparece cerrada en Google','Score de reputación 0-100','QR y enlace para pedir reseñas','30 plantillas de respuesta','5 respuestas con IA a la semana','1 competidor monitoreado','Alertas por email y en la app Android'],
-          no:['Compartir el panel con tu equipo','Conexión de TikTok','Respuestas con IA ilimitadas','Análisis de competencia con IA','Reportes PDF','Soporte prioritario'] },
+          no:['Compartir el panel con tu equipo','Conexión de TikTok','Más respuestas con IA a la semana','Análisis de competencia con IA','Reportes PDF','Soporte prioritario'] },
+        { n:'Impulso', p:29,
+          si:['1 negocio monitoreado','Escaneo cada 12 horas','Aviso si te cambian el teléfono, el horario o la dirección en Google','25 usos de IA a la semana','3 competidores monitoreados','Aviso si una crítica lleva 24h sin respuesta','Reporte PDF mensual','Boleta o factura electrónica a tu RUC','Todo lo del plan Gratuito'],
+          no:['Compartir el panel con tu equipo','Conexión de TikTok','Constancia de reputación verificable'] },
         { n:'Negocio', p:59, badge:true,
           si:['Hasta 5 negocios','Escaneo cada 4 horas','100 usos de IA a la semana (respuestas y análisis)','5 competidores por negocio','Aviso si te cambian el teléfono, el horario o la dirección en Google','Constancia de reputación verificable','Conexión de TikTok (perfil y videos)','Reporte PDF mensual','Boleta o factura electrónica a tu RUC','Comparte el panel con 2 personas más','Alertas por email y en la app Android','Todo lo del plan Gratuito'],
           no:[] },
@@ -216,42 +219,47 @@ const TEXTOS = {
     },
     comparativa: {
       tag:'Comparativa completa', titulo:'Lo que cambia de un plan a otro',
-      sub:'Sin relleno: solo las diferencias reales entre los tres planes.',
-      incluidos:'Los 3 planes incluyen: score de reputación 0-100, detección de reseñas falsas y bots, 30 plantillas de respuesta profesionales, QR para pedir reseñas, alertas por email y la app de Android con notificaciones.',
-      columnas:['Gratuito','Negocio','Franquicia'],
+      sub:'Sin relleno: solo las diferencias reales entre los cuatro planes.',
+      incluidos:'Los 4 planes incluyen: score de reputación 0-100, detección de reseñas falsas y bots, 30 plantillas de respuesta profesionales, QR para pedir reseñas, alertas por email y la app de Android con notificaciones.',
+      // Qué columna va resaltada. Era el índice 1 escrito a mano en cinco
+      // estilos, y al insertar Impulso el verde se movió a la columna
+      // equivocada sin que nada fallara: la tabla seguía compilando y
+      // renderizando, solo destacaba el plan que no era.
+      destacada:'Negocio',
+      columnas:['Gratuito','Impulso','Negocio','Franquicia'],
       filas:[
         { grupo:'Alcance y velocidad de reacción' },
-        { label:'Negocios monitoreados', valores:['1','Hasta 5','Ilimitados'] },
-        { label:'Un ataque se detecta en máximo', valores:['24 horas','4 horas','1 hora'] },
-        { label:'Aviso si tu ficha aparece cerrada en Google', valores:[true,true,true] },
-        { label:'Aviso si te cambian el teléfono, el horario o la dirección en Google', valores:[false,true,true] },
-        { label:'Constancia de reputación con código verificable', valores:[false,true,true] },
-        { label:'Ver tu ficha como la ve un cliente nuevo', valores:[true,true,true] },
-        { label:'Historial de rating desde que te registras', valores:[true,true,true] },
+        { label:'Negocios monitoreados', valores:['1','1','Hasta 5','Ilimitados'] },
+        { label:'Un ataque se detecta en máximo', valores:['24 horas','12 horas','4 horas','1 hora'] },
+        { label:'Aviso si tu ficha aparece cerrada en Google', valores:[true,true,true,true] },
+        { label:'Aviso si te cambian el teléfono, el horario o la dirección en Google', valores:[false,true,true,true] },
+        { label:'Constancia de reputación con código verificable', valores:[false,false,true,true] },
+        { label:'Ver tu ficha como la ve un cliente nuevo', valores:[true,true,true,true] },
+        { label:'Historial de rating desde que te registras', valores:[true,true,true,true] },
         { grupo:'Tu equipo' },
-        { label:'Personas con acceso al panel', valores:['Solo tú','3','10'] },
-        { label:'Cada uno con su usuario y su contraseña', valores:[false,true,true] },
-        { label:'Roles: quién puede responder y quién solo mirar', valores:[false,true,true] },
-        { label:'Dar acceso a un encargado solo a su sede', valores:[false,false,true] },
-        { label:'Registro de quién respondió cada reseña', valores:[false,true,true] },
+        { label:'Personas con acceso al panel', valores:['Solo tú','Solo tú','3','10'] },
+        { label:'Cada uno con su usuario y su contraseña', valores:[false,false,true,true] },
+        { label:'Roles: quién puede responder y quién solo mirar', valores:[false,false,true,true] },
+        { label:'Dar acceso a un encargado solo a su sede', valores:[false,false,false,true] },
+        { label:'Registro de quién respondió cada reseña', valores:[false,false,true,true] },
         { grupo:'Inteligencia artificial' },
-        { label:'Respuestas y análisis con IA a la semana', valores:['5','100','300'] },
-        { label:'Resumen semanal por email', valores:['Cifras básicas','Con insights de IA','Con insights de IA'] },
+        { label:'Respuestas y análisis con IA a la semana', valores:['5','25','100','300'] },
+        { label:'Resumen semanal por email', valores:['Cifras básicas','Con insights de IA','Con insights de IA','Con insights de IA'] },
         { grupo:'Vigilancia de la competencia' },
-        { label:'Competidores vigilados por negocio', valores:['1','5','15'] },
-        { label:'Análisis IA de sus puntos débiles', valores:[false,true,true] },
-        { label:'Descubrimiento automático de rivales a la redonda', valores:[false,false,true] },
+        { label:'Competidores vigilados por negocio', valores:['1','3','5','15'] },
+        { label:'Análisis IA de sus puntos débiles', valores:[false,false,true,true] },
+        { label:'Descubrimiento automático de rivales a la redonda', valores:[false,false,false,true] },
         { grupo:'Trabajo que se hace solo' },
-        { label:'Auto-respuesta a reseñas positivas', valores:[false,'Plantilla única','3 tonos personalizables'] },
-        { label:'Aviso extra si una crítica lleva 24h sin respuesta', valores:[false,true,true] },
-        { label:'Reportes PDF automáticos', valores:[false,'Mensual','Mensual'] },
+        { label:'Auto-respuesta a reseñas positivas', valores:[false,false,'Plantilla única','3 tonos personalizables'] },
+        { label:'Aviso extra si una crítica lleva 24h sin respuesta', valores:[false,true,true,true] },
+        { label:'Reportes PDF automáticos', valores:[false,'Mensual','Mensual','Mensual'] },
         { grupo:'Canales y fuentes' },
-        { label:'Conexión de TikTok (perfil y videos)', valores:[false,true,true] },
+        { label:'Conexión de TikTok (perfil y videos)', valores:[false,false,true,true] },
         { grupo:'Para cadenas y grupos' },
-        { label:'Negocios ilimitados en un solo panel', valores:[false,false,true] },
+        { label:'Negocios ilimitados en un solo panel', valores:[false,false,false,true] },
         { grupo:'Facturación y soporte' },
-        { label:'Boleta o factura electrónica a tu RUC, automática', valores:[false,true,true] },
-        { label:'Soporte', valores:['Estándar','Prioritario','Prioritario por correo'] },
+        { label:'Boleta o factura electrónica a tu RUC, automática', valores:[false,true,true,true] },
+        { label:'Soporte', valores:['Estándar','Estándar','Prioritario','Prioritario por correo'] },
       ],
     },
     faq: {
@@ -405,7 +413,10 @@ const TEXTOS = {
       planes: [
         { n:'Free', p:0,
           si:['1 monitored business','Scan every 24 hours','0-100 reputation score','QR and link to request reviews','30 reply templates','5 AI replies per week','1 monitored competitor','Email and Android app alerts','Alert if your listing shows as closed on Google'],
-          no:['Sharing the dashboard with your team','TikTok connection','Unlimited AI replies','AI competitor analysis','PDF reports','Priority support'] },
+          no:['Sharing the dashboard with your team','TikTok connection','More AI replies per week','AI competitor analysis','PDF reports','Priority support'] },
+        { n:'Impulso', p:29,
+          si:['1 monitored business','Scan every 12 hours','Alert if your phone, hours or address are changed on Google','25 AI uses per week','3 monitored competitors','Alert if a critical review goes 24h without a reply','Monthly PDF report','Electronic invoice to your RUC','Everything in the Free plan'],
+          no:['Share the dashboard with your team','TikTok connection','Verifiable reputation certificate'] },
         { n:'Business', p:59, badge:true,
           si:['Up to 5 businesses','Scan every 4 hours','100 AI uses per week (replies and analysis)','5 competitors per business','Alert if your phone, hours or address change on Google','Reputation certificate with a verifiable code','TikTok connection (profile and videos)','Monthly PDF report','Automatic electronic invoice (SUNAT)','Share the dashboard with 2 more people','Email and Android app alerts','Everything in Free'],
           no:[] },
@@ -416,42 +427,43 @@ const TEXTOS = {
     },
     comparativa: {
       tag:'Full comparison', titulo:'What actually changes between plans',
-      sub:'No filler: only the real differences between the three plans.',
-      incluidos:'All 3 plans include: 0-100 reputation score, fake-review and bot detection, 30 professional reply templates, a QR code to request reviews, email alerts and the Android app with notifications.',
-      columnas:['Free','Business','Franchise'],
+      sub:'No filler: only the real differences between the four plans.',
+      incluidos:'All 4 plans include: 0-100 reputation score, fake-review and bot detection, 30 professional reply templates, a QR code to request reviews, email alerts and the Android app with notifications.',
+      destacada:'Business',
+      columnas:['Free','Impulso','Business','Franchise'],
       filas:[
         { grupo:'Coverage and reaction speed' },
-        { label:'Monitored businesses', valores:['1','Up to 5','Unlimited'] },
-        { label:'An attack is detected within', valores:['24 hours','4 hours','1 hour'] },
-        { label:'Alert if your listing shows as closed on Google', valores:[true,true,true] },
-        { label:'Alert if your phone, hours or address change on Google', valores:[false,true,true] },
-        { label:'Reputation certificate with a verifiable code', valores:[false,true,true] },
-        { label:'See your listing like a new customer does', valores:[true,true,true] },
-        { label:'Rating history from the day you sign up', valores:[true,true,true] },
+        { label:'Monitored businesses', valores:['1','1','Up to 5','Unlimited'] },
+        { label:'An attack is detected within', valores:['24 hours','12 hours','4 hours','1 hour'] },
+        { label:'Alert if your listing shows as closed on Google', valores:[true,true,true,true] },
+        { label:'Alert if your phone, hours or address change on Google', valores:[false,true,true,true] },
+        { label:'Reputation certificate with a verifiable code', valores:[false,false,true,true] },
+        { label:'See your listing like a new customer does', valores:[true,true,true,true] },
+        { label:'Rating history from the day you sign up', valores:[true,true,true,true] },
         { grupo:'Your team' },
-        { label:'People with access to the dashboard', valores:['Just you','3','10'] },
-        { label:'Each with their own login and password', valores:[false,true,true] },
-        { label:'Roles: who can reply and who can only look', valores:[false,true,true] },
-        { label:'Give a manager access to their location only', valores:[false,false,true] },
-        { label:'Record of who replied to each review', valores:[false,true,true] },
+        { label:'People with access to the dashboard', valores:['Just you','Just you','3','10'] },
+        { label:'Each with their own login and password', valores:[false,false,true,true] },
+        { label:'Roles: who can reply and who can only look', valores:[false,false,true,true] },
+        { label:'Give a manager access to their location only', valores:[false,false,false,true] },
+        { label:'Record of who replied to each review', valores:[false,false,true,true] },
         { grupo:'Artificial intelligence' },
-        { label:'AI replies and analyses per week', valores:['5','100','300'] },
-        { label:'Weekly email summary', valores:['Basic figures','With AI insights','With AI insights'] },
+        { label:'AI replies and analyses per week', valores:['5','25','100','300'] },
+        { label:'Weekly email summary', valores:['Basic figures','With AI insights','With AI insights','With AI insights'] },
         { grupo:'Competitor watch' },
-        { label:'Competitors watched per business', valores:['1','5','15'] },
-        { label:'AI analysis of their weak points', valores:[false,true,true] },
-        { label:'Automatic discovery of nearby rivals', valores:[false,false,true] },
+        { label:'Competitors watched per business', valores:['1','3','5','15'] },
+        { label:'AI analysis of their weak points', valores:[false,false,true,true] },
+        { label:'Automatic discovery of nearby rivals', valores:[false,false,false,true] },
         { grupo:'Work that runs itself' },
-        { label:'Auto-reply to positive reviews', valores:[false,'Single template','3 customizable tones'] },
-        { label:'Extra warning if a bad review sits 24h unanswered', valores:[false,true,true] },
-        { label:'Automatic PDF reports', valores:[false,'Monthly','Monthly'] },
+        { label:'Auto-reply to positive reviews', valores:[false,false,'Single template','3 customizable tones'] },
+        { label:'Extra warning if a bad review sits 24h unanswered', valores:[false,true,true,true] },
+        { label:'Automatic PDF reports', valores:[false,'Monthly','Monthly','Monthly'] },
         { grupo:'Channels and sources' },
-        { label:'TikTok connection (profile and videos)', valores:[false,true,true] },
+        { label:'TikTok connection (profile and videos)', valores:[false,false,true,true] },
         { grupo:'For chains and groups' },
-        { label:'Unlimited businesses in a single panel', valores:[false,false,true] },
+        { label:'Unlimited businesses in a single panel', valores:[false,false,false,true] },
         { grupo:'Billing and support' },
-        { label:'Automatic electronic invoice (SUNAT, Peru)', valores:[false,true,true] },
-        { label:'Support', valores:['Standard','Priority','Priority via email'] },
+        { label:'Automatic electronic invoice (SUNAT, Peru)', valores:[false,true,true,true] },
+        { label:'Support', valores:['Standard','Standard','Priority','Priority via email'] },
       ],
     },
     faq: {
@@ -549,6 +561,13 @@ export default function LandingPage() {
   }, []);
 
   const t = TEXTOS[idioma] || TEXTOS.es;
+
+  // Índice de la columna resaltada en la comparativa. Sale del NOMBRE del plan
+  // destacado, no de una posición: insertar una columna nueva movía el resaltado
+  // al plan equivocado y eso no rompe el build ni lanza nada — solo destaca lo
+  // que no toca, que en una tabla de precios es un error caro y silencioso.
+  // -1 si no cuadra, y entonces no se resalta ninguna, que es el lado seguro.
+  const colDestacada = t.comparativa.columnas.indexOf(t.comparativa.destacada);
 
   // 🔴 Acá había un `if (cargando) return <spinner/>` y costaba caro. `cargando`
   // arranca en true, así que el render de servidor devolvía SOLO el spinner: el
@@ -1067,7 +1086,12 @@ export default function LandingPage() {
               </div>
             </div>
 
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:12, alignItems:'start' }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(238px,1fr))', gap:12, alignItems:'start' }}>
+              {/* 4 planes desde el 2026-08-24. Con minmax(280px) solo entraban tres por
+                  fila y Franquicia caía sola a una segunda, que se lee como un plan aparte
+                  en vez de como el último escalón de la misma escalera.
+                  ⚠️ Este comentario tiene que ir en llaves: dentro del JSX, `//` NO es un
+                  comentario — se renderiza como texto y el build no dice nada. */}
               {t.precios.planes.map((p,i) => {
                 const gratis = p.p === 0;
                 const totalAnualBase = p.p * 12;
@@ -1157,12 +1181,12 @@ export default function LandingPage() {
                 celda (borderTop en cada td) en vez de en el <tr>, que se ignora en
                 modo separate. */}
             <div style={{ overflowX:'auto', overflowY:'hidden', border:`1px solid ${C.border}`, borderRadius:14 }}>
-              <table style={{ width:'100%', minWidth:640, borderCollapse:'separate', borderSpacing:0 }}>
+              <table style={{ width:'100%', minWidth:760, borderCollapse:'separate', borderSpacing:0 }}>
                 <thead>
                   <tr>
                     <th style={{ textAlign:'left', padding:'16px 20px', fontSize:12.5, color:C.text3, fontWeight:600, borderBottom:`1px solid ${C.border}`, position:'sticky', left:0, background:C.surface, zIndex:2 }}></th>
                     {t.comparativa.columnas.map((col,i) => (
-                      <th key={i} style={{ textAlign:'center', padding:'16px 16px', fontSize:14, fontWeight:800, color: i===1?C.green:C.text, borderBottom:`1px solid ${C.border}`, borderLeft: i===1?`1px solid ${C.greenB}`:'none', borderRight: i===1?`1px solid ${C.greenB}`:'none', background: i===1?C.greenT:C.surface, whiteSpace:'nowrap' }}>
+                      <th key={i} style={{ textAlign:'center', padding:'16px 16px', fontSize:14, fontWeight:800, color: i===colDestacada?C.green:C.text, borderBottom:`1px solid ${C.border}`, borderLeft: i===colDestacada?`1px solid ${C.greenB}`:'none', borderRight: i===colDestacada?`1px solid ${C.greenB}`:'none', background: i===colDestacada?C.greenT:C.surface, whiteSpace:'nowrap' }}>
                         {col}
                       </th>
                     ))}
@@ -1186,10 +1210,10 @@ export default function LandingPage() {
                     <tr key={i}>
                       <td style={{ padding:'11px 20px', fontSize:13.5, color:C.text2, borderTop:`1px solid ${C.border}`, position:'sticky', left:0, background:C.bg, whiteSpace:'nowrap', zIndex:1 }}>{fila.label}</td>
                       {fila.valores.map((v,j) => (
-                        <td key={j} style={{ textAlign:'center', padding:'11px 16px', fontSize:13, color:C.text2, borderTop:`1px solid ${C.border}`, background: j===1?C.greenT:C.bg, borderLeft: j===1?`1px solid ${C.greenB}`:'none', borderRight: j===1?`1px solid ${C.greenB}`:'none' }}>
+                        <td key={j} style={{ textAlign:'center', padding:'11px 16px', fontSize:13, color:C.text2, borderTop:`1px solid ${C.border}`, background: j===colDestacada?C.greenT:C.bg, borderLeft: j===colDestacada?`1px solid ${C.greenB}`:'none', borderRight: j===colDestacada?`1px solid ${C.greenB}`:'none' }}>
                           {v===true ? <span style={{ display:'flex', justifyContent:'center' }}><Icon d={ICONS.check} size={16} color={C.green}/></span> :
                            v===false ? <span style={{ display:'flex', justifyContent:'center' }}><Icon d={ICONS.cross} size={14} color={C.text3}/></span> :
-                           <span style={{ display:'block', textAlign:'center', fontWeight: j===1?600:400, whiteSpace:'nowrap' }}>{v}</span>}
+                           <span style={{ display:'block', textAlign:'center', fontWeight: j===colDestacada?600:400, whiteSpace:'nowrap' }}>{v}</span>}
                         </td>
                       ))}
                     </tr>

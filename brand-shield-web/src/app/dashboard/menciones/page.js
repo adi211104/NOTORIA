@@ -1,4 +1,5 @@
 'use client';
+import { puede as planIncluye } from '../../../lib/planes';
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -129,7 +130,7 @@ export default function MencionesPage() {
   const router = useRouter();
   const t = TEXTOS[idioma] || TEXTOS.es;
 
-  const planPago = usuario?.plan === 'NEGOCIO' || usuario?.plan === 'FRANQUICIA';
+  const planPago = planIncluye(usuario?.plan, 'menciones');
 
   const [datos, setDatos] = useState(null);
   const [cargando, setCargando] = useState(true);

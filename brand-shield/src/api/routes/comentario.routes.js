@@ -12,6 +12,7 @@ const prisma = require('../../lib/prisma');
 const { autenticar, permitir } = require('../middlewares/auth.middleware');
 const { dondeNegocio, registrar } = require('../../lib/equipo');
 const { verificarPlan } = require('../middlewares/verificarPlan.middleware');
+const { planesCon } = require('../../lib/planes');
 const tiktok = require('../../scrapers/tiktok.scraper');
 const { tokenTikTokVigente, estadoConexionTikTok } = require('../../lib/tiktokToken');
 const tiktokBiz = require('../../scrapers/tiktokBusiness.scraper');
@@ -21,7 +22,7 @@ const instagram = require('../../scrapers/instagram.scraper');
 const router = express.Router();
 
 router.use(autenticar);
-router.use(verificarPlan(['NEGOCIO', 'FRANQUICIA']));
+router.use(verificarPlan(planesCon('comentariosSociales')));
 
 const LIMITE_MAX = 200;
 const MAX_LARGO_RESPUESTA = 500;

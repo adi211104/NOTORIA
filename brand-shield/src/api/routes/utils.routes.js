@@ -4,6 +4,7 @@ const { autenticar, permitir } = require('../middlewares/auth.middleware');
 const { dondeNegocio, registrar } = require('../../lib/equipo');
 const { buscarNegocioEnGoogle } = require('../../scrapers/google.scraper');
 const { ejecutarAhora, HORAS_ESCANEO } = require('../../workers/monitoreo.worker');
+const { puede } = require('../../lib/planes');
 const prisma = require('../../lib/prisma');
 
 const router = express.Router();
@@ -148,9 +149,10 @@ router.post('/monitoreo-manual', autenticar, permitir('actuar'), async (req, res
 // ── POST /api/utils/generar-reporte ──────────────────────
 router.post('/generar-reporte', autenticar, async (req, res, next) => {
   try {
-    const planPago = ['NEGOCIO', 'FRANQUICIA'].includes(req.cuenta.plan);
-    if (!planPago) {
-      return res.status(403).json({ error: 'Los reportes PDF están disponibles desde el Plan Negocio.', accion: 'ACTUALIZAR_PLAN' });
+    // El reporte mensual lo incluye IMPULSO desde el 2026-08-24: generarlo no
+    // cuesta ninguna llamada externa y es de lo que más sostiene el hábito.
+    if (!puede(req.cuenta.plan, 'reporteMensual')) {
+      return res.status(403).json({ error: 'Los reportes PDF están disponibles desde el Plan Impulso.', accion: 'ACTUALIZAR_PLAN' });
     }
     res.json({ mensaje: 'Reporte generado. Lo recibirás en tu email en unos minutos.' });
     setImmediate(async () => {

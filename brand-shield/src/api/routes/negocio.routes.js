@@ -8,6 +8,7 @@ const { compararMeses, ordenarPorCrecimiento, hayAlgoQueContar } = require('../.
 const { generarAfiche } = require('../../utils/afiche.generator');
 const { emitirCodigo, VIGENCIA_DIAS } = require('../../lib/constancia');
 const { generarConstancia } = require('../../utils/constancia.pdf');
+const { limite: limiteDelPlan, limiteLegible, planesCon, puede } = require('../../lib/planes');
 
 const router = express.Router();
 const { autenticar, permitir } = require('../middlewares/auth.middleware');
@@ -70,10 +71,15 @@ router.post('/', permitir('negocios'), async (req, res, next) => {
     if (!tipoValido.success) return res.status(400).json({ error: 'tipo de negocio inválido' });
 
     const total = await prisma.negocio.count({ where: dondeNegocio(req, { activo: true }) });
-    const limite = req.cuenta.plan === 'GRATIS' ? 1 : req.cuenta.plan === 'NEGOCIO' ? 5 : 999;
+    // 🔴 Esto era un ternario `GRATIS ? 1 : NEGOCIO ? 5 : 999`, y el `else` es
+    // una trampa: cualquier plan nuevo caía ahí y se llevaba 999 negocios. El
+    // plan más barato del catálogo habría salido con locales ilimitados sin que
+    // nadie tocara una línea. Ahora el tope sale de lib/planes.js y un plan sin
+    // fila cae a GRATIS, que es el lado seguro del error.
+    const limite = limiteDelPlan(req.cuenta.plan, 'negocios');
     if (total >= limite) {
       return res.status(403).json({
-        error: `Tu plan permite hasta ${limite} negocio(s). Actualiza para agregar más.`,
+        error: `Tu plan permite hasta ${limiteLegible(limite)} negocio(s). Actualiza para agregar más.`,
         accion: 'ACTUALIZAR_PLAN',
       });
     }
@@ -135,7 +141,7 @@ router.patch('/:id/configuracion', permitir('actuar'), async (req, res, next) =>
 // Aprueba/edita la plantilla de auto-respuesta a reseñas positivas (4-5★).
 // Plan Negocio: solo `plantilla`. Plan Franquicia: además puede elegir `tono`
 // (una de las 3 variantes sugeridas) en vez de una plantilla única.
-router.post('/:id/auto-respuesta/configurar', permitir('actuar'), verificarPlan(['NEGOCIO', 'FRANQUICIA']), async (req, res, next) => {
+router.post('/:id/auto-respuesta/configurar', permitir('actuar'), verificarPlan(planesCon('autoRespuesta')), async (req, res, next) => {
   try {
     const negocio = await prisma.negocio.findFirst({
       where: dondeNegocio(req, { id: req.params.id }),
@@ -145,7 +151,7 @@ router.post('/:id/auto-respuesta/configurar', permitir('actuar'), verificarPlan(
     const { activa, plantilla, tono } = req.body;
     const data = { autoRespuestaActiva: !!activa };
 
-    if (req.cuenta.plan === 'FRANQUICIA' && tono) {
+    if (puede(req.cuenta.plan, 'tonoPersonalizado') && tono) {
       if (!PLANTILLAS_AUTO_RESPUESTA[tono]) {
         return res.status(400).json({ error: 'Tono inválido. Usa: formal, cercano o disculpa.' });
       }
@@ -168,7 +174,7 @@ router.post('/:id/auto-respuesta/configurar', permitir('actuar'), verificarPlan(
 // Comparación automática con hasta 3 competidores cercanos (2km, mismo tipo de
 // negocio) vía Google Places Nearby Search. Exclusivo del plan Franquicia —
 // independiente de la tabla `Competidor` (agregado manual, disponible en todos los planes).
-router.get('/:id/competencia', verificarPlan(['FRANQUICIA']), async (req, res, next) => {
+router.get('/:id/competencia', verificarPlan(planesCon('competenciaAutomatica')), async (req, res, next) => {
   try {
     const negocio = await prisma.negocio.findFirst({
       where: dondeNegocio(req, { id: req.params.id }),
@@ -425,7 +431,7 @@ router.get('/:id/afiche.pdf', async (req, res, next) => {
 //
 // Es de planes de pago: el valor está en poder acreditar un HISTORIAL, y eso solo
 // existe si el negocio lleva tiempo monitoreado de verdad.
-router.get('/:id/constancia.pdf', verificarPlan(['NEGOCIO', 'FRANQUICIA']), async (req, res, next) => {
+router.get('/:id/constancia.pdf', verificarPlan(planesCon('constancia')), async (req, res, next) => {
   try {
     const negocio = await prisma.negocio.findFirst({
       where: dondeNegocio(req, { id: req.params.id }),

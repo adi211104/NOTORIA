@@ -35,8 +35,11 @@
 
 const crypto = require('crypto');
 const prisma = require('./prisma');
+const { planesCon } = require('./planes');
 
-const PLANES_CON_VIGILANCIA = ['NEGOCIO', 'FRANQUICIA'];
+// Quién paga el grupo Contact Data de Places. Desde el 2026-08-24 también
+// IMPULSO: es justamente lo que hace comprable ese plan (ver lib/planes.js).
+const PLANES_CON_VIGILANCIA = planesCon('vigilanciaFicha');
 
 const puedeVigilarFicha = (plan) => PLANES_CON_VIGILANCIA.includes(plan);
 

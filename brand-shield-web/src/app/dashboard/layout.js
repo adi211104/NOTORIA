@@ -1,4 +1,5 @@
 'use client';
+import { nombrePlanLargo } from '../../lib/planes';
 import { useEffect, useState, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -108,7 +109,7 @@ const TEXTOS = {
       reintentar:'Reintentar',
     },
     plan: {
-      labels: { GRATIS:'Plan Gratuito', NEGOCIO:'Plan Negocio', FRANQUICIA:'Plan Franquicia' },
+      labels: (p) => nombrePlanLargo(p, 'es'),
       actual:'Plan actual',
       actualizar:'Actualizar →',
       verPlanes:'Ver planes →',
@@ -139,7 +140,7 @@ const TEXTOS = {
       reintentar:'Retry',
     },
     plan: {
-      labels: { GRATIS:'Free plan', NEGOCIO:'Business plan', FRANQUICIA:'Franchise plan' },
+      labels: (p) => nombrePlanLargo(p, 'en'),
       actual:'Current plan',
       actualizar:'Upgrade →',
       verPlanes:'View plans →',

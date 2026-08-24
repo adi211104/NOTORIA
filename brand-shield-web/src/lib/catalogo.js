@@ -41,6 +41,16 @@ export const UMBRAL_IDENTIFICACION_SOLES = 700;
 
 export const requiereIdentificacion = (precioEnSoles) => precioEnSoles >= UMBRAL_IDENTIFICACION_SOLES;
 
+/**
+ * Precio mensual publicado de un plan, en soles. Existe porque
+ * `dashboard/configuracion` traía los precios ESCRITOS A MANO dentro de un texto
+ * ("Negocio — S/59/mes"): una cuarta copia, en el idioma, que nadie iba a
+ * actualizar el día que cambie una tarifa. Devuelve null para los planes que no
+ * se cobran.
+ */
+export const precioMensualDe = (plan) =>
+  CATALOGO.find((c) => c.plan === plan && c.periodo === 'mensual')?.precio ?? null;
+
 export const CATALOGO = [
   {
     id: 'gratuito',
@@ -50,10 +60,50 @@ export const CATALOGO = [
     precio: 0,
     unidad: 'para siempre',
     imagen: 'gratuito',
+    // ⚠️ Decía "Historial de 7 días" y era FALSO: no hay retención por plan en
+    // ninguna parte del código — los snapshots se guardan igual para todos. Es
+    // el mismo reclamo que §15 mandó retirar del landing en su día y que aquí
+    // sobrevivió, porque la limpieza se hizo sobre page.js y no sobre el
+    // catálogo. Retirado el 2026-08-24.
     descripcion:
-      'Monitoreo de 1 negocio con escaneo cada 24 horas. Incluye score de reputación 0-100, detección de reseñas falsas, QR y enlace para pedir reseñas, 30 plantillas de respuesta, 5 usos de IA a la semana, 1 competidor vigilado y alertas por email. Historial de 7 días.',
+      'Monitoreo de 1 negocio con escaneo cada 24 horas. Incluye score de reputación 0-100, detección de reseñas falsas, QR y enlace para pedir reseñas, 30 plantillas de respuesta, 5 usos de IA a la semana, 1 competidor vigilado y alertas por email.',
     incluye: ['1 negocio monitoreado', 'Escaneo cada 24 horas', 'Alertas por email', 'Aviso si tu ficha aparece cerrada en Google'],
     comprable: false,
+  },
+  // ── Plan Impulso ────────────────────────────────────────────────────────────
+  // El escalón entre el gratuito y Negocio (2026-08-24). Lo que de verdad lo
+  // hace comprable es la VIGILANCIA DE FICHA: que cualquiera pueda sugerirle a
+  // Google que tu local cerró, o cambiarte el horario, y que Google lo aplique
+  // sin avisarte. Un dueño lo entiende en una frase.
+  //
+  // 🔴 Todo lo que se promete acá lo ejecuta el worker de verdad — es la regla
+  // de §15. Las capacidades reales están en brand-shield/src/lib/planes.js, y
+  // scripts/prueba-planes.js comprueba que este catálogo cuadre con los precios.
+  {
+    id: 'impulso-mensual',
+    plan: 'IMPULSO',
+    periodo: 'mensual',
+    nombre: 'Plan Impulso — mensual',
+    precio: 29,
+    unidad: 'por mes',
+    imagen: 'impulso',
+    descripcion:
+      'Para una tienda, una barbería o un local con una sola sede. Monitoreo de 1 negocio con escaneo cada 12 horas —el doble de rápido que el plan gratuito— y aviso inmediato si te cambian el teléfono, el horario, el nombre o la dirección en tu ficha de Google, o si alguien la marca como cerrada. Incluye 25 usos de IA a la semana para responder reseñas, 3 competidores vigilados, aviso si una reseña crítica lleva 24 horas sin respuesta, alertas por email y notificaciones en la app de Android, reporte PDF mensual automático y boleta o factura electrónica a tu RUC. Cobro mensual, se renueva cada 30 días.',
+    incluye: ['1 negocio monitoreado', 'Escaneo cada 12 horas', 'Aviso si te alteran la ficha', '25 usos de IA por semana', '3 competidores vigilados', 'Reporte PDF mensual'],
+    comprable: true,
+  },
+  {
+    id: 'impulso-anual',
+    plan: 'IMPULSO',
+    periodo: 'anual',
+    nombre: 'Plan Impulso — anual',
+    precio: 276,
+    unidad: 'por año (equivale a S/23 por mes)',
+    imagen: 'impulso-anual',
+    descripcion:
+      'Las mismas prestaciones del Plan Impulso con pago anual adelantado: 1 negocio, escaneo cada 12 horas, aviso si te alteran la ficha de Google, 25 usos de IA a la semana, 3 competidores vigilados y reporte PDF mensual. Un solo cargo al año, con 20% de descuento frente al pago mensual.',
+    incluye: ['Todo el Plan Impulso', 'Un solo cargo al año', '20% de ahorro', 'Boleta o factura a tu RUC'],
+    comprable: true,
   },
   {
     id: 'negocio-mensual',

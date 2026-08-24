@@ -98,7 +98,6 @@ export default function NegociosPage() {
   const { usuario, puede } = useAuth();
   const router = useRouter();
   const t = TEXTOS[idioma] || TEXTOS.es;
-  const esFranquicia = usuario?.plan === 'FRANQUICIA';
   const [lista, setLista] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [mostrarForm, setMostrarForm] = useState(false);

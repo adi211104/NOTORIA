@@ -11,12 +11,13 @@ const prisma = require('../../lib/prisma');
 const { autenticar, permitir } = require('../middlewares/auth.middleware');
 const { dondeNegocio } = require('../../lib/equipo');
 const { verificarPlan } = require('../middlewares/verificarPlan.middleware');
+const { planesCon } = require('../../lib/planes');
 const { construirTerminos, fuentesDisponibles, hayFuenteDisponible, MAX_TERMINOS } = require('../../lib/menciones');
 
 const router = express.Router();
 
 router.use(autenticar);
-router.use(verificarPlan(['NEGOCIO', 'FRANQUICIA']));
+router.use(verificarPlan(planesCon('menciones')));
 
 // Sin ninguna fuente operativa la sección no se ofrece: el nav la esconde y la
 // API la trata como inexistente. Un 404 y no un 403 a propósito — no es que al

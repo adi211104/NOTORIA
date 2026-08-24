@@ -17,17 +17,18 @@
 // no cambian de forma: cambian de sujeto.
 
 const prisma = require('./prisma');
+const { limite: limiteDelPlan, ORDEN } = require('./planes');
 
 // ─── Asientos por plan ────────────────────────────────────
 //
 // CUENTAN AL DUEÑO. "3 asientos" = el dueño y dos personas más, no el dueño y
 // tres. Es como lo entiende cualquiera al leer "incluye 3 personas", y contarlo
 // al revés haría que el panel dijera un número y la página de precios otro.
-const ASIENTOS = {
-  GRATIS: 1,
-  NEGOCIO: 3,
-  FRANQUICIA: 10,
-};
+// Los asientos viven en lib/planes.js con el resto de capacidades. Se deja el
+// mapa con esta forma porque varias pruebas y el panel lo recorren.
+const ASIENTOS = Object.fromEntries(
+  ORDEN.map((plan) => [plan, limiteDelPlan(plan, 'asientos')])
+);
 
 const asientosDelPlan = (plan) => ASIENTOS[plan] ?? ASIENTOS.GRATIS;
 

@@ -1,4 +1,5 @@
 'use client';
+import { puede as planIncluye } from '../../../lib/planes';
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { negociosApi, redes, API_URL } from '../../../lib/api';
@@ -149,7 +150,8 @@ export default function ConexionesPage() {
   const [desconectando, setDesconectando] = useState(false);
   const [errorDesc, setErrorDesc] = useState(null);
 
-  const planPago = usuario?.plan === 'NEGOCIO' || usuario?.plan === 'FRANQUICIA';
+  // Conectar una red social sigue siendo el salto a Negocio: Impulso no lo trae.
+  const planPago = planIncluye(usuario?.plan, 'comentariosSociales');
 
   const cargar = useCallback(() => (
     negociosApi.listar()

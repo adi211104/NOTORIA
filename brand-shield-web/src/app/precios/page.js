@@ -37,12 +37,18 @@ const PENDIENTE = 'notoria_compra_pendiente';
 const Ilustracion = ({ tipo }) => {
   const barras = {
     gratuito: [30, 0, 0, 0],
+    // Impulso queda visualmente entre el gratuito y Negocio: dos barras. La
+    // ilustración es lo que Culqi exige por ítem del catálogo, así que un plan
+    // sin entrada acá caería al genérico y se vería igual que otro.
+    impulso: [40, 52, 0, 0],
+    'impulso-anual': [40, 52, 0, 0],
     negocio: [55, 70, 45, 0],
     'negocio-anual': [55, 70, 45, 0],
     franquicia: [80, 60, 90, 70],
     'franquicia-anual': [80, 60, 90, 70],
   }[tipo] || [40, 40, 40, 0];
 
+  // Puntos = negocios monitoreados. Impulso vigila 1, igual que el gratuito.
   const puntos = tipo.startsWith('franquicia') ? 5 : tipo.startsWith('negocio') ? 3 : 1;
 
   return (

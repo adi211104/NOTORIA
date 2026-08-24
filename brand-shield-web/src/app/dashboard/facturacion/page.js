@@ -1,4 +1,5 @@
 'use client';
+import { nombrePlanLargo } from '../../../lib/planes';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '../../../context/AuthContext';
@@ -17,7 +18,7 @@ const TEXTOS = {
   es: {
     titulo: 'Facturación',
     sub: 'Historial de los pagos realizados en tu cuenta',
-    plan: { GRATIS: 'Plan Gratuito', NEGOCIO: 'Plan Negocio', FRANQUICIA: 'Plan Franquicia' },
+    plan: (p) => nombrePlanLargo(p, 'es'),
     periodo: { mensual: 'mensual', anual: 'anual' },
     tipo: { INICIAL: 'Primer cobro', RENOVACION: 'Renovación' },
     estado: { EXITOSO: 'Pagado', FALLIDO: 'Fallido', REEMBOLSADO: 'Reembolsado' },
@@ -41,7 +42,7 @@ const TEXTOS = {
   en: {
     titulo: 'Billing',
     sub: 'History of payments made on your account',
-    plan: { GRATIS: 'Free plan', NEGOCIO: 'Business plan', FRANQUICIA: 'Franchise plan' },
+    plan: (p) => nombrePlanLargo(p, 'en'),
     periodo: { mensual: 'monthly', anual: 'yearly' },
     tipo: { INICIAL: 'First charge', RENOVACION: 'Renewal' },
     estado: { EXITOSO: 'Paid', FALLIDO: 'Failed', REEMBOLSADO: 'Refunded' },
@@ -276,7 +277,7 @@ export default function FacturacionPage() {
                       <tr key={p.id} style={{ borderBottom: i < pagos.length - 1 ? '1px solid var(--border-c)' : 'none' }}>
                         <td style={{ padding: '14px 18px', fontSize: 13, color: 'var(--text)', whiteSpace: 'nowrap' }}>{formatFecha(p.creadoEn)}</td>
                         <td style={{ padding: '14px 18px', fontSize: 13, color: 'var(--text)' }}>
-                          <div style={{ fontWeight: 600 }}>{t.plan[p.plan] || p.plan}</div>
+                          <div style={{ fontWeight: 600 }}>{t.plan(p.plan)}</div>
                           <div style={{ color: 'var(--text-3)', fontSize: 11.5 }}>{t.tipo[p.tipo] || p.tipo} · {t.periodo[p.periodo] || p.periodo}</div>
                         </td>
                         <td style={{ padding: '14px 18px', fontSize: 13, color: 'var(--text)' }}>{p.titular}</td>

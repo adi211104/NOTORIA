@@ -14,7 +14,12 @@
 // registro, así que agregar USD en el futuro no obliga a tocar nada de eso.
 const MONEDA = 'PEN';
 
+// El anual se calcula igual en los tres: 20% de descuento sobre el mensual,
+// redondeado a un mes entero y multiplicado por 12. No es una fórmula en el
+// código a propósito — el precio publicado tiene que ser un número que se pueda
+// decir en voz alta, y `Math.round(p*0.8)` da 1718.4 donde la web dice 1716.
 const PRECIOS = {
+  IMPULSO:    { mensual: 2900,  anual: 27600 },   // S/29/mes  ·  S/23 x 12 anual
   NEGOCIO:    { mensual: 5900,  anual: 56400 },   // S/59/mes  ·  S/47 x 12 anual
   FRANQUICIA: { mensual: 17900, anual: 171600 },  // S/179/mes ·  S/143 x 12 anual
 };

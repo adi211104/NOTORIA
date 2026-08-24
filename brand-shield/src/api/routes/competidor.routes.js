@@ -9,16 +9,17 @@ const { buscarNegocioEnGoogle } = require('../../scrapers/google.scraper');
 const router = express.Router();
 const { autenticar, permitir } = require('../middlewares/auth.middleware');
 const { dondeNegocio, alcanza, registrar } = require('../../lib/equipo');
+const { limite: limiteDelPlan, ORDEN } = require('../../lib/planes');
 
 router.use(autenticar);
 
 // El plan gratuito incluye 1 competidor para que el usuario pruebe la función;
 // los planes de pago amplían el límite.
-const LIMITE_COMPETIDORES = {
-  GRATIS: 1,
-  NEGOCIO: 5,
-  FRANQUICIA: 15,
-};
+// El tope sale de lib/planes.js: era una de las cinco tablas por plan sueltas
+// que había en el backend, y al añadir un plan nuevo ninguna se enteraba.
+const LIMITE_COMPETIDORES = Object.fromEntries(
+  ORDEN.map((plan) => [plan, limiteDelPlan(plan, 'competidores')])
+);
 
 // GET /api/competidores — todos los competidores del usuario, agrupados por
 // negocio (vista consolidada para /dashboard/competencia). Los endpoints por

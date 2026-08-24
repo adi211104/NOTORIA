@@ -8,6 +8,7 @@
 const cron = require('node-cron');
 const axios = require('axios');
 const prisma = require('../lib/prisma');
+const { puede } = require('../lib/planes');
 const { enviarResumenSemanal, enviarResumenSemanalConsolidado } = require('../utils/emails');
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
@@ -96,7 +97,7 @@ const procesarUsuario = async (usuario, negocios) => {
     }
   }
 
-  if (usuario.plan === 'FRANQUICIA' && resultados.length > 1) {
+  if (puede(usuario.plan, 'resumenConsolidado') && resultados.length > 1) {
     const resumenGlobal = resultados
       .map((r) => r.datos.insight)
       .filter(Boolean)

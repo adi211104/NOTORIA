@@ -1,4 +1,5 @@
 'use client';
+import { ORDEN, limite as limitePlan } from '../../../lib/planes';
 // Vista consolidada de competencia: todos los competidores de todos los
 // negocios del usuario, organizados por negocio, en un solo lugar (antes solo
 // se veían dentro de la pestaña "Competencia" de cada negocio por separado).
@@ -10,7 +11,11 @@ import { competidoresApi, utils } from '../../../lib/api';
 import { labelParaTipo } from '../../../lib/tiposNegocio';
 import Icon from '../../../components/Icons';
 
-const LIMITE_COMPETIDORES = { GRATIS: 1, NEGOCIO: 5, FRANQUICIA: 15 };
+// El tope sale de lib/planes.js, el espejo del backend. Era una copia a mano y
+// un plan nuevo no aparecía por ningún lado.
+const LIMITE_COMPETIDORES = Object.fromEntries(
+  ORDEN.map((plan) => [plan, limitePlan(plan, 'competidores')])
+);
 
 const Card = ({ children, style }) => <div style={{ background:'var(--surface)', border:'1px solid var(--border-c)', borderRadius:14, padding:20, ...style }}>{children}</div>;
 

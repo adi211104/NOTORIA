@@ -9,6 +9,7 @@ const { obtenerRatingFacebook, obtenerResenasFacebook } = require('../scrapers/f
 const { analizarResena, detectarAnomalias } = require('../nlp/detector');
 const { notificar, enviarAlertaEmail } = require('../alerts/notificador');
 const { revisarDatosDeFicha, puedeVigilarFicha } = require('../lib/fichaGoogle');
+const { capacidades, planesCon, PLANES_DE_PAGO, ORDEN } = require('../lib/planes');
 
 // Intenta publicar la auto-respuesta aprobada por el usuario para una reseña
 // positiva (4-5★) recién detectada. Requiere que el negocio tenga Google
@@ -581,7 +582,17 @@ const procesarNegocio = async (negocio, ctx = {}) => {
 //
 // Ahora el cron corre CADA HORA y en cada pasada elige a quién le toca según su
 // plan. Es una sola consulta por hora en vez de tres crons peleándose.
-const HORAS_ESCANEO = { GRATIS: 24, NEGOCIO: 4, FRANQUICIA: 1 };
+// La cadencia sale de la tabla de planes (lib/planes.js), no de una copia local:
+// era una de las cinco tablas por plan repartidas por el backend, y la que más
+// caro sale desincronizar — gobierna cuántas consultas a Places paga cada cuenta.
+//
+// Se sigue exportando con esta forma porque `negocio.routes.js` y
+// `utils.routes.js` la recorren para armar el cooldown del botón "Escanear
+// ahora": derivarla acá mantiene esos dos sitios funcionando y, sobre todo,
+// hace que un plan nuevo aparezca solo en el cooldown en vez de quedar fuera.
+const HORAS_ESCANEO = Object.fromEntries(
+  ORDEN.map((plan) => [plan, capacidades(plan).horasEscaneo])
+);
 
 // ¿Le toca a este negocio? Le toca si nunca se escaneó, o si ya pasó el intervalo
 // de su plan. Se deja un margen de 5 minutos porque el cron nunca dispara en el
@@ -1076,7 +1087,7 @@ const iniciarReportesMensuales = () => {
     const negocios = await prisma.negocio.findMany({
       where: {
         activo: true,
-        usuario: { plan: { in: ['NEGOCIO', 'FRANQUICIA'] } },
+        usuario: { plan: { in: planesCon('reporteMensual') } },
       },
       include: {
         usuario: { select: { id: true, email: true, nombre: true, idioma: true } },
@@ -1211,7 +1222,12 @@ const iniciarRenovacionesCulqi = () => {
       where: {
         suscripcionActiva: true,
         suscripcionId: { not: null },
-        plan: { in: ['NEGOCIO', 'FRANQUICIA'] },
+        // 🔴 PLANES_DE_PAGO, nunca una lista escrita a mano. Un plan de pago que
+        // falte en este filtro se cobra UNA VEZ y no se renueva jamás: el
+        // cliente conserva el plan gratis para siempre y no hay error, ni log,
+        // ni cargo fallido que lo delate. Es el fallo más caro del backend y el
+        // único que no produce ninguna señal.
+        plan: { in: PLANES_DE_PAGO },
         // Sin `gte`: todo lo vencido, no solo lo de hoy. Es el arreglo del punto 1.
         fechaVencimiento: { lte: finHoy },
       },
@@ -1346,7 +1362,9 @@ const iniciarBajadaDePlanes = () => {
       const vencidos = await prisma.usuario.findMany({
         where: {
           suscripcionActiva: false,
-          plan: { in: ['NEGOCIO', 'FRANQUICIA'] },
+          // Mismo motivo que la renovación: un plan de pago ausente de esta
+          // lista nunca baja a GRATIS, así que cancelar lo regalaría de por vida.
+          plan: { in: PLANES_DE_PAGO },
           fechaVencimiento: { lte: new Date() },
         },
         select: { id: true, email: true, plan: true },
@@ -1386,7 +1404,7 @@ const revisarEscalacionesUrgentes = async () => {
       respondida: false,
       escaladaUrgencia: false,
       detectadaEn: { lte: hace24h },
-      negocio: { activo: true, usuario: { plan: { in: ['NEGOCIO', 'FRANQUICIA'] } } },
+      negocio: { activo: true, usuario: { plan: { in: planesCon('escalacionUrgencias') } } },
     },
     include: {
       negocio: {

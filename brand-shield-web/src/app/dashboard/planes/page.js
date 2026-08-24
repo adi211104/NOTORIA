@@ -1,4 +1,5 @@
 'use client';
+import { PLANES as CAPACIDADES_PLAN } from '../../../lib/planes';
 import { useState, useEffect } from 'react';
 import Script from 'next/script';
 import Link from 'next/link';
@@ -43,7 +44,7 @@ const PLANES = {
         { texto: 'Aviso si tu ficha aparece cerrada en Google', ok: true },
         { texto: 'La cuenta es solo tuya (1 persona)', ok: true },
         { texto: 'Compartir el panel con tu equipo', ok: false },
-        { texto: 'Escaneos frecuentes (4h o 1h)', ok: false },
+        { texto: 'Escaneos más frecuentes (12h, 4h o 1h)', ok: false },
         { texto: 'Conexión de TikTok', ok: false },
         { texto: 'IA amplia para respuestas y análisis', ok: false },
         { texto: 'Análisis IA de la competencia', ok: false },
@@ -53,6 +54,32 @@ const PLANES = {
       ],
       cta: 'Plan actual',
       ctaActivo: false,
+    },
+    {
+      id: 'IMPULSO',
+      nombre: 'Impulso',
+      precio: 29,
+      precioAnual: 23,
+      descripcion: 'Para una tienda o un local con una sola sede',
+      features: [
+        { texto: '1 negocio monitoreado', ok: true },
+        { texto: 'Escaneo cada 12 horas', ok: true },
+        { texto: 'Aviso si te cambian el teléfono, el horario o la dirección', ok: true },
+        { texto: '25 usos de IA a la semana', ok: true },
+        { texto: '3 competidores monitoreados', ok: true },
+        { texto: 'Aviso si una reseña crítica lleva 24 h sin respuesta', ok: true },
+        { texto: 'Reporte PDF mensual automático', ok: true },
+        { texto: 'Alertas por email y en la app Android', ok: true },
+        { texto: 'Boleta o factura electrónica a tu RUC', ok: true },
+        { texto: 'Todo lo del plan Gratuito', ok: true },
+        { texto: 'Compartir el panel con tu equipo', ok: false },
+        { texto: 'Conexión de TikTok', ok: false },
+        { texto: 'Constancia de reputación verificable', ok: false },
+        { texto: 'Negocios ilimitados en un solo panel', ok: false },
+        { texto: 'Soporte prioritario', ok: false },
+      ],
+      cta: 'Contratar plan Impulso',
+      ctaActivo: true,
     },
     {
       id: 'NEGOCIO',
@@ -133,7 +160,7 @@ const PLANES = {
         { texto: 'Alert if your listing shows as closed on Google', ok: true },
         { texto: 'The account is yours alone (1 person)', ok: true },
         { texto: 'Share the dashboard with your team', ok: false },
-        { texto: 'Frequent scans (4h or 1h)', ok: false },
+        { texto: 'More frequent scans (12h, 4h or 1h)', ok: false },
         { texto: 'TikTok connection', ok: false },
         { texto: 'Extended AI for replies and analysis', ok: false },
         { texto: 'AI competitor analysis', ok: false },
@@ -143,6 +170,32 @@ const PLANES = {
       ],
       cta: 'Current plan',
       ctaActivo: false,
+    },
+    {
+      id: 'IMPULSO',
+      nombre: 'Impulso',
+      precio: 29,
+      precioAnual: 23,
+      descripcion: 'For a shop or a single-location business',
+      features: [
+        { texto: '1 monitored business', ok: true },
+        { texto: 'Scan every 12 hours', ok: true },
+        { texto: 'Alert if your phone, hours or address are changed', ok: true },
+        { texto: '25 AI uses per week', ok: true },
+        { texto: '3 monitored competitors', ok: true },
+        { texto: 'Alert if a critical review goes 24h without a reply', ok: true },
+        { texto: 'Automatic monthly PDF report', ok: true },
+        { texto: 'Email and Android app alerts', ok: true },
+        { texto: 'Electronic invoice to your RUC', ok: true },
+        { texto: 'Everything in the Free plan', ok: true },
+        { texto: 'Share the dashboard with your team', ok: false },
+        { texto: 'TikTok connection', ok: false },
+        { texto: 'Verifiable reputation certificate', ok: false },
+        { texto: 'Unlimited businesses in one dashboard', ok: false },
+        { texto: 'Priority support', ok: false },
+      ],
+      cta: 'Get the Impulso plan',
+      ctaActivo: true,
     },
     {
       id: 'NEGOCIO',
@@ -340,7 +393,9 @@ export default function PlanesPage() {
     // Franquicia también se cobra con tarjeta: antes abría un mailto y no había
     // forma de contratarlo online, que es parte de lo que Culqi observó. El
     // backend ya aceptaba el plan (ver PRECIOS en lib/precios.js).
-    if (plan.id === 'NEGOCIO' || plan.id === 'FRANQUICIA') {
+    // El botón de compra se activaba con `id === 'NEGOCIO' || id === 'FRANQUICIA'`
+    // escrito a mano: un plan nuevo se pintaba en la pantalla y no se podía comprar.
+    if (CAPACIDADES_PLAN[plan.id]?.esDePago) {
       const Culqi = typeof window !== 'undefined' ? window.Culqi : null;
       const publicKey = process.env.NEXT_PUBLIC_CULQI_PUBLIC_KEY;
       if (!Culqi || !publicKey) {
@@ -429,7 +484,7 @@ export default function PlanesPage() {
       {puedeUsarPromo && !anual && <BannerPromo compacto />}
 
       {/* Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 14, marginBottom: 32 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(232px,1fr))', gap: 14, marginBottom: 32 }}>
         {planes.map((plan) => {
           const precio = anual ? plan.precioAnual : plan.precio;
           const esPlanActual = planActual === plan.id;

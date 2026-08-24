@@ -58,6 +58,7 @@ const JSON_LD = {
       inLanguage: 'es',
       offers: [
         { '@type': 'Offer', name: 'Plan Gratuito', price: '0', priceCurrency: 'PEN' },
+        { '@type': 'Offer', name: 'Plan Impulso', price: '29', priceCurrency: 'PEN' },
         { '@type': 'Offer', name: 'Plan Negocio', price: '59', priceCurrency: 'PEN' },
         { '@type': 'Offer', name: 'Plan Franquicia', price: '179', priceCurrency: 'PEN' },
       ],

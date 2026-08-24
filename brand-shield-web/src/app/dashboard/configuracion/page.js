@@ -1,4 +1,16 @@
 'use client';
+import { nombrePlan } from '../../../lib/planes';
+import { precioMensualDe } from '../../../lib/catalogo';
+
+// "Impulso — S/29/mes". El precio sale del catálogo, no escrito a mano: antes
+// estaban puestos a dedo en los dos idiomas y una tarifa nueva los dejaba
+// mintiendo en la pantalla donde el cliente mira cuánto paga.
+const etiquetaPlanConPrecio = (plan, idioma) => {
+  const nombre = nombrePlan(plan, idioma);
+  const precio = precioMensualDe(plan);
+  if (!precio) return nombre;
+  return idioma === 'en' ? `${nombre} — S/${precio}/mo` : `${nombre} — S/${precio}/mes`;
+};
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { useRouter } from 'next/navigation';
@@ -26,7 +38,7 @@ const TEXTOS = {
       nombre: 'Nombre', email: 'Email',
       verificado: 'Verificado', sinVerificar: 'Sin verificar',
       planActual: 'Plan actual',
-      planNombre: (plan) => plan === 'GRATIS' ? 'Gratuito' : plan === 'NEGOCIO' ? 'Negocio — S/59/mes' : 'Franquicia — S/179/mes',
+      planNombre: (plan) => etiquetaPlanConPrecio(plan, 'es'),
       actualizar: 'Actualizar →', verPlanes: 'Ver planes →',
       facturacion: 'Facturación', facturacionDesc: 'Datos fiscales y comprobantes',
       verFacturacion: 'Abrir →',
@@ -137,7 +149,7 @@ const TEXTOS = {
       nombre: 'Name', email: 'Email',
       verificado: 'Verified', sinVerificar: 'Unverified',
       planActual: 'Current plan',
-      planNombre: (plan) => plan === 'GRATIS' ? 'Free' : plan === 'NEGOCIO' ? 'Business — S/59/mo' : 'Franchise — S/179/mo',
+      planNombre: (plan) => etiquetaPlanConPrecio(plan, 'en'),
       actualizar: 'Upgrade →', verPlanes: 'View plans →',
       facturacion: 'Billing', facturacionDesc: 'Tax details and receipts',
       verFacturacion: 'Open →',

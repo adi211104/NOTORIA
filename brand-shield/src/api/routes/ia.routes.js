@@ -8,6 +8,7 @@ const { autenticar, permitir } = require('../middlewares/auth.middleware');
 const { dondeNegocio } = require('../../lib/equipo');
 const { verificarPlan } = require('../middlewares/verificarPlan.middleware');
 const { obtenerResenasGoogle } = require('../../scrapers/google.scraper');
+const { limite: limiteDelPlan, ORDEN, planesCon } = require('../../lib/planes');
 
 const router = express.Router();
 router.use(autenticar);
@@ -20,11 +21,10 @@ const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MODELO = 'openai/gpt-oss-20b';
 
 // Respuestas con IA por semana según plan
-const LIMITES_IA = {
-  GRATIS: 5,
-  NEGOCIO: 100,
-  FRANQUICIA: 300,
-};
+// Igual que los demás topes: una fila en lib/planes.js, no una copia acá.
+const LIMITES_IA = Object.fromEntries(
+  ORDEN.map((plan) => [plan, limiteDelPlan(plan, 'iaSemanal')])
+);
 
 // Clave estable de la semana en curso: fecha (UTC) del lunes de esa semana
 const semanaActual = () => {
@@ -137,7 +137,7 @@ router.post('/respuesta', permitir('actuar'), async (req, res, next) => {
 // recomendaciones para tomar la delantera. Consume 1 uso de IA.
 // Solo planes de pago: en Gratis la comparación con competencia se queda en
 // el dato básico (rating y nº de reseñas, sin costo), sin el análisis de IA.
-router.post('/analisis-competidor', permitir('actuar'), verificarPlan(['NEGOCIO', 'FRANQUICIA']), async (req, res, next) => {
+router.post('/analisis-competidor', permitir('actuar'), verificarPlan(planesCon('analisisCompetidorIA')), async (req, res, next) => {
   try {
     if (!process.env.GROQ_API_KEY) {
       return res.status(500).json({ error: 'IA no configurada. Agrega GROQ_API_KEY al .env del backend.' });

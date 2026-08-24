@@ -1,4 +1,5 @@
 'use client';
+import { puede as planIncluye } from '../../../../lib/planes';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -1454,7 +1455,7 @@ export default function DetallePage() {
 
   // ── Comparación automática con competencia (solo Franquicia) ─────────────
   useEffect(() => {
-    if (tab !== 'competenciaAuto' || usuario?.plan !== 'FRANQUICIA' || competenciaAuto || competenciaAutoCargando) return;
+    if (tab !== 'competenciaAuto' || !planIncluye(usuario?.plan, 'competenciaAutomatica') || competenciaAuto || competenciaAutoCargando) return;
     setCompetenciaAutoCargando(true);
     setCompetenciaAutoError('');
     negociosApi.competencia(id)
@@ -1803,7 +1804,7 @@ export default function DetallePage() {
   const textoRevision = haceRevision
     ? t.header.revisado(haceRevision, cadaRevision)
     : t.header.revisadoNunca(cadaRevision);
-  const planPago = usuario?.plan === 'NEGOCIO' || usuario?.plan === 'FRANQUICIA';
+  const planPago = planIncluye(usuario?.plan, 'comentariosSociales');
 
   // Sospechosas ya NO es una pestaña (2026-07-29): eran las mismas reseñas
   // duplicadas en dos lugares. Ahora viven dentro de Reseñas, detrás del filtro
@@ -1816,7 +1817,7 @@ export default function DetallePage() {
     { id:'comentarios', label:t.tabs.comentarios(comResumen.total) },
     { id:'alertas', label:t.tabs.alertas(alertasNL) },
     { id:'competencia', label:t.tabs.competencia(competidores.length) },
-    ...(usuario?.plan === 'FRANQUICIA' ? [{ id:'competenciaAuto', label:t.tabs.competenciaAuto }] : []),
+    ...(planIncluye(usuario?.plan, 'competenciaAutomatica') ? [{ id:'competenciaAuto', label:t.tabs.competenciaAuto }] : []),
     { id:'espejo', label:t.tabs.espejo },
     { id:'crecer', label:t.tabs.crecer },
     { id:'consejos', label:t.tabs.consejos },
@@ -2872,7 +2873,7 @@ export default function DetallePage() {
       {/* TAB Comparación automática (Franquicia) */}
       {tab==='competenciaAuto' && (
         <div>
-          {usuario?.plan !== 'FRANQUICIA' ? (
+          {!planIncluye(usuario?.plan, 'tonoPersonalizado') ? (
             <BloqueoPlan mensaje={t.competenciaAuto.bloqueo}>
               <Card>
                 <ST>{t.competenciaAuto.titulo}</ST>

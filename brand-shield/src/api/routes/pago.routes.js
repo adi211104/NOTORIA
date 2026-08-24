@@ -16,6 +16,7 @@ const router = express.Router();
 // Moneda y precios viven en lib/precios.js — el cron de renovación lee los
 // mismos valores desde ahí. Culqi recibe la moneda explícita en cada cargo.
 const { MONEDA, PRECIOS } = require('../../lib/precios');
+const { etiquetaDe } = require('../../lib/planes');
 
 // Guarda un registro de Facturación a partir de la respuesta de un cargo de
 // Culqi exitoso. Solo persiste los primeros 4 dígitos de la tarjeta
@@ -277,7 +278,10 @@ router.post('/culqi', async (req, res) => {
       moneda: MONEDA,
       email: usuario.email,
       sourceId: tarjeta.id,
-      descripcion: `Notoria — Plan ${plan} (${anual ? 'anual' : 'mensual'})${aplicaPromo ? ' — promo 50% bienvenida' : ''}`,
+      // El nombre sale de lib/planes.js. Era `Plan ${plan}` con el valor crudo del
+      // enum, o sea "Plan NEGOCIO" en mayúsculas — y esta descripción la ve el
+      // cliente en el panel de Culqi y en el detalle de su tarjeta.
+      descripcion: `Notoria — ${etiquetaDe(plan)} (${anual ? 'anual' : 'mensual'})${aplicaPromo ? ' — promo 50% bienvenida' : ''}`,
     });
 
     const fechaVencimiento = new Date();
