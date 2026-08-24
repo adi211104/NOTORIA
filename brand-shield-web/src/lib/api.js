@@ -142,6 +142,11 @@ export const negociosApi = {
   // a Google, así que se puede pedir al abrir la ficha. Responde 409 SIN_DATOS
   // cuando todavía no hay historial: la tarjeta debe esconderse, no pintar ceros.
   progreso:  (id)     => api(`/api/negocios/${id}/progreso`),
+  // Score + de qué se queja la gente + qué hacer. Una sola petición porque el
+  // panel las pinta juntas, y ninguna gasta cuota de Google ni de la IA.
+  resumen:   (id)     => api(`/api/negocios/${id}/resumen`),
+  // «Para hacer hoy» de todos los negocios de la cuenta, para el panel de inicio.
+  tareas:    ()       => api('/api/negocios/tareas'),
 };
 
 export const alertas = {

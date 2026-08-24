@@ -1,5 +1,6 @@
 'use client';
 import { puede as planIncluye } from '../../../../lib/planes';
+import PanelAccionable from '../../../../components/PanelAccionable';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -206,35 +207,31 @@ const GraficaRating = ({ snapshots }) => {
 };
 
 // ── Score de Reputación 0-100 ─────────────────────────────
-// Combina rating, volumen de reseñas, reseñas sospechosas y tasa de respuesta
-const calcularScore = (snap, resenas, idioma) => {
-  if (!snap) return null;
-  const t = (TEXTOS[idioma] || TEXTOS.es).resumen.score;
-  const rating = snap.ratingActual || 0;
-  const total = snap.totalResenas || 0;
-  const captadas = resenas.length;
-  const sospechosas = resenas.filter(r => r.esSospechosa).length;
-  const respondidas = resenas.filter(r => r.respondida).length;
+// La fórmula se mudó a brand-shield/src/lib/score.js el 2026-08-24. Acá solo
+// queda la traducción de lo que manda el backend a lo que pinta la tarjeta:
+// color del nivel, etiqueta y consejo, que son las tres cosas que llevan idioma.
+const COLOR_NIVEL = { excelente:'#22c55e', bueno:'#4CAF66', enRiesgo:'#f59e0b', critico:'#ef4444' };
 
-  const pRating    = (rating / 5) * 55;
-  const pVolumen   = Math.min(Math.log10(total + 1) / Math.log10(500), 1) * 20;
-  const pConfianza = captadas > 0 ? (1 - Math.min(sospechosas / captadas, 1)) * 15 : 15;
-  const pRespuesta = captadas > 0 ? (respondidas / captadas) * 10 : 5;
-
-  const score = Math.round(pRating + pVolumen + pConfianza + pRespuesta);
-  const nivel = score >= 85 ? { l:t.niveles.excelente, c:'#22c55e' }
-              : score >= 70 ? { l:t.niveles.bueno, c:'#4CAF66' }
-              : score >= 50 ? { l:t.niveles.enRiesgo, c:'#f59e0b' }
-              : { l:t.niveles.critico, c:'#ef4444' };
-
+const adaptarScore = (backend, t) => {
+  if (!backend) return null;
+  const tt = t.resumen.score;
+  const etiquetas = { rating: tt.calidadRating, volumen: tt.volumenResenas, confianza: tt.confianza, respuesta: tt.tasaRespuesta };
+  // El consejo depende del dato, no del puntaje: "te faltan reseñas" solo tiene
+  // sentido si de verdad tienes pocas.
+  const consejo = {
+    rating: (d) => (d < 4.2 ? tt.tipRating : null),
+    volumen: (d) => (d < 100 ? tt.tipVolumen : null),
+    confianza: (d) => (d > 0 ? tt.tipConfianza(d) : null),
+    respuesta: (d) => (d !== null && d < 100 ? tt.tipRespuesta : null),
+  };
   return {
-    score, nivel,
-    detalle: [
-      { l:t.calidadRating, v:Math.round(pRating), max:55, tip: rating < 4.2 ? t.tipRating : null },
-      { l:t.volumenResenas, v:Math.round(pVolumen), max:20, tip: total < 100 ? t.tipVolumen : null },
-      { l:t.confianza, v:Math.round(pConfianza), max:15, tip: sospechosas > 0 ? t.tipConfianza(sospechosas) : null },
-      { l:t.tasaRespuesta, v:Math.round(pRespuesta), max:10, tip: captadas > 0 && respondidas < captadas ? t.tipRespuesta : null },
-    ],
+    score: backend.score,
+    nivel: { l: tt.niveles[backend.nivel], c: COLOR_NIVEL[backend.nivel] || '#f59e0b' },
+    detalle: backend.componentes.map((c) => ({
+      l: etiquetas[c.clave] || c.clave,
+      v: c.valor, max: c.max,
+      tip: consejo[c.clave] ? consejo[c.clave](c.dato) : null,
+    })),
   };
 };
 
@@ -1290,6 +1287,7 @@ export default function DetallePage() {
   // significa «no hay nada que contar» y la tarjeta no se pinta: el backend
   // responde 409 SIN_DATOS antes que una lista de ceros, y aquí se respeta.
   const [progresoMes, setProgresoMes] = useState(null);
+  const [resumenPanel, setResumenPanel] = useState(null);
   const [afiche, setAfiche] = useState('');   // '' | 'generando' | 'error'
   const [constancia, setConstancia] = useState('');
   // Comentarios de redes en publicaciones propias (TikTok)
@@ -1475,6 +1473,12 @@ export default function DetallePage() {
     negociosApi.progreso(id)
       .then((d) => { if (vigente) setProgresoMes(d); })
       .catch(() => { if (vigente) setProgresoMes(null); });
+    // Score + temas + tareas. No gasta cuota de Google ni de la IA, así que se
+    // pide al abrir la ficha como el progreso. Un fallo deja las tarjetas fuera
+    // en vez de tumbar la pantalla.
+    negociosApi.resumen(id)
+      .then((d) => { if (vigente) setResumenPanel(d); })
+      .catch(() => { if (vigente) setResumenPanel(null); });
     return () => { vigente = false; };
   }, [id]);
 
@@ -1824,7 +1828,14 @@ export default function DetallePage() {
     { id:'config', label:t.tabs.config },
   ];
 
-  const score = calcularScore(snap, todasResenas, idioma);
+  // 🔴 El score ya NO se calcula acá: lo manda el backend (lib/score.js). Vivía
+  // dentro de este componente, así que el número que el catálogo anuncia en los
+  // cuatro planes solo existía si abrías la ficha de un negocio concreto — no
+  // podía entrar en el correo, ni en el PDF, ni compararse con el mes pasado.
+  //
+  // Esto solo lo viste a la forma que la tarjeta ya pintaba: el backend manda la
+  // CLAVE del nivel y los componentes; el color y el texto son cosa del panel.
+  const score = adaptarScore(resumenPanel?.score, t);
   const linkResena = negocio.googlePlaceId ? `https://search.google.com/local/writereview?placeid=${negocio.googlePlaceId}` : null;
   const mensajeResenaDefault = linkResena ? t.crecer.mensajeDefault(negocio.nombre, linkResena) : '';
   // El mensaje de WhatsApp es editable; si el usuario no lo tocó, usamos el predeterminado
@@ -2003,6 +2014,10 @@ export default function DetallePage() {
               </div>
             </Card>
           )}
+          {/* Curva del score, de qué se queja la gente y qué hacer hoy. Cada
+              tarjeta se esconde sola si no hay nada que enseñar — ver la cabecera
+              de components/PanelAccionable.js. */}
+          <PanelAccionable datos={resumenPanel} Card={Card} ST={ST} onIr={setTab} />
           {/* Progreso mensual. Solo aparece si el backend devolvió algo: un 409
               SIN_DATOS deja `progresoMes` en null y esta tarjeta no existe. Pintar
               una fila de ceros le diría al cliente que su mes fue plano cuando

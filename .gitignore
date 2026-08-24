@@ -15,3 +15,8 @@ dist/
 *.key
 *.cer
 *.crt
+
+# Respaldos de la base de produccion: llevan datos personales (correos y, del
+# Libro de Reclamaciones, DNI y domicilios de terceros protegidos por la Ley
+# 29733). Nunca a git. Ver brand-shield/scripts/respaldo.js
+brand-shield/respaldos/

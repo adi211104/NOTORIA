@@ -37,6 +37,7 @@ const PDFDocument = require('pdfkit');
 // un carácter raro, desaparece en vez de imprimirse como basura en la pared de
 // un cliente. Ver lib/winansi.js — ojo, WinAnsi NO es latin1.
 const { seguro } = require('../lib/winansi');
+const { TEMAS, masRepetido } = require('../lib/temas');
 
 // Paleta de marca, la misma del reporte mensual
 const INK = '#141413';
@@ -87,50 +88,28 @@ const TEXTOS = {
   },
 };
 
-// Palabras que delatan la queja de fondo. Se busca sobre las reseñas negativas
-// de la semana y se devuelve la más repetida — es el dato que convierte el
-// afiche en algo accionable en vez de un marcador.
+// El diccionario de temas se mudó a lib/temas.js el 2026-08-24. Vivía acá
+// dentro, así que Notoria solo sabía decir "cuatro reseñas mencionan demora"
+// dentro de un PDF que hay que imprimir — en el panel, donde el dueño mira todos
+// los días, esa información no existía. Ahora es fuente única y la usan los dos.
 //
-// Es un diccionario y no un modelo a propósito: tiene que ser explicable al
-// dueño ("salió porque cuatro reseñas dicen 'demora'") y no puede costar una
-// llamada a la IA por cada afiche.
-const TEMAS = [
-  { clave: 'la demora en la atención', palabras: ['demor', 'lento', 'lenta', 'espera', 'tardan', 'tardó', 'tarde', 'media hora', 'una hora'] },
-  { clave: 'el trato del personal', palabras: ['maleducad', 'grosero', 'grosera', 'antipát', 'mal trato', 'malcriad', 'ignoraron', 'ni saludan'] },
-  { clave: 'la temperatura o el punto de la comida', palabras: ['frío', 'fria', 'frías', 'frio', 'quemad', 'crudo', 'cruda', 'recalentad'] },
-  { clave: 'la limpieza', palabras: ['sucio', 'sucia', 'mugre', 'asquero', 'baño', 'cucaracha', 'mosca'] },
-  { clave: 'el precio frente a lo que se recibe', palabras: ['caro', 'cara', 'precio', 'no vale', 'estafa', 'porción pequeñ', 'porcion pequeñ'] },
-  { clave: 'la porción o la cantidad', palabras: ['poca cantidad', 'porción', 'porcion', 'pequeñ', 'escaso'] },
-];
-
-const quejaMasRepetida = (resenas) => {
-  const conteo = new Map();
-  for (const r of resenas) {
-    const texto = (r.texto || '').toLowerCase();
-    if (!texto) continue;
-    for (const tema of TEMAS) {
-      if (tema.palabras.some((p) => texto.includes(p))) {
-        conteo.set(tema.clave, (conteo.get(tema.clave) || 0) + 1);
-      }
-    }
-  }
-  if (!conteo.size) return null;
-  const [clave, veces] = [...conteo.entries()].sort((a, b) => b[1] - a[1])[0];
-  // Con una sola mención no es "lo que más se repite", es una opinión suelta.
-  return veces >= 2 ? clave : null;
-};
+// 🔴 De paso se arregló un fallo de idioma que no rompía nada: `quejaMasRepetida`
+// devolvía SIEMPRE la etiqueta en español, así que un afiche en inglés decía
+// "The most repeated complaint: la demora en la atención". Es el mismo error que
+// ya había pasado con las invitaciones de equipo y con los correos de alerta.
+const quejaMasRepetida = (resenas, idioma = 'es') => masRepetido(resenas, idioma);
 
 /**
  * Elige LA cosa de la semana. El orden es la parte importante: primero lo que
  * está roto, después lo que se puede mejorar, y solo al final el "vamos bien".
  * Devolver varias cosas sería devolver ninguna.
  */
-const elegirFoco = (t, datos) => {
+const elegirFoco = (t, datos, idioma = 'es') => {
   const { fichaCerrada, criticasSinResponder, caidaRating, negativas, totalResenas } = datos;
   if (fichaCerrada) return { texto: t.focos.fichaCerrada, color: ROJO };
   if (criticasSinResponder > 0) return { texto: t.focos.criticasSinResponder(criticasSinResponder), color: ROJO };
   if (caidaRating >= 0.1) return { texto: t.focos.ratingBajando(caidaRating.toFixed(1)), color: AMBAR };
-  const queja = quejaMasRepetida(negativas);
+  const queja = quejaMasRepetida(negativas, idioma);
   if (queja) return { texto: t.focos.quejaRepetida(queja), color: AMBAR };
   if (totalResenas < 50) return { texto: t.focos.pocasResenas, color: VERDE };
   return { texto: t.focos.todoBien, color: VERDE };
@@ -201,7 +180,7 @@ const generarAfiche = (negocio, datos, idioma = 'es') => new Promise((resolve, r
     caidaRating: datos.caidaRating ?? 0,
     negativas: datos.negativas || [],
     totalResenas: datos.totalResenas ?? 0,
-  });
+  }, idioma);
 
   const yFoco = 462;
   doc.roundedRect(M, yFoco, ancho, 150, 12).fill('#FAF9F5');

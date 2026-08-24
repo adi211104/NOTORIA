@@ -34,6 +34,15 @@ const TEXTOS = {
     simMeta: (n, o) => <>Para llegar a {o.toFixed(1)}★ necesitas <strong>{n} reseñas de 5★</strong>.</>,
     simFuente: 'Cálculo sobre el rating y el número de reseñas de tu propia ficha. El umbral de 4.5★ es de BrightLocal, Local Consumer Review Survey 2026.',
     fichaCerrada: 'Tu ficha aparece como CERRADA en Google Maps. Mientras diga eso, dejas de salir a quien busca en tu zona.',
+    impTitulo: 'Qué te cuesta esa diferencia, en soles',
+    impPregunta: '¿Cuánto factura tu local al mes, aproximadamente?',
+    impElige: 'Elige un rango',
+    impRango: (d, h) => h ? `S/${d.toLocaleString('es-PE')} – S/${h.toLocaleString('es-PE')}` : `Más de S/${d.toLocaleString('es-PE')}`,
+    impResultado: (b, min, max) => <>Estar <strong>{b.toFixed(1)}★ por debajo de 4.5★</strong> equivale a entre <strong>S/{min.toLocaleString('es-PE')}</strong> y <strong>S/{max.toLocaleString('es-PE')}</strong> al mes.</>,
+    impAnual: (min, max) => `Al año, entre S/${min.toLocaleString('es-PE')} y S/${max.toLocaleString('es-PE')}.`,
+    impCuenta: (b, p1, p2) => `La cuenta: ${b} estrellas × tu facturación × el ${p1}–${p2}% que mide el estudio.`,
+    impFuente: 'Según',
+    impNada: 'No hay una estimación que podamos sostener para tu ficha.',
   },
   en: {
     placeholder: 'Type your restaurant or hotel name…',
@@ -58,8 +67,28 @@ const TEXTOS = {
     simMeta: (n, o) => <>To reach {o.toFixed(1)}★ you need <strong>{n} five-star reviews</strong>.</>,
     simFuente: 'Calculated from the rating and review count of your own listing. The 4.5★ cut-off is from BrightLocal, Local Consumer Review Survey 2026.',
     fichaCerrada: 'Your listing shows as CLOSED on Google Maps. While it says that, you stop appearing to people searching in your area.',
+    impTitulo: 'What that gap costs you, in soles',
+    impPregunta: 'Roughly how much does your place bill per month?',
+    impElige: 'Pick a range',
+    impRango: (d, h) => h ? `S/${d.toLocaleString('en-US')} – S/${h.toLocaleString('en-US')}` : `More than S/${d.toLocaleString('en-US')}`,
+    impResultado: (b, min, max) => <>Being <strong>{b.toFixed(1)}★ below 4.5★</strong> is worth between <strong>S/{min.toLocaleString('en-US')}</strong> and <strong>S/{max.toLocaleString('en-US')}</strong> a month.</>,
+    impAnual: (min, max) => `Over a year, between S/${min.toLocaleString('en-US')} and S/${max.toLocaleString('en-US')}.`,
+    impCuenta: (b, p1, p2) => `The maths: ${b} stars × your revenue × the ${p1}–${p2}% the study measures.`,
+    impFuente: 'Source:',
+    impNada: 'We cannot back an estimate for your listing.',
   },
 };
+
+// Espejo de RANGOS en brand-shield/src/lib/impacto.js. Solo se usan para pintar
+// el desplegable: el cálculo lo hace siempre el backend, así que si los de allá
+// cambian, acá como mucho sobra o falta una opción — nunca sale una cifra mala.
+const RANGOS_FACT = [
+  { id: 'r1', desde: 5000, hasta: 15000 },
+  { id: 'r2', desde: 15000, hasta: 30000 },
+  { id: 'r3', desde: 30000, hasta: 60000 },
+  { id: 'r4', desde: 60000, hasta: 120000 },
+  { id: 'r5', desde: 120000, hasta: null },
+];
 
 const Estrellas = ({ rating }) => (
   <span style={{ color:'#E8A33D', fontSize:13, letterSpacing:1 }}>
@@ -73,6 +102,11 @@ export default function AnalisisGratis({ idioma = 'es' }) {
   const [fase, setFase] = useState('idle'); // idle | buscando | elegir | analizando | resultado | error
   const [candidatos, setCandidatos] = useState([]);
   const [resultado, setResultado] = useState(null);
+  // «Estrellas a soles». El rango de facturación NO se manda a ningún sitio
+  // que lo guarde: viaja en la query de un endpoint que solo hace aritmética.
+  const [rangoFact, setRangoFact] = useState('');
+  const [impacto, setImpacto] = useState(null);
+  const [impactoVacio, setImpactoVacio] = useState(false);
   const [mensajeError, setMensajeError] = useState('');
   const inputRef = useRef(null);
 
@@ -117,7 +151,32 @@ export default function AnalisisGratis({ idioma = 'es' }) {
 
   const reiniciar = () => {
     setQ(''); setCandidatos([]); setResultado(null); setMensajeError(''); setFase('idle');
+    setRangoFact(''); setImpacto(null); setImpactoVacio(false);
     setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  // Solo se ofrece si el estudio aplica a esta ficha Y hay brecha que cerrar.
+  // Las dos condiciones importan: sin la primera le prestaríamos a un hotel una
+  // cifra medida sobre restaurantes; sin la segunda le venderíamos miedo a quien
+  // ya está por encima de 4.5★.
+  const puedeEstimar = !!resultado?.tipo
+    && typeof resultado?.rating === 'number'
+    && resultado.rating < (resultado.referenciaImpacto ?? 4.5);
+
+  const pedirImpacto = async (rango) => {
+    setRangoFact(rango);
+    setImpacto(null); setImpactoVacio(false);
+    if (!rango) return;
+    try {
+      const qs = new URLSearchParams({
+        rating: String(resultado.rating),
+        referencia: String(resultado.referenciaImpacto ?? 4.5),
+        rango, tipo: resultado.tipo,
+      });
+      const res = await fetch(`${API_URL}/api/publico/impacto?${qs}`);
+      if (!res.ok) { setImpactoVacio(true); return; }
+      setImpacto(await res.json());
+    } catch { setImpactoVacio(true); }
   };
 
   const cargando = fase === 'buscando' || fase === 'analizando';
@@ -267,6 +326,61 @@ export default function AnalisisGratis({ idioma = 'es' }) {
                 )}
               </ul>
               <p style={{ fontSize: 10.5, color: 'var(--text-3)', margin: '9px 0 0', lineHeight: 1.5 }}>{t.simFuente}</p>
+            </div>
+          )}
+
+
+          {/* ── Estrellas a soles ─────────────────────────────────────────
+              La idea que llevaba un año escrita y sin hacer: el landing cita a
+              Luca (Harvard) desde siempre, pero hablando de negocios ajenos.
+              Nadie entiende "te faltan 0.3 estrellas"; todo el mundo entiende
+              "eso son S/2,000 al mes".
+
+              🔴 Tres frenos, y los tres van a la vista del visitante: es un
+              RANGO y no una cifra, la fuente se enlaza, y solo aparece donde el
+              estudio aplica (`resultado.tipo`, que es null para un hotel o una
+              clínica). Ver brand-shield/src/lib/impacto.js. */}
+          {puedeEstimar && (
+            <div style={{ marginTop: 12, padding: '12px 14px', border: '1px solid var(--border-c)', borderRadius: 8, background: 'var(--bg)' }}>
+              <p style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)', margin: '0 0 8px' }}>{t.impTitulo}</p>
+              <label style={{ display: 'block', fontSize: 12, color: 'var(--text-2)', marginBottom: 6 }}>{t.impPregunta}</label>
+              <select
+                value={rangoFact}
+                onChange={(e) => pedirImpacto(e.target.value)}
+                style={{
+                  width: '100%', padding: '9px 10px', borderRadius: 6, fontSize: 13,
+                  border: '1px solid var(--border-c)', background: 'var(--surface)', color: 'var(--text)',
+                }}
+              >
+                <option value="">{t.impElige}</option>
+                {RANGOS_FACT.map((r) => (
+                  <option key={r.id} value={r.id}>{t.impRango(r.desde, r.hasta)}</option>
+                ))}
+              </select>
+
+              {impacto && (
+                <div style={{ marginTop: 10 }}>
+                  <p style={{ fontSize: 13.5, color: 'var(--text)', margin: 0, lineHeight: 1.6 }}>
+                    {t.impResultado(impacto.brecha, impacto.mensual.min, impacto.mensual.max)}
+                  </p>
+                  <p style={{ fontSize: 12.5, color: 'var(--text-2)', margin: '4px 0 0' }}>
+                    {t.impAnual(impacto.anual.min, impacto.anual.max)}
+                  </p>
+                  {/* La aritmética a la vista. Una cifra de dinero que el cliente
+                      no puede rehacer a mano es una cifra en la que no confía. */}
+                  <p style={{ fontSize: 10.5, color: 'var(--text-3)', margin: '8px 0 0', lineHeight: 1.5 }}>
+                    {t.impCuenta(impacto.brecha, impacto.porcentajes.min * 100, impacto.porcentajes.max * 100)}{' '}
+                    {t.impFuente}{' '}
+                    <a href={impacto.fuente.url} target="_blank" rel="noopener noreferrer"
+                      style={{ color: 'var(--text-2)', textDecoration: 'underline' }}>
+                      {impacto.fuente.cita}
+                    </a>.
+                  </p>
+                </div>
+              )}
+              {impactoVacio && (
+                <p style={{ fontSize: 12.5, color: 'var(--text-3)', margin: '8px 0 0' }}>{t.impNada}</p>
+              )}
             </div>
           )}
 

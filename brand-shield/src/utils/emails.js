@@ -393,6 +393,11 @@ const ALERTA = {
     ctaResena: 'Responder ahora →',
     notaResena: 'Responder el mismo día cambia lo que ven los siguientes clientes.',
     sospecha: 'Además, esta reseña tiene señales de no ser auténtica.',
+    // El diagnóstico. Llega del worker como NÚMEROS y un id de tema; la frase se
+    // arma acá, en el idioma del usuario. Nunca al revés.
+    diagTemas: { demora:'demora', trato:'el trato del personal', temperatura:'comida fría o mal cocida', limpieza:'limpieza', precio:'precio', porcion:'el tamaño de la porción' },
+    diagPatron: (v, de, tema) => `<strong>${v} de las últimas ${de}</strong> reseñas negativas mencionan ${tema}.`,
+    diagPendientes: (n) => n === 1 ? 'Hay 1 reseña crítica más sin responder.' : `Hay ${n} reseñas críticas más sin responder.`,
   },
   en: {
     asunto: (negocio) => `Alert on ${negocio} — Notoria`,
@@ -406,6 +411,9 @@ const ALERTA = {
     ctaResena: 'Reply now →',
     notaResena: 'Replying the same day changes what your next customers see.',
     sospecha: 'It also shows signs of not being genuine.',
+    diagTemas: { demora:'delays', trato:'staff attitude', temperatura:'cold or undercooked food', limpieza:'cleanliness', precio:'price', porcion:'portion size' },
+    diagPatron: (v, de, tema) => `<strong>${v} of the last ${de}</strong> negative reviews mention ${tema}.`,
+    diagPendientes: (n) => n === 1 ? 'There is 1 more critical review awaiting a reply.' : `There are ${n} more critical reviews awaiting a reply.`,
   },
 };
 
@@ -422,6 +430,28 @@ const enviarAlertaCritica = async (usuario, negocio, alerta) => {
   // — a los dos les corresponde el genérico, con la descripción que ya traen.
   const esResena = alerta.tipo === 'RESENA_MUY_NEGATIVA' && d && d.rating;
 
+  // El contexto que convierte «llegó una reseña de 1★» en algo accionable: si
+  // esa queja ya se venía repitiendo, y cuántas críticas quedan sin contestar.
+  //
+  // ⚠️ Todo esto es OPCIONAL. Sin `diagnostico` el correo sale exactamente igual
+  // que antes: es una mejora del aviso, y una mejora no puede ser la razón por la
+  // que un cliente no se entera de que le cayó una reseña de 1★.
+  const diag = esResena && d.diagnostico ? d.diagnostico : null;
+  const lineasDiag = [];
+  if (diag?.patron?.tema && t.diagTemas[diag.patron.tema]) {
+    lineasDiag.push(t.diagPatron(diag.patron.veces, diag.patron.deCuantas, t.diagTemas[diag.patron.tema]));
+  }
+  if (diag?.sinResponder > 0) lineasDiag.push(t.diagPendientes(diag.sinResponder));
+
+  // Los textos de arriba los escribimos nosotros y llevan <strong> a propósito,
+  // así que NO se escapan. Lo que sí viene de fuera —el tema— es un id cerrado
+  // que ya pasó por el diccionario, no texto libre del autor de la reseña.
+  const bloqueDiag = lineasDiag.length
+    ? `<div style="background:#FFF8E6;border:1px solid #F0E0B0;border-radius:6px;padding:12px 16px;margin:12px 0;">
+        <p style="color:#141413;font-size:13.5px;margin:0;line-height:1.6;">${lineasDiag.join(' ')}</p>
+      </div>`
+    : '';
+
   const { subject, html } = esResena
     ? {
       subject: t.asuntoResena(d.rating, negocio.nombre),
@@ -434,6 +464,7 @@ const enviarAlertaCritica = async (usuario, negocio, alerta) => {
         <p style="color:#141413;font-size:15px;margin:0;line-height:1.6;font-style:italic;">“${esc(d.texto)}”</p>
       </div>` : ''}
       ${d.motivoSospecha ? p(`<span style="color:#B74040;">${t.sospecha}</span>`) : ''}
+      ${bloqueDiag}
       ${btn(t.ctaResena, enlace('resenas'))}
       <p style="color:#9C9B96;font-size:12px;margin:10px 0 0;">${t.notaResena}</p>
     `),

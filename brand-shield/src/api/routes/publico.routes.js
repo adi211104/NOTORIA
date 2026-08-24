@@ -14,6 +14,7 @@ const rateLimit = require('express-rate-limit');
 const { analizarResena } = require('../../nlp/detector');
 const { informeRating } = require('../../lib/rating');
 const { verificarCodigo } = require('../../lib/constancia');
+const impacto = require('../../lib/impacto');
 
 const router = express.Router();
 
@@ -122,7 +123,10 @@ router.get('/analizar', publicoLimiter, async (req, res, next) => {
         place_id: placeId,
         // `business_status` va en el grupo Basic Data, que esta llamada ya paga
         // por pedir `reviews`: añadirlo no cambia la factura.
-        fields: 'name,rating,user_ratings_total,reviews,business_status',
+        // `types` va en Basic Data, igual que `business_status`: esta llamada ya
+        // lo paga por pedir `reviews`, así que añadirlo no cuesta nada. Sirve para
+        // saber si el estudio de Luca aplica a esta ficha (ver lib/impacto.js).
+        fields: 'name,rating,user_ratings_total,reviews,business_status,types',
         key: process.env.GOOGLE_PLACES_API_KEY,
         language: 'es',
         reviews_sort: 'newest',
@@ -170,6 +174,15 @@ router.get('/analizar', publicoLimiter, async (req, res, next) => {
       // La ficha marcada como cerrada es la peor noticia posible y se ve gratis
       // en el mismo Place Details. Si aparece, va delante de todo lo demás.
       estadoFicha: r.business_status && r.business_status !== 'OPERATIONAL' ? r.business_status : null,
+      // Tipo propio a partir de los `types` de Places, o null. Es lo que decide
+      // si el panel puede ofrecer la estimación en soles: el estudio de Luca
+      // midió restaurantes, y prestárselo a un hotel sería extrapolar con el
+      // dinero de alguien. Ver lib/impacto.js.
+      tipo: impacto.desdeTiposGoogle(r.types),
+      // La referencia contra la que se mide la brecha: el umbral de 4.5★ de
+      // BrightLocal, que es el mismo ancla que ya usa el simulador. Se manda
+      // resuelta para que el frontend no tenga que conocer la constante.
+      referenciaImpacto: 4.5,
     };
 
     if (cacheAnalisis.size >= CACHE_MAX) {
@@ -179,6 +192,48 @@ router.get('/analizar', publicoLimiter, async (req, res, next) => {
     cacheAnalisis.set(placeId, { data: resultado, ts: Date.now() });
     res.json(resultado);
   } catch (error) { next(error); }
+});
+
+// ── GET /api/publico/impacto ──────────────────────────────
+//
+// Estrellas a soles: qué vale la brecha de rating frente a una referencia.
+//
+// Es ARITMÉTICA PURA — cero llamadas a Google, cero a la base, cero a la IA—,
+// así que se puede pedir las veces que haga falta. Lleva el limitador estricto
+// igualmente porque es público y no cuesta nada abusar de él.
+//
+// 🔴 La facturación llega como RANGO y no se guarda en ninguna parte. Un rango
+// basta para dar un intervalo, y pedirle a un desconocido la cifra exacta de lo
+// que factura —y encima almacenarla— es pedir un dato sensible a cambio de nada.
+// Ver lib/impacto.js para las cuatro reglas que hacen esto defendible.
+router.get('/impacto', publicoLimiter, (req, res) => {
+  const { rating, referencia, rango, tipo } = req.query;
+
+  const estimacion = impacto.estimar({
+    rating: Number(rating),
+    referencia: Number(referencia),
+    rangoId: String(rango || ''),
+    tipoNegocio: String(tipo || '').toUpperCase(),
+  });
+
+  // 404 y no un objeto vacío ni ceros: "no podemos afirmar nada sobre este
+  // negocio" es una respuesta distinta de "la cifra es cero", y el panel tiene
+  // que poder esconder la sección en vez de pintar S/0. Es la misma regla que el
+  // 409 SIN_DATOS de /progreso.
+  if (!estimacion) {
+    return res.status(404).json({
+      error: 'No hay una estimación que podamos sostener para este caso.',
+      codigo: 'SIN_ESTIMACION',
+    });
+  }
+
+  res.json(estimacion);
+});
+
+// Los rangos de facturación, para que el formulario no los duplique. Si se
+// tocan en lib/impacto.js, el desplegable cambia solo.
+router.get('/rangos-facturacion', publicoLimiter, (req, res) => {
+  res.json({ rangos: impacto.RANGOS, tiposAplicables: impacto.TIPOS_APLICABLES });
 });
 
 // ── GET /api/publico/ficha?placeId= ───────────────────────

@@ -92,3 +92,56 @@ export const textoAlerta = (alerta, idioma = 'es') => {
     rating: d.rating,
   });
 };
+
+// ── Diagnóstico: la segunda línea de una alerta ──────────────────────────────
+//
+// Una alerta que solo dice «llegó una reseña de 1★» obliga al dueño a abrir el
+// panel y sacar su propia conclusión. Como eso cuesta trabajo, no lo hace, y a
+// la tercera alerta deja de abrirlas.
+//
+// El backend manda NÚMEROS y un id de tema en `detalle.diagnostico`; la frase se
+// arma acá, en el idioma del panel. Nunca al revés — es la regla que ya costó un
+// bug en las invitaciones de equipo y otro en los propios correos de alerta.
+const TEMA_ETIQUETA = {
+  es: { demora:'demora', trato:'el trato del personal', temperatura:'comida fría o mal cocida', limpieza:'limpieza', precio:'precio', porcion:'el tamaño de la porción' },
+  en: { demora:'delays', trato:'staff attitude', temperatura:'cold or undercooked food', limpieza:'cleanliness', precio:'price', porcion:'portion size' },
+};
+
+const DIAG = {
+  es: {
+    patron: (d, tema) => `${d.veces} de las últimas ${d.deCuantas} reseñas negativas mencionan ${tema}.`,
+    sinResponder: (n) => n === 1
+      ? 'Además hay 1 reseña crítica sin responder.'
+      : `Además hay ${n} reseñas críticas sin responder.`,
+  },
+  en: {
+    patron: (d, tema) => `${d.veces} of the last ${d.deCuantas} negative reviews mention ${tema}.`,
+    sinResponder: (n) => n === 1
+      ? 'There is also 1 critical review awaiting a reply.'
+      : `There are also ${n} critical reviews awaiting a reply.`,
+  },
+};
+
+/**
+ * Frase de contexto de una alerta, o `null` si no hay nada que añadir.
+ *
+ * ⚠️ Devuelve null en vez de cadena vacía a propósito: el panel tiene que poder
+ * NO pintar el renglón. Una línea en blanco debajo de cada alerta se lee como
+ * un fallo de maquetación.
+ */
+export const diagnosticoAlerta = (alerta, idioma = 'es') => {
+  const d = alerta?.detalle?.diagnostico;
+  if (!d) return null;
+  const t = DIAG[idioma] || DIAG.es;
+  const partes = [];
+
+  if (d.patron?.tema && d.patron.veces && d.patron.deCuantas) {
+    const tema = (TEMA_ETIQUETA[idioma] || TEMA_ETIQUETA.es)[d.patron.tema];
+    // Un tema que el panel no conoce (porque el backend añadió uno nuevo) se
+    // omite en vez de imprimir "undefined" en medio de la frase.
+    if (tema) partes.push(t.patron(d.patron, tema));
+  }
+  if (d.sinResponder > 0) partes.push(t.sinResponder(d.sinResponder));
+
+  return partes.length ? partes.join(' ') : null;
+};

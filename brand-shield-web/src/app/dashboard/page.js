@@ -25,6 +25,17 @@ const TEXTOS = {
       vacioTitulo:'Todo tranquilo por ahora', vacioSub:'Te avisaremos si detectamos algo sospechoso',
     },
     semaforo: 'Reputación general',
+    hoy: {
+      titulo:'Para hacer hoy',
+      vacio:'Nada pendiente en ninguno de tus negocios.',
+      FICHA_ALTERADA:(d)=> d.cuantas>1 ? `${d.cuantas} cambios en la ficha de Google` : 'Alguien cambió algo en tu ficha de Google',
+      CRITICA_VENCIDA:(d)=> `${d.cuantas} reseña${d.cuantas>1?'s':''} crítica${d.cuantas>1?'s':''} sin responder — la más antigua lleva ${d.horas} h`,
+      CRITICA_NUEVA:(d)=> `${d.cuantas} reseña${d.cuantas>1?'s':''} de 1★ o 2★ sin responder`,
+      NEGATIVA_SIN_RESPONDER:(d)=> `${d.cuantas} reseña${d.cuantas>1?'s':''} de 3★ sin responder`,
+      COMENTARIO_SIN_RESPONDER:(d)=> `${d.cuantas} comentario${d.cuantas>1?'s':''} sin responder`,
+      ALERTAS_SIN_LEER:(d)=> `${d.cuantas} alerta${d.cuantas>1?'s':''} sin leer`,
+      PEDIR_RESENAS:(d)=> `Solo ${d.total} reseñas: cada 1★ pesa mucho`,
+    },
     // 🔴 El texto es explícito a propósito. Ver la nota del estado `error`.
     error: {
       titulo:'No pudimos cargar tus datos',
@@ -47,6 +58,17 @@ const TEXTOS = {
       vacioTitulo:'All quiet for now', vacioSub:"We'll let you know if we detect anything suspicious",
     },
     semaforo: 'Overall reputation',
+    hoy: {
+      titulo:'To do today',
+      vacio:'Nothing pending across your businesses.',
+      FICHA_ALTERADA:(d)=> d.cuantas>1 ? `${d.cuantas} changes to your Google listing` : 'Someone changed something on your Google listing',
+      CRITICA_VENCIDA:(d)=> `${d.cuantas} critical review${d.cuantas>1?'s':''} awaiting a reply — the oldest has waited ${d.horas} h`,
+      CRITICA_NUEVA:(d)=> `${d.cuantas} 1★ or 2★ review${d.cuantas>1?'s':''} awaiting a reply`,
+      NEGATIVA_SIN_RESPONDER:(d)=> `${d.cuantas} 3★ review${d.cuantas>1?'s':''} awaiting a reply`,
+      COMENTARIO_SIN_RESPONDER:(d)=> `${d.cuantas} comment${d.cuantas>1?'s':''} awaiting a reply`,
+      ALERTAS_SIN_LEER:(d)=> `${d.cuantas} unread alert${d.cuantas>1?'s':''}`,
+      PEDIR_RESENAS:(d)=> `Only ${d.total} reviews: each 1★ hurts a lot`,
+    },
     error: {
       titulo:'We could not load your data',
       sub:'This does NOT mean there are no alerts: it means we could not check for them. Check your connection and try again.',
@@ -61,6 +83,7 @@ export default function DashboardPage() {
   const t = TEXTOS[idioma] || TEXTOS.es;
   const [negocios, setNegocios] = useState([]);
   const [alertas, setAlertas] = useState([]);
+  const [tareas, setTareas] = useState(null);
   const [cargando, setCargando] = useState(true);
   // 🔴 Este estado arregla el peor fallo posible en una herramienta de
   // monitoreo. Antes el error se tragaba con `.catch(console.error)` y la
@@ -80,6 +103,12 @@ export default function DashboardPage() {
       .then(([n, a]) => { setNegocios(n); setAlertas(a); })
       .catch((e) => { console.error(e); setError(true); })
       .finally(() => setCargando(false));
+    // Las tareas van APARTE del Promise.all a propósito: si esta petición falla,
+    // el panel tiene que seguir mostrando negocios y alertas. Una sección nueva
+    // no puede ser el motivo por el que la pantalla de inicio deje de cargar.
+    negociosApi.tareas()
+      .then(setTareas)
+      .catch(() => setTareas(null));
   };
 
   useEffect(() => { cargar(); }, []);
@@ -161,6 +190,43 @@ export default function DashboardPage() {
           </Link>
         ))}
       </div>
+
+
+      {/* ── Para hacer hoy ──────────────────────────────────────────────────
+          El panel contestaba bien «¿cómo estoy?» y nada «¿qué hago?». Esto sale
+          de GET /api/negocios/tareas y no gasta cuota de Google ni de la IA.
+
+          ⚠️ Se esconde entera si no hay nada: es la regla de producto del
+          proyecto —lo que no podemos entregar no se muestra— y una lista vacía
+          con un título encima ocupa sitio sin decir nada. Con la ficha al día,
+          el panel felicita en una línea dentro de la propia tarjeta. */}
+      {tareas && tareas.total > 0 && (
+        <div style={{ background:'var(--surface)', border:'1px solid var(--border-c)', borderRadius:14, padding:20, marginBottom:24 }}>
+          <h2 style={{ fontSize:15, fontWeight:600, color:'var(--text)', margin:'0 0 14px' }}>{t.hoy.titulo}</h2>
+          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+            {tareas.negocios.flatMap((n) =>
+              n.tareas.map((tarea) => {
+                const texto = t.hoy[tarea.tipo];
+                // Un tipo que este panel no conoce se OMITE. Imprimir el enum
+                // crudo sería enseñarle "TEMA_CRECIENDO" a un cliente.
+                if (!texto) return null;
+                return (
+                  <Link key={`${n.negocio.id}:${tarea.id}`} href={`/dashboard/negocios/${n.negocio.id}`}
+                    style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', textDecoration:'none',
+                      background:'var(--bg)', border:'1px solid var(--border-c)', borderRadius:8 }}>
+                    <span style={{ width:8, height:8, borderRadius:'50%', flexShrink:0,
+                      background: tarea.prioridad >= 80 ? '#ef4444' : tarea.prioridad >= 40 ? '#f59e0b' : '#22c55e' }} />
+                    <span style={{ flex:1, fontSize:13.5, color:'var(--text)', lineHeight:1.45 }}>{texto(tarea.datos)}</span>
+                    <span style={{ fontSize:12, color:'var(--text-3)', flexShrink:0, maxWidth:140, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                      {n.negocio.nombre}
+                    </span>
+                  </Link>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))', gap:16 }}>
         {/* Negocios */}

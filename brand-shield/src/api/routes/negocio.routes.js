@@ -9,6 +9,10 @@ const { generarAfiche } = require('../../utils/afiche.generator');
 const { emitirCodigo, VIGENCIA_DIAS } = require('../../lib/constancia');
 const { generarConstancia } = require('../../utils/constancia.pdf');
 const { limite: limiteDelPlan, limiteLegible, planesCon, puede } = require('../../lib/planes');
+const score = require('../../lib/score');
+const temasLib = require('../../lib/temas');
+const tareasLib = require('../../lib/tareas');
+const { periodosMensuales } = require('../../lib/progreso');
 
 const router = express.Router();
 const { autenticar, permitir } = require('../middlewares/auth.middleware');
@@ -98,6 +102,52 @@ router.post('/', permitir('negocios'), async (req, res, next) => {
       data: { nombre, tipo, pais: PAIS_UNICO, googlePlaceId, googleNombre, googleRatingBase, direccion, usuarioId: req.cuenta.id },
     });
     res.status(201).json({ mensaje: 'Negocio agregado. El monitoreo iniciará pronto.', negocio: negocioPublico(negocio) });
+  } catch (error) { next(error); }
+});
+
+// ── GET /api/negocios/tareas ──────────────────────────────
+//
+// «Para hacer hoy», de TODOS los negocios de la cuenta. Es lo que el panel de
+// inicio necesita para dejar de contestar solo «¿cómo estoy?» y contestar
+// también «¿qué hago?».
+//
+// ⚠️ Va declarada ANTES de `/:id` a propósito. Express casa por orden, así que
+// con `/:id` arriba esta petición entraría como un negocio con id "tareas" y
+// devolvería 404 — un fallo que se lee como "la ruta no existe" cuando el
+// problema es el orden del archivo.
+router.get('/tareas', async (req, res, next) => {
+  try {
+    const negocios = await prisma.negocio.findMany({
+      where: dondeNegocio(req, { activo: true }),
+      select: {
+        id: true, nombre: true, googlePlaceId: true, colorEtiqueta: true,
+        snapshots: { where: { plataforma: 'GOOGLE' }, orderBy: { tomadoEn: 'desc' }, take: 1, select: { totalResenas: true } },
+        resenas: { select: { id: true, rating: true, respondida: true, detectadaEn: true } },
+        alertas: { where: { leida: false }, select: { id: true, tipo: true, leida: true } },
+        comentarios: { select: { respondida: true, publicacionId: true } },
+      },
+      orderBy: { creadoEn: 'desc' },
+    });
+
+    const porNegocio = negocios.map((n) => ({
+      negocio: { id: n.id, nombre: n.nombre, colorEtiqueta: n.colorEtiqueta },
+      tareas: tareasLib.construir({
+        negocio: n,
+        resenas: n.resenas,
+        comentarios: n.comentarios,
+        alertas: n.alertas,
+        snapshot: n.snapshots[0] || null,
+        // La tendencia de temas no entra acá: exige partir las reseñas en dos
+        // periodos por negocio y esta ruta la pide el panel en cada carga. Vive
+        // en /:id/resumen, que es donde hay sitio para explicarla.
+        tendenciaTemas: null,
+      }),
+    })).filter((x) => x.tareas.length);
+
+    res.json({
+      negocios: porNegocio,
+      total: porNegocio.reduce((n, x) => n + x.tareas.length, 0),
+    });
   } catch (error) { next(error); }
 });
 
@@ -363,6 +413,96 @@ router.get('/:id/progreso', async (req, res, next) => {
       // Ordenados juntos: la gracia es ver en qué puesto quedó uno.
       ranking: ordenarPorCrecimiento([propio, ...rivales]),
       medidoEn: ahora,
+    });
+  } catch (error) { next(error); }
+});
+
+// ── GET /api/negocios/:id/resumen ─────────────────────────
+//
+// Score + de qué se queja la gente + qué hacer, en UNA petición.
+//
+// Es una sola ruta y no tres porque el panel las pinta juntas al abrir la ficha:
+// tres peticiones serían tres consultas a la misma tabla de reseñas para
+// contestar tres preguntas sobre los mismos datos.
+//
+// 🔴 No gasta NI UNA llamada a Google ni a Groq. Todo sale de lo que el worker
+// ya guardó, así que se puede pedir en cada carga sin pensar en el costo. Es la
+// misma propiedad que hace barato el endpoint de progreso.
+router.get('/:id/resumen', async (req, res, next) => {
+  try {
+    const negocio = await prisma.negocio.findFirst({
+      where: dondeNegocio(req, { id: req.params.id }),
+      select: {
+        id: true, nombre: true, tipo: true, googlePlaceId: true,
+        // Todas las reseñas captadas: el score cuenta sospechosas y respondidas
+        // sobre el total, y los temas necesitan el texto. Con `take` saldrían
+        // porcentajes calculados sobre una muestra arbitraria.
+        resenas: {
+          select: { id: true, rating: true, texto: true, respondida: true, esSospechosa: true, detectadaEn: true, fechaResena: true },
+        },
+        snapshots: {
+          where: { plataforma: 'GOOGLE' },
+          orderBy: { tomadoEn: 'desc' },
+          // 180 lecturas cubren de sobra los 60 días que dibuja la serie, incluso
+          // a la cadencia de 1 h de Franquicia (que agrupa por día igualmente).
+          take: 180,
+          select: { tomadoEn: true, ratingActual: true, totalResenas: true },
+        },
+        alertas: { select: { id: true, tipo: true, leida: true } },
+        comentarios: { select: { respondida: true, publicacionId: true } },
+      },
+    });
+    if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
+
+    const idioma = req.usuario?.idioma === 'en' ? 'en' : 'es';
+    const ultimo = negocio.snapshots[0] || null;
+
+    // ── Score ──────────────────────────────────────────────────────────────
+    const actual = score.calcular(ultimo, negocio.resenas);
+    const serieScore = score.serie(negocio.snapshots, negocio.resenas);
+
+    // ── Temas ──────────────────────────────────────────────────────────────
+    // El corte por mes calendario es el mismo de lib/progreso.js: el dueño
+    // piensa en meses, y un corte móvil hace que el mismo dato cambie de valor
+    // cada día que lo mira.
+    const periodos = periodosMensuales();
+    const enPeriodo = (r, p) => {
+      const t = new Date(r.fechaResena || r.detectadaEn).getTime();
+      return Number.isFinite(t) && t >= p.desde.getTime() && t < p.hasta.getTime();
+    };
+    // ⚠️ El umbral sale de tareas.js (≤3★), NO de temas.js. Aquí había
+    // `MINIMO_MENCIONES + 1`, que da 3 por casualidad: son dos constantes que no
+    // tienen nada que ver —una cuenta menciones de un tema, la otra decide qué
+    // reseña está molesta— y el día que una cambie, la otra se rompe sin motivo.
+    const negativas = negocio.resenas.filter((r) => r.rating != null && r.rating <= tareasLib.UMBRAL_NEGATIVA);
+    const distribucion = temasLib.distribucion(negativas, idioma);
+    const tendencia = temasLib.tendencia(
+      negativas.filter((r) => enPeriodo(r, periodos.actual)),
+      negativas.filter((r) => enPeriodo(r, periodos.previo)),
+      idioma,
+    );
+
+    // ── Tareas ─────────────────────────────────────────────────────────────
+    const tareas = tareasLib.construir({
+      negocio,
+      resenas: negocio.resenas,
+      comentarios: negocio.comentarios,
+      alertas: negocio.alertas,
+      snapshot: ultimo,
+      tendenciaTemas: tendencia,
+    });
+
+    res.json({
+      score: actual,
+      serie: serieScore,
+      variacion: score.variacion(serieScore),
+      // `temas` va con su propio "sobre cuántas reseñas hablo": un 40% sobre 5
+      // reseñas y un 40% sobre 200 son afirmaciones muy distintas, y sin ese
+      // dato el panel no puede distinguirlas.
+      temas: distribucion,
+      tendenciaTemas: tendencia,
+      tareas,
+      medidoEn: new Date(),
     });
   } catch (error) { next(error); }
 });

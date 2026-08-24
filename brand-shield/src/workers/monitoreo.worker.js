@@ -10,6 +10,7 @@ const { analizarResena, detectarAnomalias } = require('../nlp/detector');
 const { notificar, enviarAlertaEmail } = require('../alerts/notificador');
 const { revisarDatosDeFicha, puedeVigilarFicha } = require('../lib/fichaGoogle');
 const { capacidades, planesCon, PLANES_DE_PAGO, ORDEN } = require('../lib/planes');
+const temasLib = require('../lib/temas');
 
 // Intenta publicar la auto-respuesta aprobada por el usuario para una reseña
 // positiva (4-5★) recién detectada. Requiere que el negocio tenga Google
@@ -219,6 +220,65 @@ const UMBRAL_RESENA_NEGATIVA = 2;
 // todas las demás.
 const DIAS_RESENA_RECIENTE = 30;
 
+// ── El diagnóstico que acompaña a la alerta ─────────────────────────────────
+//
+// Una alerta que solo dice «llegó una reseña de 1★» obliga al dueño a abrir el
+// panel, leer las últimas reseñas y sacar su propia conclusión — y como eso
+// cuesta trabajo, no lo hace, y a la tercera alerta deja de abrirlas.
+//
+// Esto contesta la pregunta siguiente antes de que la haga: ¿es un caso suelto o
+// es LO MISMO otra vez? Sale de reseñas que ya están en la base, así que no
+// cuesta ninguna llamada externa.
+//
+// 🔴 Viaja como DATOS, no como frase. `detalle.diagnostico` lleva números y un
+// id de tema; el texto lo componen el panel y el correo en el idioma del
+// usuario. Es la regla que ya costó un bug en las invitaciones de equipo y otro
+// en los propios correos de alerta.
+//
+// ⚠️ Si algo falla acá, la alerta sale IGUAL y sin diagnóstico. El aviso es lo
+// importante; el contexto es una mejora, y una mejora nunca puede impedir que
+// el cliente se entere de que le cayó una reseña de 1★.
+const DIAS_CONTEXTO_DIAGNOSTICO = 60;
+const MINIMO_PARA_HABLAR_DE_PATRON = 3;
+
+const diagnosticarResena = async (negocio, resena) => {
+  try {
+    const desde = new Date(Date.now() - DIAS_CONTEXTO_DIAGNOSTICO * 24 * 3600 * 1000);
+    const recientes = await prisma.resena.findMany({
+      where: { negocioId: negocio.id, rating: { lte: UMBRAL_RESENA_NEGATIVA }, fechaResena: { gte: desde } },
+      select: { id: true, rating: true, texto: true, respondida: true },
+    });
+
+    const sinResponder = recientes.filter((r) => !r.respondida && r.id !== resena.id).length;
+
+    // ¿Esta reseña repite una queja que ya se venía repitiendo?
+    const temasDeEsta = temasLib.temasDe(resena.texto);
+    let patron = null;
+    if (temasDeEsta.length) {
+      const dist = temasLib.distribucion(recientes, 'es');
+      // Se busca el tema de ESTA reseña que más se repite en las demás, no el
+      // tema más frecuente en general: lo que aporta es la conexión con lo que
+      // el cliente acaba de leer.
+      const coincidencias = temasDeEsta
+        .map((t) => dist.temas.find((d) => d.id === t.id))
+        .filter(Boolean)
+        .sort((a, b) => b.veces - a.veces)[0];
+      if (coincidencias && coincidencias.veces >= MINIMO_PARA_HABLAR_DE_PATRON) {
+        patron = { tema: coincidencias.id, veces: coincidencias.veces, deCuantas: dist.conTexto };
+      }
+    }
+
+    // Sin patrón y sin cola pendiente no hay nada que añadir. Devolver un objeto
+    // de ceros haría que el panel pintase una línea vacía debajo de cada alerta.
+    if (!patron && sinResponder === 0) return null;
+
+    return { patron, sinResponder, dias: DIAS_CONTEXTO_DIAGNOSTICO };
+  } catch (e) {
+    console.warn('[Reseñas] no se pudo diagnosticar:', e.message);
+    return null;
+  }
+};
+
 const alertarResenaNegativa = async (negocio, resena, esPrimerBarrido) => {
   if (resena.rating > UMBRAL_RESENA_NEGATIVA) return;
 
@@ -256,6 +316,8 @@ const alertarResenaNegativa = async (negocio, resena, esPrimerBarrido) => {
         // decir "además repite el texto de otra reseña", que es información que
         // el dueño no tiene por ningún otro medio.
         motivoSospecha: resena.motivoSospecha || null,
+        // Contexto: ¿es un caso suelto o LO MISMO otra vez? Ver diagnosticarResena.
+        diagnostico: await diagnosticarResena(negocio, resena),
       },
       negocioId: negocio.id,
     },
