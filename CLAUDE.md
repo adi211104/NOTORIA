@@ -1067,6 +1067,18 @@ solo con permiso de emisión · Registro de Exportadores de Servicios (sin él, 
 exterior no califican como exportación y **sí llevarían IGV**). ⚠️ Nada de esto es asesoría
 tributaria: confirmar con contador.
 
+📋 **Lo que hay que PRESENTARLE a SUNAT cada mes vive en `docs/obligaciones-tributarias-mensuales.md`**,
+no acá: cronograma de vencimientos, la rutina **RVIE → RCE → 621** (en ese orden, porque el
+SIRE alimenta la propuesta del 621), qué va en cada casilla y el estado verificado contra el
+portal. Este archivo cubre lo que el **código** emite; ese cubre lo que la **empresa** declara.
+⚠️ **Ese documento no estaba enlazado desde aquí y costó caro el 2026-08-24:** al preguntar por
+el registro de ventas y compras no apareció en la búsqueda, y se dio por pendiente un RVIE que
+llevaba días presentado. Un documento que nadie encuentra es un documento que no existe.
+
+🔎 **Para saber si un periodo está declarado sin generar nada**, el desplegable del SIRE lo dice
+al lado del mes (`JUL-Presentado` / `AGO-No Presentado`), en RVIE y en RCE. No hace falta aceptar
+propuesta ni pulsar *Generar registro* — que además son irreversibles.
+
 **Scripts (correrlos antes de dar por buena cualquier modificación a `src/sunat/` o
 `tributario.js`):** `generar-cert-prueba.js` · `prueba-comprobantes.js` (incluye que
 `gravadas + IGV` cuadre al céntimo en 100 000 importes) · `prueba-xml-firma.js` ·

@@ -2,7 +2,8 @@
 
 Guía operativa de lo que hay que presentar a SUNAT **todos los meses**, aunque la
 empresa no haya vendido nada. Escrita el 07/08/2026, cuando Notoria todavía no
-genera ingresos.
+genera ingresos, y **verificada contra SUNAT el 24/08/2026** (ver la sección 8,
+que es la que dice qué está hecho y qué no).
 
 > Esto no es asesoría tributaria. Sirve para saber qué hacer y qué preguntar; los
 > criterios de fondo los confirma un contador colegiado (ver la sección final).
@@ -65,7 +66,7 @@ quince minutos.
 
 | | **Julio 2026** (vence 24/08) | **Agosto 2026** (vence 21/09) |
 |---|---|---|
-| RVIE | Sin operaciones | Sin operaciones |
+| RVIE | Sin operaciones | **Boleta B001-1, anulada** — la propuesta ya la trae en 0.00 |
 | RCE | **Sin operaciones** | **Factura de compra del 04/08/2026** |
 | 621 casilla 100 | 0 | 0 |
 | 621 casilla 107 | 0 | Base imponible de la factura |
@@ -256,29 +257,111 @@ Tasas del RMT sobre la renta neta anual:
 
 ---
 
-## 8. Estado a la fecha (07/08/2026)
+## 8. Estado verificado contra SUNAT (24/08/2026)
 
-- ✅ Régimen RMT correcto (persona jurídica, muy debajo de 1,700 UIT).
-- ✅ **Sin periodos vencidos ni multas.** El primer periodo es julio 2026 y vence
-  el 24/08/2026.
-- ⏳ **Declaración de julio 2026 — empezada, no terminada.** El 07/08/2026 se
-  intentó generar el RVIE y se topó con la ventana del octavo día calendario (ver
-  el recuadro de la sección 4). **Retomar el 08/08/2026** en: RVIE → *Propuesta
-  del RVIE* → **Aceptar Propuesta** → *Preliminar* → *Generación de Registros* →
-  CIR. Después el RCE igual, y al final el 621. Nada quedó a medias en SUNAT: no
-  se aceptó ninguna propuesta ni se generó ningún registro.
-- ✅ **SEE-Del Contribuyente autorizado desde el 27/07/2026**, con factura y
-  boleta habilitadas. La misma fecha en que empieza a ser válido el certificado
-  CDT.
+> Leído directamente en SUNAT — Operaciones en Línea, sesión de NOTORIA E.I.R.L., entre
+> las 07:26 y las 07:34 del 24/08/2026. No es lo que creemos que pasó: es lo que el
+> portal muestra. La foto del 07/08/2026 que había aquí antes decía que el RVIE de julio
+> estaba "empezado, no terminado", y **eso ya no era cierto**.
+
+### Julio 2026 — CERRADO, y dentro de plazo
+
+| Paso | Estado en SUNAT |
+|---|---|
+| **RVIE** (ventas) | **JUL-Presentado** ✅ — el registro sale vacío (*"No se ha encontrado información de comprobantes de pago"*), que es lo correcto: julio no tuvo ni una venta |
+| **RCE** (compras) | **JUL-Presentado** ✅ |
+| **Declara Fácil 0621** | Presentado el **24/08/2026 07:24:16**, período **202607**, **Nº de Orden 1203165333**, importe **S/0** |
+
+Se hizo en el orden bueno (RVIE → RCE → 621) y **el día del vencimiento**, que sigue
+siendo dentro del plazo. Con eso **el acogimiento al RMT queda perfeccionado**, que era
+lo único de verdad en juego en este periodo (§2).
+
+✅ **Confirmado en la ficha RUC el mismo día:** `RENTA - REGIMEN MYPE TRIBUTARIO`, alta y
+afecto desde el **22/07/2026**, junto a `IGV - OPER. INT. - CTA. PROPIA`. El régimen es
+el que se quería, no el General.
+
+**Lo único que queda de julio es guardar el PDF de la Constancia de Presentación.**
+Ese papel es la prueba de que se declaró en plazo; el número de orden por sí solo obliga
+a volver a entrar al portal para demostrarlo.
+
+### 🔎 Cómo comprobar esto en treinta segundos, sin generar nada
+
+El desplegable de período del SIRE **ya trae el veredicto escrito al lado del mes**:
+
+```
+SIRE → RVIE → Gestión de Ventas e Ingresos Electrónicos → Período
+   2026-Presentado  →  JUL-Presentado / AGO-No Presentado
+```
+
+Lo mismo en RCE → Gestión de Compras. **Con eso basta y no hay que tocar nada**: no hace
+falta aceptar propuesta, ni entrar a *Generación de Registros*, ni pulsar el botón verde.
+Es la forma barata de no volver a quedarse con la duda de si un periodo está hecho.
+
+### Agosto 2026 — vence el 21/09, y ya hay algo que mirar
+
+| Paso | Estado |
+|---|---|
+| RVIE | **AGO-No Presentado** (normal: aún no toca) |
+| RCE | **AGO-No Presentado** |
+
+🔑 **La propuesta del RVIE de agosto YA TRAE la boleta, y ya la trae anulada.** Esto
+responde la duda que quedó abierta el 23/08 sobre cómo informar un comprobante anulado:
+
+```
+Resumen de CP → 03 - Boleta de Venta · Total Documentos: 1
+Propuesta del RVIE → Serie B001 · Nro 1 · emisión 23/08/2026
+                     BI Gravada 0.00 · IGV/IPM 0.00 · Exportación 0.00
+```
+
+O sea que **la anulación (RC-20260823-2, aceptado con código 0) se propagó sola**. En
+septiembre no hay que agregar la boleta a mano ni corregirle los importes: se acepta la
+propuesta tal como viene. El documento figura —que es lo obligatorio, un comprobante
+anulado no puede desaparecer del registro— y suma cero, que es lo correcto.
+
+**Lo que sí habrá que revisar en septiembre es el RCE**, donde debe aparecer la factura
+de compra del 04/08/2026 (y los gastos bancarios, §4.2-bis). Ese es el motivo por el que
+agosto es de presentación obligatoria: hay adquisición anotada (§2).
+
+### ⚠️ Un resultado que vi y no puedo explicar del todo
+
+*Comprobantes de pago → Consulta de Comprobante de Pago*, buscando la boleta emitida
+B001-1 del RUC 20616239466, devuelve **"No hay resultados para la consulta realizada"**.
+
+**No lo tomo como que la boleta no existe para SUNAT**, porque hay dos pruebas en contra
+y son más fuertes: el CDR del resumen `RC-20260823-1` fue **aceptado con código 0**, y la
+propuesta del RVIE de agosto **la lista**. La explicación probable es que ese módulo no
+indexe boletas informadas por resumen diario, o que no liste las anuladas — pero eso es
+una hipótesis, no algo comprobado. Queda escrito para que nadie se asuste si vuelve a
+aparecer, y para que quien lo confirme algún día lo corrija aquí.
+
+### Lo que sigue pendiente
+
+- ⏳ **Afiliación al PLE y Libro Diario de Formato Simplificado** (§5). Plazo máximo de
+  atraso: **3 meses**, así que no corre prisa hoy, pero es lo único mensual/periódico que
+  todavía no se ha tocado nunca.
+- ⏳ **Las cuatro preguntas para el contador** (§7), de las cuales la del **IGV por
+  utilización de servicios de no domiciliados** (Railway, Vercel, Groq) es la que puede
+  costar dinero y hoy no se está considerando.
+- 📅 **Declaración Anual de Renta 2026**, en 2027, obligatoria aunque el ejercicio cierre
+  en pérdida (§6).
+
+### Trámites ya resueltos
+
+- ✅ **SEE-Del Contribuyente autorizado desde el 27/07/2026**, con factura y boleta
+  habilitadas — confirmado en la ficha RUC: *"Comprobantes electrónicos: FACTURA (desde
+  27/07/2026), BOLETA (desde 27/07/2026)"*.
+- ✅ **Usuario SOL secundario con permisos de emisión** — resuelto el 23/08/2026. Existir
+  y estar Activo no bastaba: hacía falta asignarle las opciones del menú *y* una clave
+  nueva. El detalle está en `CLAUDE.md` §9.
 - ✅ `Actividad Comercio Exterior: EXPORTADOR` marcado en la ficha RUC.
-- ⏳ Falta el **usuario SOL secundario** con permiso solo de emisión de
-  comprobantes (nunca usar la Clave SOL principal en producción).
-- ⏳ Falta afiliación al **PLE** y el Libro Diario de Formato Simplificado.
+- ✅ **Primer envío real a producción hecho y aceptado** (23/08/2026): boleta
+  B001-00000001, resumen `RC-20260823-1` aceptado, anulación `RC-20260823-2` aceptada.
 
 > 🔴 **Regla que cruza con el producto:** no encender `SUNAT_EMISION_ACTIVA` antes
 > de tener las llaves **live** de Culqi. Con llaves de test, cualquiera que pague
 > con `4111 1111 1111 1111` generaría un comprobante fiscal real por una venta que
 > nunca ocurrió. El orden es: Culqi live → trámites en SOL → emisión.
+> *(Cumplido: las llaves live entraron antes de encender la emisión.)*
 
 ---
 
