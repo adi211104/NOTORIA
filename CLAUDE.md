@@ -9,7 +9,10 @@
 Plataforma SaaS de monitoreo de reputación para restaurantes y hoteles **del Perú**.
 Detecta reseñas falsas, ataques de bots y caídas de rating.
 
-- Planes: **Gratuito** · **Negocio S/59/mes** (anual S/47/mes) · **Franquicia S/179/mes** (anual S/143/mes).
+- Planes: **Gratuito** · **Impulso S/29/mes** (anual S/23/mes) · **Negocio S/59/mes** (anual S/47/mes) ·
+  **Franquicia S/179/mes** (anual S/143/mes). Qué incluye cada uno vive en
+  **`src/lib/planes.js`**, que es fuente única de CAPACIDADES igual que `precios.js` lo es del
+  precio. **No volver a escribir `['NEGOCIO','FRANQUICIA']` a mano en ninguna ruta** — §8.6.
 - Dominio: **usenotoria.app** · correo `hola@usenotoria.app` · teléfono público **+51 955 599 041**.
 - **Servicio solo nacional**: todo negocio se crea con `pais: 'pe'` y la facturación va fija
   en `PE`. Las columnas siguen en el modelo para poder reabrir sin migrar, y
@@ -784,6 +787,41 @@ como un desplome. Ahora el scraper devuelve **`sinValoraciones`** y el worker **
 snapshot** en ese caso. Se pierde el «0 reseñas» como línea base, y es aceptable: cualquier
 comparación necesita dos lecturas igualmente, así que como mucho se cuenta de menos.
 
+### 8.6 Planes — la tabla de capacidades
+
+**`src/lib/planes.js` decide qué puede hacer cada plan**, y `brand-shield-web/src/lib/planes.js`
+es su espejo para el panel (con los NOMBRES, que llevan idioma y por eso viven ahí).
+`scripts/prueba-planes.js` —64 comprobaciones— compara los dos y falla si se separan.
+
+🔴 **Por qué existe, y por qué no se puede volver atrás.** Hasta el 2026-08-24 la matriz de
+planes no estaba en ningún sitio: estaba deducida y repartida en **26 puntos del backend** (11
+arrays `['NEGOCIO','FRANQUICIA']`, 5 tablas por plan, 10 ternarios). Con tres planes se
+sostuvo. Al añadir IMPULSO aparecieron tres fallos que **no producen ninguna señal**:
+
+| Dónde estaba | Qué habría pasado |
+|---|---|
+| `negocio.routes.js`, el `else` de `GRATIS ? 1 : NEGOCIO ? 5 : 999` | El plan **más barato** del catálogo, con **999 negocios** |
+| Renovación de Culqi, filtrando por una lista a mano | Se cobra **UNA vez y nunca más**. El cliente conserva el plan gratis para siempre. Sin error, sin log, sin cargo fallido |
+| Bajada de plan al vencer, la misma lista | Cancelar **regala el plan de por vida** |
+
+⚠️ **Al añadir un plan o una capacidad: se declara en la tabla y los call-sites preguntan.**
+Nunca al revés. El bloque 7 de `prueba-planes.js` **lee el fuente** y falla si alguien vuelve a
+escribir la lista de planes a mano — es lo único que protege al *siguiente* plan.
+
+⚠️ **La app Android tiene su propia copia** (`Modelos.kt`: `esPago` y `etiquetaPlan`). Un plan
+que falte ahí deja al suscriptor con la app en modo gratuito: paga y ve las pantallas
+bloqueadas, y `etiquetaPlan` cae al `else` diciendo **"Gratuito"**.
+
+**Qué incluye IMPULSO y por qué** (decidido el 2026-08-24): 1 negocio · escaneo cada 12 h ·
+25 usos de IA · 3 competidores · 1 asiento · reporte PDF mensual · escalación de urgencias ·
+y **vigilancia de la ficha de Google**, que es lo único que de verdad lo hace comprable —que
+alguien pueda marcar tu local como cerrado y Google lo aplique sin avisarte es un problema que
+un dueño entiende en una frase. Sin redes, sin menciones, sin constancia y sin equipo: eso
+sigue siendo el salto a NEGOCIO.
+⚠️ La vigilancia de ficha **cuesta dinero** (obliga al grupo Contact Data de Places). A 12 h son
+2 consultas al día por negocio, la mitad que NEGOCIO. Si hay que recortar margen, esa es la
+palanca y está en un solo sitio.
+
 ### 8.4 Menciones
 
 Distinción que sostiene el diseño:
@@ -1503,6 +1541,73 @@ mueve su promedio en un mes. Lo que sí se movió en el mismo periodo fueron las
   el porcentaje de la barra de escaneo en esa misma página.
 - `node scripts/prueba-progreso.js` — 28 comprobaciones.
 
+**Panel accionable — score, temas y tareas** (`lib/score.js`, `lib/temas.js`,
+`lib/tareas.js`, `GET /api/negocios/:id/resumen`, `GET /api/negocios/tareas`,
+`components/PanelAccionable.js`, 2026-08-24). El panel contestaba bien «¿cómo estoy?» y nada
+«¿qué hago?». Sale entero de datos ya guardados: **cero llamadas a Google y cero a Groq**.
+
+🔴 **El score 0-100 ya existía, pero vivía DENTRO del componente de una sola pantalla.** O sea
+que el número que el catálogo anuncia en los cuatro planes solo existía si abrías la ficha de un
+negocio concreto: no podía entrar en un correo, ni en el PDF, ni en la constancia, ni compararse
+con el mes pasado. La fórmula se movió **intacta** — `prueba-panel.js` replica la aritmética
+original en vez de llamar a la función, porque si el número cambiara, a cada cliente le saltaría
+su score de un día para otro sin que su reputación se haya movido.
+- ⚠️ **De los cuatro componentes solo DOS son historizables.** `confianza` y `respuesta` salen
+  de las reseñas de HOY (no se guarda cuántas estaban respondidas en marzo), así que en la serie
+  se mantienen fijos. Consecuencia, y hay que decirla en vez de esconderla: **la FORMA de la
+  curva es exacta** —la diferencia entre dos puntos es exactamente la de rating+volumen— y el
+  **valor absoluto de un día pasado es aproximado**. Viaja en `componentesFijos` y el panel lo
+  pone al pie. Historizarlo de verdad costaba una columna por snapshot y no vale ese precio.
+- La serie agrupa **por día** (el último snapshot de cada uno): a 1 h de cadencia, Franquicia
+  daría 720 puntos al mes y el gráfico sería ruido.
+
+🔴 **El diccionario de temas estaba enterrado en `afiche.generator.js`.** Notoria ya sabía decir
+«cuatro reseñas mencionan demora», pero solo dentro de un PDF que hay que imprimir. Ahora es
+fuente única (`lib/temas.js`) y está en el panel, que es donde el dueño mira todos los días.
+- **La tendencia compara PORCENTAJES, no conteos.** Un negocio que triplica sus reseñas ve subir
+  todas sus quejas en número aunque en proporción haya mejorado; decirle «la demora subió de 2 a
+  5» le informa de lo contrario de lo que pasó.
+- El porcentaje va sobre las reseñas **con texto**, no sobre el total: una 1★ muda no puede
+  mencionar nada, y meterla en el denominador hunde todos los porcentajes.
+- Cada tema viaja con **dos ejemplos**: es lo que lo hace discutible («salió porque esta reseña
+  dice esto») en vez de un veredicto.
+- ✅ De paso se arregló un fallo de idioma: `quejaMasRepetida` devolvía **siempre** la etiqueta
+  en español, así que un afiche en inglés decía *«The most repeated complaint: la demora en la
+  atención»*. Es el mismo error de §11 y §12 por un tercer camino.
+
+**Tareas:** lista ordenada por urgencia, en la ficha y en el panel de inicio. Dos reglas:
+- **Toda tarea sale de un dato que ya existe.** Nada de «explora la sección de competidores»: en
+  cuanto aparece relleno, la lista entera deja de leerse.
+- **No llevan texto redactado**, viajan como `tipo` + `datos`. La frase la compone el panel.
+- ⚠️ **No pide reseñas si hay críticas sin contestar**: primero se tapa el agujero, después se
+  llena el balde. Y un comentario **sin `publicacionId`** no es tarea — la ruta de responder
+  devuelve 422, así que sería mandar al usuario a un botón que no existe.
+
+**Estrellas a soles** (`lib/impacto.js`, `GET /api/publico/impacto`). El landing citaba a Luca
+(Harvard) desde siempre, pero hablando de negocios ajenos. Ahora el analizador gratuito lo dice
+con los números del propio local: *«estar 0.6★ por debajo de 4.5★ equivale a entre S/900 y
+S/3,200 al mes»*. ✅ Probado en vivo contra una ficha real (KFC San Miguel, 3.9★).
+- 🔴 **RANGO y nunca una cifra**: el estudio da 5-9%. Un número único fingiría una precisión que
+  el propio paper no tiene, y basta que un cliente lo compruebe una vez para que todo lo demás
+  que diga Notoria pierda credibilidad.
+- 🔴 **Solo donde el estudio aplica.** Luca midió restaurantes independientes. Un **HOTEL no
+  entra**: su demanda pasa por Booking, no por Maps. Que Notoria venda a hoteles no es motivo
+  para prestarles una cifra que no se midió sobre ellos. `desdeTiposGoogle()` lo decide, y ante
+  la duda dice que no. Probado: `tipo=HOTEL` responde 404 `SIN_ESTIMACION`.
+- 🔴 **La facturación se pregunta por RANGOS y no se guarda en ninguna parte.** Un rango basta
+  para dar un intervalo; pedir la cifra exacta —y encima almacenarla— sería pedir un dato
+  sensible a cambio de nada.
+- La aritmética va a la vista y la fuente enlazada: una cifra de dinero que el cliente no puede
+  rehacer a mano es una cifra en la que no confía.
+
+**Diagnóstico dentro de la alerta.** El correo más frecuente del producto ahora dice si la queja
+ya se venía repitiendo («6 de las últimas 10 reseñas negativas mencionan demora») y cuántas
+críticas quedan sin contestar. ⚠️ **Sin diagnóstico el correo sale exactamente igual que antes**:
+es una mejora del aviso, y una mejora no puede ser la razón por la que alguien no se entera de
+que le cayó una reseña de 1★.
+
+`node scripts/prueba-panel.js` — **83 comprobaciones**, casi todas sobre silencios y negativas.
+
 **Afiche de la pared** (`src/utils/afiche.generator.js`, `GET /api/negocios/:id/afiche.pdf`).
 Un A4 para imprimir y colgar donde trabaja el equipo: la nota a 96 pt, las reseñas nuevas, las
 que faltan por responder y **una sola cosa** en la que enfocarse esta semana. Existe porque el
@@ -1848,6 +1953,10 @@ textos por otros inventados. El procedimiento está en la cabecera del component
 | `reembolsar-cargo.js <chargeId> [--aplicar]` | Devuelve un cargo de Culqi. Avisa **antes** de qué comprobante quedaría sin anular, porque el reembolso no lo anula. El monto sale del `Pago`, no de un argumento |
 | `lib-env-produccion.js` | No es un script: lo requieren los demás. Arregla la trampa de `railway run`, que da los secretos de producción pero pisa `DATABASE_URL` con el host **interno** de Postgres, inalcanzable desde fuera. Costó tiempo dos veces antes de vivir en un solo sitio |
 | `prueba-anulacion-pendiente.js` | 31 comprobaciones del aviso por comprobante reembolsado y sin anular: los dos anclajes del plazo, el `floor` que no sobreestima, y sobre todo los silencios (VOUCHER, ya anulado, no aceptado) |
+| `prueba-planes.js` | 64 comprobaciones de la tabla de capacidades. Vigila lo que no da señal: que todo plan con precio se COBRE y se BAJE (olvidarlo regala el plan de por vida), que la escalera no pierda capacidades al subir, que un plan desconocido falle CERRADO, y **lee el fuente** para fallar si alguien vuelve a escribir `['NEGOCIO','FRANQUICIA']` a mano |
+| `prueba-panel.js` | 83 comprobaciones de score, temas, tareas e impacto. Comprueba que la fórmula del score NO cambió al mudarse al backend (replica la aritmética original), que la tendencia de temas compara porcentajes y no conteos, y que no se inventa una cifra en soles donde el estudio no aplica |
+| `embudo.js` | Foto de solo lectura del embudo, de registro a suscripción viva. Con 11 usuarios no hace falta analítica de producto: hace falta una consulta. Nombra las cuentas atascadas y **avisa de que una «suscripción viva» sin cobro es un plan dado a mano, no un cliente** |
+| `respaldo.js [--verificar <ruta>]` | Copia de la base a JSON, y su verificación. 🔴 Los 1839 snapshots desde julio son lo único que no se puede volver a conseguir —Google enseña la foto de hoy, no la película—; todo lo demás tiene copia en otro sitio. `--verificar` existe porque **tener copia no es saber restaurarla**. ⚠️ El archivo lleva datos personales de terceros (Ley 29733): está en `.gitignore` y no se sube a ningún sitio sin cifrar |
 | `sonda-sunat-produccion.js` | 🔴 **Correr ANTES de cualquier cobro real.** Comprueba contra el endpoint de PRODUCCIÓN que el certificado se descifra y que las credenciales SOL autentican, con `getStatus` sobre un ticket inventado: es solo lectura, no numera ni consume nada. Lleva control con clave falsa. ⚠️ El ticket debe ser **numérico** (`AAAAMMDD`+correlativo): con uno alfanumérico SUNAT devuelve 200 con el cuerpo VACÍO y la sonda parece rota cuando el mal formado es el dato |
 | `verificar-culqi-live.js` | Prueba llaves **live sin cobrar**: espacios/BOM, mismo entorno, que la secreta autentique, que la pública siga viva (401 = llave mala, **400 = llave buena** rechazando la tarjeta) y que el **bundle desplegado** traiga esa misma llave — lo único que detecta un `vercel env add` sin `vercel --prod` |
 | `auditar-pagos.js` | Foto de solo lectura de los cobros |
@@ -2149,7 +2258,21 @@ esa clave se perdiera durante la espera, no hay app que publicar. Y releer los r
 alta en la consola, que Google los cambia.
 
 
-### Estado de la base de producción (última lectura, 2026-08-23)
+### Estado de la base de producción (última lectura, 2026-08-24)
+
+`11 usuarios (4 sin verificar, 1 con idioma 'en') · 15 negocios · 1839 snapshots · 89 reseñas ·
+1 alerta · 3 competidores con 431 snapshots · 1 pago (S/1, REEMBOLSADO) · 1 comprobante
+(B001-00000001, ANULADO) · 2 resúmenes SUNAT · 2 comentarios sociales · 0 miembros ·
+0 invitaciones · 0 reclamaciones · 0 promo_tarjetas · 0 menciones`.
+
+✅ **Primer respaldo hecho y verificado el 2026-08-24**: 2397 filas, 0.72 MB, íntegro y con 0 de
+deriva (`scripts/respaldo.js`).
+
+📊 **Lo que dice el embudo hoy** (`scripts/embudo.js`): la caída más grande son **7 cuentas entre
+«le entraron reseñas» y «recibió una alerta»**. Y **2 suscripciones vivas con 0 cobros** — son los
+planes concedidos a mano al dueño, no clientes. Cargos reales en Culqi live: **0**.
+
+#### Lectura anterior (2026-08-23)
 
 `11 usuarios (4 SIN VERIFICAR, 1 con idioma 'en') · 15 negocios (10 activos, pero solo 9 place
 IDs distintos) · 1813 snapshots · 85 reseñas (12 de ≤2★, 11 sin responder) · 0 alertas ·
