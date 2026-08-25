@@ -441,6 +441,10 @@ const TEXTOS = {
       parteHechos:(t,p,n)=>`Sobre ${t} reseña${t===1?'':'s'} de esta semana · ${p} buena${p===1?'':'s'} · ${n} para mejorar`,
       parteNota:'Se escribe una vez por semana. Repasa siempre antes de reenviarlo: lo va a leer tu gente.',
       parteError:'No pudimos escribir el parte. Inténtalo de nuevo en unos minutos.',
+      // ⚠️ El fallo de COPIAR necesita su propio mensaje. Decir "no pudimos
+      // escribir el parte" con el parte delante en pantalla confunde: describe
+      // un problema que no es el que pasó.
+      parteNoCopio:'Tu navegador no nos dejó copiarlo. Ya te lo dejamos seleccionado: pulsa Ctrl+C.',
       aficheTitulo:'El afiche para tu equipo',
       aficheDesc:'Una hoja A4 lista para imprimir y colgar donde trabaja tu gente: la nota de Google, las reseñas nuevas, las que faltan por responder y UNA sola cosa en la que enfocarse esta semana. Sin jerga, legible desde el otro lado de la cocina.',
       aficheBtn:'Descargar el afiche (PDF)',
@@ -898,6 +902,7 @@ const TEXTOS = {
       parteHechos:(t,p,n)=>`Across ${t} review${t===1?'':'s'} this week · ${p} good · ${n} to improve`,
       parteNota:'Written once a week. Always read it over before forwarding: your people will read it.',
       parteError:'We could not write the note. Please try again in a few minutes.',
+      parteNoCopio:'Your browser would not let us copy it. We selected it for you: press Ctrl+C.',
       aficheTitulo:'The poster for your team',
       aficheDesc:'A single A4 page, ready to print and hang where your staff works: the Google rating, new reviews, the ones still unanswered, and ONE thing to focus on this week. No jargon, readable from across the kitchen.',
       aficheBtn:'Download the poster (PDF)',
@@ -1309,7 +1314,8 @@ export default function DetallePage() {
   // El parte para el equipo. `null` = aún no pedido · 'sin' = esta semana no hay
   // material (409) y la tarjeta se esconde entera.
   const [parte, setParte] = useState(null);
-  const [parteEstado, setParteEstado] = useState('idle'); // idle | cargando | error | copiado
+  const [parteEstado, setParteEstado] = useState('idle'); // idle | cargando | error | copiado | nocopio
+  const parteRef = useRef(null);
   const [afiche, setAfiche] = useState('');   // '' | 'generando' | 'error'
   const [constancia, setConstancia] = useState('');
   // Comentarios de redes en publicaciones propias (TikTok)
@@ -1868,10 +1874,22 @@ export default function DetallePage() {
       setParteEstado('copiado');
       setTimeout(() => setParteEstado('idle'), 2200);
     } catch {
-      // Sin permiso de portapapeles (o en http) no se puede copiar. No se
-      // inventa un "copiado" que no ocurrió: el texto está a la vista y se
-      // puede seleccionar a mano.
-      setParteEstado('error');
+      // 🔴 El portapapeles se puede negar por mil motivos que no dependen de
+      // nosotros (permiso denegado, sin gesto de usuario, contexto restringido).
+      // NO se finge un "copiado" que no ocurrió, y tampoco se enseña el error de
+      // generar el parte: el parte está ahí, lo que falló es la copia.
+      //
+      // En vez de dejar al usuario a medias, se le selecciona el texto para que
+      // solo tenga que pulsar Ctrl+C. Un error con salida vale mucho más que un
+      // error a secas.
+      try {
+        const rango = document.createRange();
+        rango.selectNodeContents(parteRef.current);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(rango);
+      } catch { /* si ni eso se puede, el texto sigue a la vista y es copiable */ }
+      setParteEstado('nocopio');
     }
   };
 
@@ -3138,7 +3156,7 @@ export default function DetallePage() {
                   {/* El texto tal cual se va a pegar, en monoespaciada y
                       seleccionable: si el portapapeles falla, se copia a mano. */}
                   <div style={{ background:'var(--bg)', border:'1px solid var(--border-c)', borderRadius:8, padding:'14px 16px', marginBottom:12 }}>
-                    <p style={{ margin:0, fontSize:13.5, lineHeight:1.7, color:'var(--text)', whiteSpace:'pre-wrap' }}>{parte.texto}</p>
+                    <p ref={parteRef} style={{ margin:0, fontSize:13.5, lineHeight:1.7, color:'var(--text)', whiteSpace:'pre-wrap' }}>{parte.texto}</p>
                   </div>
 
                   {/* De dónde salen las cifras. Un parte que no se puede auditar
@@ -3163,6 +3181,9 @@ export default function DetallePage() {
 
                   {parteEstado === 'error' && (
                     <p style={{ color:'#ef4444', fontSize:12.5, margin:'10px 0 0' }}>{t.espejo.parteError}</p>
+                  )}
+                  {parteEstado === 'nocopio' && (
+                    <p style={{ color:'#f59e0b', fontSize:12.5, margin:'10px 0 0' }}>{t.espejo.parteNoCopio}</p>
                   )}
                   <p style={{ fontSize:11, color:'var(--text-3)', margin:'12px 0 0', lineHeight:1.5 }}>{t.espejo.parteNota}</p>
                 </Card>
