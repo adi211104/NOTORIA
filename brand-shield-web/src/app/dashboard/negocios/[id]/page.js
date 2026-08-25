@@ -432,6 +432,15 @@ const TEXTOS = {
       simFuente:'El umbral de 4.5★ es de BrightLocal, Local Consumer Review Survey 2026: el 31% de los consumidores no entra a negocios por debajo.',
       // El afiche va acá, en la misma pestaña que el espejo: las dos cosas
       // responden a «cómo nos ven» y las dos salen de la pantalla.
+      parteTitulo:'El parte para tu equipo',
+      parteDesc:'Tres o cuatro líneas listas para pegar en el grupo de WhatsApp de tu personal: cómo fue la semana, qué hay que mejorar y una sola cosa en la que enfocarse. Las cifras las cuenta Notoria; la IA solo las redacta.',
+      parteCopiar:'Copiar para WhatsApp',
+      parteCopiado:'¡Copiado!',
+      parteRegenerar:'Escribirlo de otra forma',
+      parteGenerando:'Escribiendo…',
+      parteHechos:(t,p,n)=>`Sobre ${t} reseña${t===1?'':'s'} de esta semana · ${p} buena${p===1?'':'s'} · ${n} para mejorar`,
+      parteNota:'Se escribe una vez por semana. Repasa siempre antes de reenviarlo: lo va a leer tu gente.',
+      parteError:'No pudimos escribir el parte. Inténtalo de nuevo en unos minutos.',
       aficheTitulo:'El afiche para tu equipo',
       aficheDesc:'Una hoja A4 lista para imprimir y colgar donde trabaja tu gente: la nota de Google, las reseñas nuevas, las que faltan por responder y UNA sola cosa en la que enfocarse esta semana. Sin jerga, legible desde el otro lado de la cocina.',
       aficheBtn:'Descargar el afiche (PDF)',
@@ -880,6 +889,15 @@ const TEXTOS = {
       simColumna:'Your rating would be',
       simCoste:(v) => <>Today, a single one-star review moves your rating by <strong>{v.toFixed(3)}</strong> points.</>,
       simFuente:'The 4.5★ cut-off is from BrightLocal, Local Consumer Review Survey 2026: 31% of consumers rule out businesses below it.',
+      parteTitulo:'The note for your team',
+      parteDesc:'Three or four lines ready to paste into your staff WhatsApp group: how the week went, what to improve and one single thing to focus on. Notoria counts the figures; the AI only words them.',
+      parteCopiar:'Copy for WhatsApp',
+      parteCopiado:'Copied!',
+      parteRegenerar:'Word it differently',
+      parteGenerando:'Writing…',
+      parteHechos:(t,p,n)=>`Across ${t} review${t===1?'':'s'} this week · ${p} good · ${n} to improve`,
+      parteNota:'Written once a week. Always read it over before forwarding: your people will read it.',
+      parteError:'We could not write the note. Please try again in a few minutes.',
       aficheTitulo:'The poster for your team',
       aficheDesc:'A single A4 page, ready to print and hang where your staff works: the Google rating, new reviews, the ones still unanswered, and ONE thing to focus on this week. No jargon, readable from across the kitchen.',
       aficheBtn:'Download the poster (PDF)',
@@ -1288,6 +1306,10 @@ export default function DetallePage() {
   // responde 409 SIN_DATOS antes que una lista de ceros, y aquí se respeta.
   const [progresoMes, setProgresoMes] = useState(null);
   const [resumenPanel, setResumenPanel] = useState(null);
+  // El parte para el equipo. `null` = aún no pedido · 'sin' = esta semana no hay
+  // material (409) y la tarjeta se esconde entera.
+  const [parte, setParte] = useState(null);
+  const [parteEstado, setParteEstado] = useState('idle'); // idle | cargando | error | copiado
   const [afiche, setAfiche] = useState('');   // '' | 'generando' | 'error'
   const [constancia, setConstancia] = useState('');
   // Comentarios de redes en publicaciones propias (TikTok)
@@ -1486,6 +1508,11 @@ export default function DetallePage() {
   // Se cargan al abrir la pestaña y no antes: el espejo consume una consulta a
   // Google Places, y no tiene sentido gastarla en quien nunca abre la sección.
   useEffect(() => {
+    // El parte para el equipo va en esta misma pestaña y se pide a la vez: la
+    // primera vez de la semana cuesta una llamada a Groq, así que no se paga al
+    // cargar la ficha, solo al abrir la sección donde se muestra.
+    if (tab === 'espejo' && parte === null && parteEstado === 'idle') pedirParte();
+
     if (tab !== 'espejo' || espejo || espejoCargando) return;
     setEspejoCargando(true);
     setEspejoError('');
@@ -1815,6 +1842,39 @@ export default function DetallePage() {
   // "Sospechosas" que ya existía.
   // Comparación automática solo se muestra a Franquicia — es la única cuenta que
   // puede usarla, así que enseñarla a las demás solo era una puerta cerrada.
+  // El parte se pide al abrir la pestaña «Cómo te ven», no al cargar la ficha:
+  // puede costar una llamada a Groq la primera vez de la semana, y no tiene
+  // sentido pagarla por alguien que entró a mirar sus reseñas.
+  const pedirParte = async (regenerar = false) => {
+    setParteEstado('cargando');
+    try {
+      const d = await negociosApi.parteEquipo(id, regenerar);
+      setParte(d);
+      setParteEstado('idle');
+    } catch (e) {
+      // 409 SIN_MATERIAL no es un error: es "esta semana no hay nada que
+      // contarle al equipo". La tarjeta se esconde en vez de enseñar un fallo.
+      if (e?.codigo === 'SIN_MATERIAL' || /409/.test(e?.message || '')) {
+        setParte('sin'); setParteEstado('idle');
+      } else {
+        setParteEstado('error');
+      }
+    }
+  };
+
+  const copiarParte = async () => {
+    try {
+      await navigator.clipboard.writeText(parte.texto);
+      setParteEstado('copiado');
+      setTimeout(() => setParteEstado('idle'), 2200);
+    } catch {
+      // Sin permiso de portapapeles (o en http) no se puede copiar. No se
+      // inventa un "copiado" que no ocurrió: el texto está a la vista y se
+      // puede seleccionar a mano.
+      setParteEstado('error');
+    }
+  };
+
   const TABS = [
     { id:'resumen', label:t.tabs.resumen },
     { id:'resenas', label:t.tabs.resenas(todasResenas.length) },
@@ -3057,6 +3117,56 @@ export default function DetallePage() {
                   </>
                 )}
               </Card>
+
+              {/* ── El parte para el equipo ─────────────────────────────────
+                  Hermano del afiche: los dos hablan al personal y los dos salen
+                  de la pantalla. El afiche se cuelga en la pared; esto se pega
+                  en el grupo de WhatsApp, que es donde ese equipo ya vive.
+
+                  🔴 Es lo contrario del resto de la IA del producto: la respuesta
+                  pública es cosmética —le contesta al cliente que ya se fue— y
+                  esto va hacia adentro, a quien puede arreglar el motivo.
+
+                  ⚠️ Se esconde entera si esta semana no hubo material (409
+                  SIN_MATERIAL). Un parte de relleno cada lunes enseña al equipo
+                  a ignorarlo. */}
+              {parte && parte !== 'sin' && (
+                <Card>
+                  <ST>{t.espejo.parteTitulo}</ST>
+                  <p style={{ color:'var(--text-2)', fontSize:12.5, lineHeight:1.6, margin:'0 0 12px' }}>{t.espejo.parteDesc}</p>
+
+                  {/* El texto tal cual se va a pegar, en monoespaciada y
+                      seleccionable: si el portapapeles falla, se copia a mano. */}
+                  <div style={{ background:'var(--bg)', border:'1px solid var(--border-c)', borderRadius:8, padding:'14px 16px', marginBottom:12 }}>
+                    <p style={{ margin:0, fontSize:13.5, lineHeight:1.7, color:'var(--text)', whiteSpace:'pre-wrap' }}>{parte.texto}</p>
+                  </div>
+
+                  {/* De dónde salen las cifras. Un parte que no se puede auditar
+                      es un parte que el dueño no reenvía a quince personas. */}
+                  {parte.hechos && (
+                    <p style={{ fontSize:11.5, color:'var(--text-3)', margin:'0 0 12px' }}>
+                      {t.espejo.parteHechos(parte.hechos.total, parte.hechos.positivas, parte.hechos.negativas)}
+                      {parte.hechos.temas?.length > 0 && ` · ${parte.hechos.temas.map((x) => `${x.etiqueta} (${x.veces})`).join(' · ')}`}
+                    </p>
+                  )}
+
+                  <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+                    <button onClick={copiarParte}
+                      style={{ display:'inline-flex', alignItems:'center', gap:8, background: parteEstado === 'copiado' ? '#166534' : '#0B7324', color:'#fff', border:'none', borderRadius:8, padding:'10px 18px', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                      {parteEstado === 'copiado' ? t.espejo.parteCopiado : t.espejo.parteCopiar}
+                    </button>
+                    <button onClick={() => pedirParte(true)} disabled={parteEstado === 'cargando'}
+                      style={{ background:'transparent', color:'var(--text-2)', border:'1px solid var(--border-c)', borderRadius:8, padding:'10px 16px', fontSize:13, cursor: parteEstado === 'cargando' ? 'default' : 'pointer', opacity: parteEstado === 'cargando' ? 0.6 : 1 }}>
+                      {parteEstado === 'cargando' ? t.espejo.parteGenerando : t.espejo.parteRegenerar}
+                    </button>
+                  </div>
+
+                  {parteEstado === 'error' && (
+                    <p style={{ color:'#ef4444', fontSize:12.5, margin:'10px 0 0' }}>{t.espejo.parteError}</p>
+                  )}
+                  <p style={{ fontSize:11, color:'var(--text-3)', margin:'12px 0 0', lineHeight:1.5 }}>{t.espejo.parteNota}</p>
+                </Card>
+              )}
 
               {/* El afiche de la pared. Va en esta pestaña porque responde a la
                   misma pregunta —cómo nos ven— pero para el otro público: el

@@ -147,6 +147,10 @@ export const negociosApi = {
   resumen:   (id)     => api(`/api/negocios/${id}/resumen`),
   // «Para hacer hoy» de todos los negocios de la cuenta, para el panel de inicio.
   tareas:    ()       => api('/api/negocios/tareas'),
+  // El parte semanal para el grupo de WhatsApp del personal. `regenerar` deja al
+  // dueño pedir otra redacción si no le gusta cómo quedó.
+  parteEquipo: (id, regenerar = false) =>
+    api(`/api/negocios/${id}/parte-equipo${regenerar ? '?regenerar=1' : ''}`),
 };
 
 export const alertas = {

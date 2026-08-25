@@ -297,6 +297,13 @@ model Negocio {
   ultimoInsightSemanal String?
   ultimoInsightFecha   DateTime?
 
+  // El parte semanal para el equipo (lib/parteEquipo.js) — el mensaje que el
+  // dueño reenvia al grupo de WhatsApp de su personal. Se cachea igual que el
+  // insight: se regenera como mucho una vez por semana y por negocio, asi que
+  // verlo veinte veces no cuesta veinte llamadas a Groq.
+  parteEquipo       String?   @db.Text
+  parteEquipoFecha  DateTime?
+
   // Términos extra a buscar en la escucha de menciones, separados por coma
   // (handle de la marca, hashtags propios, variantes del nombre mal escrito).
   // Vacío = se busca solo por `nombre`. Ver src/scrapers/menciones.js

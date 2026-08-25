@@ -13,6 +13,7 @@ const score = require('../../lib/score');
 const temasLib = require('../../lib/temas');
 const tareasLib = require('../../lib/tareas');
 const { periodosMensuales } = require('../../lib/progreso');
+const parteEquipoService = require('../../services/parteEquipo.service');
 
 const router = express.Router();
 const { autenticar, permitir } = require('../middlewares/auth.middleware');
@@ -503,6 +504,69 @@ router.get('/:id/resumen', async (req, res, next) => {
       tendenciaTemas: tendencia,
       tareas,
       medidoEn: new Date(),
+    });
+  } catch (error) { next(error); }
+});
+
+// ── GET /api/negocios/:id/parte-equipo ────────────────────
+//
+// El mensaje que el dueño reenvía al grupo de WhatsApp de su personal.
+//
+// 🔴 Es lo contrario de todo lo demás que hace la IA en Notoria. La respuesta
+// pública —que ya existe y funciona— es cosmética: le contesta al cliente que ya
+// se fue molesto y no le dice nada a quien provocó el motivo. Esto va hacia
+// ADENTRO, y es lo que convierte a Notoria de vigilante de reputación en
+// herramienta de gestión. Ver la cabecera de lib/parteEquipo.js.
+//
+// ⚠️ Los NÚMEROS los pone el código y la IA solo los redacta. Este parte lo lee
+// un equipo que sabe perfectamente lo que pasó esa semana: una cifra inventada
+// lo desacredita entero a la primera.
+//
+// ⚠️ Cachea una semana, así que abrir la ficha cuarenta veces sigue costando UNA
+// llamada a Groq. Y no descuenta de la cuota de IA del cliente: esa es para lo
+// que él pide a mano, no para un texto automático que no solicitó.
+router.get('/:id/parte-equipo', verificarPlan(planesCon('parteEquipo')), async (req, res, next) => {
+  try {
+    const negocio = await prisma.negocio.findFirst({
+      where: dondeNegocio(req, { id: req.params.id }),
+      select: {
+        id: true, nombre: true, parteEquipo: true, parteEquipoFecha: true,
+        resenas: { select: { rating: true, texto: true, fechaResena: true, detectadaEn: true } },
+      },
+    });
+    if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
+
+    const idioma = req.usuario?.idioma === 'en' ? 'en' : 'es';
+    // `forzar` deja al dueño regenerarlo si no le gusta cómo quedó. Sigue
+    // acotado: es una llamada por pulsación, y la pulsa una persona.
+    const forzar = req.query.regenerar === '1';
+    const parte = await parteEquipoService.obtener(negocio, negocio.resenas, idioma, { forzar });
+
+    // 409 y no un objeto vacío: "esta semana no hay parte que escribir" es una
+    // respuesta distinta de "el parte está vacío", y el panel tiene que poder
+    // esconder la sección. Misma regla que el SIN_DATOS de /progreso.
+    if (!parte) {
+      return res.status(409).json({
+        error: 'Esta semana no hay suficientes reseñas nuevas para escribirle un parte al equipo.',
+        codigo: 'SIN_MATERIAL',
+      });
+    }
+
+    res.json({
+      texto: parte.texto,
+      generadoEn: parte.generadoEn,
+      cacheado: !!parte.cacheado,
+      // Los hechos viajan para que el panel pueda enseñar de dónde sale cada
+      // cosa. Un parte que no se puede auditar es un parte en el que el dueño
+      // no confía lo bastante como para reenviarlo a quince personas.
+      hechos: {
+        total: parte.hechos.total,
+        positivas: parte.hechos.positivas,
+        negativas: parte.hechos.negativas,
+        temas: parte.hechos.temas.map((t) => ({ id: t.id, etiqueta: t.etiquetaCorta, veces: t.veces })),
+        desde: parte.hechos.desde,
+        hasta: parte.hechos.hasta,
+      },
     });
   } catch (error) { next(error); }
 });

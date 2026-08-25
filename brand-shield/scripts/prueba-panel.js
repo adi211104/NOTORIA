@@ -84,6 +84,27 @@ check('la serie declara qué componentes van fijos',
 const mismoDia = [snap(4.2, 100, 3), snap(4.3, 101, 2), snap(4.4, 102, 1), snap(4.1, 99, 24 * 5)];
 check('varias lecturas del mismo día dan UN punto', score.serie(mismoDia, []).puntos.length === 2);
 
+// 🔴 Y el caso que de verdad importa, fijado a una hora concreta para que falle
+// a cualquier hora del día y no solo de noche: dos lecturas del MISMO día de
+// Lima, una antes y otra después de la medianoche UTC.
+//
+// Agrupando por `toISOString()` esto daba DOS puntos, porque Perú va cinco horas
+// por detrás: a las 20:00 de Lima en UTC ya es mañana. Un negocio escaneado a
+// las 18:00 y a las 21:00 salía con dos puntos en la curva. Es el mismo bug que
+// §9 documenta para las fechas que van a SUNAT, por otro camino.
+const limaMismoDia = [
+  { ratingActual: 4.2, totalResenas: 100, tomadoEn: new Date('2026-08-20T23:00:00Z') }, // 18:00 Lima
+  { ratingActual: 4.3, totalResenas: 101, tomadoEn: new Date('2026-08-21T02:00:00Z') }, // 21:00 Lima, MISMO día
+  { ratingActual: 4.1, totalResenas: 99, tomadoEn: new Date('2026-08-15T15:00:00Z') },  // otro día
+];
+const serieLima = score.serie(limaMismoDia, []);
+check('dos lecturas del mismo día de Lima dan UN punto, aunque cambie el día UTC',
+  serieLima.puntos.length === 2, `dio ${serieLima.puntos.length} puntos: ${serieLima.puntos.map((p) => p.fecha).join(', ')}`);
+check('la fecha del punto es la de Lima, no la UTC',
+  serieLima.puntos.some((p) => p.fecha === '2026-08-20'),
+  serieLima.puntos.map((p) => p.fecha).join(', '));
+
+
 const v = score.variacion(s);
 check('la variación informa el signo y los extremos', v && v.delta === v.final - v.inicial);
 check('sin serie no hay variación', score.variacion(null) === null);

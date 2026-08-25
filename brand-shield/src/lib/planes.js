@@ -57,6 +57,7 @@ const PLANES = {
     vigilanciaFicha: false,
     reporteMensual: false,
     escalacionUrgencias: false,
+    parteEquipo: false,
     constancia: false,
     menciones: false,
     comentariosSociales: false,
@@ -96,6 +97,7 @@ const PLANES = {
     vigilanciaFicha: true,
     reporteMensual: true,
     escalacionUrgencias: true,
+    parteEquipo: true,
     // Lo que sigue siendo el salto a NEGOCIO. No es arbitrario: constancia,
     // menciones y redes son las tres funciones que exigen conexiones externas o
     // respaldo documental, y son las que un local de barrio no pide.
@@ -121,6 +123,7 @@ const PLANES = {
     vigilanciaFicha: true,
     reporteMensual: true,
     escalacionUrgencias: true,
+    parteEquipo: true,
     constancia: true,
     menciones: true,
     comentariosSociales: true,
@@ -144,6 +147,7 @@ const PLANES = {
     vigilanciaFicha: true,
     reporteMensual: true,
     escalacionUrgencias: true,
+    parteEquipo: true,
     constancia: true,
     menciones: true,
     comentariosSociales: true,

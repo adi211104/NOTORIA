@@ -27,6 +27,19 @@
 // El volumen va en escala logarítmica y satura en 500 reseñas: la diferencia
 // entre 10 y 100 reseñas importa muchísimo, y entre 900 y 1000 no importa nada.
 
+// 🔴 El día se calcula en hora de LIMA, no en UTC.
+//
+// `toISOString().slice(0,10)` da la fecha UTC, y Perú va cinco horas por detrás:
+// entre las 19:00 y la medianoche de Lima, UTC ya está en el día siguiente. Un
+// negocio escaneado a las 18:00 y a las 20:00 aparecía con DOS puntos en la
+// curva —y el corte de "últimos 60 días" se movía— por la hora a la que se
+// mirara. Es exactamente el bug que §9 documenta para las fechas que van a
+// SUNAT, por otro camino.
+//
+// Se reutiliza el helper que ya existe para eso en vez de escribir otro: si
+// algún día el servicio deja de ser solo Perú, hay un único sitio que cambiar.
+const { fechaPeru } = require('./tributario');
+
 const PESOS = { rating: 55, volumen: 20, confianza: 15, respuesta: 10 };
 
 // Reseñas a partir de las cuales el volumen deja de sumar. No es un número
@@ -120,7 +133,7 @@ const serie = (snapshots = [], resenas = [], { maximo = 60 } = {}) => {
   // Un snapshot por día (el último de cada día): a 1 h de cadencia, Franquicia
   // generaría 720 puntos al mes y el gráfico sería ruido.
   const porDia = new Map();
-  for (const s of orden) porDia.set(new Date(s.tomadoEn).toISOString().slice(0, 10), s);
+  for (const s of orden) porDia.set(fechaPeru(s.tomadoEn), s);
 
   const dias = [...porDia.entries()].slice(-maximo);
 
