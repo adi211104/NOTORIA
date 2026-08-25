@@ -1564,6 +1564,11 @@ su score de un día para otro sin que su reputación se haya movido.
   pone al pie. Historizarlo de verdad costaba una columna por snapshot y no vale ese precio.
 - La serie agrupa **por día** (el último snapshot de cada uno): a 1 h de cadencia, Franquicia
   daría 720 puntos al mes y el gráfico sería ruido.
+- 🔴 **Ese día se calcula con `tributario.fechaPeru()`, NO con `toISOString()`.** Perú va cinco
+  horas por detrás de UTC, así que entre las 19:00 y la medianoche de Lima un negocio escaneado
+  a las 18:00 y a las 21:00 salía con **dos puntos** en la curva. Es exactamente el bug que §9
+  documenta para las fechas que van a SUNAT, por otro camino — y lo cazó una prueba que solo
+  falla de noche, así que el caso quedó fijado a una hora concreta.
 
 🔴 **El diccionario de temas estaba enterrado en `afiche.generator.js`.** Notoria ya sabía decir
 «cuatro reseñas mencionan demora», pero solo dentro de un PDF que hay que imprimir. Ahora es
@@ -1611,6 +1616,51 @@ es una mejora del aviso, y una mejora no puede ser la razón por la que alguien 
 que le cayó una reseña de 1★.
 
 `node scripts/prueba-panel.js` — **83 comprobaciones**, casi todas sobre silencios y negativas.
+
+**El parte para el equipo** (`lib/parteEquipo.js` + `services/parteEquipo.service.js` +
+`GET /api/negocios/:id/parte-equipo`, 2026-08-24). Tres o cuatro líneas para el grupo de
+WhatsApp del personal, con botón de copiar, **junto al afiche** en la pestaña «Cómo te ven» —
+son hermanos: los dos hablan al equipo y los dos salen de la pantalla.
+
+🔴 **Es lo contrario del resto de la IA del producto.** Toda herramienta de reputación usa el
+modelo para redactar la **respuesta pública**, que es cosmética: le contesta al cliente que ya
+se fue molesto y no le dice nada a quien provocó el motivo. Esto va hacia **adentro**, y es lo
+que convierte a Notoria de vigilante de reputación en herramienta de gestión.
+
+🔴 **Los NÚMEROS los pone el código y la IA solo los redacta.** Este texto lo lee gente que
+estuvo ahí: si dice «cuatro clientes mencionaron demora» y fueron dos, quince personas lo saben
+a la vez y el parte —y de rebote el producto— pierde la credibilidad en un lunes.
+
+🔴 **Y lo que enseñó probarlo contra reseñas reales: EL PROMPT NO BASTA.** Se le prohibió
+expresamente informar de ausencias y usar jerga de estrellas, y en los ocho partes generados
+siguió escribiendo *«No hay elogios por nombre»* y colando *«para que sea un 5★»*. Un modelo de
+20B no cumple prohibiciones de forma fiable. De ahí dos piezas que **no se pueden quitar**:
+- **`sanear()`** — quita lo que se le pidió no escribir. Y lo que hay que vigilar al tocarlo no
+  es que borre, sino que **NO estropee lo que estaba bien**: hay pruebas de que no toca un
+  elogio real por nombre ni un parte ya limpio, y de que quitar un rango se lleva su conector
+  («6 de 4-5★» → «6», no «6 de » colgando).
+- **`cifrasCoherentes()`** — si algún **conteo** no cuadra con los hechos, el parte se tira
+  entero y sale la plantilla. ⚠️ Solo mira conteos: que la IA recoja «esperé 45 minutos» de una
+  reseña es correcto y útil; lo que no puede es contar mal a la gente.
+
+⚠️ **La regla general que deja: para que el modelo HAGA algo, el prompt; para que NO haga algo,
+código.** Un prompt es una petición; un `replace` es una garantía.
+
+⚠️ Y el origen de la fuga de «5★» **no estaba en el prompt** sino en el mensaje de datos, que
+listaba las reseñas como `- 5★: texto`. El modelo copiaba el formato de su entrada.
+
+- **Sin Groq el parte sale igual**, redactado por `plantilla()`. Se comprobó en vivo sin
+  querer: Groq devolvió 429 al repetir las pruebas y el respaldo entró solo.
+- **Cachea una semana** (`Negocio.parteEquipo` / `parteEquipoFecha`): abrir la ficha cuarenta
+  veces cuesta **una** llamada. Y **no descuenta de `iaUsos`** — esa cuota es para lo que el
+  cliente pide a mano, no para un texto automático que no solicitó.
+- **Desde IMPULSO.** Capacidad `parteEquipo` en `lib/planes.js`.
+- Responde **409 `SIN_MATERIAL`** con menos de 2 reseñas en la semana, y el panel esconde la
+  tarjeta: un parte que dice «no pasó nada» cada lunes enseña al equipo a ignorarlo.
+- ⚠️ **Un fallo al copiar tiene mensaje propio y salida.** Decía «no pudimos escribir el parte»
+  con el parte en pantalla; ahora dice que no se pudo copiar y **selecciona el texto** para que
+  baste Ctrl+C. El portapapeles se niega por motivos que no dependen de nosotros.
+- `node scripts/prueba-parte-equipo.js` — **66 comprobaciones**.
 
 **Afiche de la pared** (`src/utils/afiche.generator.js`, `GET /api/negocios/:id/afiche.pdf`).
 Un A4 para imprimir y colgar donde trabaja el equipo: la nota a 96 pt, las reseñas nuevas, las
@@ -1958,6 +2008,7 @@ textos por otros inventados. El procedimiento está en la cabecera del component
 | `lib-env-produccion.js` | No es un script: lo requieren los demás. Arregla la trampa de `railway run`, que da los secretos de producción pero pisa `DATABASE_URL` con el host **interno** de Postgres, inalcanzable desde fuera. Costó tiempo dos veces antes de vivir en un solo sitio |
 | `prueba-anulacion-pendiente.js` | 31 comprobaciones del aviso por comprobante reembolsado y sin anular: los dos anclajes del plazo, el `floor` que no sobreestima, y sobre todo los silencios (VOUCHER, ya anulado, no aceptado) |
 | `prueba-planes.js` | 64 comprobaciones de la tabla de capacidades. Vigila lo que no da señal: que todo plan con precio se COBRE y se BAJE (olvidarlo regala el plan de por vida), que la escalera no pierda capacidades al subir, que un plan desconocido falle CERRADO, y **lee el fuente** para fallar si alguien vuelve a escribir `['NEGOCIO','FRANQUICIA']` a mano |
+| `prueba-parte-equipo.js` | 66 comprobaciones del parte semanal para el equipo. Casi todas sobre lo que el prompt NO consigue: que el saneador quite las frases que el modelo escribe pese a prohibírselo **sin estropear las que estaban bien**, y que un conteo que no cuadre con los hechos tire el parte entero. Incluye una prueba de que el fuente no tiene bytes de control invisibles — un `` mal escapado escribió un `0x08` dentro de una regex y la dejó sin casar nunca, en silencio |
 | `prueba-panel.js` | 83 comprobaciones de score, temas, tareas e impacto. Comprueba que la fórmula del score NO cambió al mudarse al backend (replica la aritmética original), que la tendencia de temas compara porcentajes y no conteos, y que no se inventa una cifra en soles donde el estudio no aplica |
 | `embudo.js` | Foto de solo lectura del embudo, de registro a suscripción viva. Con 11 usuarios no hace falta analítica de producto: hace falta una consulta. Nombra las cuentas atascadas y **avisa de que una «suscripción viva» sin cobro es un plan dado a mano, no un cliente** |
 | `respaldo.js [--verificar <ruta>]` | Copia de la base a JSON, y su verificación. 🔴 Los 1839 snapshots desde julio son lo único que no se puede volver a conseguir —Google enseña la foto de hoy, no la película—; todo lo demás tiene copia en otro sitio. `--verificar` existe porque **tener copia no es saber restaurarla**. ⚠️ El archivo lleva datos personales de terceros (Ley 29733): está en `.gitignore` y no se sube a ningún sitio sin cifrar |
