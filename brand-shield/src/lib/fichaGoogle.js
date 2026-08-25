@@ -57,14 +57,51 @@ const hashHorario = (weekdayText) => {
   return crypto.createHash('sha256').update(weekdayText.join('|')).digest('hex').slice(0, 16);
 };
 
+// Cada cuánto se releen los datos de CONTACTO (teléfono, horario, nombre,
+// dirección).
+//
+// 🔴 Son el grupo Contact Data de Places, que se factura aparte del Basic que la
+// llamada ya paga, y hasta el 2026-08-25 se pedían en CADA escaneo: en
+// Franquicia eso son 720 lecturas al mes de un dato que un negocio cambia una o
+// dos veces en su vida. La ficha cerrada —que es la urgente— NO pasa por acá:
+// `business_status` va en Basic Data y se sigue mirando en cada ciclo, gratis.
+//
+// 24 h es exactamente lo que promete la web («te avisamos el mismo día si algo
+// cambió»), así que el acelerador no recorta ninguna promesa.
+const HORAS_CONTACTO = 24;
+
 // Foto de los datos que se vigilan, tal como llegan de Places.
+//
+// ⚠️ `_leidoEn` NO es un dato de la ficha: es la marca de cuándo se pidió por
+// última vez el grupo Contact Data, y vive dentro de este JSON para no añadir
+// una columna. `compararFichas` solo mira campos con nombre propio, así que una
+// clave extra no puede colarse como un "cambio" — pero si alguna vez esa
+// comparación pasa a recorrer claves genéricamente, hay que excluir las que
+// empiezan por `_`.
 const fotoDeFicha = (result) => ({
   telefono: result?.formatted_phone_number || null,
   direccion: result?.formatted_address || null,
   nombre: result?.name || null,
   horarioHash: hashHorario(result?.opening_hours?.weekday_text),
   horarioTexto: result?.opening_hours?.weekday_text || null,
+  _leidoEn: new Date().toISOString(),
 });
+
+/**
+ * ¿Toca volver a pedirle a Places los campos de contacto de este negocio?
+ *
+ * `true` también cuando nunca se han leído (ref ausente, o una ref antigua de
+ * antes de que existiera `_leidoEn`): la primera lectura no se puede aplazar,
+ * porque es la que establece la referencia contra la que se compara todo.
+ */
+const tocaLeerContacto = (negocio, ahora = Date.now()) => {
+  if (!puedeVigilarFicha(negocio?.usuario?.plan)) return false;
+  const marca = negocio?.fichaGoogleRef?._leidoEn;
+  if (!marca) return true;
+  const t = Date.parse(marca);
+  if (Number.isNaN(t)) return true;
+  return ahora - t >= HORAS_CONTACTO * 60 * 60 * 1000;
+};
 
 // Qué cambió entre dos fotos. Devuelve una lista de cambios legibles, ya
 // redactados para el correo: el worker no tiene que saber de esto.
@@ -123,8 +160,6 @@ const revisarDatosDeFicha = async (negocio, resultadoPlaces) => {
   if (!puedeVigilarFicha(negocio.usuario?.plan)) return [];
 
   const ahora = fotoDeFicha(resultadoPlaces);
-  // Sin ningún dato de contacto no hay nada que vigilar ni que guardar
-  if (!ahora.telefono && !ahora.horarioHash && !ahora.direccion) return [];
 
   const antes = negocio.fichaGoogleRef !== undefined
     ? negocio.fichaGoogleRef
@@ -132,6 +167,25 @@ const revisarDatosDeFicha = async (negocio, resultadoPlaces) => {
         where: { id: negocio.id },
         select: { fichaGoogleRef: true },
       }))?.fichaGoogleRef;
+
+  // Sin ningún dato de contacto no hay nada que vigilar ni que guardar.
+  //
+  // ⚠️ Pero SÍ hay que dejar constancia de que se leyó, y por eso este bloque
+  // dejó de ser un `return` seco. Si no, `tocaLeerContacto` no vería nunca la
+  // marca y volvería a pagar Contact Data en cada ciclo, para siempre, en la
+  // única ficha en la que ese gasto no puede servir de nada.
+  //
+  // Se conserva `antes` en vez de pisarlo con la foto vacía: Places omite
+  // campos de forma intermitente, y guardar los nulos borraría la referencia
+  // buena — que es la misma razón por la que un valor que pasa a `null` tampoco
+  // se reporta como cambio.
+  if (!ahora.telefono && !ahora.horarioHash && !ahora.direccion) {
+    await prisma.negocio.update({
+      where: { id: negocio.id },
+      data: { fichaGoogleRef: { ...(antes || {}), _leidoEn: ahora._leidoEn } },
+    });
+    return [];
+  }
 
   await prisma.negocio.update({
     where: { id: negocio.id },
@@ -153,4 +207,9 @@ module.exports = {
   fotoDeFicha,
   puedeVigilarFicha,
   CAMPOS_CONTACTO,
+  // El acelerador de Contact Data. Se exporta porque romperlo no produce
+  // ninguna señal: la vigilancia sigue funcionando igual de bien y lo único que
+  // cambia es la factura de Google.
+  tocaLeerContacto,
+  HORAS_CONTACTO,
 };

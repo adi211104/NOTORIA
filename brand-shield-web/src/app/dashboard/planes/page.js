@@ -9,7 +9,7 @@ import { useIdioma } from '../../../context/IdiomaContext';
 import { pagos } from '../../../lib/api';
 // Mismo redondeo a céntimos que usa el backend, para que el importe del widget
 // coincida exactamente con el que se cobra.
-import { montoEnCentimos, requiereIdentificacion, UMBRAL_IDENTIFICACION_SOLES } from '../../../lib/catalogo';
+import { montoEnCentimos, requiereIdentificacion, UMBRAL_IDENTIFICACION_SOLES, precioLocalDe } from '../../../lib/catalogo';
 import DatosFiscales from '../../../components/DatosFiscales';
 import BannerPromo from '../../../components/BannerPromo';
 import ResultadoPago from '../../../components/ResultadoPago';
@@ -49,7 +49,7 @@ const PLANES = {
         { texto: 'IA amplia para respuestas y análisis', ok: false },
         { texto: 'Análisis IA de la competencia', ok: false },
         { texto: 'Reportes PDF automáticos', ok: false },
-        { texto: 'Negocios ilimitados en un solo panel', ok: false },
+        { texto: 'Suma los locales que necesites, sin tope', ok: false },
         { texto: 'Soporte prioritario', ok: false },
       ],
       cta: 'Plan actual',
@@ -75,7 +75,7 @@ const PLANES = {
         { texto: 'Compartir el panel con tu equipo', ok: false },
         { texto: 'Conexión de TikTok', ok: false },
         { texto: 'Constancia de reputación verificable', ok: false },
-        { texto: 'Negocios ilimitados en un solo panel', ok: false },
+        { texto: 'Suma los locales que necesites, sin tope', ok: false },
         { texto: 'Soporte prioritario', ok: false },
       ],
       cta: 'Contratar plan Impulso',
@@ -89,7 +89,7 @@ const PLANES = {
       descripcion: 'Para negocios que cuidan su reputación',
       badge: 'Más popular',
       features: [
-        { texto: 'Hasta 5 negocios', ok: true },
+        { texto: '1 local incluido · S/39 por local adicional', ok: true },
         { texto: 'Escaneo cada 4 horas', ok: true },
         { texto: '100 usos de IA a la semana (respuestas y análisis)', ok: true },
         { texto: '5 competidores por negocio', ok: true },
@@ -102,7 +102,7 @@ const PLANES = {
         { texto: 'Boleta o factura electrónica a tu RUC', ok: true },
         { texto: 'Comparte el panel con 2 personas más', ok: true },
         { texto: 'Todo lo del plan Gratuito', ok: true },
-        { texto: 'Negocios ilimitados en un solo panel', ok: false },
+        { texto: 'Suma los locales que necesites, sin tope', ok: true },
         { texto: 'Soporte prioritario', ok: false },
       ],
       // No decir "7 días gratis": NO existe periodo de prueba. El cobro es
@@ -119,7 +119,7 @@ const PLANES = {
       precioAnual: 143,
       descripcion: 'Para cadenas, grupos hoteleros y agencias',
       features: [
-        { texto: 'Negocios ilimitados', ok: true },
+        { texto: '1 local incluido · S/99 por local adicional', ok: true },
         { texto: 'Escaneo cada hora', ok: true },
         { texto: '300 usos de IA a la semana', ok: true },
         { texto: '15 competidores por negocio', ok: true },
@@ -132,7 +132,7 @@ const PLANES = {
         { texto: 'Boleta o factura electrónica a tu RUC', ok: true },
         { texto: 'Comparte el panel con 9 personas más', ok: true },
         { texto: 'Da acceso a cada encargado solo a su sede', ok: true },
-        { texto: 'Negocios ilimitados en un solo panel', ok: true },
+        { texto: 'Suma los locales que necesites, sin tope', ok: true },
         { texto: 'Soporte prioritario por correo', ok: true },
         { texto: 'Todo lo del plan Negocio', ok: true },
       ],
@@ -165,7 +165,7 @@ const PLANES = {
         { texto: 'Extended AI for replies and analysis', ok: false },
         { texto: 'AI competitor analysis', ok: false },
         { texto: 'Automatic PDF reports', ok: false },
-        { texto: 'Unlimited businesses in one dashboard', ok: false },
+        { texto: 'Add as many locations as you need, no cap', ok: false },
         { texto: 'Priority support', ok: false },
       ],
       cta: 'Current plan',
@@ -191,7 +191,7 @@ const PLANES = {
         { texto: 'Share the dashboard with your team', ok: false },
         { texto: 'TikTok connection', ok: false },
         { texto: 'Verifiable reputation certificate', ok: false },
-        { texto: 'Unlimited businesses in one dashboard', ok: false },
+        { texto: 'Add as many locations as you need, no cap', ok: false },
         { texto: 'Priority support', ok: false },
       ],
       cta: 'Get the Impulso plan',
@@ -205,7 +205,7 @@ const PLANES = {
       descripcion: 'For businesses that care about their reputation',
       badge: 'Most popular',
       features: [
-        { texto: 'Up to 5 businesses', ok: true },
+        { texto: '1 location included · S/39 per extra location', ok: true },
         { texto: 'Scan every 4 hours', ok: true },
         { texto: '100 AI uses per week (replies and analysis)', ok: true },
         { texto: '5 competitors per business', ok: true },
@@ -218,7 +218,7 @@ const PLANES = {
         { texto: 'Automatic electronic invoice (SUNAT, Peru)', ok: true },
         { texto: 'Share the dashboard with 2 more people', ok: true },
         { texto: 'Everything in the Free plan', ok: true },
-        { texto: 'Unlimited businesses in one dashboard', ok: false },
+        { texto: 'Add as many locations as you need, no cap', ok: true },
         { texto: 'Priority support', ok: false },
       ],
       cta: 'Get the Business plan', // ver la nota del plan Negocio en español
@@ -231,7 +231,7 @@ const PLANES = {
       precioAnual: 143,
       descripcion: 'For chains, hotel groups and agencies',
       features: [
-        { texto: 'Unlimited businesses', ok: true },
+        { texto: '1 location included · S/99 per extra location', ok: true },
         { texto: 'Scan every hour', ok: true },
         { texto: '300 AI uses per week', ok: true },
         { texto: '15 competitors per business', ok: true },
@@ -244,7 +244,7 @@ const PLANES = {
         { texto: 'Give each manager access to their location only', ok: true },
         { texto: 'Monthly PDF report', ok: true },
         { texto: 'Automatic electronic invoice (SUNAT, Peru)', ok: true },
-        { texto: 'Unlimited businesses in one dashboard', ok: true },
+        { texto: 'Add as many locations as you need, no cap', ok: true },
         { texto: 'Priority email support', ok: true },
         { texto: 'Everything in the Business plan', ok: true },
       ],
@@ -274,6 +274,14 @@ const TEXTOS = {
     promoBienvenida: '50% OFF tus primeros 2 meses',
     planActivo: 'Plan activo',
     soloPropietario: 'Solo el propietario de la cuenta puede cambiar de plan',
+    locales: {
+      titulo: 'Locales a monitorear',
+      quitar: 'Quitar un local',
+      sumar: 'Sumar un local',
+      // El primero va incluido, así que solo se nombra el precio de los demás.
+      extra: (S, precio, anual) =>
+        precio ? `El primero va incluido · ${S}${precio} por cada local extra ${anual ? 'al año' : 'al mes'}` : '',
+    },
     valorTitulo: '¿Por qué vale la pena pagar?',
     valorItems: [
       { t:'Cada hora importa', d:'Un ataque de reseñas falsas puede destruir semanas de trabajo en una noche. Con escaneo cada 4 horas, actúas antes de que el daño sea irreversible.' },
@@ -302,6 +310,13 @@ const TEXTOS = {
     promoBienvenida: '50% OFF your first 2 months',
     planActivo: 'Active plan',
     soloPropietario: 'Only the account owner can change the plan',
+    locales: {
+      titulo: 'Locations to monitor',
+      quitar: 'Remove a location',
+      sumar: 'Add a location',
+      extra: (S, precio, anual) =>
+        precio ? `First one included · ${S}${precio} per extra location ${anual ? 'a year' : 'a month'}` : '',
+    },
     valorTitulo: 'Why is it worth paying?',
     valorItems: [
       { t:'Every hour matters', d:'A fake-review attack can destroy weeks of work in one night. With scans every 4 hours, you act before the damage becomes irreversible.' },
@@ -342,6 +357,17 @@ export default function PlanesPage() {
   // Plan que espera los datos de facturación antes de poder cobrarse
   const [pidiendoDatos, setPidiendoDatos] = useState(null);
   const puedeUsarPromo = !promoRechazada && !usuario?.promoBienvenidaUsada;
+  // Locales TOTALES elegidos por plan (nunca menos de 1: el primero va incluido).
+  // Se guarda por plan y no en una sola variable porque en esta pantalla
+  // conviven varias tarjetas y el número de locales de Negocio no es el de
+  // Franquicia — cuestan distinto.
+  const [locales, setLocales] = useState({});
+  // ⚠️ Se pregunta a la tabla de capacidades, no a `plan.id === 'FRANQUICIA'`:
+  // es la regla del proyecto y acá evita que un plan nuevo nazca sin selector.
+  const vendeLocales = (planId) => CAPACIDADES_PLAN[planId]?.localesAdicionales === true;
+  const localesDe = (planId) => Math.max(1, locales[planId] || 1);
+  const cambiarLocales = (planId, delta) =>
+    setLocales((prev) => ({ ...prev, [planId]: Math.max(1, Math.min(50, (prev[planId] || 1) + delta)) }));
 
   // Callback global que exige el widget de Checkout de Culqi (window.culqi)
   useEffect(() => {
@@ -361,7 +387,13 @@ export default function PlanesPage() {
       setProcesando(true);
       setErrorPago('');
       try {
-        const resultado = await pagos.suscribir({ token, plan, anual: esAnual, sinPromo: window.__notoriaSinPromo });
+        const resultado = await pagos.suscribir({
+          token, plan, anual: esAnual,
+          sinPromo: window.__notoriaSinPromo,
+          // El backend lo vuelve a validar y a tarifar; esto solo dice cuántos
+          // eligió el usuario. Un plan que no venda locales lo ignora.
+          localesExtra: window.__notoriaLocalesPendiente || 0,
+        });
         await refrescarPerfil();
         // Confirmación a pantalla completa: antes esta pantalla no daba NINGÚN
         // aviso de que el pago hubiera salido bien.
@@ -403,18 +435,26 @@ export default function PlanesPage() {
         return;
       }
 
+      // Los locales por encima del incluido se cobran aparte (ver lib/catalogo.js).
+      // Entran en el total ANTES del umbral de S/700 a propósito: tres locales de
+      // Franquicia anual lo cruzan de sobra, y calcularlo sin ellos dejaría de
+      // pedir los datos fiscales justo en las ventas más grandes.
+      const extras = vendeLocales(plan.id) ? localesDe(plan.id) - 1 : 0;
+      const precioLocal = precioLocalDe(plan.id, anual ? 'anual' : 'mensual') || 0;
+
       // Desde S/700 el comprobante debe identificar al comprador: los datos se
       // piden antes de abrir el pago. El backend lo vuelve a exigir.
-      const totalSoles = anual ? plan.precioAnual * 12 : plan.precio;
+      const totalSoles = (anual ? plan.precioAnual * 12 : plan.precio) + extras * precioLocal;
       if (!datosYaTomados && requiereIdentificacion(totalSoles) && !usuario?.docNumero) {
         setPidiendoDatos({ nombre: `Plan ${plan.nombre} anual`, precio: totalSoles, plan });
         return;
       }
 
-      const precioBase = anual ? plan.precioAnual * 12 : plan.precio;
+      const precioBase = totalSoles;
       const aplicaPromo = !anual && puedeUsarPromo;
       window.__notoriaPlanPendiente = plan.id;
       window.__notoriaAnualPendiente = anual;
+      window.__notoriaLocalesPendiente = extras;
       // En window, no en estado: el callback global de Culqi se monta una vez y
       // se quedaría con el valor viejo.
       window.__notoriaSinPromo = !aplicaPromo;
@@ -487,6 +527,14 @@ export default function PlanesPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(232px,1fr))', gap: 14, marginBottom: 32 }}>
         {planes.map((plan) => {
           const precio = anual ? plan.precioAnual : plan.precio;
+          // ⚠️ El importe que se PINTA tiene que incluir los locales elegidos.
+          // Si no, la tarjeta anuncia S/59 y el widget de Culqi cobra S/137 —
+          // exactamente el fallo que ya hubo con la promo, que mostraba S/30 y
+          // cobraba S/29.50. Lo que se ve antes de pagar es lo que se cobra.
+          const extrasPlan = vendeLocales(plan.id) ? localesDe(plan.id) - 1 : 0;
+          const precioExtraPlan = extrasPlan * (precioLocalDe(plan.id, anual ? 'anual' : 'mensual') || 0);
+          const totalAnual = plan.precioAnual * 12 + precioExtraPlan;
+          const totalMensual = precio + precioExtraPlan;
           const esPlanActual = planActual === plan.id;
           const featured = plan.id === 'NEGOCIO';
 
@@ -522,7 +570,7 @@ export default function PlanesPage() {
                   <div>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
                       <span style={{ color: 'var(--text-2)', fontSize: 16 }}>{S}</span>
-                      <span style={{ fontSize: 36, fontWeight: 900, color: 'var(--text)', letterSpacing: '-1.5px' }}>{plan.precioAnual*12}</span>
+                      <span style={{ fontSize: 36, fontWeight: 900, color: 'var(--text)', letterSpacing: '-1.5px' }}>{totalAnual}</span>
                       <span style={{ color: 'var(--text-3)', fontSize: 13 }}>{t.anio}</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
@@ -534,7 +582,7 @@ export default function PlanesPage() {
                   <div>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
                       <span style={{ color: 'var(--text-2)', fontSize: 16 }}>{S}</span>
-                      <span style={{ fontSize: 36, fontWeight: 900, color: 'var(--text)', letterSpacing: '-1.5px' }}>{precio}</span>
+                      <span style={{ fontSize: 36, fontWeight: 900, color: 'var(--text)', letterSpacing: '-1.5px' }}>{totalMensual}</span>
                       <span style={{ color: 'var(--text-3)', fontSize: 13 }}>{t.mes}</span>
                     </div>
                     {plan.id === 'NEGOCIO' && puedeUsarPromo && (
@@ -550,6 +598,51 @@ export default function PlanesPage() {
                   </div>
                 )}
               </div>
+
+              {/* Selector de locales. Solo aparece en los planes que los venden
+                  y solo a quien puede contratar: al invitado del equipo se le
+                  enseñaría un control que no puede usar.
+
+                  El primero va incluido en el plan, así que el mínimo es 1 y el
+                  contador cuenta LOCALES, no extras — «2 locales» se entiende y
+                  «1 local adicional» obliga a hacer una suma mental para saber
+                  cuántos tendrás. El importe se recalcula a la vista, que es lo
+                  que evita la sorpresa en el widget de Culqi. */}
+              {vendeLocales(plan.id) && puede('facturacion') && !esPlanActual && (
+                <div style={{
+                  display:'flex', alignItems:'center', justifyContent:'space-between', gap:10,
+                  background:'var(--surface2)', border:'1px solid var(--border-c)', borderRadius:6,
+                  padding:'9px 12px', marginBottom:12,
+                }}>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ fontSize:12.5, color:'var(--text-2)' }}>{t.locales.titulo}</div>
+                    <div style={{ fontSize:10.5, color:'var(--text-3)', marginTop:2 }}>
+                      {t.locales.extra(S, precioLocalDe(plan.id, anual ? 'anual' : 'mensual'), anual)}
+                    </div>
+                  </div>
+                  <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
+                    <button type="button" aria-label={t.locales.quitar}
+                      onClick={() => cambiarLocales(plan.id, -1)}
+                      disabled={localesDe(plan.id) <= 1}
+                      style={{
+                        width:26, height:26, borderRadius:5, border:'1px solid var(--border-c)',
+                        background:'var(--surface)', color:'var(--text-2)', fontSize:15, lineHeight:1,
+                        cursor: localesDe(plan.id) <= 1 ? 'default' : 'pointer',
+                        opacity: localesDe(plan.id) <= 1 ? 0.4 : 1, fontFamily:GEO,
+                      }}>−</button>
+                    <span style={{ fontSize:14, fontWeight:700, color:'var(--text)', minWidth:18, textAlign:'center', fontVariantNumeric:'tabular-nums' }}>
+                      {localesDe(plan.id)}
+                    </span>
+                    <button type="button" aria-label={t.locales.sumar}
+                      onClick={() => cambiarLocales(plan.id, 1)}
+                      style={{
+                        width:26, height:26, borderRadius:5, border:'1px solid var(--border-c)',
+                        background:'var(--surface)', color:'var(--text-2)', fontSize:15, lineHeight:1,
+                        cursor:'pointer', fontFamily:GEO,
+                      }}>+</button>
+                  </div>
+                </div>
+              )}
 
               {/* CTA — solo el propietario contrata. Al equipo invitado se le
                   deja ver la comparativa (le explica qué funciones tiene la

@@ -54,6 +54,7 @@ const PLANES = {
     competidores: 1,
     asientos: 1,
     // Capacidades
+    localesAdicionales: false,
     vigilanciaFicha: false,
     reporteMensual: false,
     escalacionUrgencias: false,
@@ -94,6 +95,7 @@ const PLANES = {
     // Un asiento: compartir el panel con el equipo es lo que define NEGOCIO.
     // Cuenta al dueño (ver lib/equipo.js), así que 1 = solo él.
     asientos: 1,
+    localesAdicionales: false,
     vigilanciaFicha: true,
     reporteMensual: true,
     escalacionUrgencias: true,
@@ -115,11 +117,20 @@ const PLANES = {
     id: 'NEGOCIO',
     etiqueta: 'Plan Negocio',
     esDePago: true,
-    negocios: 5,
+    // 🔴 Un local incluido, no cinco. Cambiado el 2026-08-25 junto con
+    // FRANQUICIA y por el mismo motivo: a 4 h un local cuesta ~S/25/mes en
+    // consultas a Places, así que «hasta 5 locales por S/59» perdía dinero
+    // desde el tercero. Los de más se cobran (`PRECIOS.NEGOCIO.local`).
+    //
+    // Lo que separa NEGOCIO de IMPULSO deja de ser el número de locales y pasa
+    // a ser lo que siempre lo separó de verdad: la velocidad (4 h contra 12),
+    // las redes, el equipo, las menciones y la constancia.
+    negocios: 1,
     horasEscaneo: 4,
     iaSemanal: 100,
     competidores: 5,
     asientos: 3,
+    localesAdicionales: true,
     vigilanciaFicha: true,
     reporteMensual: true,
     escalacionUrgencias: true,
@@ -138,8 +149,25 @@ const PLANES = {
     id: 'FRANQUICIA',
     etiqueta: 'Plan Franquicia',
     esDePago: true,
-    // Sin tope de locales — es literalmente lo que se promete en /precios.
-    negocios: Infinity,
+    // 🔴 Un local INCLUIDO, no infinitos. Cambiado el 2026-08-25.
+    //
+    // Decía `Infinity` porque la web prometía «negocios ilimitados», y eso no se
+    // podía sostener: cada local vigilado cuesta consultas a Google Places y ese
+    // costo crece con el número de locales mientras el precio era plano. A la
+    // cadencia de una hora que vende este plan, un local cuesta ~S/88/mes: dos
+    // se comían los S/179 enteros y del tercero en adelante cada cliente NUEVO
+    // costaba dinero. Y no lo delataba nada — la factura de Google no distingue
+    // de quién fue cada consulta, así que habría aparecido como «Places subió»
+    // justo cuando por fin entraran clientes grandes.
+    //
+    // Los locales de más se cobran (`PRECIO_LOCAL` en lib/precios.js). El tope
+    // real de un usuario NO es este número: es `negociosPermitidos()`, que le
+    // suma lo que pagó.
+    negocios: 1,
+    // Solo este plan vende locales sueltos. Se declara como capacidad para que
+    // el cobro pregunte a la tabla en vez de comprobar `plan === 'FRANQUICIA'`,
+    // que es exactamente el patrón que este archivo existe para eliminar.
+    localesAdicionales: true,
     horasEscaneo: 1,
     iaSemanal: 300,
     competidores: 15,
@@ -205,6 +233,18 @@ const etiquetaDe = (plan) => capacidades(plan).etiqueta;
  */
 const limiteLegible = (n) => (Number.isFinite(n) ? String(n) : 'ilimitados');
 
+/**
+ * Cuántos locales puede tener este usuario: los que incluye su plan más los que
+ * paga aparte. Se reexporta desde `lib/precios.js` para que los call-sites
+ * tengan UN solo sitio al que preguntar por el tope — la alternativa era que
+ * cada ruta sumara `limite(plan,'negocios') + usuario.localesExtra` por su
+ * cuenta, que es justo la clase de aritmética repetida que este archivo existe
+ * para eliminar. El cálculo vive en `precios.js` porque depende de lo COBRADO,
+ * no de la capacidad.
+ */
+const negociosPermitidos = (plan, localesExtra = 0) =>
+  require('./precios').localesPermitidos(plan, localesExtra);
+
 module.exports = {
   PLANES,
   ORDEN,
@@ -215,4 +255,5 @@ module.exports = {
   planesCon,
   etiquetaDe,
   limiteLegible,
+  negociosPermitidos,
 };

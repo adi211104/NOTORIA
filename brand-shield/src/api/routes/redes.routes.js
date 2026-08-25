@@ -14,6 +14,7 @@ const tiktokBiz = require('../../scrapers/tiktokBusiness.scraper');
 const { firmarState, verificarState } = require('../../lib/oauthState');
 const { instagramVisiblePara } = require('../../lib/instagramVisible');
 const { facebookVisiblePara } = require('../../lib/facebookVisible');
+const gbp = require('../../lib/gbpVisible');
 
 const router = express.Router();
 
@@ -417,6 +418,15 @@ router.get('/:negocioId/estado', async (req, res, next) => {
     if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
 
     res.json({
+      // Google Business Profile. No es una "red social" y no va gateado por
+      // plan como las tres de abajo, pero SÍ pasa por el mismo interruptor:
+      // Google tiene las GBP APIs con cuota 0 y el flujo autoriza y revienta
+      // después (ver `lib/gbpVisible.js`). El panel esconde la fila cuando
+      // viene `disponible:false`.
+      gbp: {
+        disponible: gbp.configurado() && gbp.gbpVisiblePara(req.cuenta),
+        conectado: !!negocio.gbpAccessToken,
+      },
       instagram: {
         // Mientras los permisos sigan en acceso estándar esto es false para
         // todo el mundo salvo las cuentas de prueba (ver lib/instagramVisible).

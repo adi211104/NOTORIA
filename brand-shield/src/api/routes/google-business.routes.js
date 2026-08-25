@@ -9,6 +9,7 @@ const { autenticar, permitir } = require('../middlewares/auth.middleware');
 const { dondeNegocio, registrar } = require('../../lib/equipo');
 const { listarCuentas, listarUbicaciones } = require('../../scrapers/google-business.scraper');
 const { firmarState, verificarState } = require('../../lib/oauthState');
+const { gbpVisiblePara } = require('../../lib/gbpVisible');
 
 const router = express.Router();
 
@@ -50,6 +51,21 @@ router.get('/iniciar', async (req, res) => {
     select: { id: true },
   });
   if (!propio) return res.status(404).json({ error: 'Negocio no encontrado' });
+
+  // 🔴 Google no ha concedido acceso a las GBP APIs (cuota RPM = 0), así que
+  // este flujo autoriza de verdad y revienta después, en `listarCuentas`. El
+  // cliente concede permisos sobre su ficha real y recibe un error genérico.
+  // Ver `lib/gbpVisible.js` para el porqué y para cómo se enciende.
+  //
+  // **404 y no 403**, igual que Instagram: no es que le falte un permiso, es que
+  // la función no existe para él. Un 403 invita a pedir acceso a alguien.
+  const dueno = await prisma.usuario.findUnique({
+    where: { id: payload.id },
+    select: { email: true },
+  });
+  if (!gbpVisiblePara(dueno)) {
+    return res.status(404).json({ error: 'Ruta no encontrada' });
+  }
 
   // State firmado con HMAC (ver src/lib/oauthState.js) — no falsificable + expira.
   const state = firmarState({ negocioId, userId: payload.id });

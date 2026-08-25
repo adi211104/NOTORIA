@@ -45,6 +45,11 @@ model Usuario {
   periodoFacturacion   String? // "mensual" | "anual" — ciclo activo, lo usa el cron de renovación para saber qué monto y qué plazo cobrar
   promoBienvenidaUsada Boolean       @default(false) // 50% off los primeros 2 meses en plan mensual — una sola vez por cuenta, se marca en el primer cobro aunque luego cancele
   mesesPromoRestantes  Int           @default(0) // cuántas renovaciones mensuales aún faltan cobrar con el 50% de la promo de bienvenida
+  // Locales ADICIONALES al que incluye el plan, y que el cliente paga aparte
+  // (ver lib/precios.js). El tope real de negocios no es el del plan sino
+  // `negociosPermitidos(plan, localesExtra)`. Aditiva y con default 0: una fila
+  // vieja se comporta exactamente como antes, con el local incluido y nada más.
+  localesExtra         Int           @default(0)
   // Contador semanal de respuestas generadas con IA (se reinicia cada semana)
   iaUsos               Int           @default(0)
   iaSemana             String?

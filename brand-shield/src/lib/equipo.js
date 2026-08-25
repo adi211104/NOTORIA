@@ -158,6 +158,12 @@ const resolverAcceso = async (usuario, cuentaPedida) => {
         email: usuario.email,
         plan: usuario.plan,
         suscripcionActiva: usuario.suscripcionActiva,
+        // 🔴 Sin esto, un cliente que PAGÓ locales adicionales no podría
+        // cargarlos: `negociosPermitidos` recibiría `undefined`, lo leería como
+        // 0 y le aplicaría el tope del plan pelado. Falla cerrado y en
+        // silencio, que es la peor combinación — el cliente pagó y la pantalla
+        // le dice que actualice el plan que ya tiene.
+        localesExtra: usuario.localesExtra,
         propia: true,
       },
       rol: 'PROPIETARIO',
@@ -168,7 +174,7 @@ const resolverAcceso = async (usuario, cuentaPedida) => {
   const miembro = await prisma.miembro.findUnique({
     where: { cuentaId_usuarioId: { cuentaId: cuentaPedida, usuarioId: usuario.id } },
     include: {
-      cuenta: { select: { id: true, nombre: true, email: true, plan: true, suscripcionActiva: true } },
+      cuenta: { select: { id: true, nombre: true, email: true, plan: true, suscripcionActiva: true, localesExtra: true } },
     },
   });
 
@@ -202,6 +208,32 @@ const resolverAcceso = async (usuario, cuentaPedida) => {
     // duda que acaba en un IN vacío que no devuelve nada.
     alcance: miembro.negociosIds.length > 0 ? miembro.negociosIds : null,
   };
+};
+
+/**
+ * Los negocios que una cuenta tiene DERECHO a que se vigilen, por antigüedad.
+ *
+ * 🔴 Es el gemelo del corte por asientos, y existe por el mismo motivo. Desde el
+ * 2026-08-25 los locales se cobran de a uno (ver lib/precios.js), y sin un corte
+ * bastaría con contratar diez locales un mes, bajar a uno y seguir teniendo diez
+ * fichas vigiladas para siempre: cada una gastando consultas a Places que ya no
+ * paga nadie. Bajar de plan tampoco lo detectaría, porque el tope solo se
+ * comprobaba al CREAR un negocio.
+ *
+ * ⚠️ No se desactiva ni se borra nada — eso sería destruir datos del cliente por
+ * un cambio de plan, igual que con las membresías. Simplemente se dejan fuera
+ * del ciclo de monitoreo hasta que vuelva a pagarlos.
+ *
+ * ⚠️ El corte es por ANTIGÜEDAD, no por el orden que devuelva la consulta. Si
+ * dependiera del orden, dos locales se turnarían la vigilancia entre ciclos y el
+ * cliente vería el historial de los dos lleno de huecos.
+ */
+const negociosVigilables = (negocios, plan, localesExtra) => {
+  const tope = require('./planes').negociosPermitidos(plan, localesExtra);
+  if (!Number.isFinite(tope) || negocios.length <= tope) return negocios;
+  return [...negocios]
+    .sort((a, b) => new Date(a.creadoEn) - new Date(b.creadoEn))
+    .slice(0, tope);
 };
 
 /** Las cuentas en las que esta persona puede trabajar (para el selector). */
@@ -324,6 +356,7 @@ module.exports = {
   equipoDeCuenta,
   contarAsientos,
   resolverAcceso,
+  negociosVigilables,
   cuentasDe,
   registrar,
   copiasDeAlerta,

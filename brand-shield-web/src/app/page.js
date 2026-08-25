@@ -143,7 +143,16 @@ const TEXTOS = {
       pasos: [
         { n:'1', t:'Agrega tu negocio', d:'Búscalo en Google Maps y selecciónalo. El rating y los datos se importan al instante.' },
         { n:'2', t:'Suma a tus competidores', d:'Elige a tus rivales directos. Notoria compara tu rating con el de ellos en cada escaneo.' },
-        { n:'3', t:'Conecta Google Business', d:'Acceso completo a todas tus reseñas, no solo las últimas 5 de la API pública.' },
+        // ⚠️ Este paso mandaba a enlazar el perfil de empresa de Google,
+        // prometiendo acceso completo al historial de reseñas. Google no ha
+        // concedido acceso a esas APIs (cuota RPM = 0) y el botón autorizaba y
+        // reventaba después, así que era el paso 3 de cuatro mandando al cliente
+        // nuevo a lo único roto del producto. Ver `lib/gbpVisible.js` en el
+        // backend: al encender el interruptor hay que devolver la frase.
+        //
+        // ⚠️ Y no volver a escribirla en un comentario: `prueba-gbp-visible.js`
+        // busca la frase literal en el fuente y no distingue código de nota.
+        { n:'3', t:'Enciende las alertas', d:'Eliges qué te avisamos y a qué correo. Desde ahí Notoria escanea sola y te escribe solo cuando pasa algo.' },
       ],
     },
     competencia: {
@@ -210,10 +219,10 @@ const TEXTOS = {
           si:['1 negocio monitoreado','Escaneo cada 12 horas','Aviso si te cambian el teléfono, el horario o la dirección en Google','25 usos de IA a la semana','3 competidores monitoreados','Aviso si una crítica lleva 24h sin respuesta','Reporte PDF mensual','Boleta o factura electrónica a tu RUC','Todo lo del plan Gratuito'],
           no:['Compartir el panel con tu equipo','Conexión de TikTok','Constancia de reputación verificable'] },
         { n:'Negocio', p:59, badge:true,
-          si:['Hasta 5 negocios','Escaneo cada 4 horas','100 usos de IA a la semana (respuestas y análisis)','5 competidores por negocio','Aviso si te cambian el teléfono, el horario o la dirección en Google','Constancia de reputación verificable','Conexión de TikTok (perfil y videos)','Reporte PDF mensual','Boleta o factura electrónica a tu RUC','Comparte el panel con 2 personas más','Alertas por email y en la app Android','Todo lo del plan Gratuito'],
+          si:['1 local incluido · S/39 por local adicional','Escaneo cada 4 horas','100 usos de IA a la semana (respuestas y análisis)','5 competidores por negocio','Aviso si te cambian el teléfono, el horario o la dirección en Google','Constancia de reputación verificable','Conexión de TikTok (perfil y videos)','Reporte PDF mensual','Boleta o factura electrónica a tu RUC','Comparte el panel con 2 personas más','Alertas por email y en la app Android','Todo lo del plan Gratuito'],
           no:[] },
         { n:'Franquicia', p:179,
-          si:['Negocios ilimitados','Escaneo cada hora','300 usos de IA a la semana','15 competidores por negocio','Conexión de TikTok (perfil y videos)','Reporte PDF mensual','Comparte el panel con 9 personas más, cada uno solo con su sede','Alertas por email y en la app Android','Soporte prioritario por correo','Todo lo del plan Negocio'],
+          si:['1 local incluido · S/99 por local adicional','Escaneo cada hora','300 usos de IA a la semana','15 competidores por negocio','Conexión de TikTok (perfil y videos)','Reporte PDF mensual','Comparte el panel con 9 personas más, cada uno solo con su sede','Alertas por email y en la app Android','Soporte prioritario por correo','Todo lo del plan Negocio'],
           no:[] },
       ],
     },
@@ -229,7 +238,8 @@ const TEXTOS = {
       columnas:['Gratuito','Impulso','Negocio','Franquicia'],
       filas:[
         { grupo:'Alcance y velocidad de reacción' },
-        { label:'Negocios monitoreados', valores:['1','1','Hasta 5','Ilimitados'] },
+        { label:'Locales incluidos', valores:['1','1','1','1'] },
+        { label:'Locales adicionales', valores:['—','—','S/39 c/u','S/99 c/u'] },
         { label:'Un ataque se detecta en máximo', valores:['24 horas','12 horas','4 horas','1 hora'] },
         { label:'Aviso si tu ficha aparece cerrada en Google', valores:[true,true,true,true] },
         { label:'Aviso si te cambian el teléfono, el horario o la dirección en Google', valores:[false,true,true,true] },
@@ -256,7 +266,7 @@ const TEXTOS = {
         { grupo:'Canales y fuentes' },
         { label:'Conexión de TikTok (perfil y videos)', valores:[false,false,true,true] },
         { grupo:'Para cadenas y grupos' },
-        { label:'Negocios ilimitados en un solo panel', valores:[false,false,false,true] },
+        { label:'Suma los locales que necesites, sin tope', valores:[false,false,true,true] },
         { grupo:'Facturación y soporte' },
         { label:'Boleta o factura electrónica a tu RUC, automática', valores:[false,true,true,true] },
         { label:'Soporte', valores:['Estándar','Estándar','Prioritario','Prioritario por correo'] },
@@ -267,11 +277,16 @@ const TEXTOS = {
       items: [
         { q:'¿Necesito tarjeta de crédito para empezar?', a:'No. El plan Gratuito es gratis para siempre e incluye 1 negocio monitoreado, score de reputación, QR para pedir reseñas y alertas por email. Solo pides una tarjeta si decides subir a un plan de pago.' },
         { q:'¿Cómo detecta Notoria las reseñas falsas?', a:'Analizamos patrones típicos de ataques: reseñas que repiten el mismo texto desde cuentas distintas, calificaciones de 1 estrella sin ningún comentario, acusaciones graves, y picos de reseñas muy por encima del ritmo habitual de tu propia ficha. Cada reseña sospechosa se marca con el motivo para que puedas reportarla en Google.' },
-        { q:'¿Por qué solo veo 5 reseñas si mi negocio tiene cientos?', a:'La API pública de Google entrega máximo las 5 reseñas más recientes por consulta, es un límite de Google. Al conectar Google Business Profile (gratis, tardas 1 minuto), Notoria accede a todo tu historial de reseñas y puedes responderlas directamente.' },
-        { q:'¿Qué es Google Business Profile y qué necesito para conectarlo?', a:'Es la cuenta gratuita de Google con la que se administra la ficha de tu negocio en Google Maps (la que muestra horarios, fotos y reseñas). Para conectarla en Notoria debes iniciar sesión con el correo de Google que la administra: el que la creó o el que fue agregado como propietario/gerente. Si no tienes acceso a ese correo (por ejemplo, lo configuró un empleado anterior o una agencia), poco se puede hacer desde Notoria: pide a quien lo gestiona que te agregue como gerente en Google Business Profile, o inicia tú mismo el proceso de reclamo de propiedad directamente con Google. Mientras tanto, tu negocio sigue monitoreado normalmente, solo que verás únicamente las 5 reseñas públicas más recientes.' },
-        { q:'¿Puedo responder las reseñas desde Notoria?', a:'Sí. Tienes 30 plantillas profesionales según las estrellas de la reseña y un asistente de IA que redacta la respuesta por ti. Guardamos tu respuesta, la copiamos al portapapeles y te abrimos Google Maps para publicarla. Con Google Business conectado, la publicación será directa.' },
+        // ⚠️ Estas tres preguntas prometían Google Business Profile: «gratis,
+        // tardas 1 minuto», «acceso a todo tu historial» y «la publicación será
+        // directa». Google no ha concedido acceso a esas APIs, así que las tres
+        // eran falsas y la de en medio explicaba cómo hacer algo imposible.
+        // Reescritas el 2026-08-25 diciendo lo que el producto sí hace.
+        { q:'¿Por qué solo veo 5 reseñas si mi negocio tiene cientos?', a:'La API pública de Google entrega como máximo las 5 reseñas más recientes por consulta; es un límite de Google, no de Notoria. Por eso Notoria no funciona leyendo tu pasado sino vigilando lo que entra: escanea tu ficha cada 24, 12, 4 o 1 hora según tu plan y guarda cada reseña nueva que aparece. A las pocas semanas tienes muy por encima de cinco, y desde el día que te registras no se te escapa ninguna. Lo que no hacemos es importar hacia atrás las que ya estaban.' },
+        { q:'¿Qué pasa si alguien cambia los datos de mi ficha en Google?', a:'Google Maps permite que cualquier persona sugiera cambios sobre la ficha de un negocio ajeno —el horario, el teléfono, la dirección, incluso marcarla como cerrada permanentemente— y los aplica sin avisarle al dueño. Notoria compara esos datos en cada escaneo y te avisa el mismo día si algo cambió. El aviso de ficha cerrada está en todos los planes, incluido el Gratuito; el de teléfono, horario, nombre y dirección desde el plan Impulso.' },
+        { q:'¿Puedo responder las reseñas desde Notoria?', a:'Sí. Tienes 30 plantillas profesionales según las estrellas de la reseña y un asistente de IA que redacta la respuesta por ti. Guardamos tu respuesta, la copiamos al portapapeles y te abrimos tu ficha en Google Maps para que la pegues. La respuesta la publicas tú, en un clic.' },
         { q:'¿Qué pasa si mi rating cae de repente?', a:'Notoria lo detecta en el siguiente escaneo y te envía una alerta inmediata por email —y una notificación en el teléfono si tienes instalada la app de Android— con el detalle de qué pasó: cuántas reseñas negativas, de qué cuentas y si tienen patrones de bot. Tú decides qué alertas recibir y con qué frecuencia.' },
-        { q:'¿Cómo sabe Notoria quiénes son mis competidores?', a:'Tú los eliges. Los buscas igual que a tu negocio, en Google Maps, y los agregas a la lista (1 en el plan Gratuito, 5 en Negocio y 15 en Franquicia por cada negocio). Además, en el plan Franquicia Notoria busca por su cuenta locales de tu mismo rubro a la redonda y te los propone, para que descubras rivales que quizá no tenías fichados.' },
+        { q:'¿Cómo sabe Notoria quiénes son mis competidores?', a:'Tú los eliges. Los buscas igual que a tu negocio, en Google Maps, y los agregas a la lista (1 en el plan Gratuito, 3 en Impulso, 5 en Negocio y 15 en Franquicia por cada negocio). Además, en el plan Franquicia Notoria busca por su cuenta locales de tu mismo rubro a la redonda y te los propone, para que descubras rivales que quizá no tenías fichados.' },
         { q:'¿Es legal analizar las reseñas de mis competidores?', a:'Sí. Notoria solo lee lo que ya es público en Google Maps: el mismo rating y las mismas reseñas que vería cualquier persona buscando ese negocio. No accedemos a nada privado de su ficha, no interactuamos con sus reseñas y no publicamos nada en su nombre. Es exactamente la información que tú mismo podrías mirar a mano, ordenada y comparada por ti.' },
         { q:'¿Mis competidores se enteran de que los estoy siguiendo?', a:'No. Notoria consulta la información pública de Google como lo haría cualquier visitante, así que no hay ninguna notificación ni rastro visible para ellos. Tu lista de competidores es privada de tu cuenta.' },
         { q:'¿Funciona en toda mi ciudad o solo en Lima?', a:'En todo el Perú. Notoria monitorea cualquier negocio que tenga ficha en Google Maps, esté en Lima, Arequipa, Cusco, Trujillo o un distrito pequeño. Por ahora operamos solo en Perú: cobramos en soles y emitimos comprobantes peruanos.' },
@@ -364,7 +379,7 @@ const TEXTOS = {
       pasos: [
         { n:'1', t:'Add your business', d:'Search for it on Google Maps and select it. Rating and data are imported instantly.' },
         { n:'2', t:'Add your competitors', d:'Pick your direct rivals. Notoria compares your rating against theirs on every scan.' },
-        { n:'3', t:'Connect Google Business', d:'Full access to all your reviews, not just the last 5 from the public API.' },
+        { n:'3', t:'Turn on your alerts', d:'Choose what we warn you about and where. From then on Notoria scans on its own and only writes when something happens.' },
       ],
     },
     competencia: {
@@ -418,10 +433,10 @@ const TEXTOS = {
           si:['1 monitored business','Scan every 12 hours','Alert if your phone, hours or address are changed on Google','25 AI uses per week','3 monitored competitors','Alert if a critical review goes 24h without a reply','Monthly PDF report','Electronic invoice to your RUC','Everything in the Free plan'],
           no:['Share the dashboard with your team','TikTok connection','Verifiable reputation certificate'] },
         { n:'Business', p:59, badge:true,
-          si:['Up to 5 businesses','Scan every 4 hours','100 AI uses per week (replies and analysis)','5 competitors per business','Alert if your phone, hours or address change on Google','Reputation certificate with a verifiable code','TikTok connection (profile and videos)','Monthly PDF report','Automatic electronic invoice (SUNAT)','Share the dashboard with 2 more people','Email and Android app alerts','Everything in Free'],
+          si:['1 location included · S/39 per extra location','Scan every 4 hours','100 AI uses per week (replies and analysis)','5 competitors per business','Alert if your phone, hours or address change on Google','Reputation certificate with a verifiable code','TikTok connection (profile and videos)','Monthly PDF report','Automatic electronic invoice (SUNAT)','Share the dashboard with 2 more people','Email and Android app alerts','Everything in Free'],
           no:[] },
         { n:'Franchise', p:179,
-          si:['Unlimited businesses','Scan every hour','300 AI uses per week','15 competitors per business','TikTok connection (profile and videos)','Monthly PDF report','Share the dashboard with 9 more people, each limited to their location','Email and Android app alerts','Priority email support','Everything in Business'],
+          si:['1 location included · S/99 per extra location','Scan every hour','300 AI uses per week','15 competitors per business','TikTok connection (profile and videos)','Monthly PDF report','Share the dashboard with 9 more people, each limited to their location','Email and Android app alerts','Priority email support','Everything in Business'],
           no:[] },
       ],
     },
@@ -433,7 +448,8 @@ const TEXTOS = {
       columnas:['Free','Impulso','Business','Franchise'],
       filas:[
         { grupo:'Coverage and reaction speed' },
-        { label:'Monitored businesses', valores:['1','1','Up to 5','Unlimited'] },
+        { label:'Locations included', valores:['1','1','1','1'] },
+        { label:'Extra locations', valores:['—','—','S/39 each','S/99 each'] },
         { label:'An attack is detected within', valores:['24 hours','12 hours','4 hours','1 hour'] },
         { label:'Alert if your listing shows as closed on Google', valores:[true,true,true,true] },
         { label:'Alert if your phone, hours or address change on Google', valores:[false,true,true,true] },
@@ -460,7 +476,7 @@ const TEXTOS = {
         { grupo:'Channels and sources' },
         { label:'TikTok connection (profile and videos)', valores:[false,false,true,true] },
         { grupo:'For chains and groups' },
-        { label:'Unlimited businesses in a single panel', valores:[false,false,false,true] },
+        { label:'Add as many locations as you need, no cap', valores:[false,false,true,true] },
         { grupo:'Billing and support' },
         { label:'Automatic electronic invoice (SUNAT, Peru)', valores:[false,true,true,true] },
         { label:'Support', valores:['Standard','Standard','Priority','Priority via email'] },
@@ -471,11 +487,11 @@ const TEXTOS = {
       items: [
         { q:'Do I need a credit card to start?', a:'No. The Free plan is free forever and includes 1 monitored business, reputation score, QR to request reviews and email alerts. You only add a card if you upgrade to a paid plan.' },
         { q:'How does Notoria detect fake reviews?', a:'We analyze typical attack patterns: newly created accounts, authors with a single review, repetitive or duplicated text and unusual spikes of negative reviews within hours. Each suspicious review is flagged with the reason so you can report it to Google.' },
-        { q:'Why do I only see 5 reviews if my business has hundreds?', a:'Google’s public API returns at most the 5 most recent reviews per query, that is Google’s limit. By connecting Google Business Profile (free, takes 1 minute), Notoria accesses your full review history and you can reply directly.' },
-        { q:'What is Google Business Profile and what do I need to connect it?', a:'It’s the free Google account used to manage your business listing on Google Maps (the one showing hours, photos and reviews). To connect it in Notoria you must sign in with the Google email that manages it — whoever created it or was added as owner/manager. If you don’t have access to that email (for example, a former employee or an agency set it up), there isn’t much Notoria can do about it: ask whoever manages it to add you as a manager in Google Business Profile, or start Google’s ownership-claim process yourself. In the meantime your business keeps being monitored normally — you’ll just see only the 5 most recent public reviews.' },
-        { q:'Can I reply to reviews from Notoria?', a:'Yes. You get 30 professional templates based on the review’s stars and an AI assistant that drafts the reply for you. We save your reply, copy it to your clipboard and open Google Maps so you can publish it. With Google Business connected, publishing becomes direct.' },
+        { q:'Why do I only see 5 reviews if my business has hundreds?', a:'Google’s public API returns at most the 5 most recent reviews per query — that is Google’s limit, not Notoria’s. So Notoria doesn’t work by reading your past, it works by watching what comes in: it scans your listing every 24, 12, 4 or 1 hour depending on your plan and stores every new review that appears. Within a few weeks you have well over five, and from the day you sign up none gets past us. What we don’t do is import the ones that were already there.' },
+        { q:'What if someone changes my listing details on Google?', a:'Google Maps lets anyone suggest edits to someone else’s business listing — the hours, the phone number, the address, even marking it permanently closed — and applies them without telling the owner. Notoria compares those details on every scan and warns you the same day if something changed. The permanently-closed alert is in every plan, including Free; phone, hours, name and address from the Impulso plan up.' },
+        { q:'Can I reply to reviews from Notoria?', a:'Yes. You get 30 professional templates based on the review’s stars and an AI assistant that drafts the reply for you. We save your reply, copy it to your clipboard and open your listing on Google Maps so you can paste it. You publish it yourself, in one click.' },
         { q:'What happens if my rating suddenly drops?', a:'Notoria detects it on the next scan and sends you an immediate alert by email — plus a phone notification if you have the Android app — detailing what happened: how many negative reviews, from which accounts and whether they show bot patterns. You decide which alerts to receive and how often.' },
-        { q:'How does Notoria know who my competitors are?', a:'You choose them. You search for them just like your own business, on Google Maps, and add them to the list (1 on the Free plan, 5 on Business and 15 on Franchise, per business). On the Franchise plan Notoria also searches for venues in your category nearby and suggests them, so you discover rivals you may not have been tracking.' },
+        { q:'How does Notoria know who my competitors are?', a:'You choose them. You search for them just like your own business, on Google Maps, and add them to the list (1 on Free, 3 on Impulso, 5 on Business and 15 on Franchise, per business). On the Franchise plan Notoria also searches for venues in your category nearby and suggests them, so you discover rivals you may not have been tracking.' },
         { q:'Is it legal to analyse my competitors’ reviews?', a:'Yes. Notoria only reads what is already public on Google Maps: the same rating and the same reviews anyone searching for that business would see. We do not access anything private on their listing, we do not interact with their reviews and we never post anything on their behalf. It is exactly the information you could look up by hand, organised and compared for you.' },
         { q:'Will my competitors know I am tracking them?', a:'No. Notoria queries Google’s public information the same way any visitor would, so there is no notification and no visible trace for them. Your competitor list is private to your account.' },
         { q:'Does it work across the country or only in Lima?', a:'Across all of Peru. Notoria monitors any business with a Google Maps listing, whether it is in Lima, Arequipa, Cusco, Trujillo or a small district. For now we operate in Peru only: we charge in soles and issue Peruvian tax receipts.' },

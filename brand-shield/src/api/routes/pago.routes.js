@@ -15,8 +15,8 @@ const router = express.Router();
 
 // Moneda y precios viven en lib/precios.js — el cron de renovación lee los
 // mismos valores desde ahí. Culqi recibe la moneda explícita en cada cargo.
-const { MONEDA, PRECIOS } = require('../../lib/precios');
-const { etiquetaDe } = require('../../lib/planes');
+const { MONEDA, montoSuscripcion, precioLocal } = require('../../lib/precios');
+const { etiquetaDe, puede: planPuede, PLANES_DE_PAGO } = require('../../lib/planes');
 
 // Guarda un registro de Facturación a partir de la respuesta de un cargo de
 // Culqi exitoso. Solo persiste los primeros 4 dígitos de la tarjeta
@@ -189,7 +189,12 @@ router.post('/culqi', async (req, res) => {
   // tarjeta no tiene derecho al descuento y aun así quiere pagar el precio de
   // lista. Sin esto, el 409 de abajo se repetiría en cada reintento y esa
   // tarjeta no podría suscribirse nunca.
-  const { token, plan, anual, sinPromo } = req.body;
+  // `localesExtra` son los locales POR ENCIMA del que incluye el plan. Se cobran
+  // aparte (ver lib/precios.js) y solo los admiten los planes que los venden: en
+  // cualquier otro, `montoSuscripcion` los ignora en vez de cobrarlos, porque
+  // este número llega del navegador y un valor inventado no puede acabar en un
+  // cargo a una tarjeta.
+  const { token, plan, anual, sinPromo, localesExtra } = req.body;
 
   if (!culqi.configurado()) {
     return res.status(501).json({
@@ -198,13 +203,28 @@ router.post('/culqi', async (req, res) => {
     });
   }
 
-  if (!token || !PRECIOS[plan]) {
-    return res.status(400).json({ error: 'token y plan (NEGOCIO|FRANQUICIA) son requeridos' });
+  // ⚠️ `PLANES_DE_PAGO`, no «¿tiene fila en PRECIOS?». Son la misma pregunta hoy
+  // y dejan de serlo en cuanto exista un plan con precio que no se venda solo
+  // (uno heredado, uno de prueba). Y de paso el mensaje deja de enumerar los
+  // planes a mano, que era otra lista que envejecía sola: decía
+  // «NEGOCIO|FRANQUICIA» desde antes de que existiera IMPULSO.
+  if (!token || !PLANES_DE_PAGO.includes(plan)) {
+    return res.status(400).json({
+      error: `token y plan (${PLANES_DE_PAGO.join('|')}) son requeridos`,
+    });
   }
 
   try {
     const usuario = await prisma.usuario.findUnique({ where: { id: req.usuario.id } });
-    const precioBase = anual ? PRECIOS[plan].anual : PRECIOS[plan].mensual;
+    // ⚠️ `precioBase` incluye los locales adicionales, y tiene que incluirlos:
+    // de él dependen el umbral de identificación de SUNAT (art. 8: desde S/700
+    // hay que identificar al comprador) y el importe del comprobante. Con tres
+    // locales de Franquicia anual se pasan los S/700 largamente, así que
+    // calcularlo sin los extras dejaría de pedir los datos fiscales justo en
+    // las ventas más grandes — y el comprobante saldría por menos de lo cobrado.
+    const extras = Math.max(0, Math.trunc(Number(localesExtra) || 0));
+    const puedeLocales = planPuede(plan, 'localesAdicionales');
+    const precioBase = montoSuscripcion(plan, anual, extras);
 
     // obtenerOCrearCliente, NO crearCliente: Culqi rechaza un segundo customer
     // con el mismo correo, así que reintentar una suscripción fallaría siempre.
@@ -281,7 +301,9 @@ router.post('/culqi', async (req, res) => {
       // El nombre sale de lib/planes.js. Era `Plan ${plan}` con el valor crudo del
       // enum, o sea "Plan NEGOCIO" en mayúsculas — y esta descripción la ve el
       // cliente en el panel de Culqi y en el detalle de su tarjeta.
-      descripcion: `Notoria — ${etiquetaDe(plan)} (${anual ? 'anual' : 'mensual'})${aplicaPromo ? ' — promo 50% bienvenida' : ''}`,
+      descripcion: `Notoria — ${etiquetaDe(plan)} (${anual ? 'anual' : 'mensual'})`
+        + (puedeLocales && extras ? ` + ${extras} local(es)` : '')
+        + (aplicaPromo ? ' — promo 50% bienvenida' : ''),
     });
 
     const fechaVencimiento = new Date();
@@ -295,6 +317,11 @@ router.post('/culqi', async (req, res) => {
         suscripcionId: tarjeta.id, // tarjeta guardada — se reutiliza cada mes para renovar
         fechaVencimiento,
         periodoFacturacion: anual ? 'anual' : 'mensual',
+        // Lo que se acaba de COBRAR, que es lo que manda para el tope de
+        // negocios y para lo que se le cobrará el mes que viene. Se guarda
+        // siempre —también cuando son 0— para que bajar de cuatro locales a uno
+        // deje de cobrar los tres de más.
+        localesExtra: puedeLocales ? extras : 0,
         ...(aplicaPromo ? { promoBienvenidaUsada: true, mesesPromoRestantes: 1 } : {}),
       },
       select: { plan: true, suscripcionActiva: true, fechaVencimiento: true },

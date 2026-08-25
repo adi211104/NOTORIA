@@ -20,6 +20,7 @@ export const PLANES = {
     es: 'Gratuito', en: 'Free',
     esDePago: false,
     negocios: 1, horasEscaneo: 24, iaSemanal: 5, competidores: 1, asientos: 1,
+    localesAdicionales: false,
     vigilanciaFicha: false,
     reporteMensual: false,
     escalacionUrgencias: false,
@@ -40,6 +41,7 @@ export const PLANES = {
     es: 'Impulso', en: 'Impulso',
     esDePago: true,
     negocios: 1, horasEscaneo: 12, iaSemanal: 25, competidores: 3, asientos: 1,
+    localesAdicionales: false,
     vigilanciaFicha: true,
     reporteMensual: true,
     escalacionUrgencias: true,
@@ -57,7 +59,12 @@ export const PLANES = {
     id: 'NEGOCIO',
     es: 'Negocio', en: 'Business',
     esDePago: true,
-    negocios: 5, horasEscaneo: 4, iaSemanal: 100, competidores: 5, asientos: 3,
+    // Un local incluido y los demas se cobran aparte (2026-08-25). Ver
+    // brand-shield/src/lib/precios.js: a 4 h un local cuesta ~S/25/mes en
+    // consultas a Places, asi que «hasta 5 por S/59» perdia dinero desde el
+    // tercero.
+    negocios: 1, horasEscaneo: 4, iaSemanal: 100, competidores: 5, asientos: 3,
+    localesAdicionales: true,
     vigilanciaFicha: true,
     reporteMensual: true,
     escalacionUrgencias: true,
@@ -75,7 +82,8 @@ export const PLANES = {
     id: 'FRANQUICIA',
     es: 'Franquicia', en: 'Franchise',
     esDePago: true,
-    negocios: Infinity, horasEscaneo: 1, iaSemanal: 300, competidores: 15, asientos: 10,
+    negocios: 1, horasEscaneo: 1, iaSemanal: 300, competidores: 15, asientos: 10,
+    localesAdicionales: true,
     vigilanciaFicha: true,
     reporteMensual: true,
     escalacionUrgencias: true,

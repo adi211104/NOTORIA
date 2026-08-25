@@ -8,7 +8,7 @@ const { compararMeses, ordenarPorCrecimiento, hayAlgoQueContar } = require('../.
 const { generarAfiche } = require('../../utils/afiche.generator');
 const { emitirCodigo, VIGENCIA_DIAS } = require('../../lib/constancia');
 const { generarConstancia } = require('../../utils/constancia.pdf');
-const { limite: limiteDelPlan, limiteLegible, planesCon, puede } = require('../../lib/planes');
+const { limite: limiteDelPlan, limiteLegible, planesCon, puede, negociosPermitidos } = require('../../lib/planes');
 const score = require('../../lib/score');
 const temasLib = require('../../lib/temas');
 const tareasLib = require('../../lib/tareas');
@@ -81,11 +81,22 @@ router.post('/', permitir('negocios'), async (req, res, next) => {
     // plan más barato del catálogo habría salido con locales ilimitados sin que
     // nadie tocara una línea. Ahora el tope sale de lib/planes.js y un plan sin
     // fila cae a GRATIS, que es el lado seguro del error.
-    const limite = limiteDelPlan(req.cuenta.plan, 'negocios');
+    //
+    // ⚠️ Y desde el 2026-08-25 el tope NO es el del plan a secas: NEGOCIO y
+    // FRANQUICIA incluyen un local y venden los demás sueltos, así que hay que
+    // sumarle los que este cliente pagó. Preguntarle a `limiteDelPlan` acá
+    // dejaría a un cliente que pagó cuatro locales sin poder cargar el segundo.
+    const limite = negociosPermitidos(req.cuenta.plan, req.cuenta.localesExtra);
     if (total >= limite) {
+      // El mensaje distingue los dos casos, porque la salida es distinta: al de
+      // un plan que vende locales no hay que decirle que "actualice" —ya está
+      // en el plan bueno— sino que sume un local.
+      const vendeLocales = puede(req.cuenta.plan, 'localesAdicionales');
       return res.status(403).json({
-        error: `Tu plan permite hasta ${limiteLegible(limite)} negocio(s). Actualiza para agregar más.`,
-        accion: 'ACTUALIZAR_PLAN',
+        error: vendeLocales
+          ? `Tu suscripción cubre ${limiteLegible(limite)} local(es). Agrega un local más desde Configuración → Suscripción.`
+          : `Tu plan permite hasta ${limiteLegible(limite)} negocio(s). Actualiza para agregar más.`,
+        accion: vendeLocales ? 'AGREGAR_LOCAL' : 'ACTUALIZAR_PLAN',
       });
     }
 

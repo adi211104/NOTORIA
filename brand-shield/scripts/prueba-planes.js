@@ -145,9 +145,73 @@ check('puede() con capacidad inventada es false', !planes.puede('FRANQUICIA', 'i
 check('limite() con clave inventada es 0, no undefined', planes.limite('FRANQUICIA', 'inventada') === 0);
 
 // ─────────────────────────────────────────────────────────────────────────────
-titulo('6. Infinity no se le enseña a un cliente');
+titulo('6. Los locales se cobran, y eso no puede romperse en silencio');
 
-check('FRANQUICIA no tiene tope de negocios', planes.limite('FRANQUICIA', 'negocios') === Infinity);
+// 🔴 Hasta el 2026-08-25 esta prueba afirmaba lo contrario —«FRANQUICIA no tiene
+// tope de negocios»— porque la web prometía locales ilimitados. Eso perdía
+// dinero: cada local vigilado cuesta consultas a Places y el precio era plano.
+// Ahora todo plan incluye UN local y los demás se cobran (ver lib/precios.js).
+//
+// Lo que se vigila acá es la clase de fallo que no da ninguna señal: si el tope
+// vuelve a salir del plan pelado, un cliente que pagó cuatro locales no puede
+// cargar el segundo; y si la renovación deja de sumar los extras, los paga una
+// vez y los conserva gratis para siempre.
+const precios = require('../src/lib/precios');
+
+check('ningún plan incluye más de un local', 
+  planes.ORDEN.every((p) => planes.limite(p, 'negocios') === 1),
+  planes.ORDEN.map((p) => `${p}:${planes.limite(p, 'negocios')}`).join(' '));
+check('IMPULSO no vende locales sueltos (quien abre el segundo sube a NEGOCIO)',
+  !planes.puede('IMPULSO', 'localesAdicionales'));
+check('NEGOCIO y FRANQUICIA sí los venden',
+  planes.puede('NEGOCIO', 'localesAdicionales') && planes.puede('FRANQUICIA', 'localesAdicionales'));
+
+// Todo plan que VENDA locales tiene que tener precio para ellos. Sin esto, un
+// plan nuevo con la capacidad encendida cobraría los locales a CERO.
+for (const p of planes.ORDEN.filter((x) => planes.puede(x, 'localesAdicionales'))) {
+  const pl = precios.precioLocal(p);
+  check(`${p} tiene precio de local adicional (mensual y anual)`,
+    !!pl && pl.mensual > 0 && pl.anual > 0, JSON.stringify(pl));
+}
+
+check('el tope real suma lo pagado: NEGOCIO + 3 locales = 4',
+  planes.negociosPermitidos('NEGOCIO', 3) === 4);
+check('un plan que no vende locales IGNORA los extras (no se regalan)',
+  planes.negociosPermitidos('IMPULSO', 5) === 1);
+check('sin dato de locales el tope es el del plan, no infinito',
+  planes.negociosPermitidos('FRANQUICIA', undefined) === 1);
+check('un número negativo no amplía ni reduce el tope',
+  planes.negociosPermitidos('FRANQUICIA', -4) === 1);
+
+// El cobro. Es la mitad que de verdad cuesta dinero si se rompe.
+check('NEGOCIO mensual con 2 locales extra = 59 + 2×39 = S/137',
+  precios.montoSuscripcion('NEGOCIO', false, 2) === 13700,
+  String(precios.montoSuscripcion('NEGOCIO', false, 2)));
+check('FRANQUICIA mensual con 3 locales extra = 179 + 3×99 = S/476',
+  precios.montoSuscripcion('FRANQUICIA', false, 3) === 47600,
+  String(precios.montoSuscripcion('FRANQUICIA', false, 3)));
+check('IMPULSO nunca cobra locales aunque se los manden',
+  precios.montoSuscripcion('IMPULSO', false, 9) === 2900);
+check('el anual del local es el mensual con 20% menos, x12 (S/39 → S/31 × 12)',
+  precios.montoSuscripcion('NEGOCIO', true, 1) === 56400 + 37200);
+check('un plan inexistente cobra 0, no NaN',
+  precios.montoSuscripcion('NO_EXISTE', false, 3) === 0);
+
+// 🔴 El alta y la renovación tienen que usar la MISMA función. En este proyecto
+// ya hubo dos copias del precio que se desincronizaron y cobraron el mensual a
+// suscriptores anuales; con los locales el fallo sería peor porque es gratis
+// para el cliente y silencioso para nosotros.
+const fuenteCobro = [
+  ['src/api/routes/pago.routes.js', 'el alta'],
+  ['src/workers/monitoreo.worker.js', 'la renovación'],
+];
+for (const [ruta, quien] of fuenteCobro) {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', ruta), 'utf8');
+  check(`${quien} calcula el monto con montoSuscripcion`, src.includes('montoSuscripcion'));
+  check(`${quien} no lee PRECIOS[...] por su cuenta`, !/PRECIOS\[/.test(src),
+    'una copia del precio es exactamente lo que este archivo existe para impedir');
+}
+
 check('limiteLegible(Infinity) dice "ilimitados"', planes.limiteLegible(Infinity) === 'ilimitados');
 check('limiteLegible(5) dice "5"', planes.limiteLegible(5) === '5');
 

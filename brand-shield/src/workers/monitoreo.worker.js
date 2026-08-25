@@ -8,8 +8,9 @@ const { obtenerResenasGoogle, buscarNegocioEnGoogle } = require('../scrapers/goo
 const { obtenerRatingFacebook, obtenerResenasFacebook } = require('../scrapers/facebook.scraper');
 const { analizarResena, detectarAnomalias } = require('../nlp/detector');
 const { notificar, enviarAlertaEmail } = require('../alerts/notificador');
-const { revisarDatosDeFicha, puedeVigilarFicha } = require('../lib/fichaGoogle');
+const { revisarDatosDeFicha, tocaLeerContacto } = require('../lib/fichaGoogle');
 const { capacidades, planesCon, PLANES_DE_PAGO, ORDEN } = require('../lib/planes');
+const { negociosVigilables } = require('../lib/equipo');
 const temasLib = require('../lib/temas');
 
 // Intenta publicar la auto-respuesta aprobada por el usuario para una reseña
@@ -367,6 +368,92 @@ const obtenerFichaGoogleCompartida = async (placeId, conContacto, cache) => {
   return datos;
 };
 
+// ── Cada cuánto se relee un COMPETIDOR ──────────────────────────────────────
+//
+// 🔴 Hasta el 2026-08-25 no había ninguna: cada competidor se refrescaba en CADA
+// ciclo del dueño, o sea a la cadencia de SU plan. Como Franquicia escanea cada
+// hora y admite 15 competidores por negocio, un solo local costaba
+// 15 × 720 = 10 800 consultas a Places al mes **solo en rivales** — bastante más
+// que el plan entero que lo paga. Dicho de otra forma: los competidores costaban
+// más que el negocio vigilado, y el precio por consulta no baja aunque el plan
+// suba, así que cuanto más caro el plan, peor el margen.
+//
+// Y no hacía ninguna falta. Lo que se hace con estos datos es comparar mes
+// contra mes (`lib/progreso.js`) y pintar el rating del rival en el panel:
+// ninguna de las dos cosas cambia entre las 10:00 y las 11:00. Una lectura al
+// día da exactamente la misma información y corta el costo dominante ×6 en
+// NEGOCIO y ×24 en FRANQUICIA.
+//
+// ⚠️ Efecto secundario y es una MEJORA, no una regresión: la ficha del
+// competidor enseña el delta entre sus dos últimos snapshots. Antes eran dos
+// lecturas separadas por una hora, que casi siempre daban cero; ahora son dos
+// días, que es un dato que significa algo.
+//
+// El reloj es la fecha del ÚLTIMO `SnapshotCompetidor`, no una columna nueva —
+// el mismo criterio con el que el cron dejó de depender de `ultimoEscaneo`.
+const HORAS_COMPETIDOR = 24;
+
+// Un competidor NO paga su propia consulta si esa ficha ya se pidió en el ciclo.
+//
+// Dos formas de reutilizar, y la primera es la que más ahorra:
+//
+//   1. El place ID ya está en `ctx.fichasGoogle` porque es un NEGOCIO
+//      monitoreado de esta misma pasada. Eso pasa constantemente y va a pasar
+//      más: el competidor de uno es el cliente de otro, y en una plataforma de
+//      reputación vendida por rubro y por ciudad eso es la norma, no la
+//      excepción. Ahí el competidor sale **gratis**, porque la llamada del
+//      negocio ya trajo `nombreEnGoogle`, `ratingActual` y `totalResenas`.
+//   2. Otro negocio ya pidió ese MISMO competidor en este ciclo
+//      (`ctx.competidores`). Todos los rivales de un rubro siguen a los mismos
+//      tres o cuatro grandes.
+//
+// ⚠️ La reutilización va en UNA sola dirección. Una lectura de competidor pide
+// solo Basic Data (`buscarNegocioEnGoogle`) y no trae `reviews`, así que NO
+// puede servirle a un negocio monitoreado. Por eso son dos cachés separados y
+// `ctx.competidores` nunca alimenta a `ctx.fichasGoogle`. Al revés sí, porque la
+// ficha completa es un superconjunto — es la misma asimetría que ya gobierna
+// `conContacto` en `obtenerFichaGoogleCompartida`.
+const obtenerCompetidorCompartido = async (placeId, ctx = {}) => {
+  const deNegocio = ctx.fichasGoogle?.get(placeId);
+  if (deNegocio?.datos) {
+    console.log(`[Worker] Competidor ${placeId} salió de la ficha de un negocio del ciclo (0 llamadas)`);
+    return {
+      nombre: deNegocio.datos.nombreEnGoogle,
+      rating: deNegocio.datos.ratingActual,
+      totalResenas: deNegocio.datos.totalResenas,
+    };
+  }
+
+  const guardado = ctx.competidores?.get(placeId);
+  if (guardado) {
+    console.log(`[Worker] Competidor ${placeId} reutilizado del ciclo (una llamada menos a Places)`);
+    return guardado;
+  }
+
+  const info = await buscarNegocioEnGoogle(placeId);
+  // Un `null` no se cachea: heredar el fallo ajeno convierte un error en varios
+  // justo cuando se agota la cuota, que es cuando más importa. Misma regla que
+  // en `obtenerFichaGoogleCompartida`.
+  if (info && ctx.competidores) ctx.competidores.set(placeId, info);
+  return info;
+};
+
+// Aplica el corte por locales contratados a una lista mezclada de varios
+// dueños. Se agrupa por cuenta porque el tope es por CUENTA, no global.
+const elegirVigilables = (negocios) => {
+  const porCuenta = new Map();
+  for (const n of negocios) {
+    if (!porCuenta.has(n.usuarioId)) porCuenta.set(n.usuarioId, []);
+    porCuenta.get(n.usuarioId).push(n);
+  }
+  const salida = [];
+  for (const lista of porCuenta.values()) {
+    const dueno = lista[0].usuario;
+    salida.push(...negociosVigilables(lista, dueno?.plan, dueno?.localesExtra));
+  }
+  return salida;
+};
+
 const procesarNegocio = async (negocio, ctx = {}) => {
   console.log(`[Worker] Procesando: ${negocio.nombre} (${negocio.id})`);
 
@@ -375,9 +462,15 @@ const procesarNegocio = async (negocio, ctx = {}) => {
     // Los datos de contacto (teléfono, horario, dirección) solo se piden en los
     // planes que los incluyen: son del grupo Contact Data de Places y se
     // facturan aparte. Ver lib/fichaGoogle.js.
+    // ⚠️ `tocaLeerContacto`, no `puedeVigilarFicha` a secas. Tener derecho a la
+    // vigilancia de contacto y necesitar releerla AHORA son dos preguntas
+    // distintas: el teléfono y el horario de un negocio cambian una o dos veces
+    // en su vida, así que se piden una vez al día en vez de en cada escaneo
+    // (ver HORAS_CONTACTO). La ficha cerrada no depende de esto — va en Basic
+    // Data y se sigue mirando en cada ciclo.
     const datos = await obtenerFichaGoogleCompartida(
       negocio.googlePlaceId,
-      puedeVigilarFicha(negocio.usuario?.plan),
+      tocaLeerContacto(negocio),
       ctx.fichasGoogle,
     );
     if (datos) {
@@ -611,19 +704,40 @@ const procesarNegocio = async (negocio, ctx = {}) => {
   await procesarMenciones(negocio);
 
   // ── COMPETIDORES ─────────────────────────────────────────
-  // Refresca rating y total de reseñas de cada competidor en el mismo ciclo
+  // Refresca rating y total de reseñas, pero con CADENCIA PROPIA (ver
+  // HORAS_COMPETIDOR arriba): una vez al día, no una vez por ciclo del dueño.
   try {
     const competidores = await prisma.competidor.findMany({ where: { negocioId: negocio.id } });
-    for (const comp of competidores) {
-      const info = await buscarNegocioEnGoogle(comp.googlePlaceId);
-      if (!info) continue;
-      await prisma.competidor.update({
-        where: { id: comp.id },
-        data: { ratingActual: info.rating, totalResenas: info.totalResenas },
+    if (competidores.length) {
+      // La última lectura de todos, en UNA consulta. Con 15 competidores por
+      // negocio, preguntar uno por uno serían 15 consultas a la base por ciclo
+      // para decidir que no hay que hacer nada.
+      const ultimas = await prisma.snapshotCompetidor.groupBy({
+        by: ['competidorId'],
+        where: { competidorId: { in: competidores.map((c) => c.id) } },
+        _max: { tomadoEn: true },
       });
-      await prisma.snapshotCompetidor.create({
-        data: { ratingActual: info.rating, totalResenas: info.totalResenas, competidorId: comp.id },
-      });
+      const ultimaDe = new Map(ultimas.map((u) => [u.competidorId, u._max.tomadoEn]));
+      const corte = Date.now() - HORAS_COMPETIDOR * 60 * 60 * 1000;
+
+      for (const comp of competidores) {
+        const ultima = ultimaDe.get(comp.id);
+        // Un competidor recién agregado no tiene ningún snapshot, así que se lee
+        // de inmediato: si esperara a mañana, el cliente lo agrega y ve una fila
+        // vacía sin ninguna explicación. Es el mismo motivo por el que el botón
+        // "Escanear ahora" no tiene cooldown en un negocio recién conectado.
+        if (ultima && ultima.getTime() > corte) continue;
+
+        const info = await obtenerCompetidorCompartido(comp.googlePlaceId, ctx);
+        if (!info) continue;
+        await prisma.competidor.update({
+          where: { id: comp.id },
+          data: { ratingActual: info.rating, totalResenas: info.totalResenas },
+        });
+        await prisma.snapshotCompetidor.create({
+          data: { ratingActual: info.rating, totalResenas: info.totalResenas, competidorId: comp.id },
+        });
+      }
     }
   } catch (e) {
     console.error(`[Worker] Error actualizando competidores de ${negocio.nombre}: ${e.message}`);
@@ -724,12 +838,27 @@ const iniciarMonitoreo = () => {
         },
       });
 
+      // 🔴 Corte por locales pagados, ANTES de mirar a quién le toca escanear.
+      //
+      // Desde el 2026-08-25 los locales se cobran de a uno. Sin este corte,
+      // contratar diez locales un mes y bajar a uno dejaría diez fichas
+      // vigiladas para siempre —cada una gastando consultas a Places que ya no
+      // paga nadie—, porque el tope solo se comprobaba al CREAR el negocio.
+      // Es el gemelo del corte por asientos del equipo, y por el mismo motivo.
+      //
+      // No se desactiva ni se borra nada: los negocios siguen ahí y vuelven a
+      // vigilarse en cuanto el cliente vuelva a pagarlos.
+      const vigilables = elegirVigilables(negocios);
+      if (vigilables.length !== negocios.length) {
+        console.log(`[Worker] ${negocios.length - vigilables.length} negocio(s) fuera de los locales contratados`);
+      }
+
       const ahora = Date.now();
-      const ultimos = await ultimosEscaneos(negocios.map((n) => n.id));
+      const ultimos = await ultimosEscaneos(vigilables.map((n) => n.id));
       // El snapshot manda; `ultimoEscaneo` solo entra como reloj de reserva para
       // los negocios sin ficha de Google, que nunca generan snapshot (ver abajo).
-      const toca = negocios.filter((n) => leTocaEscaneo(n, ultimos.get(n.id) ?? n.ultimoEscaneo, ahora));
-      console.log(`[Worker] ${toca.length} de ${negocios.length} negocio(s) tocan en esta pasada`);
+      const toca = vigilables.filter((n) => leTocaEscaneo(n, ultimos.get(n.id) ?? n.ultimoEscaneo, ahora));
+      console.log(`[Worker] ${toca.length} de ${vigilables.length} negocio(s) tocan en esta pasada`);
 
       // Procesar secuencialmente para no saturar las APIs.
       //
@@ -739,15 +868,24 @@ const iniciarMonitoreo = () => {
       // Una ficha compartida por dos cuentas se pide UNA vez por ciclo (ver
       // `obtenerFichaGoogleCompartida`). El caché muere con la pasada.
       const fichasGoogle = new Map();
+      // Y el mismo truco para los competidores, que son el grueso del gasto:
+      // uno seguido por varios clientes se pide UNA vez, y si además es un
+      // negocio monitoreado sale gratis de `fichasGoogle`.
+      const competidores = new Map();
 
-      // Se atiende primero a quien tiene derecho a los datos de contacto. Si un
-      // plan GRATIS que comparte ficha fuera primero, dejaría cacheada una
-      // respuesta SIN contacto que no le sirve al de pago, y habría que pedirla
-      // otra vez: el caché no ahorraría nada justo en el caso mixto.
-      toca.sort((x, y) => Number(puedeVigilarFicha(y.usuario?.plan)) - Number(puedeVigilarFicha(x.usuario?.plan)));
+      // Se atiende primero a quien va a pedir los datos de contacto en ESTA
+      // pasada. Si uno que no los pide fuera primero, dejaría cacheada una
+      // respuesta SIN contacto que no le sirve al que sí los necesita, y habría
+      // que pedirla otra vez: el caché no ahorraría nada justo en el caso mixto.
+      //
+      // ⚠️ El criterio es `tocaLeerContacto` y no `puedeVigilarFicha`: desde que
+      // el contacto se relee una vez al día, un negocio de plan de pago pasa la
+      // mayoría de los ciclos SIN pedirlo, y ordenar por el plan mandaría
+      // primero a quien esta vez no lo necesita.
+      toca.sort((x, y) => Number(tocaLeerContacto(y)) - Number(tocaLeerContacto(x)));
 
       for (const negocio of toca) {
-        await procesarNegocio(negocio, { fichasGoogle });
+        await procesarNegocio(negocio, { fichasGoogle, competidores });
         // Excepción: un negocio SIN ficha de Google nunca genera un Snapshot, así
         // que no tiene el otro reloj y sin esto se escanearía cada hora —
         // machacando TikTok o Instagram si los tiene conectados. Solo en ese caso
@@ -796,9 +934,10 @@ const ejecutarAhora = async (negocioId = null, { global: barridoGlobal = false }
   // Mismo caché por pasada que en el cron: `ejecutarAhora` sin `negocioId`
   // recorre la plataforma entera, que es justo donde más fichas se repiten.
   const fichasGoogle = new Map();
-  negocios.sort((x, y) => Number(puedeVigilarFicha(y.usuario?.plan)) - Number(puedeVigilarFicha(x.usuario?.plan)));
+  const competidores = new Map();
+  negocios.sort((x, y) => Number(tocaLeerContacto(y)) - Number(tocaLeerContacto(x)));
   for (const negocio of negocios) {
-    await procesarNegocio(negocio, { fichasGoogle });
+    await procesarNegocio(negocio, { fichasGoogle, competidores });
   }
   console.log('[Worker] Ejecución manual completada.');
 };
@@ -1276,7 +1415,7 @@ const iniciarRenovacionesCulqi = () => {
 
     // Misma fuente que el alta de suscripción (pago.routes.js). Estos valores
     // estaban duplicados acá y se desincronizaron una vez; ahora se importan.
-    const { MONEDA, PRECIOS } = require('../lib/precios');
+    const { MONEDA, montoSuscripcion } = require('../lib/precios');
 
     const finHoy = new Date(); finHoy.setHours(23, 59, 59, 999);
 
@@ -1302,7 +1441,14 @@ const iniciarRenovacionesCulqi = () => {
         // convirtiéndolos en facturación mensual sin avisarles al llegar su
         // primer aniversario. Ahora respeta el ciclo con el que se suscribieron.
         const periodo = usuario.periodoFacturacion === 'anual' ? 'anual' : 'mensual';
-        const precioBase = PRECIOS[usuario.plan][periodo];
+        // 🔴 `montoSuscripcion`, el MISMO cálculo que el alta — incluidos los
+        // locales adicionales que el cliente paga aparte. Si esta renovación
+        // cobrara solo el plan, quien contrató cuatro locales los pagaría una
+        // vez y los conservaría gratis para siempre: ni error, ni log, ni cargo
+        // fallido. Es exactamente el fallo que ya tuvo este cron cuando cobraba
+        // el precio mensual a los suscriptores anuales, por tener su propia
+        // copia de los precios.
+        const precioBase = montoSuscripcion(usuario.plan, periodo === 'anual', usuario.localesExtra);
         // Promo de bienvenida (50% los primeros 2 meses, solo mensual): si a la
         // cuenta le queda algún mes de promo pendiente, esta renovación también
         // se cobra con el descuento y se descuenta el contador.
@@ -1314,7 +1460,9 @@ const iniciarRenovacionesCulqi = () => {
           moneda: MONEDA, // ver lib/precios.js
           email: usuario.email,
           sourceId: usuario.suscripcionId,
-          descripcion: `Notoria — Renovación plan ${usuario.plan} (${periodo})${enPromo ? ' — promo 50% bienvenida' : ''}`,
+          descripcion: `Notoria — Renovación plan ${usuario.plan} (${periodo})`
+            + (usuario.localesExtra ? ` + ${usuario.localesExtra} local(es)` : '')
+            + (enPromo ? ' — promo 50% bienvenida' : ''),
         });
 
         // El nuevo vencimiento se calcula desde el ANTERIOR, no desde hoy: si un
@@ -1358,7 +1506,7 @@ const iniciarRenovacionesCulqi = () => {
         console.error(`[Culqi] Falló la renovación de ${usuario.email}:`, motivo);
 
         const periodo = usuario.periodoFacturacion === 'anual' ? 'anual' : 'mensual';
-        const precioBase = PRECIOS[usuario.plan]?.[periodo] ?? 0;
+        const precioBase = montoSuscripcion(usuario.plan, periodo === 'anual', usuario.localesExtra);
         const enPromo = periodo === 'mensual' && usuario.mesesPromoRestantes > 0;
         const monto = enPromo ? Math.round(precioBase / 2) : precioBase;
 
@@ -1538,6 +1686,12 @@ const iniciarAvisoReclamaciones = () => {
 
 module.exports = {
   iniciarMonitoreo, ejecutarAhora, HORAS_ESCANEO, leTocaEscaneo,
+  // Los dos frenos de costo de Places. Se exportan porque lo que hay que
+  // vigilar en ellos no produce ninguna señal cuando se rompe: si la cadencia
+  // del competidor vuelve a ser la del dueño, o si el caché deja de reutilizar,
+  // no falla nada — solo sube la factura de Google, que no distingue de quién
+  // fue cada consulta. Ver `scripts/prueba-costo-places.js`.
+  HORAS_COMPETIDOR, obtenerCompetidorCompartido,
   iniciarReportesMensuales, iniciarResumenesAlertas,
   iniciarRenovacionesCulqi, iniciarBajadaDePlanes, iniciarEscalacionUrgencias, revisarEscalacionesUrgentes,
   iniciarAvisoReclamaciones, revisarPlazosReclamaciones,

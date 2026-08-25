@@ -265,6 +265,13 @@ export default function ConexionesPage() {
           {negocios.map((n) => {
             const est = estados[n.id];
             const visibles = redesVisibles(est);
+            // ⚠️ Solo la ÚLTIMA fila va sin borde inferior, y hasta ahora eso lo
+            // calculaba únicamente el map de redes. Al poder esconderse también
+            // Google Business, un negocio sin ninguna red visible dejaba la fila
+            // de Google Places con un borde colgando debajo de nada. El orden de
+            // pintado es: Places → Google Business → redes.
+            const gbpVisible = !!(est?.gbp?.disponible || n.gbpConectado);
+            const sinRedes = visibles.length === 0;
             return (
               <div key={n.id} style={{ background:'var(--surface)', border:'1px solid var(--border-c)', borderRadius:14, padding:'18px 20px' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:9, marginBottom:6 }}>
@@ -276,26 +283,46 @@ export default function ConexionesPage() {
                 </div>
 
                 <div style={{ display:'flex', flexDirection:'column' }}>
-                  <Fila nombre={t.redes.googlePlaces.n} descripcion={t.redes.googlePlaces.d}>
+                  <Fila nombre={t.redes.googlePlaces.n} descripcion={t.redes.googlePlaces.d}
+                    ultima={!gbpVisible && sinRedes}>
                     <Pastilla tono={n.googlePlaceId ? 'ok' : 'apagado'}>
                       {n.googlePlaceId ? t.conectado : t.noConectado}
                     </Pastilla>
                   </Fila>
 
-                  <Fila nombre={t.redes.gbp.n} descripcion={t.redes.gbp.d}>
-                    {n.gbpConectado ? (
-                      <Pastilla tono="ok">{t.conectado}</Pastilla>
-                    ) : (
-                      puede('conexiones') ? (
-                        <button onClick={() => conectarGBP(n.id)}
-                          style={{ background:'#4285F4', color:'#fff', border:'none', borderRadius:8, padding:'6px 13px', fontSize:12, fontWeight:500, cursor:'pointer' }}>
-                          {t.conectar}
-                        </button>
+                  {/* 🔴 Google Business Profile pasa por el mismo interruptor que
+                      Instagram y Facebook desde el 2026-08-25, y por un motivo
+                      peor: Google tiene las GBP APIs con cuota `Requests per
+                      minute = 0`, así que el flujo NO falla al principio —el
+                      cliente pasa por el diálogo de Google, autoriza de verdad
+                      sobre su ficha real, vuelve, y recién ahí revienta en
+                      `listarCuentas` con `?gbp_error=callback_failed`—. Un error
+                      genérico después de haber concedido permisos es la peor
+                      forma de fallar: parece culpa suya.
+
+                      Antes esta fila era FIJA con su botón siempre pulsable, el
+                      único caso que quedaba del patrón que ya se había corregido
+                      en Facebook. Ver `lib/gbpVisible.js` en el backend.
+
+                      Misma excepción deliberada que las otras dos: si ya está
+                      conectado la fila se queda pase lo que pase, porque hay que
+                      poder desconectarlo y borrar sus datos. */}
+                  {gbpVisible && (
+                    <Fila nombre={t.redes.gbp.n} descripcion={t.redes.gbp.d} ultima={sinRedes}>
+                      {n.gbpConectado ? (
+                        <Pastilla tono="ok">{t.conectado}</Pastilla>
                       ) : (
-                        <Pastilla tono="apagado">{t.noConectado}</Pastilla>
-                      )
-                    )}
-                  </Fila>
+                        puede('conexiones') ? (
+                          <button onClick={() => conectarGBP(n.id)}
+                            style={{ background:'#4285F4', color:'#fff', border:'none', borderRadius:8, padding:'6px 13px', fontSize:12, fontWeight:500, cursor:'pointer' }}>
+                            {t.conectar}
+                          </button>
+                        ) : (
+                          <Pastilla tono="apagado">{t.noConectado}</Pastilla>
+                        )
+                      )}
+                    </Fila>
+                  )}
 
                   {/* Una red que hoy no podemos entregar sencillamente NO se
                       lista: ni "próximamente" ni el motivo. Instagram y Facebook
