@@ -213,11 +213,11 @@ es `prisma db push`: altera el schema de producción, va **antes** del deploy y 
 ⚠️ **`railway up` siempre desde `brand-shield/`.** La raíz del repo está enlazada a otro
 proyecto y correrlo desde ahí crea un servicio basura.
 
-### ⏳ Migración PENDIENTE de aplicar (2026-08-25)
+### ✅ Migración de `localesExtra` — APLICADA el 2026-08-25
 
-`Usuario.localesExtra Int @default(0)` está en el `schema.prisma` y **todavía no en la base de
-producción**. Es **aditiva** y con default, así que vale la vía corta que se usa últimamente:
+`Usuario.localesExtra Int @default(0)`. Aditiva y con default, así que se usó la vía corta:
 `npx prisma db push` **desde local antes** de `railway up` (el `.env` local apunta a producción).
+Se deja escrito el orden porque es el que hay que repetir la próxima vez.
 
 ⚠️ **Sin ella, cualquier consulta sobre `usuarios` revienta en cuanto se despliegue el código
 nuevo**, porque el cliente de Prisma desplegado pedirá una columna que la BD no tiene — login
@@ -225,11 +225,21 @@ incluido. O sea que las dos cosas van juntas y en ese orden.
 
 ```bash
 cd brand-shield
+# 0. QUÉ va a cambiar, antes de tocar nada. `db push` no lo dice; esto sí.
+npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --script
 npx prisma db push          # 1. la columna, ANTES (es aditiva: el código viejo sigue vivo)
 npx prisma generate         # 2. con el backend detenido, o EPERM
 railway up --service api    # 3. el código
 cd ../brand-shield-web && vercel --prod --yes
 ```
+
+🔴 **El paso 0 es el que faltaba en esta receta y el que hay que conservar.** `db push` responde
+«Your database is now in sync» tanto si aplicó el cambio como si no hizo nada, así que no sirve
+de comprobante **ni de aviso previo**. `migrate diff` **antes** enseña el SQL exacto que se va a
+ejecutar —el 2026-08-25 fue un solo `ALTER TABLE ... ADD COLUMN` con default, que es lo que lo
+hacía seguro— y **después** devuelve «This is an empty migration», que es la única prueba de que
+entró. Comprobar además la columna en `information_schema` cuesta una consulta y cierra el
+asunto.
 
 ### 🔴 Orden obligatorio: DESPLEGAR primero, MIGRAR después
 
@@ -300,7 +310,7 @@ los logs del servidor y en un cambio observable en la salida.
 |---|---|
 | Backend desplegado | Buscar un **cambio observable en la salida**, no fiarse del "SUCCESS". Ej.: un POST con firma inventada que ahora responde con el log en formato nuevo |
 | ¿Existe una ruta? | Pegarle sin token: **401 = viva; 404 `{"error":"Ruta no encontrada"}` = no desplegada** (catch-all de `index.js`) |
-| ⚠️ Excepción del truco | **No sirve en routers con `router.use(autenticar)` antes de las rutas** (`redes.routes.js`, `comentario.routes.js`, `pago.routes.js`): el middleware corta antes de casar el path y **cualquier** path devuelve 401, exista o no |
+| ⚠️ Excepción del truco | **No sirve en routers con `router.use(autenticar)` antes de las rutas** (`redes.routes.js`, `comentario.routes.js`, `pago.routes.js` y —comprobado el 2026-08-25— **`negocio.routes.js`**): el middleware corta antes de casar el path y **cualquier** path devuelve 401, exista o no. ⚠️ Ese día la sonda se dio por buena hasta que el **404 de control** devolvió exactamente lo mismo. Es el mismo patrón que `verificar-meta-secret.js`: ante un resultado, preguntar primero si el método distingue. Cuando no distingue, el veredicto correcto es «no concluyente», y la prueba buena pasa a ser `railway ssh … grep -c <ruta> <archivo>` |
 | Mejor sonda | Una ruta pública con **cuerpo propio**. Ej.: `GET /api/equipo/invitacion/<64 ceros>` → 404 con `tipo: INVITACION_INVALIDA` prueba que el código nuevo corre. Acompañar siempre de un **404 de control** sobre una ruta inventada, para distinguir "ruta viva que rechaza" de "ruta que no existe" |
 | Frontend | Para lo que vive en un **componente de cliente**: localizar la frase en `.next/static/chunks/` y **descargar ESE chunk desde producción**. `curl` a una página de cliente no muestra su contenido |
 | Variables en el contenedor | `railway ssh --service api "printenv X"`, o un `node -e` que ejercite el módulo y devuelva su veredicto |
@@ -2511,7 +2521,32 @@ esa clave se perdiera durante la espera, no hay app que publicar. Y releer los r
 alta en la consola, que Google los cambia.
 
 
-### Estado de la base de producción (última lectura, 2026-08-24)
+### Estado de la base de producción (última lectura, 2026-08-25)
+
+`11 usuarios (4 sin verificar, 1 con idioma 'en') · 15 negocios (10 activos, 9 place IDs
+distintos) · 1845 snapshots · 92 reseñas (14 de ≤2★) · **2 alertas** · 3 competidores con 433
+snapshots · 1 pago (S/1, REEMBOLSADO) · 1 comprobante (B001-00000001, ANULADO) · 2 resúmenes
+SUNAT · 0 miembros · 0 invitaciones · 0 reclamaciones · 0 promo_tarjetas · 0 menciones ·
+**0 cuentas con locales extra**`.
+
+🔴 **Las 2 alertas son la noticia, y son REALES.** El aviso por reseña negativa disparó **solo**,
+sin ensayo y sin que nadie lo provocara:
+
+| Cuándo | Negocio | Qué entró |
+|---|---|---|
+| 2026-08-23 22:00 | Don Tito San Miguel | 1★ por una entrega de delivery de 100 minutos |
+| 2026-08-25 01:00 | La Mar Restaurante | 1★ por una intoxicación alimentaria |
+
+Las dos con `notificada: true`, o sea que el correo salió. Eso **cierra la historia que abrió el
+2026-08-22**, cuando la foto decía «1783 escaneos, 12 reseñas de ≤2★ y CERO alertas desde que
+existe la plataforma». No fallaba nada entonces y no hacía falta nada más que la señal que se
+añadió ese día: en cuanto entró una reseña negativa *nueva* de verdad, el circuito completo
+—detección, fila de `Alerta`, correo— funcionó sin que nadie lo tocara.
+
+⚠️ Y confirma de paso que el silencio anterior era el diseñado, no un fallo: las 12 reseñas
+viejas siguen calladas por antigüedad, exactamente como se pretendía.
+
+#### Lectura anterior (2026-08-24)
 
 `11 usuarios (4 sin verificar, 1 con idioma 'en') · 15 negocios · 1839 snapshots · 89 reseñas ·
 1 alerta · 3 competidores con 431 snapshots · 1 pago (S/1, REEMBOLSADO) · 1 comprobante
@@ -2615,9 +2650,48 @@ fuente única cambia su forma (mapa → función), y los call-sites viejos sigue
 ⚠️ **Al convertir un mapa en función, buscar los `[` que lo indexan.** `grep -rn "NOMBRE\["` es
 literalmente todo lo que hacía falta.
 
+### 🔴 Lo que enseñó el 2026-08-25, y que ninguna prueba vio
+
+El día se cerró con **~570 comprobaciones en verde, el build limpio y la consola sin un
+error**, y aun así aparecieron tres fallos. Los tres se encontraron **abriendo el navegador
+sobre lo ya desplegado**, que es la misma lección del 24 por segunda vez.
+
+| Qué se veía | Qué pasaba |
+|---|---|
+| La ficha ofrecía **Conectar Google Business** en tres sitios más, uno de ellos una tarjeta promocional entera encima de las reseñas | Se había escondido en Conexiones y en la web, y se dio el trabajo por cerrado. **Esconder una función es un barrido, no un cambio en un archivo** |
+| El cartel de la promo, **en inglés dentro de `/precios`**, que está entera en español | `/precios` es el catálogo que exige Culqi y **nunca llama a `useIdioma`**; el cartel sí. Un componente que decide su propio idioma dentro de una página que no lo hace **siempre** va a discrepar con ella |
+| `prueba-panel.js` fallaba sola a la 01:07 de Lima | El fixture usaba «horas atrás»: tres lecturas separadas por una hora caen en **dos días** si en medio pasa la medianoche peruana |
+
+⚠️ **Y la sonda 401/404 dio un falso positivo.** Se probó la ruta nueva del expediente sin token
+esperando distinguir «viva» de «no desplegada», y el **404 de control devolvió exactamente lo
+mismo**: `negocio.routes.js` también autentica antes de casar el path. Sin ese control se habría
+dado por verificada una ruta sobre una respuesta que no dice nada. La prueba buena fue
+`railway ssh … grep -c`.
+
+⚠️ **Lo de la promo es la tercera vez que este proyecto se equivoca de idioma por un camino
+distinto** (invitaciones de equipo §11, `select` sin `idioma` §12, y ahora un componente contra
+su página). La regla que va quedando: **lo que lleva idioma se compone donde se sabe el idioma**,
+y si un componente puede montarse en una pantalla que no lo tiene, hay que poder decírselo —
+`BannerPromo` acepta `idiomaForzado` justo por eso.
+
+### 🟡 El único hueco conocido: sumar un local **en el plan que ya tienes**
+
+El selector de locales sale en las tarjetas de los planes que **no** son el actual, así que un
+cliente ya suscrito a NEGOCIO que abre su segundo local no tiene por dónde comprarlo desde el
+panel. El backend lo cubre —cobra bien y el tope lo respeta— y el mensaje del tope ya apunta a
+Planes, pero el control no está ahí para su propio plan.
+
+**No se implementó a propósito**, porque no es un botón: es una decisión de facturación. Cobrar
+el alta otra vez reinicia el periodo desde hoy y le come al cliente los días que le quedaban;
+prorratear exige aritmética que Culqi no da hecha (acá los cargos son manuales, no
+suscripciones). Hoy no bloquea a nadie —**0 clientes con locales extra**— pero es lo primero que
+hará falta el día que alguien contrate el segundo local.
+
 ### 🔴 Bugs abiertos en producción
 
-**Ninguno conocido** (última revisión: 2026-08-23, tras el cobro real de punta a punta).
+**Ninguno conocido** (última revisión: **2026-08-25**, tras desplegar el cobro por local, los
+frenos de costo de Places, el interruptor de Google Business y el expediente, y verificar las
+dos puntas: contenedor y navegador).
 Debajo, lo corregido, en orden inverso — se conserva porque cada uno deja una regla.
 
 ✅ **RESUELTO el mismo 2026-08-23 — SUNAT producción rechazaba nuestras credenciales SOL
