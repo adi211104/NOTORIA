@@ -118,6 +118,19 @@ export default function PanelAccionable({ datos, Card, ST, onIr }) {
   const temasVisibles = (temas?.temas || []).filter((x) => x.veces >= 2).slice(0, 5);
   const maxVeces = temasVisibles.length ? temasVisibles[0].veces : 1;
 
+  // ⚠️ Una misma reseña puede tocar varios temas a la vez —"el pollo es
+  // extremadamente pequeño, me sentí estafado" cuenta como porción Y como
+  // precio—, así que sin esto la MISMA cita aparecía debajo de tres temas
+  // seguidos. Es correcto y se lee como un fallo. Se le da a cada tema el
+  // primer ejemplo que nadie haya usado ya; si no queda ninguno, va sin cita,
+  // que es mejor que repetir.
+  const citasUsadas = new Set();
+  const citaDe = (tema) => {
+    const libre = (tema.ejemplos || []).find((e) => !citasUsadas.has(e.extracto));
+    if (libre) citasUsadas.add(libre.extracto);
+    return libre || null;
+  };
+
   return (
     <>
       {/* 🔴 Las dos tarjetas de arriba van en su PROPIA rejilla, dentro de una
@@ -192,11 +205,14 @@ export default function PanelAccionable({ datos, Card, ST, onIr }) {
                 )}
                 {/* El ejemplo es lo que hace el tema discutible: «salió porque
                     esta reseña dice esto», con la reseña a la vista. */}
-                {x.ejemplos?.[0] && (
-                  <p style={{ fontSize: 11.5, color: 'var(--text-3)', margin: '4px 0 0', lineHeight: 1.5, fontStyle: 'italic' }}>
-                    “{x.ejemplos[0].extracto}”
-                  </p>
-                )}
+                {(() => {
+                  const cita = citaDe(x);
+                  return cita ? (
+                    <p style={{ fontSize: 11.5, color: 'var(--text-3)', margin: '4px 0 0', lineHeight: 1.5, fontStyle: 'italic' }}>
+                      “{cita.extracto}”
+                    </p>
+                  ) : null;
+                })()}
               </div>
             );
           })}
