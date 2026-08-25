@@ -2066,14 +2066,32 @@ y rechaza otra cosa). Así se descartaron rutas enteras de TikTok sin credencial
 
 ## 19. Pendientes, ordenados por quién los desbloquea
 
-> ### ✅ La lista de CÓDIGO está vacía (2026-08-23)
+> ### Lo que queda por programar (2026-08-24)
 >
-> No queda nada que programar. Lo que sigue abierto lo desbloquea un tercero, el dueño, o es
-> una decisión de negocio. Si alguien vuelve buscando «qué falta por hacer», la respuesta
-> honesta es: **nada que dependa de escribir código**.
+> El 2026-08-23 esta lista estaba vacía. El 24 se hizo un bloque grande de trabajo —el plan
+> **Impulso**, el **panel accionable** (score, temas, tareas), **estrellas a soles**, el **parte
+> para el equipo**, respaldos y embudo— y quedó **una sola cosa** pendiente de escribir:
 >
-> Dos cosas que estuvieron en esa lista y **NO son pendientes, son decisiones tomadas**. Se
-> dejan escritas para que nadie las vuelva a apuntar como tarea:
+> 🟡 **I8 — El expediente de extorsión** (~4-5 días, costo cero). De las nueve ideas de
+> `docs/ideas-notoria.html` (17 ago) van **ocho hechas**; esta es la que falta.
+>
+> El patrón: alguien deja 1★ y acto seguido escribe por privado ofreciendo quitarla a cambio de
+> una comida gratis o de plata. Todo dueño de restaurante en Lima lo conoce y **no hay nada
+> escrito en español sobre qué hacer**. Notoria puede hacer dos cosas que nadie hace:
+> 1. **Armar el expediente** — un PDF con la reseña completa, su fecha exacta, las capturas de
+>    la conversación que suba el dueño y el historial de rating alrededor de esa fecha. Es justo
+>    lo que Google y una denuncia necesitan y lo que a mano nadie reúne bien.
+> 2. **Escribir la guía** — qué reporta Google y qué no, cómo se presenta ante INDECOPI, qué
+>    figura del Código de Protección al Consumidor aplica. Doble uso: función y captación por SEO.
+>
+> ⚠️ **El límite que hay que respetar al hacerlo:** el producto **arma la evidencia y explica el
+> procedimiento**. No da asesoría legal ni afirma que una reseña es falsa — eso lo decide Google
+> o INDECOPI, y tiene que decirlo así en la propia página. Es la misma regla que ya gobierna el
+> detector («probabilidad de comportamiento anómalo», nunca «esta reseña es falsa»).
+>
+> ── Y tres cosas que **NO son pendientes, son decisiones tomadas** ────────────────────────
+>
+> Se dejan escritas para que nadie las vuelva a apuntar como tarea:
 >
 > 1. **Ver la forma de un `Recommendation` real de Facebook.** No falta trabajo: falta el dato.
 >    La página del dueño no tiene ninguna reseña, y el resto de la integración ya se probó
@@ -2085,6 +2103,12 @@ y rechaza otra cosa). Así se descartaron rutas enteras de TikTok sin credencial
 >    instrumentos legales peruanos, y su texto tiene que decir lo que dice la norma.
 >    `scripts/prueba-correos-idioma.js` los tiene en `SOLO_ESPANOL` con el motivo escrito, y
 >    obliga a clasificar cualquier correo nuevo — así la decisión no se pierde.
+>
+> 3. **Historizar el score de verdad.** La serie mantiene fijos `confianza` y `respuesta` porque
+>    no se guarda cuántas reseñas estaban respondidas en marzo. Hacerlo bien costaría una columna
+>    por snapshot y **no vale ese precio**: lo que se mira en una tendencia es la pendiente, no
+>    el valor de un martes de hace tres meses. La limitación viaja declarada al panel
+>    (`componentesFijos`) y se dice al pie del gráfico. Ver §13.
 
 ### A. Esperando a un tercero — solo vigilar el correo
 
@@ -2181,6 +2205,22 @@ flujo entero.
 > ✅ Los dos comandos que esperaban aprobación —el ensayo de alertas y el recordatorio a las
 > cuentas sin verificar— **se ejecutaron el 2026-08-23**. Sus resultados están más abajo y en
 > §12. No hay que repetirlos.
+>
+> 🔴 **Nuevo el 2026-08-24 — un cobro real de IMPULSO, de punta a punta.** El plan ya se puede
+> contratar y cobra S/29 de verdad. El circuito entero (cargo → boleta → SUNAT → CDR) se probó
+> el 23/08, pero **con el plan NEGOCIO**: Impulso tiene su propio precio, su propia descripción
+> en el comprobante y su propia rama en la renovación. Nada hace pensar que falle —las 64
+> comprobaciones de `prueba-planes.js` cubren justo eso— pero **la parte que no se puede probar
+> sin gastar es la que hay que probar gastando**. Se hace igual que la prueba de S/1: correr
+> antes `scripts/sonda-sunat-produccion.js`, cobrar, comprobar la boleta y reembolsar.
+> ⚠️ Y acordarse de **anular la boleta** dentro de los 7 días: reembolsar en Culqi NO la anula
+> (§9). Desde el 23/08 el propio producto avisa, así que basta con hacerle caso al correo.
+>
+> 🟡 **Correr `scripts/respaldo.js` de vez en cuando.** El primero se hizo y se verificó el
+> 2026-08-24 (2397 filas, íntegro). No hay cron: es a mano, y con razón —el archivo lleva datos
+> personales de terceros y no puede acabar en un servidor cualquiera—. Lo que justifica repetirlo
+> es que **los snapshots son lo único que no se puede volver a conseguir**: Google enseña la foto
+> de hoy, no la película. Una vez al mes basta hoy.
 >
 > 🔴 **Lo único verdaderamente irreversible que sigue abierto: respaldar
 > `notoria-upload.jks` y su contraseña fuera de esta PC.** Si esa clave se pierde antes de la
@@ -2304,13 +2344,24 @@ flujo entero.
 
 ### D. Se pueden hacer solas, pero necesitan tiempo o datos
 
-*(Vacía a fecha 2026-08-23. Se deja la sección porque volverá a llenarse.)*
+🔴 **Lo que quedó CABLEADO A MEDIAS el 2026-08-24, y es la deuda más fácil de olvidar.**
 
-- ~~**Ranking "quién subió más este mes"**~~ → ✅ **Cerrado el 2026-08-23: motor, endpoint y
-  pantalla.** El bloqueo era «faltan meses de snapshots» y caducó. Pero medirlo reveló que **la
-  métrica original no servía**: en 49 días ningún rating se movió (4.8→4.8, 3.9→3.9, 4.0→4.0,
-  4.5→4.5), porque una ficha con cientos de reseñas no mueve su promedio en un mes. Lo que sí
-  tiene señal es el **volumen de reseñas nuevas**. Ver §13.
+Las cuatro librerías nuevas se escribieron **puras y en el backend a propósito**, precisamente
+para que pudieran usarse desde más de un sitio. Hoy cada una alimenta solo la pantalla para la
+que se hizo. Nada está roto y nada urge; simplemente el trabajo caro ya está hecho y lo que
+falta es enchufarlo:
+
+| Pieza | Dónde se usa hoy | Dónde encaja y no está |
+|---|---|---|
+| `lib/score.js` | Ficha (`/resumen`) | El **correo semanal**, el **PDF mensual** y la **constancia**. Es literalmente el motivo por el que se sacó del componente: el score que anuncian los cuatro planes solo se ve abriendo una ficha |
+| `lib/temas.js` | Afiche, panel, parte | El **correo semanal** — hoy manda un insight de IA que cuesta una llamada a Groq y dice menos que «4 de 10 mencionan demora», que es gratis |
+| `lib/impacto.js` | Analizador público | El **panel del cliente**. Un dueño que ya paga no puede ver en soles lo que le cuesta su brecha; solo lo ve quien todavía no se ha registrado |
+| `lib/parteEquipo.js` | Ficha, pestaña «Cómo te ven» | El **correo semanal**, adjunto o dentro. Hoy hay que entrar al panel a buscarlo, que es exactamente el hábito que el afiche existe para no depender de él |
+
+⚠️ **Antes de enchufar el parte al correo semanal**, decidir una cosa que no es técnica: si va
+en el correo, se genera para TODOS los negocios con material cada semana, no solo para los que
+alguien abre. Eso multiplica las llamadas a Groq por el número de negocios activos. Hoy el
+techo es «una por negocio y por semana **solo si alguien lo mira**», que es mucho más barato.
 
 ### E. Aplazados a propósito — decididos, pero no ahora
 

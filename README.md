@@ -20,10 +20,14 @@ en `CLAUDE.md`.
 | RUC | 20616239466 |
 | Domicilio fiscal | Cal. Isla Filipinas Mza. G9 Lote 8, **La Perla, Provincia Constitucional del Callao**, Perú (ubigeo INEI 070104) |
 | Marca / dominio | Notoria · usenotoria.app |
-| Producto | SaaS de monitoreo de reputación para restaurantes y hoteles en LATAM |
-| Planes | Gratuito · Negocio S/59/mes · Franquicia S/179/mes (S/143/mes anual) |
+| Producto | SaaS de monitoreo de reputación para restaurantes y hoteles **del Perú** (servicio solo nacional: todo negocio se crea con `pais: 'pe'` y la facturación va fija en `PE`) |
+| Planes | Gratuito · **Impulso S/29/mes** (S/23/mes anual) · Negocio S/59/mes (S/47/mes anual) · Franquicia S/179/mes (S/143/mes anual) |
 
-**Los precios están en soles e incluyen IGV.** Los cobros se procesan por Culqi en PEN. Fuente única: `brand-shield/src/lib/precios.js`.
+**Los precios están en soles e incluyen IGV.** Los cobros se procesan por Culqi en PEN.
+Fuente única del **precio**: `brand-shield/src/lib/precios.js`. Fuente única de **qué incluye
+cada plan**: `brand-shield/src/lib/planes.js` (añadida el 2026-08-24 al crear Impulso — ver
+CLAUDE.md §8.6; antes la matriz de planes no existía en ningún sitio y estaba repartida en 26
+puntos del backend).
 
 ---
 
@@ -242,24 +246,20 @@ legal de conservación, y lo correcto es conservar lo justo y disociar el resto.
 
 **SUNAT — obligaciones mensuales** (guía completa en
 [`docs/obligaciones-tributarias-mensuales.md`](docs/obligaciones-tributarias-mensuales.md))
-- [ ] 🔴 **Declaración de julio 2026 — vence el 24/08/2026.** No es una más: es la
-      que **acoge la empresa al RMT**. Si se presenta tarde, el acogimiento no se
-      perfecciona y NOTORIA queda en Régimen General (29.5% de Renta en vez de 10%
-      sobre las primeras 15 UIT). Va **íntegramente en cero** (la primera factura de
-      compra es del 04/08/2026, o sea que cae en agosto). Orden: SIRE (RVIE y RCE,
-      ambos sin operaciones) y después el 621. ⚠️ **Justamente por ir en cero es
-      peligrosa:** sin ventas ni compras parecería aplicar la excepción de no
-      declarar, pero esa excepción **no rige cuando la declaración sirve para
-      acogerse a un régimen** — que es exactamente este caso.
-      📌 **DÓNDE SE QUEDÓ (07/08/2026, 20:45):** se intentó generar el RVIE de
-      julio y **la propuesta todavía no se puede aceptar**: SIRE solo la habilita
-      **a partir del octavo día calendario del mes siguiente**, o sea el
-      **08/08/2026**. Se llegó un día antes. Los tres síntomas —*Aceptar
-      Propuesta* que no responde, *Preliminar del RVIE* en "Ningún registro
-      encontrado" y *Generar registro* en gris— son **el mismo bloqueo en
-      cascada**, no tres problemas. Retomar el 08/08 desde: RVIE → Propuesta →
-      **Aceptar Propuesta** → Preliminar → Generación → CIR; luego lo mismo en RCE
-      y recién después el 621
+- [x] ✅ **Declaración de julio 2026 — PRESENTADA.** RVIE y RCE en `JUL-Presentado`
+      (el registro de ventas sale vacío, que es lo correcto: julio no tuvo ni una
+      venta), y **Declara Fácil 0621 presentado el 24/08/2026 07:24:16**, período
+      `202607`, **Nº de Orden 1203165333**, importe **S/0**. Con esto el
+      acogimiento al RMT queda perfeccionado.
+      ⚠️ **Lo único que queda de julio es guardar el PDF de la Constancia de
+      Presentación.**
+      🔴 **Esta entrada estuvo marcada como pendiente hasta el 2026-08-24 estando
+      ya hecha**, con una nota de «dónde se quedó» del 07/08. Es el mismo fallo
+      que documenta CLAUDE.md §9: la verdad vive en
+      [`docs/obligaciones-tributarias-mensuales.md`](docs/obligaciones-tributarias-mensuales.md),
+      y **un README que la contradice es peor que un README que se calla** —
+      manda a rehacer un trámite ya presentado. Al cerrar un periodo, cerrarlo
+      **en los dos sitios**.
 - [ ] **Declaración de agosto 2026 — vence el 21/09/2026.** Aquí entra la factura
       de compra del 04/08/2026 en el RCE y su base imponible en la casilla 107.
       ⚠️ **Al abrir la propuesta del RCE, revisar si BCP facturó mantenimiento de
