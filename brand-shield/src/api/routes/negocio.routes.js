@@ -684,6 +684,16 @@ router.get('/:id/constancia.pdf', verificarPlan(planesCon('constancia')), async 
       },
     });
 
+    // El score que anuncian los cuatro planes, ahora también en el papel que el
+    // cliente le enseña a un mall o a un franquiciante. Se calcula sobre las
+    // reseñas captadas, igual que en la ficha: dos números distintos con el
+    // mismo nombre serían peor que no ponerlo.
+    const resenasScore = await prisma.resena.findMany({
+      where: { negocioId: negocio.id },
+      select: { esSospechosa: true, respondida: true },
+    });
+    const puntuacion = score.calcular(snap, resenasScore);
+
     const codigo = emitirCodigo({
       nombre: negocio.nombre,
       rating: snap.ratingActual,
@@ -691,6 +701,7 @@ router.get('/:id/constancia.pdf', verificarPlan(planesCon('constancia')), async 
       diasVigilado,
       incidentes,
       placeId: negocio.googlePlaceId || '',
+      score: puntuacion ? puntuacion.score : undefined,
     });
 
     const front = (process.env.FRONTEND_URL || 'https://usenotoria.app').replace(/\/+$/, '');
@@ -702,6 +713,7 @@ router.get('/:id/constancia.pdf', verificarPlan(planesCon('constancia')), async 
       totalResenas: snap.totalResenas,
       diasVigilado,
       incidentes,
+      score: puntuacion ? puntuacion.score : null,
       emitida,
       vence: new Date(emitida.getTime() + VIGENCIA_DIAS * 86400000),
     }, `${front}/verificar/${codigo}`);

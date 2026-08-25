@@ -548,6 +548,15 @@ const RESUMEN = {
     ratingActual: 'Rating actual',
     variacion: 'Variación 7 días',
     resenasNuevas: 'Reseñas nuevas',
+    score: 'Score',
+    // ⚠️ Los datos van como VALORES y la frase se compone acá: es la regla que
+    // dejaron las invitaciones de equipo y el digest de alertas. El backend
+    // manda `veces` y `porcentaje`, nunca «4 de 10 mencionan demora» ya escrito.
+    temaSemana: (etiqueta, veces, pct) =>
+      `Lo que más mencionaron: <strong>${etiqueta}</strong> — ${veces} de las reseñas con texto de esta semana (${pct}%).`,
+    temaSube: (etiqueta) => `Y va en aumento respecto a la semana pasada: <strong>${etiqueta}</strong>.`,
+    parteTitulo: 'Para el grupo de tu equipo',
+    parteAyuda: 'Cópialo y pégalo en el WhatsApp del personal. Son ellos los que pueden cambiar lo que dicen las reseñas.',
     promoIa: (url) => `El plan Negocio incluye un análisis con IA de qué mencionan tus clientes cada semana. <a href="${url}" style="color:#0B7324;">Conoce más →</a>`,
     verPanel: 'Ver panel de control →',
     asuntoConsolidado: (n) => `Tu resumen semanal consolidado (${n} locales) — Notoria`,
@@ -569,6 +578,12 @@ const RESUMEN = {
     ratingActual: 'Current rating',
     variacion: '7-day change',
     resenasNuevas: 'New reviews',
+    score: 'Score',
+    temaSemana: (etiqueta, veces, pct) =>
+      `Most mentioned: <strong>${etiqueta}</strong> — ${veces} of this week's reviews with text (${pct}%).`,
+    temaSube: (etiqueta) => `And it is growing compared to last week: <strong>${etiqueta}</strong>.`,
+    parteTitulo: 'For your team group chat',
+    parteAyuda: 'Copy it into your staff WhatsApp. They are the ones who can change what the reviews say.',
     promoIa: (url) => `The Business plan includes a weekly AI analysis of what your customers mention. <a href="${url}" style="color:#0B7324;">Learn more →</a>`,
     verPanel: 'Open dashboard →',
     asuntoConsolidado: (n) => `Your weekly summary across ${n} locations — Notoria`,
@@ -587,7 +602,7 @@ const textosResumen = (usuario) => RESUMEN[usuario?.idioma] || RESUMEN.es;
 
 const bloqueCifrasNegocio = (negocio, d, t = RESUMEN.es) => `
   <p style="color:#141413;font-size:14px;font-weight:700;margin:14px 0 8px;">${esc(negocio.nombre)}</p>
-  <div style="display:flex;gap:10px;margin-bottom:${d.insight ? '10px' : '4px'};">
+  <div style="display:flex;gap:10px;margin-bottom:${d.insight || d.tema ? '10px' : '4px'};">
     <div style="flex:1;background:#FAF9F5;border:1px solid #E8E6DC;border-radius:6px;padding:12px 14px;text-align:center;">
       <p style="color:#9C9B96;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 4px;">${t.ratingActual}</p>
       <p style="color:#141413;font-size:20px;font-weight:800;margin:0;">${d.ratingActual?.toFixed(1) ?? '—'}★</p>
@@ -600,10 +615,27 @@ const bloqueCifrasNegocio = (negocio, d, t = RESUMEN.es) => `
       <p style="color:#9C9B96;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 4px;">${t.resenasNuevas}</p>
       <p style="color:#141413;font-size:20px;font-weight:800;margin:0;">${d.resenasNuevas ?? 0}</p>
     </div>
+    ${d.score != null ? `
+    <div style="flex:1;background:#FAF9F5;border:1px solid #E8E6DC;border-radius:6px;padding:12px 14px;text-align:center;">
+      <p style="color:#9C9B96;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 4px;">${t.score}</p>
+      <p style="color:#141413;font-size:20px;font-weight:800;margin:0;">${d.score}</p>
+    </div>` : ''}
   </div>
+  ${d.tema ? `
+  <p style="color:#141413;font-size:13px;margin:0 0 8px;line-height:1.6;">
+    ${t.temaSemana(esc(d.tema.etiqueta), d.tema.veces, d.tema.porcentaje)}
+    ${d.tendenciaTema && d.tendenciaTema.etiqueta && d.tendenciaTema.etiqueta !== d.tema.etiqueta
+      ? t.temaSube(esc(d.tendenciaTema.etiqueta)) : ''}
+  </p>` : ''}
   ${d.insight ? `
   <div style="background:${'rgba(11,115,36,0.08)'};border-left:3px solid #0B7324;padding:10px 14px;margin-bottom:4px;">
     <p style="color:#141413;font-size:13px;margin:0;line-height:1.6;">${esc(d.insight)}</p>
+  </div>` : ''}
+  ${d.parte ? `
+  <div style="background:#FAF9F5;border:1px solid #E8E6DC;border-radius:6px;padding:12px 14px;margin-top:10px;">
+    <p style="color:#9C9B96;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 6px;">${t.parteTitulo}</p>
+    <p style="color:#141413;font-size:13px;margin:0 0 8px;line-height:1.7;white-space:pre-line;">${esc(d.parte)}</p>
+    <p style="color:#9C9B96;font-size:11px;margin:0;line-height:1.5;">${t.parteAyuda}</p>
   </div>` : ''}
 `;
 

@@ -108,6 +108,14 @@ export default async function PaginaVerificar({ params }) {
               <Dato etiqueta="Calificación en Google" valor={`${Number(d.rating).toFixed(1)} de 5`} />
               <Dato etiqueta="Total de reseñas" valor={String(d.totalResenas)} />
               <Dato etiqueta="Días bajo monitoreo" valor={String(d.diasVigilado)} />
+              {/* Solo si la constancia lo trae. Las emitidas antes del
+                  2026-08-25 no llevan score y siguen siendo válidas: la firma se
+                  recalcula sobre el payload tal cual, así que un campo nuevo no
+                  invalida los códigos viejos. `null` distingue «constancia
+                  anterior al score» de «sacó cero». */}
+              {d.score != null && (
+                <Dato etiqueta="Score de reputación" valor={`${d.score} de 100`} />
+              )}
               <Dato
                 etiqueta="Incidencias registradas"
                 valor={d.incidentes > 0 ? String(d.incidentes) : 'Ninguna'}

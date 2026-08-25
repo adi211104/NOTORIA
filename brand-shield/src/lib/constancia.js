@@ -53,7 +53,7 @@ const firmar = (body) => crypto.createHmac('sha256', secreto()).update(body).dig
  * el documento y dentro de un QR, y cada carácter de más engorda el QR y le baja
  * la tolerancia a un escaneo torcido.
  */
-const emitirCodigo = ({ nombre, rating, totalResenas, diasVigilado, incidentes, placeId }) => {
+const emitirCodigo = ({ nombre, rating, totalResenas, diasVigilado, incidentes, placeId, score }) => {
   const payload = {
     n: String(nombre || '').slice(0, 120),
     r: Number(rating) || 0,
@@ -63,6 +63,16 @@ const emitirCodigo = ({ nombre, rating, totalResenas, diasVigilado, incidentes, 
     p: String(placeId || '').slice(0, 200),
     e: Date.now(),
   };
+  // ⚠️ El score va SOLO si existe, y no como 0 por defecto como los demás
+  // campos. Un negocio sin snapshot no tiene «0 de reputación»: no tiene
+  // medición, y en un documento que alguien le enseña a un banco o a un mall un
+  // 0 impreso es una acusación, no un dato faltante. Además, omitir la clave
+  // mantiene el QR corto en el caso en que no aporta nada.
+  //
+  // Las constancias emitidas ANTES del 2026-08-25 no la llevan, y siguen siendo
+  // válidas: la firma se recalcula sobre el payload tal cual, así que un campo
+  // nuevo no invalida los códigos viejos — solo salen sin score al verificarlos.
+  if (Number.isFinite(score)) payload.s = Number(score);
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
   return `${body}.${firmar(body)}`;
 };
@@ -107,6 +117,9 @@ const verificarCodigo = (codigo) => {
         diasVigilado: p.d,
         incidentes: p.i,
         placeId: p.p,
+        // `null`, no 0: distingue «esta constancia es anterior al score» de
+        // «este negocio sacó cero».
+        score: Number.isFinite(p.s) ? p.s : null,
         emitida,
         vence,
       },

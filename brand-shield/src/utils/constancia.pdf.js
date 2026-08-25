@@ -77,18 +77,30 @@ const generarConstancia = async (datos, urlVerificacion) => {
     parrafo(`${EMISOR.razon}, que opera el servicio de monitoreo de reputación online Notoria, deja constancia de que a la fecha de emisión de este documento el establecimiento identificado a continuación presentaba el siguiente estado en su ficha pública de Google Maps:`);
 
     // ── Recuadro de datos ──
-    const alto = 148;
+    //
+    // ⚠️ Las filas se arman primero y el alto se DERIVA de cuántas hay. Antes
+    // `alto` era 148 fijo, calculado a mano para exactamente cinco: al sumar la
+    // sexta (el score), la última habría caído justo sobre el borde inferior del
+    // recuadro. No habría fallado nada — solo un documento feo que el cliente le
+    // enseña a un banco.
+    const filas = [
+      ['Establecimiento', datos.nombre],
+      ['Dirección', datos.direccion || 'No consignada'],
+      ['Calificación en Google', `${Number(datos.rating).toFixed(1)} de 5`],
+      ['Total de reseñas', String(datos.totalResenas)],
+      ['Días bajo monitoreo', String(datos.diasVigilado)],
+    ];
+    // El score solo si se pudo medir. Un «0 de 100» impreso en una constancia
+    // acusa a un negocio de algo que en realidad es «todavía no lo sabemos».
+    if (Number.isFinite(datos.score)) filas.push(['Score de reputación', `${datos.score} de 100`]);
+
+    const alto = 18 + filas.length * 26;
     doc.roundedRect(M, y, ancho, alto, 8).lineWidth(1).stroke(BORDE);
-    const fila = (etiqueta, valor, i) => {
+    filas.forEach(([etiqueta, valor], i) => {
       const yy = y + 18 + i * 26;
       doc.fillColor(GRIS).font('Times-Roman').fontSize(10.5).text(seguro(etiqueta), M + 20, yy, { width: 190 });
       doc.fillColor(INK).font('Times-Bold').fontSize(11.5).text(seguro(valor), M + 215, yy, { width: ancho - 235 });
-    };
-    fila('Establecimiento', datos.nombre, 0);
-    fila('Dirección', datos.direccion || 'No consignada', 1);
-    fila('Calificación en Google', `${Number(datos.rating).toFixed(1)} de 5`, 2);
-    fila('Total de reseñas', String(datos.totalResenas), 3);
-    fila('Días bajo monitoreo', String(datos.diasVigilado), 4);
+    });
     y += alto + 20;
 
     doc.fillColor(INK).font('Times-Roman').fontSize(12);

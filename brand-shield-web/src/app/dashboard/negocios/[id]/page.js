@@ -458,6 +458,21 @@ const TEXTOS = {
       constError:'No pudimos emitir la constancia. Escanea el negocio y vuelve a intentarlo.',
     },
     resumen: {
+      // «Estrellas a soles», con los números del propio local. Hasta el
+      // 2026-08-25 esto solo lo veía quien NO estaba registrado: el analizador
+      // gratuito del landing lo decía y el panel del cliente que ya paga, no.
+      impacto: {
+        titulo:'Qué te cuesta esa diferencia, en soles',
+        pregunta:'¿Cuánto factura este local al mes, aproximadamente?',
+        elige:'Elige un rango',
+        // No se guarda en ninguna parte, y hay que decirlo: es un dato sensible.
+        privado:'No guardamos este dato. Solo se usa para el cálculo de abajo.',
+        rango:(d,h)=> h ? `S/${d.toLocaleString('es-PE')} – S/${h.toLocaleString('es-PE')}` : `Más de S/${d.toLocaleString('es-PE')}`,
+        resultado:(b,min,max)=>`Estar ${b.toFixed(1)}★ por debajo de 4.5★ equivale a entre S/${min.toLocaleString('es-PE')} y S/${max.toLocaleString('es-PE')} al mes.`,
+        anual:(min,max)=>`Al año, entre S/${min.toLocaleString('es-PE')} y S/${max.toLocaleString('es-PE')}.`,
+        cuenta:(b,p1,p2)=>`La cuenta: ${b} estrellas × tu facturación × el ${p1}–${p2}% que mide el estudio.`,
+        fuente:'Según',
+      },
       // Este mes contra el anterior. Mide RESEÑAS GANADAS y no rating: con 49
       // días de datos reales ninguna ficha movió su promedio, porque una con
       // cientos de reseñas no lo mueve en un mes. Ver lib/progreso.js.
@@ -916,6 +931,17 @@ const TEXTOS = {
       constError:'We could not issue the certificate. Scan the business and try again.',
     },
     resumen: {
+      impacto: {
+        titulo:'What that gap costs you, in soles',
+        pregunta:'Roughly how much does this location bill per month?',
+        elige:'Pick a range',
+        privado:'We do not store this. It is only used for the calculation below.',
+        rango:(d,h)=> h ? `S/${d.toLocaleString('en-US')} – S/${h.toLocaleString('en-US')}` : `Over S/${d.toLocaleString('en-US')}`,
+        resultado:(b,min,max)=>`Being ${b.toFixed(1)}★ below 4.5★ is worth between S/${min.toLocaleString('en-US')} and S/${max.toLocaleString('en-US')} a month.`,
+        anual:(min,max)=>`Over a year, between S/${min.toLocaleString('en-US')} and S/${max.toLocaleString('en-US')}.`,
+        cuenta:(b,p1,p2)=>`The math: ${b} stars × your revenue × the ${p1}–${p2}% the study measures.`,
+        fuente:'Source:',
+      },
       progreso: {
         titulo:'This month vs. last',
         sub:'How many new reviews came in. It is what actually moves in a month, and the only part you can push: the average of a listing with hundreds of reviews barely changes.',
@@ -1310,6 +1336,13 @@ export default function DetallePage() {
   // significa «no hay nada que contar» y la tarjeta no se pinta: el backend
   // responde 409 SIN_DATOS antes que una lista de ceros, y aquí se respeta.
   const [progresoMes, setProgresoMes] = useState(null);
+  // «Estrellas a soles». El rango de facturación NO se manda a ningún sitio que
+  // lo guarde ni se persiste: vive en este estado mientras la pestaña está
+  // abierta. Pedirle a un cliente la cifra exacta de lo que factura —y encima
+  // almacenarla— sería pedir un dato sensible a cambio de nada. Ver
+  // brand-shield/src/lib/impacto.js.
+  const [rangoFact, setRangoFact] = useState('');
+  const [impacto, setImpacto] = useState(null);
   const [resumenPanel, setResumenPanel] = useState(null);
   // El parte para el equipo. `null` = aún no pedido · 'sin' = esta semana no hay
   // material (409) y la tarjeta se esconde entera.
@@ -1495,6 +1528,49 @@ export default function DetallePage() {
   // meses medidos». Se traga en silencio y la tarjeta simplemente no aparece,
   // que es la regla de «lo que no podemos entregar no se muestra» aplicada a una
   // sección. Por eso no hay estado de error acá, a diferencia del espejo.
+  // Espejo de RANGOS en brand-shield/src/lib/impacto.js. Solo pintan el
+  // desplegable: el cálculo lo hace SIEMPRE el backend, así que si los de allá
+  // cambian, acá como mucho sobra o falta una opción — nunca sale una cifra mala.
+  const RANGOS_FACT = [
+    { id: 'r1', desde: 5000, hasta: 15000 },
+    { id: 'r2', desde: 15000, hasta: 30000 },
+    { id: 'r3', desde: 30000, hasta: 60000 },
+    { id: 'r4', desde: 60000, hasta: 120000 },
+    { id: 'r5', desde: 120000, hasta: null },
+  ];
+
+  // Se pide al endpoint PÚBLICO a propósito: es aritmética pura —cero llamadas a
+  // Google, cero a la base, cero a la IA— y ya existe. Duplicarlo tras
+  // autenticación sería una segunda copia de la misma cuenta.
+  const pedirImpacto = async (rango) => {
+    setRangoFact(rango);
+    setImpacto(null);
+    if (!rango || !negocio) return;
+    try {
+      const qs = new URLSearchParams({
+        // El rating VIVO sale del último snapshot, no de `googleRatingBase`,
+        // que se fija al crear el negocio y no se actualiza nunca: usar la base
+        // daría una brecha —y por tanto una cifra en soles— calculada sobre una
+        // nota de hace meses.
+        //
+        // ⚠️ Se lee del negocio y no de la variable `snap`, que se declara mucho
+        // más abajo en este mismo componente: la closure funcionaría por los
+        // pelos y dejaría una trampa para quien mueva una línea.
+        rating: String(negocio.snapshots?.[0]?.ratingActual ?? negocio.googleRatingBase ?? 0),
+        referencia: '4.5',
+        rango,
+        tipo: negocio.tipo || '',
+      });
+      const res = await fetch(`${API_URL}/api/publico/impacto?${qs}`);
+      // 404 SIN_ESTIMACION = el estudio no aplica a este rubro (un hotel vende
+      // por Booking, no por Maps). Se deja en null y la tarjeta se esconde: es
+      // la regla de «lo que no podemos entregar no se muestra», y prestarle a un
+      // hotel una cifra medida sobre restaurantes sería inventar.
+      if (!res.ok) return;
+      setImpacto(await res.json());
+    } catch { /* la tarjeta simplemente no aparece */ }
+  };
+
   useEffect(() => {
     if (!id) return;
     let vigente = true;
@@ -2107,6 +2183,52 @@ export default function DetallePage() {
               tarjeta se esconde sola si no hay nada que enseñar — ver la cabecera
               de components/PanelAccionable.js. */}
           <PanelAccionable datos={resumenPanel} Card={Card} ST={ST} onIr={setTab} />
+          {/* Estrellas a soles, con los números de ESTE local.
+              🔴 RANGO y nunca una cifra única: el estudio de Luca (Harvard) da
+              5-9%, y fingir una precisión que el propio paper no tiene basta
+              para que el cliente lo compruebe una vez y deje de creerse todo lo
+              demás que diga Notoria. La tarjeta se esconde entera si el estudio
+              no aplica al rubro (un hotel vende por Booking, no por Maps): el
+              backend responde 404 y `impacto` se queda en null. */}
+          {(negocio.snapshots?.[0]?.ratingActual ?? 0) > 0 && (
+            <Card>
+              <h3 style={ST.h3}>{t.resumen.impacto.titulo}</h3>
+              <p style={{ ...ST.sub, marginBottom:10 }}>{t.resumen.impacto.pregunta}</p>
+              <select
+                value={rangoFact}
+                onChange={(e) => pedirImpacto(e.target.value)}
+                style={{ width:'100%', maxWidth:340, padding:'9px 11px', borderRadius:7, fontSize:13,
+                         background:'var(--surface2)', color:'var(--text)',
+                         border:'1px solid var(--border-c)' }}>
+                <option value="">{t.resumen.impacto.elige}</option>
+                {RANGOS_FACT.map((r) => (
+                  <option key={r.id} value={r.id}>{t.resumen.impacto.rango(r.desde, r.hasta)}</option>
+                ))}
+              </select>
+              <p style={{ fontSize:11, color:'var(--text-3)', margin:'6px 0 0' }}>
+                {t.resumen.impacto.privado}
+              </p>
+              {impacto && (
+                <div style={{ marginTop:14, paddingTop:14, borderTop:'1px solid var(--border-c)' }}>
+                  <p style={{ fontSize:15, color:'var(--text)', margin:'0 0 6px', lineHeight:1.6 }}>
+                    {t.resumen.impacto.resultado(impacto.brecha, impacto.mensual.min, impacto.mensual.max)}
+                  </p>
+                  <p style={{ fontSize:13, color:'var(--text-2)', margin:'0 0 10px' }}>
+                    {t.resumen.impacto.anual(impacto.anual.min, impacto.anual.max)}
+                  </p>
+                  {/* La aritmética a la vista y la fuente enlazada: una cifra de
+                      dinero que el cliente no puede rehacer a mano es una cifra
+                      en la que no confía. */}
+                  <p style={{ fontSize:11, color:'var(--text-3)', margin:0, lineHeight:1.6 }}>
+                    {t.resumen.impacto.cuenta(impacto.brecha, impacto.porcentajes.min * 100, impacto.porcentajes.max * 100)}{' '}
+                    {t.resumen.impacto.fuente}{' '}
+                    <a href={impacto.fuente.url} target="_blank" rel="noopener noreferrer"
+                       style={{ color:'var(--text-2)' }}>{impacto.fuente.cita}</a>
+                  </p>
+                </div>
+              )}
+            </Card>
+          )}
           {/* Progreso mensual. Solo aparece si el backend devolvió algo: un 409
               SIN_DATOS deja `progresoMes` en null y esta tarjeta no existe. Pintar
               una fila de ceros le diría al cliente que su mes fue plano cuando

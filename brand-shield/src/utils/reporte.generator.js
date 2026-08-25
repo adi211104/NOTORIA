@@ -2,6 +2,7 @@
 // Genera un reporte PDF mensual de reputación usando PDFKit
 
 const PDFDocument = require('pdfkit');
+const score = require('../lib/score');
 const { getResend, FROM, base, h1, p } = require('./emails');
 
 // Paleta de marca Notoria
@@ -21,6 +22,7 @@ const TEXTOS = {
     sinDatos: 'Sin datos',
     variacionMes: 'Variación del mes',
     totalResenas: 'Total reseñas',
+    score: 'Score de reputación',
     alertasMes: 'Alertas del mes',
     resenasSospechosas: 'Reseñas sospechosas',
     alertasDetectadas: 'Alertas detectadas',
@@ -48,6 +50,7 @@ const TEXTOS = {
     sinDatos: 'No data',
     variacionMes: 'Change this month',
     totalResenas: 'Total reviews',
+    score: 'Reputation score',
     alertasMes: 'Alerts this month',
     resenasSospechosas: 'Suspicious reviews',
     alertasDetectadas: 'Alerts detected',
@@ -85,6 +88,12 @@ const generarPDF = (negocio, datos, idioma = 'es') => {
 
     const { snapshots, alertas, resenas, periodo } = datos;
     const snapActual = snapshots?.[0];
+    // El score 0-100 que el catálogo anuncia en los cuatro planes. Hasta el
+    // 2026-08-25 solo existía dentro del panel, así que el informe que el dueño
+    // archiva o le enseña a su socio no lo llevaba. Sale de `lib/score.js`, la
+    // misma fórmula que la ficha: dos números distintos con el mismo nombre
+    // serían peor que no ponerlo.
+    const puntuacion = score.calcular(snapActual, resenas || []);
     const snapInicio = snapshots?.[snapshots.length - 1];
     const variacion = snapActual && snapInicio
       ? (snapActual.ratingActual - snapInicio.ratingActual).toFixed(2)
@@ -116,6 +125,10 @@ const generarPDF = (negocio, datos, idioma = 'es') => {
       { label: t.ratingActual, valor: snapActual ? `${snapActual.ratingActual} / 5` : t.sinDatos },
       { label: t.variacionMes, valor: variacion ? `${variacion > 0 ? '+' : ''}${variacion}` : '—' },
       { label: t.totalResenas, valor: snapActual?.totalResenas?.toLocaleString() || '—' },
+      // `null` cuando no hay snapshot: un negocio recién conectado no tiene
+      // «cero reputación», tiene «todavía no medimos». Un 0 en un informe
+      // impreso es una acusación.
+      { label: t.score, valor: puntuacion ? `${puntuacion.score} / 100` : t.sinDatos },
       { label: t.alertasMes, valor: String(alertas?.length || 0) },
       { label: t.resenasSospechosas, valor: String(resenas?.filter(r => r.esSospechosa)?.length || 0) },
     ];
