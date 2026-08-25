@@ -507,6 +507,10 @@ vez por tarjeta**. Campos en `Usuario`: `periodoFacturacion`, `promoBienvenidaUs
   redondeo que el backend** (`montoEnCentimos()` en `lib/catalogo.js`). Redondear en soles
   mostraba S/30.00 y cobraba S/29.50.
 - Se anuncia con `components/BannerPromo.js`, también al visitante sin sesión.
+  ⚠️ **Sus importes se DERIVAN del catálogo** (`montoEnCentimos(precio, true)`, el mismo redondeo
+  del backend). Estaban escritos a mano y al añadir un plan el cartel se quedó anunciando dos de
+  tres, en la única pantalla donde se vende. Un precio a mano en un cartel de promoción es
+  exactamente donde no puede estar.
 
 **Nada de "7 días gratis".** No existe periodo de prueba: el cobro es inmediato. Reintroducir
 la promesa sin implementarla sería publicidad engañosa (Ley 29571). Lo que sí existe y se
@@ -2336,6 +2340,31 @@ es, además, imposible.
   insistir más allá de eso es spam.
   Confirmado el 2026-08-20 por otra vía: Culqi reporta **0 cargos** en el entorno live. Las cuentas con plan NEGOCIO concedido a mano (`didier@usenotoria.app`,
 `didierprincipe@gmail.com`) **son del dueño**, no tocarlas.
+
+### 🔴 Cuatro fallos que solo se vieron ABRIENDO el panel (2026-08-24)
+
+El mismo día, tras desplegar el plan Impulso y el panel accionable, **451 pruebas en verde, el
+build limpio y la consola sin un error**. Los cuatro fallos siguientes estaban en producción y
+ninguna de esas tres cosas los vio. Se encontraron mirando la pantalla.
+
+| Qué se veía | Qué pasaba |
+|---|---|
+| La barra lateral decía **`NEGOCIO`** en crudo | Al centralizar los nombres, `PLAN_LABELS` pasó de mapa a **función**, y el call-site seguía indexándola con un string. `PLAN_LABELS[plan]` da `undefined` y el `\|\| usuario.plan` de reserva lo tapaba pintando el enum |
+| Dos tarjetas estrechas y medio panel en blanco | La rejilla del Resumen es `auto-fit,minmax(280px,1fr)` → cinco columnas en un monitor ancho, y **`auto-fit` no colapsa las pistas** porque la tarjeta del score las ocupa todas con `gridColumn:'1/-1'`. Medido: **313px en un contenedor de 1619px** |
+| La **misma cita** debajo de tres temas seguidos | Una reseña toca varios temas a la vez («el pollo es extremadamente pequeño, me sentí estafado» es porción Y precio). Correcto, y se lee como un fallo |
+| El cartel de la promo anunciaba **dos planes de tres** | Los importes estaban escritos a mano: una **quinta copia** de los precios. Y era el único bloque en español de una pantalla en inglés |
+
+🔴 **Los cuatro fallan SUAVE**, que es el patrón: hay un valor de reserva, o el CSS es válido, o
+el dato es correcto pero se repite. Nada lanza. Por eso ninguna prueba los caza y la consola
+está limpia.
+
+⚠️ **La regla que dejan: un cambio que toca lo que se VE no está verificado hasta que alguien lo
+mira.** Las pruebas cubren el contrato entre piezas; la pantalla es otra cosa. Y dos de los
+cuatro los introdujo justamente la centralización que arreglaba otro problema — mover algo a
+fuente única cambia su forma (mapa → función), y los call-sites viejos siguen compilando.
+
+⚠️ **Al convertir un mapa en función, buscar los `[` que lo indexan.** `grep -rn "NOMBRE\["` es
+literalmente todo lo que hacía falta.
 
 ### 🔴 Bugs abiertos en producción
 
