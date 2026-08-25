@@ -2156,11 +2156,34 @@ y rechaza otra cosa). Así se descartaron rutas enteras de TikTok sin credencial
 
 ## 19. Pendientes, ordenados por quién los desbloquea
 
-> ### Lo que queda por programar (2026-08-24)
+> ### Lo que queda por programar (2026-08-25)
+>
+> El 25 se desplegó un bloque grande: el **interruptor de Google Business**, los **tres frenos de
+> costo de Places**, el **cobro por local**, el **cableado** de score/temas/impacto/parte y el
+> **expediente (I8)**. Queda **una sola cosa** pendiente de escribir, y es una decisión de
+> facturación antes que código:
+>
+> 🟡 **P1 — Sumar un local en el plan que YA tienes.** El selector de locales sale en las
+> tarjetas de los planes que **no** son el actual (`!esPlanActual` en `dashboard/planes`), así
+> que un cliente ya suscrito a NEGOCIO que abre su segundo local no tiene por dónde comprarlo
+> desde el panel. El backend lo cubre entero —`montoSuscripcion` cobra bien, `negociosPermitidos`
+> respeta el tope, el corte del worker funciona y el mensaje del tope ya apunta a Planes— pero el
+> control no está ahí para su propio plan.
+>
+> ⚠️ **No es un botón, y por eso no se hizo:** hay que decidir qué se cobra al añadir a mitad de
+> periodo. Volver a pasar por el alta reinicia `fechaVencimiento` **desde hoy** y le come al
+> cliente los días que le quedaban; prorratear exige aritmética que Culqi no da hecha (acá los
+> cargos son manuales, no suscripciones nativas). Las dos salidas son defendibles y la elección
+> es del dueño.
+>
+> Hoy no bloquea a nadie —**0 cuentas con locales extra**— pero es lo primero que hará falta el
+> día que alguien contrate el segundo local.
+>
+> ── Lo que se cerró antes ──────────────────────────────────────────────────
 >
 > El 2026-08-23 esta lista estaba vacía. El 24 se hizo un bloque grande de trabajo —el plan
 > **Impulso**, el **panel accionable** (score, temas, tareas), **estrellas a soles**, el **parte
-> para el equipo**, respaldos y embudo— y quedó **una sola cosa** pendiente de escribir:
+> para el equipo**, respaldos y embudo— y quedó una sola cosa pendiente de escribir:
 >
 > ✅ **I8 — El expediente de extorsión: HECHO el 2026-08-25.** Con esto van **las nueve** ideas de
 > `docs/ideas-notoria.html`. Se hizo en dos piezas y **la guía primero**, invirtiendo el orden que
@@ -2325,6 +2348,14 @@ flujo entero.
 > antes `scripts/sonda-sunat-produccion.js`, cobrar, comprobar la boleta y reembolsar.
 > ⚠️ Y acordarse de **anular la boleta** dentro de los 7 días: reembolsar en Culqi NO la anula
 > (§9). Desde el 23/08 el propio producto avisa, así que basta con hacerle caso al correo.
+>
+> 🔴 **Y desde el 2026-08-25 hay que probar además un cobro CON LOCALES ADICIONALES**, que es
+> camino nuevo y no se ha ejercitado nunca con dinero real: el importe deja de ser el precio de
+> tabla (`montoSuscripcion` suma los extras), `localesExtra` se guarda en el usuario, la
+> descripción del cargo cambia, el comprobante sale por el total y —lo que más importa— la
+> **renovación** tiene que volver a cobrar los extras el mes siguiente. Ese último tramo es el
+> único que no se puede comprobar el mismo día, y es justo el que si falla regala los locales
+> para siempre sin que nada avise. Anotar la fecha de vencimiento y mirar el cargo cuando toque.
 >
 > 🟡 **Correr `scripts/respaldo.js` de vez en cuando.** El primero se hizo y se verificó el
 > 2026-08-24 (2397 filas, íntegro). No hay cron: es a mano, y con razón —el archivo lleva datos
@@ -2674,18 +2705,12 @@ su página). La regla que va quedando: **lo que lleva idioma se compone donde se
 y si un componente puede montarse en una pantalla que no lo tiene, hay que poder decírselo —
 `BannerPromo` acepta `idiomaForzado` justo por eso.
 
-### 🟡 El único hueco conocido: sumar un local **en el plan que ya tienes**
+### 🟡 El único hueco conocido
 
-El selector de locales sale en las tarjetas de los planes que **no** son el actual, así que un
-cliente ya suscrito a NEGOCIO que abre su segundo local no tiene por dónde comprarlo desde el
-panel. El backend lo cubre —cobra bien y el tope lo respeta— y el mensaje del tope ya apunta a
-Planes, pero el control no está ahí para su propio plan.
-
-**No se implementó a propósito**, porque no es un botón: es una decisión de facturación. Cobrar
-el alta otra vez reinicia el periodo desde hoy y le come al cliente los días que le quedaban;
-prorratear exige aritmética que Culqi no da hecha (acá los cargos son manuales, no
-suscripciones). Hoy no bloquea a nadie —**0 clientes con locales extra**— pero es lo primero que
-hará falta el día que alguien contrate el segundo local.
+**Sumar un local en el plan que ya tienes.** Está descrito entero como pendiente **P1** en §19,
+con las dos salidas de facturación entre las que hay que elegir. No se repite acá a propósito:
+dos copias del mismo pendiente se desincronizan, que es la lección que ya dejaron los precios y
+el FAQ del JSON-LD.
 
 ### 🔴 Bugs abiertos en producción
 
