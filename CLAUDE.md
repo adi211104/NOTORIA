@@ -10,7 +10,9 @@ Plataforma SaaS de monitoreo de reputación para restaurantes y hoteles **del Pe
 Detecta reseñas falsas, ataques de bots y caídas de rating.
 
 - Planes: **Gratuito** · **Impulso S/29/mes** (anual S/23/mes) · **Negocio S/59/mes** (anual S/47/mes) ·
-  **Franquicia S/179/mes** (anual S/143/mes). Qué incluye cada uno vive en
+  **Franquicia S/179/mes** (anual S/143/mes). 🔴 **Desde el 2026-08-25 todo plan de pago incluye UN
+  local y los demás se cobran aparte** — S/39/mes en Negocio, S/99/mes en Franquicia (§8.7).
+  Qué incluye cada uno vive en
   **`src/lib/planes.js`**, que es fuente única de CAPACIDADES igual que `precios.js` lo es del
   precio. **No volver a escribir `['NEGOCIO','FRANQUICIA']` a mano en ninguna ruta** — §8.6.
 - Dominio: **usenotoria.app** · correo `hola@usenotoria.app` · teléfono público **+51 955 599 041**.
@@ -93,6 +95,8 @@ META_REDIRECT_URI / META_GRAPH_VERSION      # opcionales
 INSTAGRAM_ACTIVO                            # solo el literal 'true' abre IG a todos — §8.3
 INSTAGRAM_CUENTAS_PRUEBA                    # correos que ven IG mientras tanto
 FACEBOOK_ACTIVO / FACEBOOK_CUENTAS_PRUEBA   # lo mismo para Facebook Reviews — §8.5
+GBP_ACTIVO / GBP_CUENTAS_PRUEBA             # lo mismo para Google Business — el día que Google
+                                            # conceda cuota. Hoy sin poner, o sea apagado
 META_REDIRECT_URI_FB                        # opcional; por defecto /api/redes/facebook/callback
 TIKTOK_BIZ_CLIENT_ID / TIKTOK_BIZ_CLIENT_SECRET
 TIKTOK_CLIENT_KEY / TIKTOK_CLIENT_SECRET    # Display API, solo respaldo
@@ -209,6 +213,24 @@ es `prisma db push`: altera el schema de producción, va **antes** del deploy y 
 ⚠️ **`railway up` siempre desde `brand-shield/`.** La raíz del repo está enlazada a otro
 proyecto y correrlo desde ahí crea un servicio basura.
 
+### ⏳ Migración PENDIENTE de aplicar (2026-08-25)
+
+`Usuario.localesExtra Int @default(0)` está en el `schema.prisma` y **todavía no en la base de
+producción**. Es **aditiva** y con default, así que vale la vía corta que se usa últimamente:
+`npx prisma db push` **desde local antes** de `railway up` (el `.env` local apunta a producción).
+
+⚠️ **Sin ella, cualquier consulta sobre `usuarios` revienta en cuanto se despliegue el código
+nuevo**, porque el cliente de Prisma desplegado pedirá una columna que la BD no tiene — login
+incluido. O sea que las dos cosas van juntas y en ese orden.
+
+```bash
+cd brand-shield
+npx prisma db push          # 1. la columna, ANTES (es aditiva: el código viejo sigue vivo)
+npx prisma generate         # 2. con el backend detenido, o EPERM
+railway up --service api    # 3. el código
+cd ../brand-shield-web && vercel --prod --yes
+```
+
 ### 🔴 Orden obligatorio: DESPLEGAR primero, MIGRAR después
 
 `railway ssh --service api "npx prisma db push"` corre **dentro del contenedor**, así que lee
@@ -290,7 +312,7 @@ los logs del servidor y en un cambio observable en la salida.
 | Integración | Estado |
 |---|---|
 | **Google Places** | ✅ Habilitada y en uso (búsqueda de negocios, escaneo de reseñas públicas) |
-| **Google Business Profile** | 🔴 **Bloqueado por Google.** Las GBP APIs quedan con cuota `Requests per minute = 0`, señal documentada de que no hay acceso concedido; `mybusiness.googleapis.com` (v4, la que lee y responde reseñas) ni aparece en la Biblioteca. Con cuota 0 el callback autoriza y revienta en `listarCuentas` → `?gbp_error=callback_failed`. Caso de asistencia **`3-5553000040900`** |
+| **Google Business Profile** | 🔴 **Bloqueado por Google, y desde el 2026-08-25 OCULTO tras interruptor** (`lib/gbpVisible.js`, gemelo de los de Instagram y Facebook; `GBP_ACTIVO` / `GBP_CUENTAS_PRUEBA`). Era el único de los tres que seguía a la vista.** Las GBP APIs quedan con cuota `Requests per minute = 0`, señal documentada de que no hay acceso concedido; `mybusiness.googleapis.com` (v4, la que lee y responde reseñas) ni aparece en la Biblioteca. Con cuota 0 el callback autoriza y revienta en `listarCuentas` → `?gbp_error=callback_failed`. Caso de asistencia **`3-5553000040900`** |
 | **Culqi** | ✅ LIVE en producción. Webhook de reembolsos registrado |
 | **TikTok (Accounts API)** | ✅ Completo: perfil, videos, comentarios, responder, borrar respuesta, ocultar, fijar |
 | **TikTok Display API** | Conservada como respaldo, sin usarse |
@@ -791,6 +813,31 @@ como un desplome. Ahora el scraper devuelve **`sinValoraciones`** y el worker **
 snapshot** en ese caso. Se pierde el «0 reseñas» como línea base, y es aceptable: cualquier
 comparación necesita dos lecturas igualmente, así que como mucho se cuenta de menos.
 
+### 8.7 El costo de Google Places, que es el único costo variable real
+
+🔴 **Medido el 2026-08-25, y hasta entonces nadie lo había contado.** Cada escaneo es una
+llamada a Place Details, y **cada competidor era otra**, a la cadencia del dueño. Con los topes
+que la web prometía, un solo local de Franquicia gastaba **10 800 consultas al mes solo en
+rivales** — bastante más que el plan entero que lo paga.
+
+Precios (Places legacy, por millar): **Basic $17 · Contact +$3 · Atmosphere (reseñas) +$5.**
+Un escaneo de negocio cuesta $0.022–0.025; uno de competidor $0.017.
+
+**Los tres frenos, y ninguno da señal si se rompe** — la vigilancia sigue funcionando igual y
+lo único que cambia es la factura de Google, que además no dice de quién fue cada consulta:
+
+| Freno | Dónde | Qué corta |
+|---|---|---|
+| `HORAS_COMPETIDOR = 24` | `monitoreo.worker.js` | Un rival se relee **una vez al día**, no una vez por ciclo del dueño. ×6 en NEGOCIO, ×24 en FRANQUICIA. Nadie compara ratings de hora en hora, y `progreso.js` compara **mes contra mes** |
+| `obtenerCompetidorCompartido` | ídem | Un place ID se pide **una vez por ciclo**, y si además es un negocio monitoreado sale **gratis** de `fichasGoogle`. ⚠️ La reutilización va en UNA dirección: la lectura de competidor solo pide Basic y no le sirve a un negocio, que necesita `reviews` |
+| `tocaLeerContacto` | `lib/fichaGoogle.js` | Contact Data **una vez al día**, no en cada escaneo. La marca es `_leidoEn` **dentro** de `fichaGoogleRef`, sin columna nueva. ⚠️ La ficha CERRADA no pasa por acá: `business_status` va en Basic y se sigue mirando siempre |
+
+Resultado medido: un local de Franquicia pasó de **$201.60 a $23.58 al mes**.
+`node scripts/prueba-costo-places.js` — 26 comprobaciones.
+
+⚠️ **Al subir cualquier cadencia, hacer la cuenta antes.** El bloque 8 de esa prueba la deja
+escrita para no tener que rederivarla.
+
 ### 8.6 Planes — la tabla de capacidades
 
 **`src/lib/planes.js` decide qué puede hacer cada plan**, y `brand-shield-web/src/lib/planes.js`
@@ -811,6 +858,35 @@ sostuvo. Al añadir IMPULSO aparecieron tres fallos que **no producen ninguna se
 ⚠️ **Al añadir un plan o una capacidad: se declara en la tabla y los call-sites preguntan.**
 Nunca al revés. El bloque 7 de `prueba-planes.js` **lee el fuente** y falla si alguien vuelve a
 escribir la lista de planes a mano — es lo único que protege al *siguiente* plan.
+
+🔴 **Los locales se cobran de a uno desde el 2026-08-25, y no se puede volver atrás.**
+Medido el costo de Places (§8.7), los paquetes que se anunciaban perdían dinero: NEGOCIO
+desde el **tercer** local y FRANQUICIA desde el **segundo**, con «negocios ilimitados» impreso
+en la web. Decidido con el dueño: **un local incluido y el resto se cobra**, igual en los dos
+planes. Lo que separa un plan de otro deja de ser cuántos locales caben y pasa a ser la
+velocidad y las funciones — que es lo que de verdad los distinguía.
+
+| | Incluidos | Local adicional |
+|---|---|---|
+| IMPULSO | 1 | **no vende** — quien abre el segundo local sube a NEGOCIO |
+| NEGOCIO | 1 | S/39/mes · S/372/año |
+| FRANQUICIA | 1 | S/99/mes · S/948/año |
+
+- **`montoSuscripcion()` en `lib/precios.js` es fuente única**, y la usan el alta *y* la
+  renovación. Si solo cobrara el alta, los extras se pagarían **una vez y quedarían gratis
+  para siempre**: ni error, ni log, ni cargo fallido. Es el mismo fallo que ya tuvo este cron
+  cobrando el mensual a los suscriptores anuales por tener su propia copia de los precios.
+- **El tope real es `negociosPermitidos(plan, localesExtra)`**, nunca `limite(plan,'negocios')`
+  a secas: preguntar al plan pelado deja a quien pagó cuatro locales sin poder cargar el segundo.
+  ⚠️ `localesExtra` tiene que estar en **`req.cuenta`** (`lib/equipo.js`, las dos ramas de
+  `resolverAcceso`) o llega `undefined`, se lee como 0 y falla **cerrado y en silencio**.
+- **Corte por antigüedad en el worker** (`negociosVigilables`): sin él, contratar diez locales
+  un mes y bajar a uno dejaría diez fichas vigiladas para siempre. No borra ni desactiva nada —
+  vuelven en cuanto se paguen. Es el gemelo del corte por asientos del equipo.
+- ⚠️ El importe que se **pinta** en la tarjeta incluye los locales elegidos. Si no, la tarjeta
+  anuncia S/59 y el widget cobra S/137 — el mismo fallo que ya hubo con la promo.
+- ⚠️ Y entra en el umbral de identificación de SUNAT: tres locales de Franquicia anual cruzan
+  los S/700 de sobra.
 
 ⚠️ **La app Android tiene su propia copia** (`Modelos.kt`: `esPago` y `etiquetaPlan`). Un plan
 que falte ahí deja al suscriptor con la app en modo gratuito: paga y ve las pantallas
@@ -2007,6 +2083,10 @@ textos por otros inventados. El procedimiento está en la cabecera del component
 | `reembolsar-cargo.js <chargeId> [--aplicar]` | Devuelve un cargo de Culqi. Avisa **antes** de qué comprobante quedaría sin anular, porque el reembolso no lo anula. El monto sale del `Pago`, no de un argumento |
 | `lib-env-produccion.js` | No es un script: lo requieren los demás. Arregla la trampa de `railway run`, que da los secretos de producción pero pisa `DATABASE_URL` con el host **interno** de Postgres, inalcanzable desde fuera. Costó tiempo dos veces antes de vivir en un solo sitio |
 | `prueba-anulacion-pendiente.js` | 31 comprobaciones del aviso por comprobante reembolsado y sin anular: los dos anclajes del plazo, el `floor` que no sobreestima, y sobre todo los silencios (VOUCHER, ya anulado, no aceptado) |
+| `prueba-costo-places.js` | 26 comprobaciones de los tres frenos de costo de Places (§8.7). Vigila lo que no da ninguna señal al romperse: si el competidor vuelve a releerse a la cadencia del dueño, o el caché deja de reutilizar, no falla nada — solo sube la factura de Google, que no distingue de quién fue cada consulta. El bloque 8 deja escrita la aritmética para no rederivarla |
+| `prueba-gbp-visible.js` | 37 comprobaciones del interruptor de Google Business **y de que la web dejó de prometerlo**. El bloque 6 lee `page.js` y `layout.js` buscando las frases literales que se retiraron: es lo único que puede cazar que alguien las devuelva sin encender el interruptor |
+| `prueba-cableado.js` | 33 comprobaciones de score/temas/impacto/parte enchufados al correo, al PDF y a la constancia. Vigila los dos fallos mudos: que el `select` del semanal traiga la FECHA de la reseña (sin ella el parte sale vacío siempre) y que el correo **no** llame a Groq |
+| `prueba-expediente.js` | 43 comprobaciones del expediente (I8). 15 son sobre **el límite**: lee el fuente del PDF y falla si alguna vez imprime «reseña falsa», «extorsionando» o cualquier afirmación que le corresponda a Google o a la autoridad, no a nosotros |
 | `prueba-planes.js` | 64 comprobaciones de la tabla de capacidades. Vigila lo que no da señal: que todo plan con precio se COBRE y se BAJE (olvidarlo regala el plan de por vida), que la escalera no pierda capacidades al subir, que un plan desconocido falle CERRADO, y **lee el fuente** para fallar si alguien vuelve a escribir `['NEGOCIO','FRANQUICIA']` a mano |
 | `prueba-parte-equipo.js` | 66 comprobaciones del parte semanal para el equipo. Casi todas sobre lo que el prompt NO consigue: que el saneador quite las frases que el modelo escribe pese a prohibírselo **sin estropear las que estaban bien**, y que un conteo que no cuadre con los hechos tire el parte entero. Incluye una prueba de que el fuente no tiene bytes de control invisibles — un `` mal escapado escribió un `0x08` dentro de una regex y la dejó sin casar nunca, en silencio |
 | `prueba-panel.js` | 83 comprobaciones de score, temas, tareas e impacto. Comprueba que la fórmula del score NO cambió al mudarse al backend (replica la aritmética original), que la tendencia de temas compara porcentajes y no conteos, y que no se inventa una cifra en soles donde el estudio no aplica |
@@ -2072,8 +2152,24 @@ y rechaza otra cosa). Así se descartaron rutas enteras de TikTok sin credencial
 > **Impulso**, el **panel accionable** (score, temas, tareas), **estrellas a soles**, el **parte
 > para el equipo**, respaldos y embudo— y quedó **una sola cosa** pendiente de escribir:
 >
-> 🟡 **I8 — El expediente de extorsión** (~4-5 días, costo cero). De las nueve ideas de
-> `docs/ideas-notoria.html` (17 ago) van **ocho hechas**; esta es la que falta.
+> ✅ **I8 — El expediente de extorsión: HECHO el 2026-08-25.** Con esto van **las nueve** ideas de
+> `docs/ideas-notoria.html`. Se hizo en dos piezas y **la guía primero**, invirtiendo el orden que
+> decía el pendiente: la guía capta por buscador desde el día uno y el PDF solo le sirve a quien
+> ya es cliente. La guía es el séptimo artículo del blog
+> (`extorsion-con-resenas-que-hacer`); el expediente vive en `lib/expediente.js` +
+> `utils/expediente.pdf.js` + `GET /api/negocios/:id/expediente/:resenaId.pdf`, y se ofrece en
+> las reseñas de ≤2★ o con señal.
+>
+> 🔴 **Una corrección de fondo respecto a lo que decía el pendiente:** para el chantaje de un
+> particular la puerta **NO es INDECOPI** sino una denuncia penal por **extorsión (art. 200 del
+> Código Penal)**. INDECOPI entra si detrás hay un **competidor**, por competencia desleal
+> (D.L. 1044). La Ley 29571 regula lo que tú le debes a tus clientes, no lo que un tercero te
+> hace a ti — es la norma del Libro de Reclamaciones, no la que sanciona a quien te extorsiona.
+>
+> ⚠️ **Lo que el expediente NO guarda, a propósito:** las capturas del chat. Haría falta
+> almacenamiento de archivos (el disco de Railway es efímero) y, sobre todo, custodiar prueba de
+> un caso ajeno con datos personales de un tercero identificable. El dueño las adjunta él a su
+> denuncia; el documento le dice exactamente cuáles y por qué.
 >
 > El patrón: alguien deja 1★ y acto seguido escribe por privado ofreciendo quitarla a cambio de
 > una comida gratis o de plata. Todo dueño de restaurante en Lima lo conoce y **no hay nada
@@ -2084,10 +2180,14 @@ y rechaza otra cosa). Así se descartaron rutas enteras de TikTok sin credencial
 > 2. **Escribir la guía** — qué reporta Google y qué no, cómo se presenta ante INDECOPI, qué
 >    figura del Código de Protección al Consumidor aplica. Doble uso: función y captación por SEO.
 >
-> ⚠️ **El límite que hay que respetar al hacerlo:** el producto **arma la evidencia y explica el
-> procedimiento**. No da asesoría legal ni afirma que una reseña es falsa — eso lo decide Google
-> o INDECOPI, y tiene que decirlo así en la propia página. Es la misma regla que ya gobierna el
-> detector («probabilidad de comportamiento anómalo», nunca «esta reseña es falsa»).
+> 🔴 **El límite, que ahora está en el código y no solo en esta nota:** el producto **arma la
+> evidencia y explica el procedimiento**. No da asesoría legal ni afirma que una reseña sea falsa
+> — eso lo determinan la plataforma o la autoridad. La advertencia va **impresa en el propio PDF**
+> («ALCANCE DE ESTE DOCUMENTO»), la guía la repite, y **15 de las 43 comprobaciones de
+> `prueba-expediente.js` leen el fuente** para que nadie vuelva el documento más contundente. Un
+> PDF con el logo de Notoria acusando de un delito a una persona identificable sería un problema
+> nuestro, no del cliente. Es la misma regla que gobierna el detector («comportamiento anómalo»,
+> nunca «esta reseña es falsa»).
 >
 > ── Y tres cosas que **NO son pendientes, son decisiones tomadas** ────────────────────────
 >
@@ -2344,24 +2444,41 @@ flujo entero.
 
 ### D. Se pueden hacer solas, pero necesitan tiempo o datos
 
-🔴 **Lo que quedó CABLEADO A MEDIAS el 2026-08-24, y es la deuda más fácil de olvidar.**
+✅ **RESUELTO el 2026-08-25 — lo que quedaba cableado a medias.**
 
 Las cuatro librerías nuevas se escribieron **puras y en el backend a propósito**, precisamente
 para que pudieran usarse desde más de un sitio. Hoy cada una alimenta solo la pantalla para la
 que se hizo. Nada está roto y nada urge; simplemente el trabajo caro ya está hecho y lo que
 falta es enchufarlo:
 
-| Pieza | Dónde se usa hoy | Dónde encaja y no está |
-|---|---|---|
-| `lib/score.js` | Ficha (`/resumen`) | El **correo semanal**, el **PDF mensual** y la **constancia**. Es literalmente el motivo por el que se sacó del componente: el score que anuncian los cuatro planes solo se ve abriendo una ficha |
-| `lib/temas.js` | Afiche, panel, parte | El **correo semanal** — hoy manda un insight de IA que cuesta una llamada a Groq y dice menos que «4 de 10 mencionan demora», que es gratis |
-| `lib/impacto.js` | Analizador público | El **panel del cliente**. Un dueño que ya paga no puede ver en soles lo que le cuesta su brecha; solo lo ve quien todavía no se ha registrado |
-| `lib/parteEquipo.js` | Ficha, pestaña «Cómo te ven» | El **correo semanal**, adjunto o dentro. Hoy hay que entrar al panel a buscarlo, que es exactamente el hábito que el afiche existe para no depender de él |
+| Pieza | Dónde está ahora |
+|---|---|
+| `lib/score.js` | Ficha · **correo semanal** · **PDF mensual** · **constancia** (y su página de verificación) |
+| `lib/temas.js` | Afiche, panel, parte · **correo semanal**, con la queja más repetida y si va en aumento |
+| `lib/impacto.js` | Analizador público · **panel del cliente** (pestaña Resumen) |
+| `lib/parteEquipo.js` | Ficha · **dentro del correo semanal** |
 
-⚠️ **Antes de enchufar el parte al correo semanal**, decidir una cosa que no es técnica: si va
-en el correo, se genera para TODOS los negocios con material cada semana, no solo para los que
-alguien abre. Eso multiplica las llamadas a Groq por el número de negocios activos. Hoy el
-techo es «una por negocio y por semana **solo si alguien lo mira**», que es mucho más barato.
+🔴 **La decisión que el pendiente dejaba abierta, resuelta: el correo NO llama a Groq.** Meter
+el parte en el correo significa generarlo para TODOS los negocios con material cada semana, no
+solo para los que alguien abre — o sea multiplicar la factura de Groq por el número de negocios
+activos, todas las semanas, para siempre. El correo usa el **caché del panel si está fresco** y
+si no la **`plantilla()`**, que sale de los mismos hechos contados por el código y es el mismo
+respaldo que ya entra cuando Groq devuelve 429. El techo sigue siendo «una llamada por negocio y
+por semana **solo si alguien lo mira**».
+
+🔴 **Y un fallo mudo que apareció al enchufarlo: el parte habría salido VACÍO siempre.**
+`parteEquipo.hechos()` vuelve a filtrar por fecha sobre los objetos que recibe, y el `select` del
+correo semanal traía solo `rating` y `texto`: `new Date(undefined)` → NaN → descartaba **todas**
+las reseñas. El correo se manda, se entrega, y sencillamente no lleva parte nunca. Es el mismo
+error que ya tuvo `idioma` en el select de las alertas (§12), por tercera vez y por otro camino.
+⚠️ **Al pasarle reseñas a una librería que vuelve a filtrar, mirar qué campos necesita ELLA**, no
+solo los que usa el `where`.
+
+⚠️ Otras dos que dejó el cableado: el score de la constancia va **solo si existe** (`null`, no 0 —
+un «0 de 100» impreso en un documento que va a un banco es una acusación, no un dato faltante), y
+las constancias emitidas **antes** siguen siendo válidas porque la firma se recalcula sobre el
+payload tal cual. Y el alto del recuadro de la constancia ahora se **deriva** del número de filas:
+estaba escrito a mano para exactamente cinco y la sexta caía justo sobre el borde.
 
 ### E. Aplazados a propósito — decididos, pero no ahora
 
