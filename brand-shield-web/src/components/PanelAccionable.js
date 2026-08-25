@@ -120,6 +120,20 @@ export default function PanelAccionable({ datos, Card, ST, onIr }) {
 
   return (
     <>
+      {/* 🔴 Las dos tarjetas de arriba van en su PROPIA rejilla, dentro de una
+          celda que ocupa toda la fila del padre.
+
+          Sin esto quedaban en 1/5 del ancho: la rejilla de la pestaña Resumen es
+          `repeat(auto-fit,minmax(280px,1fr))`, que en un monitor ancho da cinco
+          columnas, y `auto-fit` NO las colapsa porque la tarjeta del score ocupa
+          la fila entera con `gridColumn:'1/-1'` — o sea que las pistas no están
+          vacías. El resultado eran dos tarjetas estrechas a la izquierda y medio
+          panel en blanco a la derecha. Medido: 313px de ancho en un contenedor
+          de 1619px.
+
+          Así se reparten la fila entre las dos, y si solo hay una se lleva todo
+          el ancho, que es lo correcto. */}
+      <div style={{ gridColumn: '1/-1', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))', gap: 14, alignItems: 'start' }}>
       {/* ── Curva del score ─────────────────────────────────────────────── */}
       {serie?.puntos?.length >= 2 && (
         <Card>
@@ -188,6 +202,8 @@ export default function PanelAccionable({ datos, Card, ST, onIr }) {
           })}
         </Card>
       )}
+
+      </div>
 
       {/* ── Para hacer hoy ──────────────────────────────────────────────── */}
       <Card style={{ gridColumn: '1/-1' }}>
