@@ -373,7 +373,11 @@ export default function DashboardLayout({ children }) {
           <div style={{ background:'var(--surface2)', border:'1px solid var(--border-c)', borderRadius:5, padding:'8px 10px', marginBottom:10 }}>
             <p style={{ fontSize:10, color:'var(--text-3)', margin:'0 0 2px', textTransform:'uppercase', letterSpacing:1, fontFamily:"Georgia,'Times New Roman',serif" }}>{t.plan.actual}</p>
             <p style={{ fontSize:12.5, fontWeight:600, margin:0, color: usuario.plan==='GRATIS' ? '#B0AEA5' : '#4CAF66', fontFamily:"Georgia,'Times New Roman',serif" }}>
-              {PLAN_LABELS[usuario.plan] || usuario.plan}
+              {/* ⚠️ PLAN_LABELS es una FUNCIÓN desde el 2026-08-24, no un mapa.
+                  Indexarla con un string daba undefined y el `|| usuario.plan`
+                  lo tapaba pintando el enum crudo ("NEGOCIO") en la barra
+                  lateral. Falla suave: ni el build ni la consola dicen nada. */}
+              {PLAN_LABELS(usuario.plan)}
             </p>
             {/* El enlace va SIEMPRE, no solo en GRATIS: al sacar Planes del menú
                 este es el único acceso que le queda a una cuenta de pago. */}
