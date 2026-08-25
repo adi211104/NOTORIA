@@ -4,7 +4,7 @@ import PanelAccionable from '../../../../components/PanelAccionable';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { negociosApi, comentariosApi, cabecerasAuth } from '../../../../lib/api';
+import { negociosApi, comentariosApi, cabecerasAuth, redes as redesApi } from '../../../../lib/api';
 import { iconoParaTipo, labelParaTipo } from '../../../../lib/tiposNegocio';
 import { textoAlerta, etiquetaAlerta } from '../../../../lib/alertas';
 import { useAuth } from '../../../../context/AuthContext';
@@ -1354,6 +1354,14 @@ export default function DetallePage() {
   // abierta. Pedirle a un cliente la cifra exacta de lo que factura —y encima
   // almacenarla— sería pedir un dato sensible a cambio de nada. Ver
   // brand-shield/src/lib/impacto.js.
+  // 🔴 ¿Se puede ofrecer Google Business? Lo decide el BACKEND
+  // (`lib/gbpVisible.js`), no una constante de acá: si la regla viviera en el
+  // panel habría dos copias y se separarían el día que Google conceda cuota.
+  //
+  // Arranca en `false` y un fallo lo deja en `false`: falla CERRADO. Esconder de
+  // más una función que hoy no funciona no le cuesta nada a nadie; enseñar un
+  // botón que autoriza sobre la ficha real del cliente y revienta después, sí.
+  const [gbpDisponible, setGbpDisponible] = useState(false);
   const [expedienteBajando, setExpedienteBajando] = useState('');
   const [rangoFact, setRangoFact] = useState('');
   const [impacto, setImpacto] = useState(null);
@@ -1627,6 +1635,12 @@ export default function DetallePage() {
     negociosApi.resumen(id)
       .then((d) => { if (vigente) setResumenPanel(d); })
       .catch(() => { if (vigente) setResumenPanel(null); });
+    // El mismo `estado` que consulta la pantalla de Conexiones. Se pide acá solo
+    // por Google Business: sin esto, la ficha ofrecía conectarlo en TRES sitios
+    // mientras la pantalla de Conexiones ya lo escondía.
+    redesApi.estado(id)
+      .then((d) => { if (vigente) setGbpDisponible(!!d?.gbp?.disponible); })
+      .catch(() => { if (vigente) setGbpDisponible(false); });
     return () => { vigente = false; };
   }, [id]);
 
@@ -2389,7 +2403,7 @@ export default function DetallePage() {
               <span style={{ fontSize:14, fontWeight:600, color:'var(--text)' }}>{t.resenas.googleMaps}</span>
               {snap && <span style={{ fontSize:11, color:'var(--text-3)' }}>{t.resenas.resenasEnTotal(snap.totalResenas?.toLocaleString())}</span>}
             </div>
-            {!gbpConectado && (
+            {gbpDisponible && !gbpConectado && (
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, background:'rgba(66,133,244,0.06)', border:'1px solid rgba(66,133,244,0.25)', borderRadius:10, padding:'12px 16px', marginBottom:10, flexWrap:'wrap' }}>
                 <div style={{ flex:1, minWidth:220 }}>
                   <p style={{ color:'var(--text)', fontSize:13, fontWeight:600, margin:'0 0 2px' }}>{t.resenas.gbpTitulo}</p>
@@ -2465,14 +2479,18 @@ export default function DetallePage() {
                     {r.respuesta && (
                       <div style={{ background:'rgba(11,115,36,0.08)', border:'1px solid rgba(11,115,36,0.2)', borderRadius:8, padding:'8px 12px', marginTop:8, fontSize:12, color:'var(--text-2)' }}>
                         <span style={{ color:'#4CAF66', fontWeight:500 }}>{t.resenas.tuRespuesta}</span>{r.respuesta}
+                        {/* El aviso se queda (explica que la respuesta se pega
+                            a mano); lo que desaparece es el botón de conectar. */}
                         {!gbpConectado && (
                           <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:8, paddingTop:8, borderTop:'1px solid rgba(11,115,36,0.15)', flexWrap:'wrap' }}>
                             <span style={{ display:'flex', alignItems:'center', gap:5, color:'var(--text-3)', fontSize:11.5, lineHeight:1.5 }}>
                               <Icon name="info" size={12} /> {t.resenas.avisoRespuestaLocal}
                             </span>
-                            <button onClick={conectarGBP} style={{ background:'transparent', border:'1px solid rgba(66,133,244,0.4)', color:'#4285F4', borderRadius:6, padding:'3px 10px', fontSize:11, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>
-                              {t.resenas.gbpConectar}
-                            </button>
+                            {gbpDisponible && (
+                              <button onClick={conectarGBP} style={{ background:'transparent', border:'1px solid rgba(66,133,244,0.4)', color:'#4285F4', borderRadius:6, padding:'3px 10px', fontSize:11, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>
+                                {t.resenas.gbpConectar}
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>

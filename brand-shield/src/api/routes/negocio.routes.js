@@ -96,7 +96,11 @@ router.post('/', permitir('negocios'), async (req, res, next) => {
       const vendeLocales = puede(req.cuenta.plan, 'localesAdicionales');
       return res.status(403).json({
         error: vendeLocales
-          ? `Tu suscripción cubre ${limiteLegible(limite)} local(es). Agrega un local más desde Configuración → Suscripción.`
+          // ⚠️ Apunta a Planes, que es donde ESTÁ el selector de locales. Decía
+          // «Configuración → Suscripción», donde ese control no existe: un
+          // mensaje que manda a un sitio sin el botón que promete es la misma
+          // clase de fallo que hoy se quitó de la web seis veces.
+          ? `Tu suscripción cubre ${limiteLegible(limite)} local(es). Suma otro desde Planes, en tu panel.`
           : `Tu plan permite hasta ${limiteLegible(limite)} negocio(s). Actualiza para agregar más.`,
         accion: vendeLocales ? 'AGREGAR_LOCAL' : 'ACTUALIZAR_PLAN',
       });

@@ -27,7 +27,7 @@ const TEXTOS = {
     header: { titulo: 'Configuración', sub: 'Gestiona tu cuenta y preferencias' },
     emailVerif: {
       titulo: 'Email sin confirmar',
-      desc: (email) => <>Tu cuenta tiene funciones limitadas hasta que confirmes tu email <strong style={{ color:'var(--text)' }}>{email}</strong>. Algunas funciones como Google Business pueden requerir verificación.</>,
+      desc: (email) => <>Tu cuenta tiene funciones limitadas hasta que confirmes tu email <strong style={{ color:'var(--text)' }}>{email}</strong>. Verifícalo para recibir alertas y el resumen semanal.</>,
       enviando: 'Enviando...',
       espera: (s) => `Espera ${s}s`,
       enviado: 'Enviado ✓ — Reenviar',
@@ -138,7 +138,7 @@ const TEXTOS = {
     header: { titulo: 'Settings', sub: 'Manage your account and preferences' },
     emailVerif: {
       titulo: 'Unconfirmed email',
-      desc: (email) => <>Your account has limited features until you confirm your email <strong style={{ color:'var(--text)' }}>{email}</strong>. Some features like Google Business may require verification.</>,
+      desc: (email) => <>Your account has limited features until you confirm your email <strong style={{ color:'var(--text)' }}>{email}</strong>. Verify it to receive alerts and your weekly summary.</>,
       enviando: 'Sending...',
       espera: (s) => `Wait ${s}s`,
       enviado: 'Sent ✓ — Resend',

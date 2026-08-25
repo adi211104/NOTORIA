@@ -45,8 +45,26 @@ const T = {
   },
 };
 
-export default function BannerPromo({ compacto = false }) {
-  const { idioma } = useIdioma();
+// `idiomaForzado` existe por una razón concreta y no es un adorno:
+//
+// 🔴 `/precios` es una pantalla SOLO EN ESPAÑOL a propósito — es el catálogo que
+// Culqi exige, con las descripciones legales de cada servicio, y `lib/catalogo.js`
+// no tiene versión en inglés. Esa página nunca llama a `useIdioma`. Pero este
+// cartel sí, así que con el navegador en inglés quedaba **un bloque en inglés en
+// medio de una página en español**, y encima el único bloque que anuncia el
+// descuento, en la única pantalla donde se vende.
+//
+// Es el mismo error que ya tuvo este componente el 2026-08-24, exactamente al
+// revés (era el único bloque en español de una pantalla en inglés). La lección
+// que deja: **un componente que decide su propio idioma dentro de una página que
+// no lo hace siempre va a discrepar con ella.** Quien lo monta tiene que poder
+// decírselo.
+//
+// `dashboard/planes` NO lo pasa, y es correcto: esa pantalla sí es bilingüe y el
+// cartel debe seguirla.
+export default function BannerPromo({ compacto = false, idiomaForzado = null }) {
+  const { idioma: idiomaContexto } = useIdioma();
+  const idioma = idiomaForzado || idiomaContexto;
   const t = T[idioma] || T.es;
   const planes = conPromo();
 

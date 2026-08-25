@@ -151,6 +151,43 @@ check('pero una cuenta YA conectada nunca se esconde',
   /gbpConectado/.test(conexiones),
   'hay que poder desconectarla y borrar sus datos aunque la función esté apagada');
 
+// ─────────────────────────────────────────────────────────────────────────────
+titulo('7. La FICHA de un negocio tampoco lo ofrece');
+
+// 🔴 Esconderlo en Conexiones no bastaba: la ficha de un negocio ofrecía
+// conectar Google Business en TRES sitios más, y uno era una tarjeta
+// promocional entera («Conecta Google Business y desbloquea todas tus
+// reseñas») encima de la lista de reseñas. Se descubrió barriendo el fuente
+// DESPUÉS de dar el trabajo por cerrado — esconder una función es un barrido,
+// no un cambio en un archivo.
+const ficha = fs.readFileSync(path.join(WEB, 'src/app/dashboard/negocios/[id]/page.js'), 'utf8');
+
+check('la ficha consulta al backend si puede ofrecerlo',
+  /gbpDisponible/.test(ficha) && /redesApi\.estado/.test(ficha),
+  'la regla vive en lib/gbpVisible.js; una copia en el panel se separaría el día que Google conceda cuota');
+check('arranca en false y un fallo lo deja en false (falla CERRADO)',
+  /useState\(false\)[^\n]*\n?/.test(ficha) && /setGbpDisponible\(false\)/.test(ficha));
+check('la tarjeta promocional va gateada',
+  /\{gbpDisponible && !gbpConectado &&/.test(ficha));
+check('y el botón junto al aviso de respuesta también',
+  /\{gbpDisponible && \(\s*\n\s*<button onClick=\{conectarGBP\}/.test(ficha));
+
+// Cada `conectarGBP` que se pueda pulsar tiene que estar detrás del flag. Se
+// cuenta en vez de mirar uno: al añadir una superficie nueva, esto lo caza.
+const invocaciones = (ficha.match(/onClick=\{conectarGBP\}/g) || []).length;
+const gateadas = (ficha.match(/gbpDisponible/g) || []).length;
+check(`las ${invocaciones} invocaciones de conectarGBP están cubiertas por el flag`,
+  invocaciones > 0 && gateadas >= invocaciones,
+  `${invocaciones} botones vs ${gateadas} menciones del flag`);
+
+// Y las frases de pasada que prometían la función sin ofrecer botón.
+const layoutPanel = fs.readFileSync(path.join(WEB, 'src/app/dashboard/layout.js'), 'utf8');
+const config = fs.readFileSync(path.join(WEB, 'src/app/dashboard/configuracion/page.js'), 'utf8');
+check('el aviso de cuenta sin verificar ya no promete Google Business',
+  !/conectar Google Business/.test(layoutPanel) && !/connect Google Business/i.test(layoutPanel));
+check('ni el de Configuración',
+  !/Google Business/.test(config));
+
 console.log(`\n${'─'.repeat(56)}`);
 console.log(`${ok} pasadas · ${fallos} fallidas`);
 if (fallos) process.exitCode = 1;

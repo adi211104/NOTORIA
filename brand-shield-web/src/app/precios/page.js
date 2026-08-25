@@ -276,7 +276,11 @@ export default function PreciosPage() {
           <div style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.35)', color: '#B91C1C', borderRadius: 6, padding: '12px 16px', fontSize: 14, marginBottom: 20 }}>{error}</div>
         )}
 
-        {puedeUsarPromo && <BannerPromo />}
+        {/* En español fijo: esta página entera lo está (es el catálogo que exige
+            Culqi y sus descripciones no tienen versión en inglés). Sin esto, un
+            visitante con el navegador en inglés veía el cartel del descuento en
+            inglés y todo lo demás en español. */}
+        {puedeUsarPromo && <BannerPromo idiomaForzado="es" />}
 
         {/* Catálogo */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 18 }}>

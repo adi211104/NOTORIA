@@ -81,8 +81,22 @@ check('la serie declara qué componentes van fijos',
   Array.isArray(s.componentesFijos) && s.componentesFijos.includes('confianza') && s.componentesFijos.includes('respuesta'));
 
 // Varias lecturas del mismo día colapsan en una: Franquicia genera 24 al día.
-const mismoDia = [snap(4.2, 100, 3), snap(4.3, 101, 2), snap(4.4, 102, 1), snap(4.1, 99, 24 * 5)];
-check('varias lecturas del mismo día dan UN punto', score.serie(mismoDia, []).puntos.length === 2);
+//
+// ⚠️ Las fechas van FIJAS y no en «horas atrás». Con horas relativas esta
+// comprobación fallaba sola entre la medianoche y las 05:00 de Lima: tres
+// lecturas separadas por una hora caen en dos días distintos si en medio pasa
+// la medianoche peruana, y el conteo daba 3 en vez de 2. Pasó de verdad el
+// 2026-08-25 a la 01:07. Es el mismo tipo de fixture frágil que ya se fijó una
+// vez en este archivo por el bug de zona horaria de `fechaPeru()`.
+const enLima = (iso) => ({ ratingActual: 4.2, totalResenas: 100, tomadoEn: new Date(iso) });
+const mismoDia = [
+  { ...enLima('2026-03-10T15:00:00Z'), ratingActual: 4.2, totalResenas: 100 }, // 10:00 Lima
+  { ...enLima('2026-03-10T18:00:00Z'), ratingActual: 4.3, totalResenas: 101 }, // 13:00 Lima
+  { ...enLima('2026-03-10T22:00:00Z'), ratingActual: 4.4, totalResenas: 102 }, // 17:00 Lima
+  { ...enLima('2026-03-05T15:00:00Z'), ratingActual: 4.1, totalResenas: 99 },  // otro día
+];
+check('varias lecturas del mismo día dan UN punto', score.serie(mismoDia, []).puntos.length === 2,
+  `dieron ${score.serie(mismoDia, []).puntos.length}`);
 
 // 🔴 Y el caso que de verdad importa, fijado a una hora concreta para que falle
 // a cualquier hora del día y no solo de noche: dos lecturas del MISMO día de
