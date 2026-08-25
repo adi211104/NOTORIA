@@ -207,6 +207,57 @@ export const ARTICULOS = [
       { tipo: 'destacado', texto: 'Notoria genera el <strong>QR y el enlace corto</strong> de tu negocio para pedir reseñas en un solo toque, y vigila las que van llegando: te avisa si aparece una negativa o si alguna tiene patrón de bot. <a href="/registro">El plan Gratuito</a> incluye el QR y no pide tarjeta.' },
     ],
   },
+  {
+    slug: 'extorsion-con-resenas-que-hacer',
+    titulo: 'Te dejaron 1 estrella y te escriben pidiendo plata: qué hacer',
+    descripcion: 'El chantaje con reseñas es común en Lima y casi nadie sabe cómo responder. Qué guardar, qué reporta Google y qué no, y por qué la denuncia penal y INDECOPI son puertas distintas.',
+    fecha: '2026-08-25',
+    minutos: 9,
+    contenido: [
+      { tipo: 'p', texto: 'El patrón se repite y casi siempre es el mismo: aparece una reseña de 1 estrella, a veces sin texto, a veces con una acusación grave. Minutos u horas después llega un mensaje por Instagram, por WhatsApp o por el chat de la propia ficha. El tono es amable. Dice algo como que «se puede arreglar», que si le invitan una cena la quita, que por doscientos soles la borra hoy mismo.' },
+      { tipo: 'p', texto: 'Casi todo dueño de restaurante en Lima conoce a alguien a quien le pasó, y aun así no hay prácticamente nada escrito en español sobre qué hacer. Esta guía es lo que sí se puede hacer, en orden, y —tan importante como eso— lo que no.' },
+      { tipo: 'destacado', texto: '<strong>Esto no es asesoría legal.</strong> Es una guía práctica sobre cómo conservar la evidencia y a qué puerta tocar. Las decisiones sobre denunciar y cómo hacerlo conviene tomarlas con un abogado. Notoria no afirma que ninguna reseña sea falsa: eso lo determinan Google o la autoridad competente, no una plataforma.' },
+
+      { tipo: 'h2', texto: 'Lo primero: no pagues, y no borres nada' },
+      { tipo: 'p', texto: 'Pagar no cierra el problema, lo abre. Quien cobró una vez sabe dos cosas: que el método funciona y que tú pagas. Y no hay ninguna garantía de que la reseña se retire — ni de que no aparezca otra la semana siguiente, desde otra cuenta.' },
+      { tipo: 'p', texto: 'El segundo error es más frecuente y más caro: <strong>borrar la conversación</strong>. Bloquear a la persona, vaciar el chat o denunciar el perfil para que desaparezca se siente como recuperar el control, y lo que hace es destruir la única prueba de que hubo una exigencia de dinero. Sin ese mensaje solo queda una reseña negativa, que es exactamente lo que a un tercero le parece un cliente molesto.' },
+      { tipo: 'p', texto: 'Tampoco respondas la reseña acusando de extorsión en público. Aunque tengas razón, quien lee tu ficha no tiene forma de saberlo y lo que ve es un negocio peleando con un cliente.' },
+
+      { tipo: 'h2', texto: 'Qué guardar, y cómo' },
+      { tipo: 'p', texto: 'La calidad de la evidencia decide todo lo que viene después. Lo que sirve:' },
+      { tipo: 'lista', items: [
+        '<strong>Capturas de la conversación completa</strong>, no del mensaje suelto. Que se vea el nombre de usuario, la fecha y la hora, y el hilo entero: el mensaje aislado no prueba a quién se lo dijeron ni cuándo.',
+        '<strong>La reseña, con su texto exacto y su fecha.</strong> Si el autor la edita o la borra, tu captura es lo único que queda. Google no guarda un historial que tú puedas consultar.',
+        '<strong>El perfil de la cuenta que la dejó:</strong> cuántas reseñas tiene en total, desde cuándo, a qué otros negocios. Un perfil creado esa semana con tres reseñas de 1 estrella dice bastante.',
+        '<strong>La coincidencia en el tiempo.</strong> Que el mensaje llegara minutos después de la reseña es el dato más elocuente que vas a tener, y es el que más rápido se pierde.',
+        '<strong>Tus registros de ese día:</strong> comandas, boletas, reservas, cámaras. Si la reseña describe una visita que no ocurrió, esto es lo que lo sostiene.',
+      ]},
+      { tipo: 'p', texto: 'Guarda todo fuera del teléfono el mismo día — un correo a ti mismo con los archivos adjuntos basta y deja fecha. Los teléfonos se pierden, los chats se borran solos y las apps cambian de dueño.' },
+
+      { tipo: 'h2', texto: 'Qué retira Google y qué no' },
+      { tipo: 'p', texto: 'Acá está el malentendido que más tiempo hace perder. Google <strong>no arbitra si un cliente tiene razón</strong>. No va a leer tu descargo y decidir que la comida sí estaba buena. Lo que sí hace es retirar contenido que incumple sus políticas, y una reseña que se usa como palanca para pedir dinero no es el relato de una experiencia real: es otra cosa.' },
+      { tipo: 'p', texto: 'Por eso el reporte tiene que apuntar a la política, no al enojo. «Es injusta» no es una causal. «No corresponde a una experiencia real y se está usando para exigir un pago, y acá está el mensaje» sí describe un incumplimiento.' },
+      { tipo: 'numerada', items: [
+        'Reporta la reseña desde tu ficha en Google Maps, en las opciones de la propia reseña.',
+        'Si tienes acceso al perfil de empresa, usa además su formulario de reporte: deja constancia de la solicitud con fecha.',
+        'Sé breve y factual. Sin adjetivos, sin historia larga: qué política se incumple y qué evidencia existe.',
+        'Anota el día que reportaste. Si no hay respuesta en un par de semanas, se puede insistir, y la fecha es lo que sostiene la insistencia.',
+      ]},
+      { tipo: 'p', texto: 'Prepárate para que el primer reporte no prospere. Es lo normal, no una señal de que hiciste algo mal. Insistir con la misma evidencia ordenada funciona más veces que mandar cinco reportes distintos escritos en caliente.' },
+
+      { tipo: 'h2', texto: 'Denuncia penal e INDECOPI son dos puertas distintas' },
+      { tipo: 'p', texto: 'Esto se confunde casi siempre, y tocar la puerta equivocada cuesta semanas.' },
+      { tipo: 'p', texto: '<strong>Si un particular te exige dinero</strong> a cambio de retirar la reseña, eso no es materia de consumo: es un asunto penal. La figura que suele invocarse es la <strong>extorsión</strong>, tipificada en el artículo 200 del Código Penal peruano, que sanciona a quien obtiene una ventaja económica mediante violencia o amenaza. La denuncia se presenta ante la Policía Nacional o el Ministerio Público, y es ahí donde el expediente que armaste vale.' },
+      { tipo: 'p', texto: '<strong>INDECOPI entra por otro lado.</strong> Es la autoridad de protección al consumidor y también la que reprime la competencia desleal. Si detrás del ataque hay un competidor —no un cliente— la vía es la Ley de Represión de la Competencia Desleal (Decreto Legislativo 1044), que contempla los actos de denigración. Esa denuncia sí va a INDECOPI. Pero para un chantaje de un particular, INDECOPI no es la puerta.' },
+      { tipo: 'p', texto: 'Y una precisión que evita un disgusto: el Código de Protección y Defensa del Consumidor (Ley 29571) regula lo que tú le debes a tus clientes, no lo que un tercero te hace a ti. Es la norma por la que tienes Libro de Reclamaciones — no la que sanciona a quien te extorsiona.' },
+
+      { tipo: 'h2', texto: 'Mientras tanto, tu ficha sigue ahí' },
+      { tipo: 'p', texto: 'Google puede tardar semanas, o no retirar nada. Así que en paralelo hay que hacer lo único que está enteramente en tus manos: <strong>diluir</strong>. Una reseña de 1 estrella pesa muchísimo en una ficha de 40 reseñas y casi nada en una de 400. Pedirles reseña a los clientes reales, de forma constante y sin condicionar la nota, es lo que devuelve el promedio a su sitio mientras el trámite avanza.' },
+      { tipo: 'p', texto: 'Y responde la reseña, con una sola frase sobria: que no encuentras registro de esa visita, que lo estás revisando y que quien haya tenido un problema real puede escribirte directo. Le habla al que lee, que es el único que importa.' },
+
+      { tipo: 'destacado', texto: 'Notoria detecta la reseña el mismo día que aparece, guarda su <strong>texto y su fecha exacta aunque después la editen o la borren</strong>, y arma el <strong>expediente en PDF</strong> con el historial de tu rating alrededor de esa fecha — que es justo lo que a mano nadie reúne bien. <a href="/registro">Crea tu cuenta gratis</a>: el plan Gratuito ya vigila tu ficha.' },
+    ],
+  },
 ];
 
 export const articuloPorSlug = (slug) => ARTICULOS.find((a) => a.slug === slug);

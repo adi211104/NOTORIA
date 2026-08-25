@@ -8,6 +8,8 @@ const { compararMeses, ordenarPorCrecimiento, hayAlgoQueContar } = require('../.
 const { generarAfiche } = require('../../utils/afiche.generator');
 const { emitirCodigo, VIGENCIA_DIAS } = require('../../lib/constancia');
 const { generarConstancia } = require('../../utils/constancia.pdf');
+const { armar: armarExpediente, VENTANA_DIAS: VENTANA_EXPEDIENTE } = require('../../lib/expediente');
+const { generarExpediente } = require('../../utils/expediente.pdf');
 const { limite: limiteDelPlan, limiteLegible, planesCon, puede, negociosPermitidos } = require('../../lib/planes');
 const score = require('../../lib/score');
 const temasLib = require('../../lib/temas');
@@ -721,6 +723,79 @@ router.get('/:id/constancia.pdf', verificarPlan(planesCon('constancia')), async 
     res.setHeader('Content-Type', 'application/pdf');
     const limpio = (negocio.nombre || 'negocio').replace(/[^\w-]+/g, '-').slice(0, 40);
     res.setHeader('Content-Disposition', `attachment; filename="Notoria-constancia-${limpio}.pdf"`);
+    res.send(pdf);
+  } catch (error) { next(error); }
+});
+
+
+// ── GET /api/negocios/:id/expediente/:resenaId.pdf ────────
+//
+// El expediente de una reseña: todo lo que Notoria sabe de ella, ordenado para
+// que sirva ante Google, ante la Policía o ante un abogado.
+//
+// Existe por un patrón que todo dueño de restaurante en Lima conoce y del que no
+// hay nada escrito en español: alguien deja 1★ y acto seguido escribe por privado
+// ofreciendo quitarla a cambio de una comida o de plata. Lo que Notoria puede
+// aportar —y a mano nadie reúne bien— es la mitad de la evidencia que no le
+// pertenece al dueño: el texto exacto y su fecha aunque después la editen o la
+// borren, cuándo la captamos, y cómo se movió la ficha alrededor de ese día.
+//
+// 🔴 El límite está en `lib/expediente.js` y en el PDF: se ARMA la evidencia y se
+// explica el procedimiento. No se da asesoría legal ni se afirma que la reseña
+// sea falsa — eso lo determinan la plataforma o la autoridad. Misma regla que el
+// detector, que dice «comportamiento anómalo» y nunca «esta reseña es falsa».
+//
+// Cero llamadas a Google y cero a la IA: sale entero de datos ya guardados.
+//
+// ⚠️ Va con `permitir('ver')` implícito (es un GET) pero SÍ pasa por
+// `dondeNegocio`, que es lo que impide pedir el expediente de una reseña de la
+// ficha de otro. Sin eso, cualquiera con sesión podría descargarse el historial
+// de un negocio ajeno con nuestro membrete encima.
+router.get('/:id/expediente/:resenaId.pdf', async (req, res, next) => {
+  try {
+    const negocio = await prisma.negocio.findFirst({
+      where: dondeNegocio(req, { id: req.params.id }),
+      select: { id: true, nombre: true, direccion: true, googlePlaceId: true },
+    });
+    if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
+
+    // La reseña tiene que ser DE ESTE negocio. Filtrar solo por id dejaría pedir
+    // la reseña de una ficha ajena pasando el negocio propio.
+    const resena = await prisma.resena.findFirst({
+      where: { id: req.params.resenaId, negocioId: negocio.id },
+    });
+    if (!resena) return res.status(404).json({ error: 'Reseña no encontrada' });
+
+    const centro = new Date(resena.fechaResena || resena.detectadaEn);
+    const margen = VENTANA_EXPEDIENTE * 24 * 3600 * 1000;
+    const desde = new Date(centro.getTime() - margen);
+    const hasta = new Date(centro.getTime() + margen);
+
+    const [delPeriodo, snapshots] = await Promise.all([
+      prisma.resena.findMany({
+        where: { negocioId: negocio.id, fechaResena: { gte: desde, lte: hasta } },
+        select: { rating: true, fechaResena: true, detectadaEn: true, esSospechosa: true, motivoSospecha: true },
+      }),
+      // Un margen más ancho que la ventana a propósito: hace falta el snapshot
+      // ANTERIOR al día de la reseña, y con la cadencia de 24 h del plan Gratis
+      // el más cercano puede estar a un día largo de distancia.
+      prisma.snapshot.findMany({
+        where: {
+          negocioId: negocio.id,
+          plataforma: 'GOOGLE',
+          tomadoEn: { gte: new Date(centro.getTime() - margen * 2), lte: new Date(centro.getTime() + margen * 2) },
+        },
+        select: { tomadoEn: true, ratingActual: true, totalResenas: true },
+        orderBy: { tomadoEn: 'asc' },
+      }),
+    ]);
+
+    const exp = armarExpediente({ negocio, resena, delPeriodo, snapshots });
+    const pdf = await generarExpediente(exp);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    const limpio = (negocio.nombre || 'negocio').replace(/[^\w-]+/g, '-').slice(0, 40);
+    res.setHeader('Content-Disposition', `attachment; filename="Notoria-expediente-${limpio}.pdf"`);
     res.send(pdf);
   } catch (error) { next(error); }
 });

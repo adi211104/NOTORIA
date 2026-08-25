@@ -539,7 +539,17 @@ const TEXTOS = {
       editar:'Editar',
       responder:'Responder',
       tuRespuesta:'Tu respuesta: ',
-      avisoRespuestaLocal:'Respuesta guardada. Recuerda responder también desde Google Maps, o conecta Google Business para enviarla directo desde aquí.',
+      // ⚠️ Este aviso prometía «conecta Google Business para enviarla directo
+      // desde aquí». Google no ha concedido acceso a esas APIs, así que era una
+      // promesa falsa dentro del panel — la sexta, después de las cinco de la
+      // web. Al encender `lib/gbpVisible.js` hay que devolverla.
+      avisoRespuestaLocal:'Respuesta guardada. Te copiamos el texto y abrimos tu ficha en Google Maps para que la pegues.',
+      // El expediente de una reseña. El texto no habla de denunciar ni de
+      // extorsión: el producto arma la evidencia y explica el procedimiento, y
+      // no afirma que ninguna reseña sea falsa.
+      expediente:'Expediente (PDF)',
+      expedienteBajando:'Armando…',
+      expedienteError:'No pudimos descargar el expediente. Vuelve a intentarlo en un momento.',
       facebookTitulo:'Facebook Reviews',
       facebookPlanNegocio:'Disponible en Plan Negocio',
       facebookPlanDesc:'Monitorea y responde reseñas de Facebook desde aquí.',
@@ -1005,7 +1015,10 @@ const TEXTOS = {
       editar:'Edit',
       responder:'Reply',
       tuRespuesta:'Your reply: ',
-      avisoRespuestaLocal:'Reply saved. Remember to also post it from Google Maps, or connect Google Business to send it straight from here.',
+      avisoRespuestaLocal:'Reply saved. We copied the text and opened your listing on Google Maps so you can paste it.',
+      expediente:'Case file (PDF)',
+      expedienteBajando:'Building…',
+      expedienteError:'We could not download the case file. Please try again in a moment.',
       facebookTitulo:'Facebook Reviews',
       facebookPlanNegocio:'Available on the Business plan',
       facebookPlanDesc:'Monitor and reply to Facebook reviews from here.',
@@ -1341,6 +1354,7 @@ export default function DetallePage() {
   // abierta. Pedirle a un cliente la cifra exacta de lo que factura —y encima
   // almacenarla— sería pedir un dato sensible a cambio de nada. Ver
   // brand-shield/src/lib/impacto.js.
+  const [expedienteBajando, setExpedienteBajando] = useState('');
   const [rangoFact, setRangoFact] = useState('');
   const [impacto, setImpacto] = useState(null);
   const [resumenPanel, setResumenPanel] = useState(null);
@@ -1542,6 +1556,36 @@ export default function DetallePage() {
   // Se pide al endpoint PÚBLICO a propósito: es aritmética pura —cero llamadas a
   // Google, cero a la base, cero a la IA— y ya existe. Duplicarlo tras
   // autenticación sería una segunda copia de la misma cuenta.
+  // Descarga del expediente. Va por `fetch` y no por un <a href> porque la ruta
+  // exige cabeceras de sesión (y `X-Cuenta`, sin la cual el backend resolvería
+  // la cuenta propia y respondería "negocio no encontrado" sin explicar por qué
+  // — ver cabecerasAuth en lib/api.js).
+  const descargarExpediente = async (resenaId) => {
+    setExpedienteBajando(resenaId);
+    try {
+      const res = await fetch(`${API_URL}/api/negocios/${id}/expediente/${resenaId}.pdf`, {
+        headers: cabecerasAuth(),
+      });
+      if (!res.ok) throw new Error('fallo');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Notoria-expediente-${resenaId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      // Un fallo al descargar dice que falló la DESCARGA, no otra cosa: es la
+      // misma corrección que se hizo en el botón de copiar el parte, que decía
+      // "no pudimos escribir el parte" con el parte en pantalla.
+      alert(t.resenas.expedienteError);
+    } finally {
+      setExpedienteBajando('');
+    }
+  };
+
   const pedirImpacto = async (rango) => {
     setRangoFact(rango);
     setImpacto(null);
@@ -2448,6 +2492,21 @@ export default function DetallePage() {
                         style={{ background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)', color:'#f87171', borderRadius:8, padding:'7px 12px', fontSize:12, textDecoration:'none', textAlign:'center' }}>
                         {t.sospechosas.reportar}
                       </a>
+                    )}
+                    {/* El expediente. Aparece en las reseñas de 2★ o menos y en
+                        las que levantaron alguna señal: es donde el chantaje
+                        ocurre. Ofrecerlo en una de 5★ sería ruido.
+
+                        🔴 El texto NO promete que sirva para "denunciar" ni
+                        habla de extorsión: el producto arma la evidencia y
+                        explica el procedimiento, y no afirma que ninguna reseña
+                        sea falsa. Es la misma regla que gobierna al detector. */}
+                    {(r.rating <= 2 || r.esSospechosa) && (
+                      <button onClick={() => descargarExpediente(r.id)}
+                        disabled={expedienteBajando === r.id}
+                        style={{ background:'transparent', border:'1px solid var(--border-c)', color:'var(--text-2)', borderRadius:8, padding:'7px 12px', fontSize:12, cursor: expedienteBajando === r.id ? 'default' : 'pointer', textAlign:'center' }}>
+                        {expedienteBajando === r.id ? t.resenas.expedienteBajando : t.resenas.expediente}
+                      </button>
                     )}
                   </div>
                 </div>
