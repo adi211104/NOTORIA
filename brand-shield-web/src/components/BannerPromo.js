@@ -31,12 +31,17 @@ const T = {
     lista: (partes) => <>Durante los 2 primeros meses, {partes}. Después se renuevan al precio de lista y puedes cancelar cuando quieras.</>,
     letra: 'Aplica solo a la facturación mensual (la anual ya tiene 20% de descuento todo el año), una vez por cuenta y una vez por tarjeta.',
     y: ' y ',
+    // ⚠️ Hasta la preposición va en el diccionario: se me quedó una "a"
+    // suelta en la frase en inglés ("Impulso a S/14.50"). Una palabra en el
+    // idioma que no es se lee peor que una frase entera mal traducida.
+    a: ' a ',
   },
   en: {
     titulo: 'Welcome offer: your first 2 months at half price',
     lista: (partes) => <>For your first 2 months, {partes}. After that they renew at list price and you can cancel anytime.</>,
     letra: 'Applies to monthly billing only (yearly already has 20% off all year), once per account and once per card.',
     y: ' and ',
+    a: ' at ',
   },
 };
 
@@ -50,7 +55,7 @@ export default function BannerPromo({ compacto = false }) {
   const partes = planes.map((p, i) => (
     <span key={p.plan}>
       {i > 0 && (i === planes.length - 1 ? t.y : ', ')}
-      {nombrePlan(p.plan, idioma)} a <strong>S/{p.precio}</strong>
+      {nombrePlan(p.plan, idioma)}{t.a}<strong>S/{p.precio}</strong>
     </span>
   ));
 
