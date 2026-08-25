@@ -1870,7 +1870,18 @@ export default function DetallePage() {
 
   const copiarParte = async () => {
     try {
-      await navigator.clipboard.writeText(parte.texto);
+      // 🔴 Con carrera contra un reloj, y no es paranoia: si la pestaña no tiene
+      // el foco, `clipboard.writeText` puede quedarse COLGADO —ni resuelve ni
+      // rechaza—, así que sin esto el botón no hace absolutamente nada y el
+      // usuario se queda mirando. Medido en producción.
+      //
+      // Un botón que falla y lo dice es mucho mejor que uno que se queda mudo:
+      // pasado el segundo, se cae al camino de reserva y al menos le dejamos el
+      // texto seleccionado.
+      await Promise.race([
+        navigator.clipboard.writeText(parte.texto),
+        new Promise((_, rechazar) => setTimeout(() => rechazar(new Error('timeout')), 1000)),
+      ]);
       setParteEstado('copiado');
       setTimeout(() => setParteEstado('idle'), 2200);
     } catch {
