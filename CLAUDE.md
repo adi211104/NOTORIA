@@ -2051,6 +2051,36 @@ obligaciones (`Submit Data Use Checkup` y `Data access renewal`) en **Completed*
 - 📅 **5 de octubre de 2026: vence la renovación anual de acceso a datos de Meta.** Si se
   pasa, se pierde el acceso a las APIs. No depende del App Review.
 
+**Revisión de los dos paneles del 2026-08-24 — nada que hacer, solo esperar.**
+
+*Meta* (`developers.facebook.com/apps/2232447584255257`):
+- **App Review: `Review in progress`**, con los cinco permisos correctos —`pages_show_list`,
+  `pages_manage_metadata`, `pages_read_engagement`, `instagram_basic`,
+  `instagram_manage_comments`— más `public_profile` en «Existing access for renewal».
+- **App en modo Live.** ⚠️ La cabecera se lee mal: pone «App Mode: Development [switch] Live»,
+  y esas dos palabras son las ETIQUETAS del interruptor, no el estado. Lo que decide es el
+  `aria-checked` del switch (`true` = Live), y la alerta del 6 de agosto lo confirma:
+  *«Notoria switched to live mode»*. No tocar ese interruptor.
+- ✅ **Las dos obligaciones están CERRADAS**, no pendientes: *Submit Data Use Checkup* y *Data
+  access renewal* figuran las dos en **Completed** en «Required actions». El **5 de octubre de
+  2026 es la FECHA LÍMITE que ya se cumplió** (se completaron el 6 de agosto), no un vencimiento
+  por delante. Las 5 alertas de la bandeja son el rastro de eso y del envío del 15 de agosto.
+- ⏳ Llevaba **9 días** de los ~20 que Meta declara. Antes del **~4 de septiembre** no vale la
+  pena preocuparse.
+
+*Google* (`console.cloud.google.com`, proyecto `798376364749`):
+- 🔴 **Sigue SIN acceso.** `mybusinessbusinessinformation` → **`Requests per minute` = 0**.
+- ⚠️ Y la trampa de siempre, comprobada otra vez: las **otras tres cuotas sí tienen valores**
+  (Create Location 100 · SearchGoogleLocation 200 · Update Location 10 000). Ver un número en la
+  tabla y darlo por concedido es el error fácil; la única señal es Requests per minute.
+- APIs de GBP habilitadas y **las tres sin una sola llamada**: Business Profile Performance, My
+  Business Account Management, My Business Business Information. **`mybusiness.googleapis.com`
+  (la v4, la que lee y responde reseñas) sigue sin aparecer** ni en el panel ni en la Biblioteca.
+- ✅ De paso quedó medido que **Places API sí trabaja**: 40 peticiones, **0 errores**. El
+  monitoreo está tirando de esa cuota y no de las de GBP, que es lo correcto.
+- ⚠️ La consola reescribió `?project=798376364749` a `?project=project-f1e03c17-f209-453e-a09`
+  sin avisar, como está documentado. Es el proyecto correcto («My First Project»).
+
 ⚠️ **Cómo se lee la cuota de las GBP APIs sin equivocarse:** las otras tres cuotas de
 `mybusinessbusinessinformation` **siempre han tenido valores** (Create Location 100,
 SearchGoogleLocation 200, Update Location 10 000). La única señal de que hay acceso
