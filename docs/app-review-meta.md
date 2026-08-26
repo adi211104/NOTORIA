@@ -522,7 +522,40 @@ con una llamada de control usando un secreto inventado, que daba el mismo error)
 
 ---
 
-## 8. SEGUNDA SOLICITUD — preparada, esperando a que se resuelva la primera
+## 8. SEGUNDA SOLICITUD — ARMADA en el panel el 2026-08-26, bloqueada por el screencast
+
+> 🔴 **ESTADO REAL (2026-08-26).** La primera solicitud se resolvió: cuatro permisos aprobados
+> y **`pages_manage_metadata` RECHAZADO** («Disallowed Use Case — no es necesario para la
+> funcionalidad principal»). La segunda solicitud está **creada y guardada** en el panel
+> (`submission_id=2252144948952187`) con:
+>
+> | Paso | Estado |
+> |---|---|
+> | Permisos elegidos: `business_management` + `pages_read_user_content` | ✅ |
+> | Descripción en inglés de los dos (§8.2) | ✅ pegada y guardada |
+> | «Agree that you will comply with allowed usage» de los dos | ✅ |
+> | Certificación de los 5 permisos que van a renovación | ✅ |
+> | **Screencast de los dos** | 🔴 **FALTA — es lo único que bloquea** |
+> | Data handling · Reviewer instructions | ⏳ «Needs your review», los revisa el dueño |
+>
+> 🔴 **`pages_manage_metadata` NO se volvió a pedir, y no se debe.** Meta tenía razón: se pedía
+> para `suscribirWebhookInstagram()`, una llamada que nunca funcionó y que se retiró del callback
+> el 2026-08-26. Volver a pedirlo sin haber cambiado nada es pedir el mismo rechazo.
+>
+> ⚠️ **`Metavideo.mp4` (15/08, el de la primera solicitud) NO sirve.** Enseña el flujo de
+> Instagram; estos dos permisos exigen ver otra cosa (§8.3). Es exactamente el desajuste por el
+> que rechazaron el tercero.
+>
+> 🔴 **Y hay un bloqueo de fondo en el screencast de `pages_read_user_content`: la página del
+> dueño NO TIENE NI UNA RESEÑA** (comprobado el 2026-08-23: `/{page-id}/ratings` devuelve
+> `{"data": []}`). No se puede grabar «reseñas reales con su estrella y su texto» de una página
+> vacía. El de `business_management` **sí es grabable hoy** — solo hace falta enseñar el diálogo
+> con la página del portfolio apareciendo en la lista.
+>
+> **De ahí la decisión que queda al dueño:** enviar solo `business_management` ahora, o esperar a
+> tener a mano una página con reseñas y mandar los dos juntos.
+
+### 8.0 (redacción original, conservada)
 
 > **No se puede enviar todavía.** Meta no admite una segunda revisión mientras la
 > primera está *in progress*. Esta sección existe para que el día que aprueben la
@@ -623,6 +656,13 @@ defecto) sobre la página propia — comprobar primero con el Explorador de la A
 que la llamada devuelve datos con la cuenta de prueba.
 
 ### 8.4 Lo que hay que TERMINAR en el código antes de grabar
+
+> ✅ **YA ESTÁ HECHO, desde el 2026-08-23** — los cuatro puntos. Verificado el 2026-08-26:
+> `recommendation_type`/`has_rating`/`has_review` en el scraper, el tratamiento de la
+> recomendación sin estrella (`sinEstrella`), el callback propio de Facebook
+> (`/api/redes/facebook/callback`) y el cableado en el worker. `node scripts/prueba-facebook.js`
+> — 45 comprobaciones. Se conserva la lista de abajo como registro de qué era.
+
 
 El scraper existe pero **está deliberadamente a medias**, y su cabecera lo dice
 en rojo: no se termina hasta tener el permiso y una página real con reseñas. Lo
