@@ -7,6 +7,7 @@ import { negociosApi, alertas as alertasApi } from '../../lib/api';
 import Icon, { ICONO_ALERTA } from '../../components/Icons';
 import Semaforo from '../../components/Semaforo';
 import { iconoParaTipo, labelParaTipo } from '../../lib/tiposNegocio';
+import { textoAlerta } from '../../lib/alertas';
 
 // ── Diccionario de textos (es / en) ──────────────────────
 const TEXTOS = {
@@ -278,7 +279,14 @@ export default function DashboardPage() {
                 <Icon name={ICONO_ALERTA[a.tipo]||'alerta'} size={16} color="#f59e0b" style={{ marginTop:2 }} />
                 <div style={{ flex:1, minWidth:0 }}>
                   <p style={{ fontSize:11, fontWeight:500, color:'var(--text-2)', margin:'0 0 2px' }}>{a.negocio?.nombre}</p>
-                  <p style={{ fontSize:12, color:'var(--text-2)', margin:0, lineHeight:1.4, overflow:'hidden', textOverflow:'ellipsis', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>{a.descripcion}</p>
+                  {/* 🔴 `textoAlerta`, NUNCA `a.descripcion` a secas. El backend
+                      guarda esa columna redactada y siempre en español —es un
+                      respaldo, no el texto de la interfaz— y mete las piezas en
+                      `detalle` justo para que el panel arme la frase en el idioma
+                      del usuario. Acá se pintaba en crudo, así que un panel en
+                      inglés enseñaba «Nueva reseña de 1★ de…» en la pantalla de
+                      inicio, que es la primera que se ve. Ver lib/alertas.js. */}
+                  <p style={{ fontSize:12, color:'var(--text-2)', margin:0, lineHeight:1.4, overflow:'hidden', textOverflow:'ellipsis', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>{textoAlerta(a, idioma)}</p>
                 </div>
                 {!a.leida && <span style={{ width:7, height:7, borderRadius:'50%', background:'#ef4444', flexShrink:0, marginTop:4 }} />}
               </div>

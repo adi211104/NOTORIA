@@ -241,6 +241,53 @@ const correr = async () => {
     fuenteEmails.includes('ALERTA[usuario.idioma]'),
     'si esto cambia, la comprobación de arriba deja de significar algo');
 
+  // ── 7. El idioma en el PANEL, que es la otra mitad ──────
+  //
+  // 🔴 El bloque 6 vigila que el CORREO salga en el idioma del usuario. Esta es
+  // la otra punta y se le escapó durante meses: `Alerta.descripcion` la guarda
+  // el worker redactada y **siempre en español** —es un respaldo, no el texto de
+  // la interfaz— y las piezas van en `detalle` justo para que el panel arme la
+  // frase con `textoAlerta()` (web/src/lib/alertas.js). La pantalla de INICIO la
+  // pintaba en crudo, así que un panel en inglés abría con «Nueva reseña de 1★
+  // de…» en la primera tarjeta que se ve.
+  //
+  // ⚠️ Va como BARRIDO sobre todo el panel y no como comprobación de ese
+  // archivo, que es la lección que dejó el mismo día el barrido de Google
+  // Business: una prueba que mira los archivos que uno recuerda no es un
+  // barrido, y pasa en verde mientras la función sigue a la vista en otro sitio.
+  bloque('7. El texto de la alerta en el panel');
+
+  const PANEL = path.join(__dirname, '..', '..', 'brand-shield-web', 'src', 'app', 'dashboard');
+  const archivosPanel = [];
+  (function recorrer(dir) {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) recorrer(p);
+      else if (e.name.endsWith('.js')) archivosPanel.push(p);
+    }
+  })(PANEL);
+
+  // `{a.descripcion}` y sus variantes: la columna de respaldo pintada tal cual.
+  // No casa con `{plan.descripcion}` ni con `descripcion={...}`, que son otra
+  // cosa y son correctos.
+  const EN_CRUDO = /\{\s*(?:a|al|alerta)\.descripcion\s*\}/;
+  const culpables = archivosPanel.filter((p) => EN_CRUDO.test(fs.readFileSync(p, 'utf8')));
+
+  check(`ningún archivo del panel pinta la descripción en crudo (${archivosPanel.length} revisados)`,
+    culpables.length === 0,
+    culpables.map((p) => path.relative(PANEL, p)).join(', '));
+
+  const conAlertas = archivosPanel.filter((p) => /ICONO_ALERTA/.test(fs.readFileSync(p, 'utf8')));
+  check(`los ${conAlertas.length} archivos que pintan alertas usan textoAlerta()`,
+    conAlertas.length > 0 && conAlertas.every((p) => /textoAlerta\(/.test(fs.readFileSync(p, 'utf8'))),
+    conAlertas.filter((p) => !/textoAlerta\(/.test(fs.readFileSync(p, 'utf8')))
+      .map((p) => path.relative(PANEL, p)).join(', '));
+
+  // Control: sin esto solo se sabría que las dos sondas no dan error, no que
+  // midan algo. Es lo que le faltó a prueba-gbp-visible.js durante un día.
+  check('   …y las dos sondas detectarían una recaída (control)',
+    EN_CRUDO.test('<p>{a.descripcion}</p>') && !EN_CRUDO.test('<p>{plan.descripcion}</p>'));
+
   // ── Resumen ─────────────────────────────────────────────
   console.log('\n──────────────────────────────────────────────────────');
   console.log(`${pasadas} pasadas · ${fallidas} fallidas`);
