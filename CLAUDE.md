@@ -95,6 +95,10 @@ META_REDIRECT_URI / META_GRAPH_VERSION      # opcionales
 INSTAGRAM_ACTIVO                            # solo el literal 'true' abre IG a todos — §8.3
 INSTAGRAM_CUENTAS_PRUEBA                    # correos que ven IG mientras tanto
 FACEBOOK_ACTIVO / FACEBOOK_CUENTAS_PRUEBA   # lo mismo para Facebook Reviews — §8.5
+                                            # ⚠️ CUENTAS_PRUEBA puesta el 2026-08-26 con las dos
+                                            # cuentas del dueño, para poder GRABAR el screencast:
+                                            # la fila estaba oculta hasta para él. ACTIVO sigue
+                                            # sin poner, o sea invisible para todo cliente
 GBP_ACTIVO / GBP_CUENTAS_PRUEBA             # lo mismo para Google Business — el día que Google
                                             # conceda cuota. Hoy sin poner, o sea apagado
 META_REDIRECT_URI_FB                        # opcional; por defecto /api/redes/facebook/callback
@@ -2463,6 +2467,26 @@ flujo entero.
 > ✅ Los dos comandos que esperaban aprobación —el ensayo de alertas y el recordatorio a las
 > cuentas sin verificar— **se ejecutaron el 2026-08-23**. Sus resultados están más abajo y en
 > §12. No hay que repetirlos.
+>
+> 🔴 **Nuevo el 2026-08-26 — los DOS screencasts de la segunda solicitud de App Review.**
+> La solicitud está armada y guardada en el panel (`submission_id 2252144948952187`) con los dos
+> permisos, sus descripciones en inglés, las declaraciones de uso y los 5 de renovación
+> certificados. **Solo faltan los vídeos**, que no puede grabar el agente. El guion plano a plano
+> está en `docs/app-review-meta.md` §8.3 y en el artefacto del 2026-08-26.
+>
+> - **Toma A (`business_management`) es grabable ya.** Login → Conexiones → Instagram → Conectar,
+>   y que se vea **la página del portfolio apareciendo en el diálogo de Facebook**. Funciona hoy
+>   porque el permiso está en estándar y Meta sí se lo pide a quien tiene rol en la app.
+> - 🔴 **Toma B (`pages_read_user_content`) NO se puede grabar todavía: la página del dueño no
+>   tiene ni una reseña** (`/{page-id}/ratings` → `{"data": []}`, comprobado el 2026-08-23). Hace
+>   falta o que le hagan administrador de una página que ya tenga reseñas, o activar
+>   Recomendaciones en la de Notoria y conseguir dos o tres reales. **Verificar contra la API
+>   antes de grabar**, o se graba dos veces.
+> - Si solo sale la A: quitar `pages_read_user_content` del envío y mandar la A sola. Vale la pena
+>   igual — es la que arregla el fallo que más probablemente reporte el primer cliente de
+>   Instagram, y Facebook Reviews sigue apagado de todos modos.
+> - ⚠️ El último paso es del dueño en cualquier caso: revisar **Data handling** (declaraciones
+>   sobre los proveedores de datos, prerrellenadas con el envío anterior) y darle a *Submit*.
 >
 > 🔴 **Nuevo el 2026-08-24 — un cobro real de IMPULSO, de punta a punta.** El plan ya se puede
 > contratar y cobra S/29 de verdad. El circuito entero (cargo → boleta → SUNAT → CDR) se probó
