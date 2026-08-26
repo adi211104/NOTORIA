@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useIdioma } from '../context/IdiomaContext';
 
-import { API_URL } from '../lib/api';
+import { API_URL, cabecerasAuth } from '../lib/api';
 const getToken = () => localStorage.getItem('bs_token');
 
 // Este banner era el ÚNICO trozo del panel escrito a mano en español, sin pasar
@@ -37,15 +37,39 @@ export default function GBPBanner() {
   const [conectando, setConectando] = useState(false);
   const [mostrarInfo, setMostrarInfo] = useState(false);
 
+  // 🔴 GATEADO desde el 2026-08-26, y hasta entonces era la fuga más grande de
+  // Google Business que quedaba: este banner se monta en `dashboard/layout.js`,
+  // o sea que salía en TODAS las pantallas del panel, y su botón navegaba a
+  // `/api/auth/google-business/iniciar`, que desde que existe `lib/gbpVisible.js`
+  // responde **404 JSON**. Al cliente lo sacaba del producto a una pantalla con
+  // `{"error":"Ruta no encontrada"}` en crudo.
+  //
+  // ⚠️ Se le pregunta al BACKEND (`/api/redes/:id/estado` → `gbp.disponible`),
+  // que es la misma fuente que usan Conexiones y la ficha. Una constante local
+  // acá sería una cuarta copia de la regla, y encima habría que acordarse de
+  // tocarla el día que Google conceda la cuota.
   useEffect(() => {
     if (!usuario) return;
-    fetch(`${API_URL}/api/negocios`, {
-      headers: { Authorization: `Bearer ${getToken()}` }
-    }).then(r => r.json()).then(data => {
-      if (!Array.isArray(data)) return;
-      const sinGBP = data.find(n => n.googlePlaceId && !n.gbpLocationId);
-      if (sinGBP) setNegocioSinGBP(sinGBP);
-    }).catch(() => {});
+    let vigente = true;
+    // ⚠️ `cabecerasAuth()` y no un Authorization a mano: sin `X-Cuenta`, quien
+    // trabaja en la cuenta de otro recibiría los negocios de la SUYA y el banner
+    // le ofrecería conectar una ficha que no está mirando. Falla cerrado pero es
+    // indepurable — es justo para lo que existe ese helper (CLAUDE.md §11).
+    const cabeceras = cabecerasAuth();
+    fetch(`${API_URL}/api/negocios`, { headers: cabeceras })
+      .then(r => r.json())
+      .then(async (data) => {
+        if (!vigente || !Array.isArray(data)) return;
+        const sinGBP = data.find(n => n.googlePlaceId && !n.gbpLocationId);
+        if (!sinGBP) return;
+        const estado = await fetch(`${API_URL}/api/redes/${sinGBP.id}/estado`, { headers: cabeceras })
+          .then(r => r.json());
+        // Falla CERRADO: si el estado no se puede leer, el banner no se pinta.
+        // Ofrecer una conexión que quizá no exista es peor que no ofrecerla.
+        if (vigente && estado?.gbp?.disponible) setNegocioSinGBP(sinGBP);
+      })
+      .catch(() => {});
+    return () => { vigente = false; };
   }, [usuario]);
 
   if (!negocioSinGBP) return null;

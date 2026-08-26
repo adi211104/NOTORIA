@@ -188,6 +188,51 @@ check('el aviso de cuenta sin verificar ya no promete Google Business',
 check('ni el de Configuración',
   !/Google Business/.test(config));
 
+// ── Los DOS sitios que este archivo no miraba ─────────────
+//
+// 🔴 Escrito el 2026-08-26, después de encontrar Google Business todavía a la
+// vista en producción **con estas 44 comprobaciones en verde**. No es que
+// estuvieran mal: es que miraban los archivos equivocados.
+//
+//   · Las líneas de arriba que dicen «paso 3 del onboarding» comprueban que la
+//     frase se retiró DEL LANDING (`landing.includes(...)`) — nunca abrieron
+//     `onboarding/page.js`, donde el paso seguía vivo y era el segundo de tres
+//     que veía cada usuario nuevo.
+//   · La de `dashboard/layout.js` busca el texto «conectar Google Business»,
+//     pero ese texto vive en `components/GBPBanner.js`; el layout solo tiene
+//     `<GBPBanner/>`. La comprobación pasaba mientras el banner se pintaba en
+//     TODAS las pantallas del panel.
+//
+// La lección, que ya iba por la tercera vuelta: esconder una función es un
+// barrido, y una prueba que lee los archivos que uno recuerda no es un barrido.
+const onboarding = leerWeb('src/app/onboarding/page.js');
+check('el onboarding ya no tiene el paso de Google Business',
+  !/Conecta Google Business|Connect Google Business|conectarGBP/.test(onboarding),
+  'era el paso 2 de 3 de todo usuario nuevo, y su botón caía en un 404 JSON');
+check('…y quedó renumerado a DOS pasos',
+  /const TOTAL = 2;/.test(onboarding) && !/Paso 1 de 3/.test(onboarding),
+  'quitar el paso y dejar «Paso 1 de 3» deja al usuario esperando uno que no llega');
+check('…sin dejar el contador de progreso en tercios',
+  !/paso === 2 \? 66/.test(onboarding));
+
+const banner = leerWeb('src/components/GBPBanner.js');
+check('el banner del panel pregunta por `gbp.disponible` antes de pintarse',
+  /gbp\?\.disponible|gbp\.disponible/.test(banner),
+  '🔴 se monta en dashboard/layout.js: sin gate sale en TODAS las pantallas');
+check('…y falla cerrado (solo se pinta si el estado dice que sí)',
+  /if \(vigente && estado\?\.gbp\?\.disponible\) setNegocioSinGBP/.test(banner),
+  'ante un estado ilegible no puede ofrecer una conexión que quizá no exista');
+check('…y manda X-Cuenta en sus consultas',
+  /cabecerasAuth\(\)/.test(banner) && !/Authorization: `Bearer \$\{getToken\(\)\}` \}/.test(banner),
+  'sin X-Cuenta, quien trabaja en la cuenta de otro ve los negocios de la suya');
+
+// Control: que estas comprobaciones sepan fallar. Sin esto solo se sabría que
+// no dan error, no que midan algo — que es exactamente lo que le pasó a las 44
+// anteriores durante un día entero.
+check('   …y las tres sondas de arriba detectarían una recaída (control)',
+  /Conecta Google Business/.test('<h1>Conecta Google Business</h1>')
+  && !/gbp\?\.disponible|gbp\.disponible/.test('const sinGBP = data.find(n => n.googlePlaceId);'));
+
 console.log(`\n${'─'.repeat(56)}`);
 console.log(`${ok} pasadas · ${fallos} fallidas`);
 if (fallos) process.exitCode = 1;
