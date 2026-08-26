@@ -7,6 +7,7 @@ const t = require(path.join(base, 'lib/tributario'));
 const { generarPDFComprobante } = require(path.join(base, 'services/comprobante.pdf'));
 
 let fallos = 0;
+const MAX = 100; // el tope de SUNAT para razón social y dirección
 const check = (nombre, real, esperado) => {
   const ok = JSON.stringify(real) === JSON.stringify(esperado);
   if (!ok) fallos++;
@@ -55,7 +56,14 @@ check('letras 2100', t.totalEnLetras(2100, 'PEN'), 'VEINTIUNO CON 00/100 SOLES')
 check('RUC valido', t.validarDatosFiscales({ docTipo: '6', docNumero: '20616239466', razonSocial: 'ACME SAC', paisFiscal: 'pe' }), null);
 check('RUC invalido', !!t.validarDatosFiscales({ docTipo: '6', docNumero: '123', razonSocial: 'ACME SAC', paisFiscal: 'PE' }), true);
 check('DNI valido', t.validarDatosFiscales({ docTipo: '1', docNumero: '45678912', razonSocial: 'Juan Perez', paisFiscal: 'PE' }), null);
-check('extranjero sin doc', t.validarDatosFiscales({ razonSocial: 'Acme LLC', paisFiscal: 'US' }), null);
+// ⚠️ Esta comprobación decía lo contrario hasta el 2026-08-26: daba por BUENO a
+// un cliente del exterior sin documento. Era coherente con el código de
+// entonces, y el código de entonces dejaba que un campo del navegador decidiera
+// si el comprobante llevaba IGV. Ahora el país se rechaza al GUARDAR
+// (`SOLO_NACIONAL`) y la lógica de exportación se conserva intacta más abajo,
+// que es lo que hay que poder afirmar: no se borró la función, se cerró la puerta.
+check('extranjero sin doc — hoy se rechaza, el servicio es solo nacional',
+  !!t.validarDatosFiscales({ razonSocial: 'Acme LLC', paisFiscal: 'US' }), true);
 check('pais invalido', !!t.validarDatosFiscales({ razonSocial: 'X', paisFiscal: 'PERU' }), true);
 
 // Receptor derivado del usuario
@@ -101,6 +109,40 @@ const muestra = (over) => ({
   for (const [nombre, arg, debeBloquear] of casosReceptor) {
     check(`receptor: ${nombre}`, !!t.validarReceptorParaSunat(arg), debeBloquear);
   }
+
+  // ── Los datos fiscales que declara el CLIENTE ───────────
+  //
+  // 🔴 Escrito el 2026-08-26, auditando las rutas de pago. `razonSocial` y
+  // `direccionFiscal` llegan del cuerpo de la petición y viajan TAL CUAL a
+  // `cbc:RegistrationName` y `cbc:Line` del XML. Sin tope se guardan sin
+  // problema, el cobro pasa sin problema, y el comprobante lo rechaza SUNAT
+  // DESPUÉS: cliente cobrado, sin documento y con un correlativo gastado que no
+  // admite huecos.
+  //
+  // Y `paisFiscal` era peor: con 'MX' el receptor pasa a no domiciliado, el
+  // comprobante sale como exportación y **sin IGV**. Un campo del navegador
+  // decidía si Notoria declara IGV o no.
+  const df = (o) => t.validarDatosFiscales({
+    docTipo: '1', docNumero: '12345678', razonSocial: 'Ana Torres', paisFiscal: 'PE', ...o,
+  });
+  check('datos fiscales normales pasan', df({}) === null, true);
+  check('🔴 el país NO lo elige el cliente: MX se rechaza', df({ paisFiscal: 'MX' }) !== null, true);
+  check('   …y la lógica de exportación sigue viva para reabrir',
+    t.desglosar({ total: 2000, paisFiscal: 'MX' }).exportacion, 2000);
+  check('razón social de 101 caracteres se rechaza',
+    df({ razonSocial: 'x'.repeat(MAX + 1) }) !== null, true);
+  check('   …y la de 100 se acepta', df({ razonSocial: 'x'.repeat(MAX) }) === null, true);
+  check('dirección de 101 caracteres se rechaza',
+    df({ direccionFiscal: 'x'.repeat(MAX + 1) }) !== null, true);
+  check('   …y la dirección sigue siendo OPCIONAL', df({ direccionFiscal: null }) === null, true);
+  check('un país numérico da error, no una excepción',
+    typeof df({ paisFiscal: 5 }), 'string');
+  check('una razón social ausente se rechaza', df({ razonSocial: null }) !== null, true);
+  check('un RUC mal formado se rechaza', df({ docTipo: '6', docNumero: '123' }) !== null, true);
+
+  // El límite tiene que ser el que el XML aguanta, no un número suelto.
+  check('el tope de razón social es el de SUNAT', t.MAX_RAZON_SOCIAL, 100);
+  check('el interruptor de país es explícito', t.SOLO_NACIONAL, true);
 
   // El servicio debe cargar (require de prisma incluido)
   require(path.join(base, 'services/comprobante.service'));

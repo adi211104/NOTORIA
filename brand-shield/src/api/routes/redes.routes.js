@@ -188,18 +188,19 @@ router.get('/instagram/callback', async (req, res) => {
       },
     });
 
-    // Suscribir la página a los webhooks de comentarios. La suscripción es POR
-    // CUENTA: tener el webhook activo en el panel de Meta no basta, hay que
-    // pedirla para cada cliente que conecta, y este es el único punto donde
-    // tenemos el token de página recién emitido.
+    // 🔴 Acá se suscribía la página al webhook de comentarios, y se quitó el
+    // 2026-08-26: esa llamada necesita `pages_manage_metadata`, que Meta
+    // RECHAZÓ. O sea que ahora fallaría en TODAS las conexiones, escribiendo un
+    // warning por cada cliente — un log que grita en cada alta y que no
+    // significa nada es peor que no tener log, porque enseña a ignorarlos.
     //
-    // Un fallo NO aborta la conexión: sin webhook los comentarios siguen
-    // llegando por el escaneo periódico, con su ventana de 25 publicaciones y
-    // hasta 4 horas de retraso. Conectar a medias es mejor que no conectar.
-    const suscripcion = await instagram.suscribirWebhookInstagram(pagina.access_token);
-    if (suscripcion.error) {
-      console.warn(`[Instagram] Webhook no suscrito para ${pagina.name}: ${suscripcion.error}`);
-    }
+    // La función sigue exportada y probada (`instagram.suscribirWebhookInstagram`):
+    // el día que ese permiso se conceda, volver a llamarla acá es una línea. Se
+    // conserva también la DESuscripción al desconectar, que es defensiva y es
+    // justo lo que un revisor de permisos quiere ver.
+    //
+    // Los comentarios de Instagram llegan por el escaneo periódico, que es como
+    // han llegado siempre: la suscripción nunca llegó a hacerse.
 
     await primerEscaneo(negocioId, 'Instagram');
     volverA('ig=conectado');
@@ -490,15 +491,28 @@ router.post('/:negocioId/instagram/conectar', permitir('conexiones'), async (req
     // consola que se referencia por config_id. Si la variable está seteada se
     // manda config_id (y Meta IGNORA scope); si no, el scope clásico.
     //
-    // ⚠️ `pages_manage_metadata` es el permiso que permite suscribir la página a
-    // los webhooks (`/me/subscribed_apps`). Va aquí para el camino sin config_id,
-    // pero cuando se usa config_id manda la Configuración de la consola: si el
-    // permiso no está TAMBIÉN allí, el token no lo trae y la suscripción falla
-    // en silencio (la conexión funciona, los webhooks no llegan nunca).
+    // 🔴 `pages_manage_metadata` SE RETIRÓ el 2026-08-26. Meta lo RECHAZÓ en el
+    // App Review del 15/08 —«Disallowed Use Case: no es necesario para la
+    // funcionalidad principal»— y aprobó los otros cuatro. Pedirle a cada
+    // cliente un permiso que la app no puede tener no consigue nada: Meta no lo
+    // concede, y el diálogo de login enseña una petición que va a quedar en
+    // nada. Los cuatro que quedan son exactamente los que Instagram necesita
+    // para leer publicaciones y responder comentarios.
+    //
+    // ⚠️ Consecuencia real, y hay que decirla: sin ese permiso **no se puede
+    // suscribir la página al webhook de comentarios**, así que los comentarios
+    // de Instagram llegan SOLO por el escaneo periódico (hasta 24 h en Gratis,
+    // 4 h en Negocio, 1 h en Franquicia). No es una degradación: es como ha
+    // funcionado siempre, porque la suscripción nunca llegó a hacerse.
+    //
+    // ⚠️ Y esto es la mitad del arreglo. Con `META_LOGIN_CONFIG_ID` puesta
+    // —lo está en producción— Meta **ignora este scope** y usa la Configuración
+    // de la consola. El permiso hay que quitarlo TAMBIÉN allí, o el diálogo
+    // real lo seguirá pidiendo. Ver CLAUDE.md §8.3.
     if (process.env.META_LOGIN_CONFIG_ID) {
       params.set('config_id', process.env.META_LOGIN_CONFIG_ID);
     } else {
-      params.set('scope', 'instagram_basic,instagram_manage_comments,pages_show_list,pages_read_engagement,pages_manage_metadata');
+      params.set('scope', 'instagram_basic,instagram_manage_comments,pages_show_list,pages_read_engagement');
     }
 
     res.json({ url: `https://www.facebook.com/v21.0/dialog/oauth?${params.toString()}` });

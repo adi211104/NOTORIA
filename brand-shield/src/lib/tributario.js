@@ -166,15 +166,59 @@ const receptorDesdeUsuario = (usuario) => {
 
 // Validación de los datos fiscales antes de guardarlos. Devuelve un mensaje de
 // error o null. RUC peruano: 11 dígitos empezando en 10/15/17/20. DNI: 8.
-const validarDatosFiscales = ({ docTipo, docNumero, razonSocial, paisFiscal }) => {
-  const pais = (paisFiscal || '').toUpperCase();
-  if (!/^[A-Z]{2}$/.test(pais)) return 'El país debe ser un código de 2 letras (ej. PE, MX, CL)';
-  if (!razonSocial || razonSocial.trim().length < 3) return 'La razón social o nombre es obligatorio';
+// 🔴 LÍMITES DE LONGITUD DE SUNAT, y no son cosmética. `razonSocial` y
+// `direccionFiscal` viajan tal cual a `cbc:RegistrationName` y `cbc:Line` del
+// XML (ver sunat/ublInvoice.js). Sin tope, un valor largo se guarda sin
+// problema, el cobro pasa sin problema, y el comprobante lo rechaza SUNAT
+// DESPUÉS — o sea con el cliente ya cobrado, sin documento y con un correlativo
+// gastado que no admite huecos. Es el peor orden posible de los tres.
+//
+// ⚠️ Se VALIDA al guardar en vez de truncar al emitir: truncar dejaría en el
+// comprobante una razón social distinta de la que el cliente escribió, y eso
+// también es un documento mal emitido, solo que silencioso.
+const MAX_RAZON_SOCIAL = 100;
+const MAX_DIRECCION = 100;
+const MAX_DOC_EXTRANJERO = 15;
 
-  if (pais !== 'PE') return null; // al exterior no se le exige documento peruano
+// 🔴 Notoria solo factura en Perú. La lógica de exportación de servicios se
+// conserva entera —`esDomestico`, `desglosar`, `tipoFiscalPara`— para poder
+// reabrir sin reescribir nada, pero el país NO puede elegirlo el cliente: llega
+// en el cuerpo de la petición, y con `paisFiscal: 'MX'` el receptor pasa a ser
+// no domiciliado, el comprobante sale como FACTURA de exportación y **sin IGV**.
+// O sea que un campo del navegador decidía si Notoria declara IGV o no — y
+// además sin estar inscrita en el Registro de Exportadores de Servicios, sin el
+// cual esa venta no califica como exportación y sí lo lleva.
+//
+// El día que se reabra el servicio al exterior, esto es UNA línea.
+const SOLO_NACIONAL = true;
+const PAIS_FACTURACION = 'PE';
+
+const validarDatosFiscales = ({ docTipo, docNumero, razonSocial, direccionFiscal, paisFiscal }) => {
+  const pais = String(paisFiscal || '').toUpperCase();
+  if (!/^[A-Z]{2}$/.test(pais)) return 'El país debe ser un código de 2 letras (ej. PE, MX, CL)';
+  if (SOLO_NACIONAL && pais !== PAIS_FACTURACION) {
+    return 'Por ahora solo emitimos comprobantes a clientes en Perú';
+  }
+
+  const nombre = String(razonSocial || '').trim();
+  if (nombre.length < 3) return 'La razón social o nombre es obligatorio';
+  if (nombre.length > MAX_RAZON_SOCIAL) return `La razón social no puede pasar de ${MAX_RAZON_SOCIAL} caracteres`;
+
+  // ⚠️ La dirección es OPCIONAL (SUNAT no la exige al receptor), así que solo se
+  // comprueba el techo. Antes ni siquiera llegaba a esta función: el route la
+  // guardaba sin pasar por acá.
+  const direccion = String(direccionFiscal || '').trim();
+  if (direccion.length > MAX_DIRECCION) return `La dirección no puede pasar de ${MAX_DIRECCION} caracteres`;
+
+  if (pais !== 'PE') {
+    // Rama viva solo si se reabre el servicio al exterior (SOLO_NACIONAL=false).
+    const num = String(docNumero || '').trim();
+    if (num.length > MAX_DOC_EXTRANJERO) return `El documento no puede pasar de ${MAX_DOC_EXTRANJERO} caracteres`;
+    return null;
+  }
 
   if (![DOC.RUC, DOC.DNI].includes(docTipo)) return 'Para Perú el documento debe ser RUC o DNI';
-  const num = (docNumero || '').trim();
+  const num = String(docNumero || '').trim();
   if (docTipo === DOC.RUC && !/^(10|15|17|20)\d{9}$/.test(num)) return 'El RUC debe tener 11 dígitos y empezar en 10, 15, 17 o 20';
   if (docTipo === DOC.DNI && !/^\d{8}$/.test(num)) return 'El DNI debe tener 8 dígitos';
   return null;
@@ -326,6 +370,7 @@ module.exports = {
   IGV_TASA, EMISOR, TIPO_OPERACION, DOC, PLAZO_ENVIO_DIAS, PLAZO_RESUMEN_DIAS,
   UMBRAL_IDENTIFICACION,
   esDomestico, desglosar, tipoFiscalPara, receptorDesdeUsuario, validarDatosFiscales,
+  SOLO_NACIONAL, PAIS_FACTURACION, MAX_RAZON_SOCIAL, MAX_DIRECCION, MAX_DOC_EXTRANJERO,
   validarReceptorParaSunat, requiereIdentificacion, validarEmisor,
   calcularFechaLimiteEnvio, calcularFechaLimiteResumen,
   formatearImporte, totalEnLetras, numeroEnLetras,

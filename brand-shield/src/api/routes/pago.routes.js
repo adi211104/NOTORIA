@@ -92,7 +92,12 @@ const datosDelEvento = (body) => {
 
 // Marca el cobro devuelto en Facturación y desactiva la suscripción que pagaba.
 const procesarReembolso = async (datos) => {
-  const cargoId = datos?.chargeId || datos?.charge_id || datos?.id;
+  // ⚠️ Tiene que ser una CADENA. El cuerpo lo arma quien llame al webhook (va
+  // protegido por secreto, pero el secreto no valida la forma del JSON) y este
+  // valor entra directo a un `findUnique` de Prisma: un objeto ahí no es una
+  // búsqueda, es un filtro con otra semántica.
+  const bruto = datos?.chargeId || datos?.charge_id || datos?.id;
+  const cargoId = typeof bruto === 'string' ? bruto.trim() : null;
   if (!cargoId) {
     console.error('[Culqi webhook] Reembolso sin chargeId — no se puede saber qué cobro se devolvió');
     return;
@@ -501,6 +506,11 @@ router.get('/locales', async (req, res, next) => {
     const { usuario, negociosActivos } = await contextoLocales(req.usuario.id);
     if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });
 
+    // ⚠️ Acá NO se acota, a propósito, aunque el POST sí lo haga. Un número
+    // fuera de rango se devuelve tal cual **con su `motivo`**, y el panel apaga
+    // el botón y lo explica. Acotarlo en silencio enseñaría un número distinto
+    // del que se pidió, que es la misma falta que cobrar un importe distinto
+    // del que se muestra: el que mira la pantalla deja de poder fiarse de ella.
     const pedido = req.query.localesExtra;
     const nuevo = pedido === undefined || pedido === ''
       ? usuario.localesExtra
@@ -714,7 +724,7 @@ router.get('/datos-fiscales', async (req, res, next) => {
 router.put('/datos-fiscales', async (req, res, next) => {
   try {
     const { docTipo, docNumero, razonSocial, direccionFiscal, paisFiscal } = req.body || {};
-    const error = tributario.validarDatosFiscales({ docTipo, docNumero, razonSocial, paisFiscal });
+    const error = tributario.validarDatosFiscales({ docTipo, docNumero, razonSocial, direccionFiscal, paisFiscal });
     if (error) return res.status(400).json({ error });
 
     const pais = paisFiscal.toUpperCase();
