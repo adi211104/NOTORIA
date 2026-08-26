@@ -970,6 +970,20 @@ de la barra lateral del 24.
 así— y por eso el bloque, ante `SIN_TARJETA` o `SIN_SUSCRIPCION`, **explica en vez de ofrecer un
 contador que va a rebotar**. Son justo las primeras cuentas que van a tocar esto.
 
+**Qué quedó verificado en producción el 2026-08-26, y qué no.**
+- ✅ El endpoint responde con los números correctos: 2 locales a 3 días del vencimiento dieron
+  `aCobrarHoy: 755` (S/7.55 = 7800 × 3/31) y `renovacionNueva: 13700`.
+- ✅ El bloque renderiza en la tarjeta del plan actual y toma el camino `SIN_TARJETA`, que es el
+  correcto para las cuentas del dueño. Consola limpia.
+- ⚠️ **El camino que COBRA no se ha visto nunca en pantalla**, y no se puede: ninguna cuenta
+  existente tiene tarjeta guardada, así que el contador con su previsualización y su botón de
+  pagar solo aparecerá tras el primer cobro real. Es lo primero que hay que mirar ese día.
+- 🔴 **Y un fallo que sí se cazó mirando, aunque no en esa pantalla:** los botones estaban en una
+  fila. A 1568px las tarjetas miden 310px y entraban de sobra, pero la rejilla es
+  `minmax(232px,1fr)` y en una tablet la tarjeta baja a ~196px de contenido, donde «Confirmar y
+  pagar» + «Cancelar» no caben. Van apilados. **La lección es la del 24 y el 25 con una vuelta
+  más: mirar no basta si se mira en un solo ancho.**
+
 ### 8.4 Menciones
 
 Distinción que sostiene el diseño:
