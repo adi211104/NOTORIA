@@ -2166,7 +2166,7 @@ textos por otros inventados. El procedimiento está en la cabecera del component
 | `lib-env-produccion.js` | No es un script: lo requieren los demás. Arregla la trampa de `railway run`, que da los secretos de producción pero pisa `DATABASE_URL` con el host **interno** de Postgres, inalcanzable desde fuera. Costó tiempo dos veces antes de vivir en un solo sitio |
 | `prueba-anulacion-pendiente.js` | 31 comprobaciones del aviso por comprobante reembolsado y sin anular: los dos anclajes del plazo, el `floor` que no sobreestima, y sobre todo los silencios (VOUCHER, ya anulado, no aceptado) |
 | `prueba-costo-places.js` | 26 comprobaciones de los tres frenos de costo de Places (§8.7). Vigila lo que no da ninguna señal al romperse: si el competidor vuelve a releerse a la cadencia del dueño, o el caché deja de reutilizar, no falla nada — solo sube la factura de Google, que no distingue de quién fue cada consulta. El bloque 8 deja escrita la aritmética para no rederivarla |
-| `prueba-gbp-visible.js` | 37 comprobaciones del interruptor de Google Business **y de que la web dejó de prometerlo**. El bloque 6 lee `page.js` y `layout.js` buscando las frases literales que se retiraron: es lo único que puede cazar que alguien las devuelva sin encender el interruptor |
+| `prueba-gbp-visible.js` | **51** comprobaciones del interruptor de Google Business **y de que el producto dejó de prometerlo**. El bloque 6 lee `page.js` y `layout.js` buscando las frases retiradas; el último —añadido el 2026-08-26— lee **`onboarding/page.js` y `GBPBanner.js`**, que es donde la función seguía viva con las 44 anteriores en verde |
 | `prueba-cableado.js` | 33 comprobaciones de score/temas/impacto/parte enchufados al correo, al PDF y a la constancia. Vigila los dos fallos mudos: que el `select` del semanal traiga la FECHA de la reseña (sin ella el parte sale vacío siempre) y que el correo **no** llame a Groq |
 | `prueba-expediente.js` | 43 comprobaciones del expediente (I8). 15 son sobre **el límite**: lee el fuente del PDF y falla si alguna vez imprime «reseña falsa», «extorsionando» o cualquier afirmación que le corresponda a Google o a la autoridad, no a nosotros |
 | `prueba-locales.js` | 91 comprobaciones de sumar y quitar locales sobre el plan que ya se tiene (§8.8). Los bloques 1-12 son aritmética y lectura del fuente; el **13 levanta la ruta de verdad** con Prisma y Culqi simulados, que es lo único que comprueba sobre la LLAMADA REAL —y no sobre una regex— que el `update` no escribe `fechaVencimiento` y que a Culqi le llega exactamente el importe que se le anunció al cliente |
@@ -2192,7 +2192,7 @@ textos por otros inventados. El procedimiento está en la cabecera del component
 | `prueba-verificacion.js` | 31 comprobaciones del recordatorio: ventana, espaciado, el marcador derivado de `tokenVerificaExpira` y que el token se guarde antes de enviarse |
 | `prueba-ficha-compartida.js` | 12 comprobaciones del caché de fichas por ciclo. Vigila las dos reglas invisibles: que una respuesta sin Contact Data no se le sirva a quien lo paga, y que un fallo no se cachee |
 | `prueba-progreso.js` | 28 comprobaciones de la comparación mensual: `null` distinto de 0, deltas negativos y el umbral de 0.2 del rating |
-| `prueba-alertas-resena.js` | 31 comprobaciones del aviso por reseña negativa. Lo que vigila son las **condiciones de silencio** (primer barrido, antigüedad, umbral, que pase por `notificar()`): si una se rompe, no falla nada — simplemente se deja de avisar |
+| `prueba-alertas-resena.js` | **34** comprobaciones del aviso por reseña negativa. El bloque 7 barre **los 13 archivos del panel** y falla si alguno pinta `{a.descripcion}` en crudo — esa columna es el respaldo en español, no el texto de la interfaz. Lo que vigila son las **condiciones de silencio** (primer barrido, antigüedad, umbral, que pase por `notificar()`): si una se rompe, no falla nada — simplemente se deja de avisar |
 | `ensayo-detector.js [--aplicar]` | **Ensayo EN VIVO de las seis señales del detector.** Las cuatro que salen de `detectarAnomalias` van en **solo lectura** —esa función devuelve las alertas, no las escribe—, así que se ejercitan contra los snapshots reales pasándole unos `datosNuevos` inventados. Las que escriben (campaña coordinada, pico por conteo y ficha alterada) van tras `--aplicar` y se limpian. Cada señal con su control negativo |
 | `prueba-facebook.js` | 40 comprobaciones de Facebook Reviews: la recomendación sin estrella, el interruptor, el permiso del OAuth y que el worker avise de las negativas. ⚠️ Cubre la forma **documentada** de la respuesta, no que Meta la devuelva |
 | `prueba-correos-idioma.js` | 24 comprobaciones del idioma de los correos. Obliga a clasificar cada correo nuevo como bilingüe o solo-español, verifica las **dos mitades** (plantilla y `select` del worker) y renderiza el resumen semanal en los dos idiomas para comparar la salida real |
@@ -2787,6 +2787,38 @@ y si un componente puede montarse en una pantalla que no lo tiene, hay que poder
 (§8.8).
 
 ### 🔴 Bugs abiertos en producción
+
+**Ninguno conocido** (última revisión: **2026-08-26**, tras cerrar el barrido de Google Business
+y el idioma de la pantalla de inicio — los tres verificados en el navegador contra producción).
+
+**Corregido el 2026-08-26 — Google Business seguía a la vista en los DOS sitios de más tráfico.**
+El barrido del 25 escondió la función en Conexiones, la web y tres puntos de la ficha, y se dio
+por cerrado. Faltaban: el **paso 2 de 3 del onboarding** (que se le pedía a cada usuario nuevo en
+su primer minuto, con un botón que caía en un **404 JSON** y lo sacaba del producto) y
+**`GBPBanner`**, montado en `dashboard/layout.js`, o sea presente en **todas** las pantallas del
+panel. El onboarding pasó a dos pasos; el banner pregunta ahora por `gbp.disponible` y falla
+cerrado. De paso, sus dos `fetch` mandaban `Authorization` a mano **sin `X-Cuenta`**: quien
+trabaja en la cuenta de otro recibía los negocios de la suya.
+
+🔴 **Y lo que de verdad hay que retener: `prueba-gbp-visible.js` estaba en VERDE con sus 44
+comprobaciones.** No estaba mal escrita — miraba los archivos equivocados. Las líneas rotuladas
+«paso 3 del onboarding» comprobaban que la frase se había retirado **del landing**, sin abrir
+nunca `onboarding/page.js`; y la de `dashboard/layout.js` buscaba un texto que vive en
+`components/GBPBanner.js`, del que el layout solo tiene `<GBPBanner/>`.
+**Una prueba que lee los archivos que uno recuerda no es un barrido.** Ahora los lee, y lleva su
+control de que las sondas saben fallar.
+
+**Corregido el 2026-08-26 — la pantalla de INICIO pintaba las alertas en español.**
+`Alerta.descripcion` la guarda el worker redactada y siempre en español: es un **respaldo**, no el
+texto de la interfaz, y las piezas viajan en `detalle` justo para que el panel arme la frase con
+`textoAlerta()` (`web/src/lib/alertas.js`). Alertas y la ficha ya lo hacían; `dashboard/page.js`
+la pintaba en crudo, así que un panel en inglés abría con «Nueva reseña de 1★ de…» en la primera
+tarjeta que se ve. **Quinta vez que este proyecto se equivoca de idioma por un camino distinto**
+(§11 invitaciones, §12 el `select`, la promo del 25 contra su página, y ahora el panel de inicio).
+⚠️ La prueba va como **barrido sobre los 13 archivos del panel**, no como comprobación del archivo
+que se vio — que es la lección del mismo día, aplicada antes de repetir el error.
+
+Debajo, lo anterior.
 
 **Ninguno conocido** (última revisión: **2026-08-25**, tras desplegar el cobro por local, los
 frenos de costo de Places, el interruptor de Google Business y el expediente, y verificar las
