@@ -36,6 +36,9 @@ const { puede, limite } = require('./planes');
 
 const DIA_MS = 86400000;
 
+/** Los locales que incluye el plan, sin contar los pagados aparte. */
+const incluidosEnElPlan = (plan) => limite(plan, 'negocios');
+
 // Por debajo de esto no se cobra nada y el local entra gratis hasta la
 // renovación. No es generosidad: un cargo de S/1.30 arrastra un cargo real a
 // una tarjeta, una fila de `Pago` y —lo que de verdad pesa— UN COMPROBANTE
@@ -44,10 +47,17 @@ const DIA_MS = 86400000;
 // una vez por cambio.
 const PISO_CENTIMOS = 500;
 
-// 50 locales TOTALES, que es lo que ya acota el selector del panel
-// (`Math.min(50, …)` en dashboard/planes). Acá se guarda como extras, o sea
-// descontando el que incluye el plan.
-const MAXIMO_EXTRA = 49;
+// 🔴 EL TOPE DE LOCALES DE UNA CUENTA, y es fuente única de las tres cosas que
+// dependen de él: lo que el panel deja elegir, lo que el cobro acepta y lo que
+// las tarjetas de precios PROMETEN. Hasta el 2026-08-26 el número estaba escrito
+// a mano en el selector (`Math.min(50, …)`) y las tarjetas decían «sin tope» en
+// los dos idiomas — una promesa falsa en la única pantalla donde se vende, que
+// es exactamente donde este proyecto ya se equivocó con los precios de la promo.
+//
+// El máximo de EXTRAS se deriva por plan y no se fija en 49: hoy todos incluyen
+// un local, pero el día que uno incluya dos, un 49 fijo dejaría comprar 51.
+const MAX_LOCALES_TOTALES = 50;
+const maximoExtra = (plan) => Math.max(0, MAX_LOCALES_TOTALES - incluidosEnElPlan(plan));
 
 // Un periodo mensual mide entre 28 y 31 días y uno anual 365 o 366. Se calcula
 // del calendario real (ver `diasDelPeriodo`) en vez de dar 30 por sentado, pero
@@ -162,21 +172,18 @@ const validarCambio = ({ plan, suscripcionActiva, tieneTarjeta, localesExtraNuev
 
   const nuevo = Number(localesExtraNuevo);
   if (!Number.isInteger(nuevo) || nuevo < 0) return 'CANTIDAD_INVALIDA';
-  // Tope duro: el mismo que acota el selector del panel. No protege de nada
-  // grave —el cargo se le enseña antes de confirmarlo—, pero evita que un
-  // cuerpo manipulado pida mil locales y genere un cargo de cinco cifras.
-  if (nuevo > MAXIMO_EXTRA) return 'CANTIDAD_INVALIDA';
+  // Tope duro. ⚠️ No es cosmético: el número llega del navegador, así que sin
+  // esto un cuerpo manipulado pide mil locales y genera el cargo que salga.
+  if (nuevo > maximoExtra(plan)) return 'CANTIDAD_INVALIDA';
 
   if (localesPermitidos(plan, nuevo) < Number(negociosActivos || 0)) return 'LOCALES_EN_USO';
   return null;
 };
 
-/** Los locales que incluye el plan, sin contar los pagados aparte. */
-const incluidosEnElPlan = (plan) => limite(plan, 'negocios');
-
 module.exports = {
   PISO_CENTIMOS,
-  MAXIMO_EXTRA,
+  MAX_LOCALES_TOTALES,
+  maximoExtra,
   diasDelPeriodo,
   diasRestantes,
   prorrateo,

@@ -9,6 +9,12 @@
 // Los precios están en SOLES, en unidades enteras (no céntimos). Deben coincidir
 // con brand-shield/src/lib/precios.js, que es quien decide el monto real que se
 // cobra — esto es solo lo que ve el usuario. Si cambian allá, cambian acá.
+// El tope de locales sale de `lib/planes.js`, que es el espejo del backend. Las
+// descripciones de abajo lo interpolan en vez de escribir «50» a mano: hasta el
+// 2026-08-26 decían «sin tope de locales», que era falso, y este archivo es
+// literalmente el catálogo que Culqi revisa.
+import { MAX_LOCALES_TOTALES } from './planes';
+
 export const MONEDA = 'PEN';
 export const SIMBOLO = 'S/';
 
@@ -133,7 +139,7 @@ export const CATALOGO = [
     imagen: 'negocio',
     destacado: true,
     descripcion:
-      'Monitoreo de tu local con escaneo cada 4 horas, y los locales que quieras sumar por S/39 al mes cada uno. Incluye 100 usos de IA a la semana para respuestas y análisis, 5 competidores vigilados por negocio con análisis IA de sus puntos débiles, conexión de TikTok, detección de reseñas copiadas y de picos anormales, aviso si te cambian el teléfono o el horario en tu ficha de Google, constancia de reputación con código verificable, panel compartido con 2 personas más de tu equipo (cada una con su propio usuario y su rol), alertas por email y notificaciones en la app de Android, reporte PDF mensual automático y boleta o factura electrónica a tu RUC. Cobro mensual, se renueva cada 30 días.',
+      `Monitoreo de tu local con escaneo cada 4 horas, y hasta ${MAX_LOCALES_TOTALES - 1} locales más por S/39 al mes cada uno. Incluye 100 usos de IA a la semana para respuestas y análisis, 5 competidores vigilados por negocio con análisis IA de sus puntos débiles, conexión de TikTok, detección de reseñas copiadas y de picos anormales, aviso si te cambian el teléfono o el horario en tu ficha de Google, constancia de reputación con código verificable, panel compartido con 2 personas más de tu equipo (cada una con su propio usuario y su rol), alertas por email y notificaciones en la app de Android, reporte PDF mensual automático y boleta o factura electrónica a tu RUC. Cobro mensual, se renueva cada 30 días.`,
     incluye: ['1 local incluido (+S/39 por local extra)', 'Escaneo cada 4 horas', 'Panel para 3 personas', 'Alertas por email y app', 'Reporte PDF mensual', 'Aviso si te alteran la ficha'],
     comprable: true,
   },
@@ -159,7 +165,7 @@ export const CATALOGO = [
     unidad: 'por mes',
     imagen: 'franquicia',
     descripcion:
-      'Para cadenas y grupos hoteleros: escaneo cada hora, sin tope de locales — se suman de a uno por S/99 al mes cada uno. Incluye 300 usos de IA a la semana, 15 competidores por negocio con descubrimiento automático de rivales cercanos, conexión de TikTok, alertas por email y notificaciones en la app de Android, reporte PDF mensual, todos tus locales en un solo panel, panel compartido con hasta 9 personas más —cada encargado con acceso solo a su sede— y soporte prioritario por correo. Cobro mensual.',
+      `Para cadenas y grupos hoteleros: escaneo cada hora y hasta ${MAX_LOCALES_TOTALES} locales en la misma cuenta — se suman de a uno por S/99 al mes cada uno. Incluye 300 usos de IA a la semana, 15 competidores por negocio con descubrimiento automático de rivales cercanos, conexión de TikTok, alertas por email y notificaciones en la app de Android, reporte PDF mensual, todos tus locales en un solo panel, panel compartido con hasta 9 personas más —cada encargado con acceso solo a su sede— y soporte prioritario por correo. Cobro mensual.`,
     incluye: ['1 local incluido (+S/99 por local extra)', 'Escaneo cada hora', 'Panel para 10 personas', 'Alertas por email y app', 'Todos tus locales en un panel', 'Soporte prioritario'],
     comprable: true,
   },
@@ -172,7 +178,7 @@ export const CATALOGO = [
     unidad: 'por año (equivale a S/143 por mes)',
     imagen: 'franquicia-anual',
     descripcion:
-      'Las mismas prestaciones del Plan Franquicia con pago anual adelantado: escaneo cada hora y los locales que necesites (S/948 al año por cada local adicional), 300 usos de IA a la semana, 15 competidores por negocio, panel compartido con hasta 9 personas más y todos tus locales en un solo panel. Un solo cargo al año, con 20% de descuento frente al pago mensual.',
+      `Las mismas prestaciones del Plan Franquicia con pago anual adelantado: escaneo cada hora y hasta ${MAX_LOCALES_TOTALES - 1} locales más (S/948 al año por cada local adicional), 300 usos de IA a la semana, 15 competidores por negocio, panel compartido con hasta 9 personas más y todos tus locales en un solo panel. Un solo cargo al año, con 20% de descuento frente al pago mensual.`,
     incluye: ['Todo el Plan Franquicia', 'Un solo cargo al año', '20% de ahorro', 'Soporte prioritario'],
     comprable: true,
   },

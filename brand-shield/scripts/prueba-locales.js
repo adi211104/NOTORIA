@@ -171,8 +171,9 @@ check('un decimal se rechaza', valido({ localesExtraNuevo: 1.5 }) === 'CANTIDAD_
 check('un texto se rechaza', valido({ localesExtraNuevo: 'muchos' }) === 'CANTIDAD_INVALIDA');
 check('mil locales se rechazan', valido({ localesExtraNuevo: 1000 }) === 'CANTIDAD_INVALIDA',
   'el cuerpo llega del navegador: sin tope, un cargo de cinco cifras');
-check('el tope es coherente con el del selector del panel',
-  locales.MAXIMO_EXTRA + locales.incluidosEnElPlan('NEGOCIO') === 50);
+check('el tope de extras se DERIVA del total y de lo que incluye el plan',
+  locales.maximoExtra('NEGOCIO') + locales.incluidosEnElPlan('NEGOCIO') === locales.MAX_LOCALES_TOTALES,
+  'un 49 fijo dejaría comprar 51 el día que un plan incluya dos locales');
 
 // ── 7. La renovación sigue cobrando los extras ────────────
 bloque('7. Lo que se cobra el mes que viene');
@@ -283,6 +284,55 @@ check('el tope manda a Planes', /Suma otro desde Planes/.test(negocios));
 check('…y ahora Planes tiene el control para el plan actual',
   /esPlanActual\s*&&\s*\(\s*\n?\s*<MisLocales/.test(panel) || /esPlanActual && \(/.test(panel) && /<MisLocales/.test(panel),
   'era la mitad que faltaba: el mensaje existía y el botón no');
+
+// ── 12-bis. El tope, en los tres sitios que dependen de él ─
+//
+// 🔴 Escrito el 2026-08-26. `MAX_LOCALES_TOTALES` gobierna lo que el panel deja
+// elegir, lo que el cobro acepta y lo que las tarjetas PROMETEN — y los tres
+// estaban desalineados: el selector tenía «50» a mano, el ALTA no acotaba nada
+// por arriba, y las tarjetas decían «sin tope» en los dos idiomas.
+bloque('12-bis. El tope de locales es uno solo');
+
+const espejoPlanes = leerWeb('src/lib/planes.js');
+const mTope = espejoPlanes.match(/export const MAX_LOCALES_TOTALES = (\d+);/);
+check('el panel declara el mismo tope que el backend',
+  mTope && Number(mTope[1]) === locales.MAX_LOCALES_TOTALES,
+  `backend ${locales.MAX_LOCALES_TOTALES} vs panel ${mTope && mTope[1]}`);
+
+// 🔴 El agujero de dinero: `localesExtra` llega del CUERPO de la petición, y el
+// alta lo pasaba a `montoSuscripcion` sin techo. Con 10 000 en Franquicia anual
+// eso son S/9.48 millones cargados a una tarjeta, con su comprobante fiscal.
+check('el ALTA rechaza más locales de los que caben',
+  /extras > locales\.maximoExtra\(plan\)/.test(rutas),
+  'el número viene del navegador: sin techo, el cargo es el que salga');
+check('…y los RECHAZA en vez de acotarlos en silencio',
+  /DEMASIADOS_LOCALES/.test(rutas),
+  'acotar cobraría un importe distinto del que el widget acaba de enseñar');
+
+// Las promesas del catálogo. Un tope real de 50 con «sin tope» impreso es
+// publicidad engañosa en la única pantalla donde se cobra.
+const SIN_TOPE = /sin tope|no cap|locales ilimitados|unlimited locations/i;
+for (const [donde, archivo] of [
+  ['las tarjetas del panel', 'src/app/dashboard/planes/page.js'],
+  ['la comparativa del landing', 'src/app/page.js'],
+  ['el catálogo de /precios', 'src/lib/catalogo.js'],
+]) {
+  // Se quitan los comentarios antes de buscar: este mismo archivo y los que
+  // lee explican POR QUÉ se retiró «sin tope», así que la frase aparece en la
+  // prosa. Una sonda que no distingue el código del comentario que lo explica
+  // se pone roja para siempre en cuanto alguien documenta el arreglo.
+  const fuente = leerWeb(archivo)
+    .split(/\r?\n/)
+    .filter((l) => !l.trim().startsWith('//') && !l.trim().startsWith('*'))
+    .join('\n');
+  check(`${donde}: sin promesas de locales ilimitados`, !SIN_TOPE.test(fuente));
+}
+check('…y las tres interpolan la constante en vez de escribir el número',
+  ['src/app/dashboard/planes/page.js', 'src/app/page.js', 'src/lib/catalogo.js']
+    .every((a) => /MAX_LOCALES_TOTALES/.test(leerWeb(a))));
+check('   …y la sonda de «sin tope» sabe fallar (control)',
+  SIN_TOPE.test('Suma los locales que necesites, sin tope')
+  && !SIN_TOPE.test('Hasta 50 locales en la misma cuenta'));
 
 // ── 13. La ruta, EJERCIDA ─────────────────────────────────
 //
@@ -437,6 +487,26 @@ const correr = async () => {
     db = estadoRuta(); db.usuario.suscripcionId = null;
     const sinTarjeta = await post(1);
     check('sin tarjeta guardada no se cobra', sinTarjeta.cuerpo.codigo === 'SIN_TARJETA' && db.cargos.length === 0);
+
+    // — El agujero de dinero, sobre la llamada real —
+    db = estadoRuta();
+    const exagerado = await pedir('/culqi', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'tkn_test_1', plan: 'FRANQUICIA', anual: true, localesExtra: 10000 }),
+    });
+    check('🔴 el ALTA rechaza 10 000 locales con 400',
+      exagerado.status === 400 && exagerado.cuerpo.codigo === 'DEMASIADOS_LOCALES',
+      `respondió ${exagerado.status} ${JSON.stringify(exagerado.cuerpo).slice(0, 80)}`);
+    check('…y no llegó ningún cargo a Culqi',
+      db.cargos.length === 0,
+      'sin el techo esto eran S/9.48 millones cargados a una tarjeta, con su comprobante');
+
+    db = estadoRuta();
+    const justo = await pedir(`/locales?localesExtra=${locales.maximoExtra('NEGOCIO')}`);
+    check('el tope exacto sí se admite (no se pasa de rosca por uno)',
+      justo.status === 200 && !justo.cuerpo.motivo);
+    const pasado = await pedir(`/locales?localesExtra=${locales.maximoExtra('NEGOCIO') + 1}`);
+    check('uno más ya no', pasado.cuerpo.motivo === 'CANTIDAD_INVALIDA');
 
     // — El piso, sobre la llamada real —
     db = estadoRuta(); db.usuario.fechaVencimiento = new Date(Date.now() + 12 * 3600 * 1000);

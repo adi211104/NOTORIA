@@ -140,3 +140,17 @@ export const planMinimoCon = (capacidad) =>
 
 export const limiteLegible = (n, idioma = 'es') =>
   Number.isFinite(n) ? String(n) : (idioma === 'en' ? 'unlimited' : 'ilimitados');
+
+/**
+ * El tope de locales de una cuenta. **Espejo de `MAX_LOCALES_TOTALES` en
+ * `brand-shield/src/lib/localesExtra.js`**, y el bloque 11 de
+ * `scripts/prueba-planes.js` falla si los dos números se separan.
+ *
+ * 🔴 Vive acá porque el que lo necesita es el TEXTO que se vende. Hasta el
+ * 2026-08-26 las tarjetas de Negocio y Franquicia prometían «Suma los locales
+ * que necesites, sin tope» en los dos idiomas, y en la comparativa del landing
+ * — una promesa falsa en la única pantalla donde se cobra. Ahora la frase
+ * interpola este número, así que subir el tope se hace en un sitio y la web se
+ * entera sola.
+ */
+export const MAX_LOCALES_TOTALES = 50;

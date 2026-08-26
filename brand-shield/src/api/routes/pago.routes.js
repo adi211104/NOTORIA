@@ -225,6 +225,25 @@ router.post('/culqi', async (req, res) => {
     // las ventas más grandes — y el comprobante saldría por menos de lo cobrado.
     const extras = Math.max(0, Math.trunc(Number(localesExtra) || 0));
     const puedeLocales = planPuede(plan, 'localesAdicionales');
+
+    // 🔴 TOPE POR ARRIBA, y no estaba. `localesExtra` llega del cuerpo de la
+    // petición: el selector del panel lo acota a 50, pero eso es una cortesía
+    // del navegador, no una defensa. Sin esto, un cuerpo con
+    // `localesExtra: 10000` en Franquicia anual pasaba entero a
+    // `montoSuscripcion` y salía un cargo de **S/9.48 millones** — con su
+    // comprobante fiscal detrás, su correlativo gastado y su declaración.
+    //
+    // Se RECHAZA en vez de acotar en silencio: acotar cobraría un importe
+    // distinto del que el widget acaba de enseñar, que es justo el fallo que
+    // este archivo ya arrastró una vez (S/30 mostrado, S/29.50 cobrado).
+    // `POST /api/pagos/locales` ya lo comprobaba con `validarCambio`; el alta
+    // era la puerta que quedaba abierta.
+    if (puedeLocales && extras > locales.maximoExtra(plan)) {
+      return res.status(400).json({
+        error: `Una cuenta admite hasta ${locales.MAX_LOCALES_TOTALES} locales.`,
+        codigo: 'DEMASIADOS_LOCALES',
+      });
+    }
     const precioBase = montoSuscripcion(plan, anual, extras);
 
     // obtenerOCrearCliente, NO crearCliente: Culqi rechaza un segundo customer
@@ -450,7 +469,7 @@ const resumenLocales = (usuario, negociosActivos, localesExtraNuevo) => {
     localesExtraActual: usuario.localesExtra,
     localesExtraNuevo: nuevo,
     negociosActivos,
-    maximoExtra: locales.MAXIMO_EXTRA,
+    maximoExtra: locales.maximoExtra(usuario.plan),
     fechaVencimiento: usuario.fechaVencimiento,
     moneda: MONEDA,
     // El cargo de HOY (prorrateado) y el que se hará en la renovación.

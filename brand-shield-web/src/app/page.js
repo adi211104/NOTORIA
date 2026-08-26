@@ -18,6 +18,7 @@ import { GraficaAtaque, TarjetaAlerta, MedidorScore, DiagramaFlujo } from '../co
 import PanelShowcase from '../components/PanelShowcase';
 // Fuente única de los datos de contacto públicos (ver components/PieLegal.js)
 import { CONTACTO } from '../components/PieLegal';
+import { MAX_LOCALES_TOTALES } from '../lib/planes';
 
 // Símbolo de la moneda de cobro. Los precios se cobran en soles; ver MONEDA en
 // brand-shield/src/lib/precios.js, que es lo que manda en el cargo real.
@@ -266,7 +267,7 @@ const TEXTOS = {
         { grupo:'Canales y fuentes' },
         { label:'Conexión de TikTok (perfil y videos)', valores:[false,false,true,true] },
         { grupo:'Para cadenas y grupos' },
-        { label:'Suma los locales que necesites, sin tope', valores:[false,false,true,true] },
+        { label:`Hasta ${MAX_LOCALES_TOTALES} locales en la misma cuenta`, valores:[false,false,true,true] },
         { grupo:'Facturación y soporte' },
         { label:'Boleta o factura electrónica a tu RUC, automática', valores:[false,true,true,true] },
         { label:'Soporte', valores:['Estándar','Estándar','Prioritario','Prioritario por correo'] },
@@ -476,7 +477,7 @@ const TEXTOS = {
         { grupo:'Channels and sources' },
         { label:'TikTok connection (profile and videos)', valores:[false,false,true,true] },
         { grupo:'For chains and groups' },
-        { label:'Add as many locations as you need, no cap', valores:[false,false,true,true] },
+        { label:`Up to ${MAX_LOCALES_TOTALES} locations in one account`, valores:[false,false,true,true] },
         { grupo:'Billing and support' },
         { label:'Automatic electronic invoice (SUNAT, Peru)', valores:[false,true,true,true] },
         { label:'Support', valores:['Standard','Standard','Priority','Priority via email'] },

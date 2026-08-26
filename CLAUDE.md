@@ -919,7 +919,7 @@ palanca y está en un solo sitio.
 
 **Hecho el 2026-08-26** (era el pendiente P1 del 25). `src/lib/localesExtra.js` +
 `GET/POST /api/pagos/locales` + el bloque `MisLocales` de `dashboard/planes`.
-`node scripts/prueba-locales.js` — 91 comprobaciones.
+`node scripts/prueba-locales.js` — **103** comprobaciones.
 
 🔴 **Se cobra PRORRATEADO y el vencimiento NO se toca.** Es la decisión que el pendiente dejaba
 abierta, y las otras dos salidas se descartaron con números delante (§19). El aniversario del
@@ -2169,7 +2169,7 @@ textos por otros inventados. El procedimiento está en la cabecera del component
 | `prueba-gbp-visible.js` | **51** comprobaciones del interruptor de Google Business **y de que el producto dejó de prometerlo**. El bloque 6 lee `page.js` y `layout.js` buscando las frases retiradas; el último —añadido el 2026-08-26— lee **`onboarding/page.js` y `GBPBanner.js`**, que es donde la función seguía viva con las 44 anteriores en verde |
 | `prueba-cableado.js` | 33 comprobaciones de score/temas/impacto/parte enchufados al correo, al PDF y a la constancia. Vigila los dos fallos mudos: que el `select` del semanal traiga la FECHA de la reseña (sin ella el parte sale vacío siempre) y que el correo **no** llame a Groq |
 | `prueba-expediente.js` | 43 comprobaciones del expediente (I8). 15 son sobre **el límite**: lee el fuente del PDF y falla si alguna vez imprime «reseña falsa», «extorsionando» o cualquier afirmación que le corresponda a Google o a la autoridad, no a nosotros |
-| `prueba-locales.js` | 91 comprobaciones de sumar y quitar locales sobre el plan que ya se tiene (§8.8). Los bloques 1-12 son aritmética y lectura del fuente; el **13 levanta la ruta de verdad** con Prisma y Culqi simulados, que es lo único que comprueba sobre la LLAMADA REAL —y no sobre una regex— que el `update` no escribe `fechaVencimiento` y que a Culqi le llega exactamente el importe que se le anunció al cliente |
+| `prueba-locales.js` | **103** comprobaciones de sumar y quitar locales sobre el plan que ya se tiene (§8.8). Los bloques 1-12 son aritmética y lectura del fuente; el **13 levanta la ruta de verdad** con Prisma y Culqi simulados, que es lo único que comprueba sobre la LLAMADA REAL —y no sobre una regex— que el `update` no escribe `fechaVencimiento` y que a Culqi le llega exactamente el importe que se le anunció al cliente |
 | `prueba-planes.js` | 64 comprobaciones de la tabla de capacidades. Vigila lo que no da señal: que todo plan con precio se COBRE y se BAJE (olvidarlo regala el plan de por vida), que la escalera no pierda capacidades al subir, que un plan desconocido falle CERRADO, y **lee el fuente** para fallar si alguien vuelve a escribir `['NEGOCIO','FRANQUICIA']` a mano |
 | `prueba-parte-equipo.js` | 66 comprobaciones del parte semanal para el equipo. Casi todas sobre lo que el prompt NO consigue: que el saneador quite las frases que el modelo escribe pese a prohibírselo **sin estropear las que estaban bien**, y que un conteo que no cuadre con los hechos tire el parte entero. Incluye una prueba de que el fuente no tiene bytes de control invisibles — un `` mal escapado escribió un `0x08` dentro de una regex y la dejó sin casar nunca, en silencio |
 | `prueba-panel.js` | 83 comprobaciones de score, temas, tareas e impacto. Comprueba que la fórmula del score NO cambió al mudarse al backend (replica la aritmética original), que la tendencia de temas compara porcentajes y no conteos, y que no se inventa una cifra en soles donde el estudio no aplica |
@@ -2807,6 +2807,26 @@ nunca `onboarding/page.js`; y la de `dashboard/layout.js` buscaba un texto que v
 `components/GBPBanner.js`, del que el layout solo tiene `<GBPBanner/>`.
 **Una prueba que lee los archivos que uno recuerda no es un barrido.** Ahora los lee, y lleva su
 control de que las sondas saben fallar.
+
+**Corregido el 2026-08-26 — el ALTA no acotaba `localesExtra` por arriba.** El número llega del
+**cuerpo de la petición**; el selector del panel lo limita a 50, pero eso es una cortesía del
+navegador, no una defensa. `POST /api/pagos/culqi` lo pasaba tal cual a `montoSuscripcion`, así
+que un cuerpo con `localesExtra: 10000` en Franquicia anual daba un cargo de **S/9.48 millones**,
+con su comprobante fiscal, su correlativo gastado y su declaración detrás. `POST /api/pagos/locales`
+sí lo comprobaba con `validarCambio`; el alta era la puerta que quedaba abierta.
+⚠️ Se **rechaza** (400 `DEMASIADOS_LOCALES`), no se acota en silencio: acotar cobraría un importe
+distinto del que el widget acaba de enseñar, que es el fallo que este archivo ya arrastró una vez.
+
+**Corregido el 2026-08-26 — las tarjetas prometían «locales sin tope» y el tope son 50.**
+Estaba en 13 sitios: las cuatro tarjetas del panel en los dos idiomas, la comparativa del landing
+en los dos, y tres descripciones del catálogo de `/precios` — que es literalmente el documento que
+Culqi revisa. Ahora la frase **interpola `MAX_LOCALES_TOTALES`**, que vive en
+`lib/localesExtra.js` y se espeja en `web/src/lib/planes.js`; el bloque 12-bis de
+`prueba-locales.js` falla si los dos números se separan, si vuelve a aparecer «sin tope» fuera de
+un comentario, o si alguien escribe el número a mano.
+🔴 **Y el máximo de EXTRAS se deriva** (`maximoExtra(plan) = MAX_LOCALES_TOTALES − incluidos`), no
+se fija en 49: hoy todos los planes incluyen un local, pero el día que uno incluya dos, un 49 fijo
+dejaría comprar 51.
 
 **Corregido el 2026-08-26 — la pantalla de INICIO pintaba las alertas en español.**
 `Alerta.descripcion` la guarda el worker redactada y siempre en español: es un **respaldo**, no el

@@ -1,5 +1,5 @@
 'use client';
-import { PLANES as CAPACIDADES_PLAN } from '../../../lib/planes';
+import { PLANES as CAPACIDADES_PLAN, MAX_LOCALES_TOTALES } from '../../../lib/planes';
 import { useState, useEffect } from 'react';
 import Script from 'next/script';
 import Link from 'next/link';
@@ -49,7 +49,7 @@ const PLANES = {
         { texto: 'IA amplia para respuestas y análisis', ok: false },
         { texto: 'Análisis IA de la competencia', ok: false },
         { texto: 'Reportes PDF automáticos', ok: false },
-        { texto: 'Suma los locales que necesites, sin tope', ok: false },
+        { texto: `Hasta ${MAX_LOCALES_TOTALES} locales en la misma cuenta`, ok: false },
         { texto: 'Soporte prioritario', ok: false },
       ],
       cta: 'Plan actual',
@@ -75,7 +75,7 @@ const PLANES = {
         { texto: 'Compartir el panel con tu equipo', ok: false },
         { texto: 'Conexión de TikTok', ok: false },
         { texto: 'Constancia de reputación verificable', ok: false },
-        { texto: 'Suma los locales que necesites, sin tope', ok: false },
+        { texto: `Hasta ${MAX_LOCALES_TOTALES} locales en la misma cuenta`, ok: false },
         { texto: 'Soporte prioritario', ok: false },
       ],
       cta: 'Contratar plan Impulso',
@@ -102,7 +102,7 @@ const PLANES = {
         { texto: 'Boleta o factura electrónica a tu RUC', ok: true },
         { texto: 'Comparte el panel con 2 personas más', ok: true },
         { texto: 'Todo lo del plan Gratuito', ok: true },
-        { texto: 'Suma los locales que necesites, sin tope', ok: true },
+        { texto: `Hasta ${MAX_LOCALES_TOTALES} locales en la misma cuenta`, ok: true },
         { texto: 'Soporte prioritario', ok: false },
       ],
       // No decir "7 días gratis": NO existe periodo de prueba. El cobro es
@@ -132,7 +132,7 @@ const PLANES = {
         { texto: 'Boleta o factura electrónica a tu RUC', ok: true },
         { texto: 'Comparte el panel con 9 personas más', ok: true },
         { texto: 'Da acceso a cada encargado solo a su sede', ok: true },
-        { texto: 'Suma los locales que necesites, sin tope', ok: true },
+        { texto: `Hasta ${MAX_LOCALES_TOTALES} locales en la misma cuenta`, ok: true },
         { texto: 'Soporte prioritario por correo', ok: true },
         { texto: 'Todo lo del plan Negocio', ok: true },
       ],
@@ -165,7 +165,7 @@ const PLANES = {
         { texto: 'Extended AI for replies and analysis', ok: false },
         { texto: 'AI competitor analysis', ok: false },
         { texto: 'Automatic PDF reports', ok: false },
-        { texto: 'Add as many locations as you need, no cap', ok: false },
+        { texto: `Up to ${MAX_LOCALES_TOTALES} locations in one account`, ok: false },
         { texto: 'Priority support', ok: false },
       ],
       cta: 'Current plan',
@@ -191,7 +191,7 @@ const PLANES = {
         { texto: 'Share the dashboard with your team', ok: false },
         { texto: 'TikTok connection', ok: false },
         { texto: 'Verifiable reputation certificate', ok: false },
-        { texto: 'Add as many locations as you need, no cap', ok: false },
+        { texto: `Up to ${MAX_LOCALES_TOTALES} locations in one account`, ok: false },
         { texto: 'Priority support', ok: false },
       ],
       cta: 'Get the Impulso plan',
@@ -218,7 +218,7 @@ const PLANES = {
         { texto: 'Automatic electronic invoice (SUNAT, Peru)', ok: true },
         { texto: 'Share the dashboard with 2 more people', ok: true },
         { texto: 'Everything in the Free plan', ok: true },
-        { texto: 'Add as many locations as you need, no cap', ok: true },
+        { texto: `Up to ${MAX_LOCALES_TOTALES} locations in one account`, ok: true },
         { texto: 'Priority support', ok: false },
       ],
       cta: 'Get the Business plan', // ver la nota del plan Negocio en español
@@ -244,7 +244,7 @@ const PLANES = {
         { texto: 'Give each manager access to their location only', ok: true },
         { texto: 'Monthly PDF report', ok: true },
         { texto: 'Automatic electronic invoice (SUNAT, Peru)', ok: true },
-        { texto: 'Add as many locations as you need, no cap', ok: true },
+        { texto: `Up to ${MAX_LOCALES_TOTALES} locations in one account`, ok: true },
         { texto: 'Priority email support', ok: true },
         { texto: 'Everything in the Business plan', ok: true },
       ],
