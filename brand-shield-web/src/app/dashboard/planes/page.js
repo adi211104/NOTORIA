@@ -549,10 +549,18 @@ function MisLocales({ t, idioma, onAplicado }) {
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          {/* ⚠️ APILADOS, no en una fila. La rejilla de las tarjetas es
+              `minmax(232px,1fr)`, así que en una tablet una tarjeta baja a ~196px
+              de contenido: ahí «Confirmar y pagar» (~112px) más «Cancelar»
+              (~78px) más el hueco no entran, y en español el primero es aún más
+              largo que en inglés. No se puede comprobar en el monitor donde se
+              desarrolla —a 1568px las tarjetas miden 310px y entra de sobra—,
+              que es justo por lo que se decide por el ancho peor y no por el que
+              se tiene delante. */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
             <button type="button" onClick={aplicar} disabled={aplicando || !!previo.motivo}
               style={{
-                flex: 1, padding: '9px', borderRadius: 5, fontSize: 12.5, fontWeight: 600,
+                width: '100%', padding: '9px', borderRadius: 5, fontSize: 12.5, fontWeight: 600,
                 fontFamily: GEO, border: 'none', color: '#fff',
                 background: aplicando || previo.motivo ? 'var(--text-3)' : G,
                 cursor: aplicando || previo.motivo ? 'default' : 'pointer',
@@ -561,9 +569,9 @@ function MisLocales({ t, idioma, onAplicado }) {
             </button>
             <button type="button" onClick={() => { setObjetivo(actual); setError(''); }} disabled={aplicando}
               style={{
-                padding: '9px 14px', borderRadius: 5, fontSize: 12.5, fontFamily: GEO,
-                background: 'var(--surface)', color: 'var(--text-2)',
-                border: '1px solid var(--border-c)', cursor: aplicando ? 'default' : 'pointer',
+                width: '100%', padding: '7px', borderRadius: 5, fontSize: 12, fontFamily: GEO,
+                background: 'transparent', color: 'var(--text-3)',
+                border: 'none', cursor: aplicando ? 'default' : 'pointer',
               }}>
               {t.misLocales.cancelar}
             </button>
