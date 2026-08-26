@@ -172,6 +172,15 @@ export const pagos = {
   // cuando el importe llega al umbral que exige identificar al comprador.
   datosFiscales:       ()  => api('/api/pagos/datos-fiscales'),
   guardarDatosFiscales:(d) => api('/api/pagos/datos-fiscales', { method:'PUT', body:JSON.stringify(d) }),
+  // Locales adicionales sobre el plan que YA se tiene. `previsualizarLocales`
+  // devuelve el importe prorrateado que se cobraría hoy; `cambiarLocales` lo
+  // aplica.
+  // ⚠️ El importe se PIDE, no se calcula acá. Es la regla que este proyecto
+  // aprendió cobrando S/29.50 mientras el widget anunciaba S/30: cualquier cifra
+  // que se le enseñe al cliente antes de pagar tiene que salir del mismo código
+  // que la va a cobrar.
+  previsualizarLocales: (localesExtra) => api(`/api/pagos/locales?localesExtra=${localesExtra}`),
+  cambiarLocales:       (localesExtra) => api('/api/pagos/locales', { method:'POST', body:JSON.stringify({ localesExtra }) }),
 };
 
 // Libro de Reclamaciones — endpoint público: la ley no permite exigir registro

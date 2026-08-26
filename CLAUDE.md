@@ -882,6 +882,9 @@ velocidad y las funciones — que es lo que de verdad los distinguía.
 | NEGOCIO | 1 | S/39/mes · S/372/año |
 | FRANQUICIA | 1 | S/99/mes · S/948/año |
 
+➡️ **Cómo se compran los locales cuando el cliente YA está suscrito vive en §8.8** (prorrateo,
+piso, la guarda de la bajada). Acá está la tabla; allá, el cobro.
+
 - **`montoSuscripcion()` en `lib/precios.js` es fuente única**, y la usan el alta *y* la
   renovación. Si solo cobrara el alta, los extras se pagarían **una vez y quedarían gratis
   para siempre**: ni error, ni log, ni cargo fallido. Es el mismo fallo que ya tuvo este cron
@@ -911,6 +914,61 @@ sigue siendo el salto a NEGOCIO.
 ⚠️ La vigilancia de ficha **cuesta dinero** (obliga al grupo Contact Data de Places). A 12 h son
 2 consultas al día por negocio, la mitad que NEGOCIO. Si hay que recortar margen, esa es la
 palanca y está en un solo sitio.
+
+### 8.8 Sumar y quitar locales sin pasar por el alta
+
+**Hecho el 2026-08-26** (era el pendiente P1 del 25). `src/lib/localesExtra.js` +
+`GET/POST /api/pagos/locales` + el bloque `MisLocales` de `dashboard/planes`.
+`node scripts/prueba-locales.js` — 91 comprobaciones.
+
+🔴 **Se cobra PRORRATEADO y el vencimiento NO se toca.** Es la decisión que el pendiente dejaba
+abierta, y las otras dos salidas se descartaron con números delante (§19). El aniversario del
+cliente no se mueve porque haya sumado un local a mitad de mes.
+
+⚠️ **Lo que hizo barato el prorrateo: la renovación ya estaba resuelta.**
+`montoSuscripcion(plan, anual, localesExtra)` cobra el total nuevo el mes siguiente sin tocar
+una línea del cron. Lo único que había que resolver era el tramo de hoy al vencimiento.
+
+| Regla | Por qué |
+|---|---|
+| **Se cobra la TARJETA GUARDADA** (`suscripcionId`), no un token del widget | El cliente ya la registró al contratar. Volver a pedírsela para sumar un local es fricción inventada — y el widget cobra lo que se le diga, mientras que acá el importe lo decide el servidor |
+| **Piso de S/5** (`PISO_CENTIMOS`): por debajo entra gratis | Un cargo de S/1.30 arrastra una fila de `Pago` y **un comprobante fiscal**, con su correlativo que no admite huecos y su envío a SUNAT. Máximo regalado: S/5 |
+| **Gratis ≠ no entra.** Bajo el piso el local SE AGREGA igual | Si no, se le cobraría en la renovación algo que no pudo usar |
+| **`diasPeriodo` sale del calendario real**, restándole el ciclo al vencimiento | Es el gemelo de cómo el cron lo suma. En febrero cada día vale 1/28, no 1/30 |
+| **`diasRestantes` usa `ceil`** — al revés que `lib/anulacionPendiente` | Allá había un plazo legal detrás y pasarse era el lado peligroso; acá el que paga es el cliente, así que el día en curso se le cuenta a su favor |
+| **El redondeo se hace UNA vez sobre el total**, no por unidad | Dos locales dan 3019 y no 3020. Redondear por unidad arrastraría el error hacia arriba en cada local — mismo criterio que el IGV como residuo en `tributario.js` |
+| **La promo de bienvenida se aplica igual que en la renovación** | El cron parte por la mitad el `precioBase` completo, locales incluidos. Cobrar a tarifa plena hoy y a mitad en la renovación daría dos tarifas por lo mismo en el mismo mes |
+| **El comprobante lleva descripción propia** | Se cobra por días, así que la frase genérica imprimiría «suscripción por 1 mes» en un documento fiscal por algo que no es de un mes |
+
+🔴 **Bajar locales no devuelve dinero y solo se puede hasta los negocios ACTIVOS que hay
+cargados.** Sin esa guarda, bajar el contador dejaría de pagar locales que se están vigilando y
+`negociosVigilables` los sacaría del barrido **en silencio**: no borra, no desactiva, no avisa.
+El cliente vería el historial de dos de sus fichas congelarse sin un solo error en pantalla.
+Primero se desactiva la ficha, y entonces se puede dejar de pagar el local.
+
+⚠️ **Lo que hay que vigilar al tocar esto, porque no da ninguna señal:**
+- Que el `update` **no escriba `fechaVencimiento`**. Añadirlo «para que cuadre» le come al
+  cliente los días que ya pagó y no falla nada: el cargo sale, el comprobante sale, el panel se
+  ve igual. El bloque 13 de la prueba lo comprueba **sobre la llamada real**, no con un grep.
+  🔴 Y la primera versión de esa sonda daba un falso positivo: buscaba el nombre a secas y la
+  ruta **lee** `fechaVencimiento` a propósito para saber cuántos días quedan. Es el mismo error
+  de `verificar-meta-secret.js` — ante un resultado, preguntar si el método distingue. Ahora
+  mira dentro de un `data:` de Prisma y **lleva sus dos controles**.
+- Que el panel **no calcule el importe**. `MisLocales` lo pide (`GET /api/pagos/locales`) y solo
+  lo pinta. Calcularlo ahí es exactamente el bug de mostrar S/30 y cobrar S/29.50.
+- Que el bloque **no dependa del interruptor mensual/anual** de la pantalla: el periodo lo manda
+  la suscripción del cliente. Quien paga anual y mira la pestaña mensual tiene que ver lo que le
+  van a cobrar **a él**. Es la cuarta forma que este proyecto encuentra de equivocarse por
+  componer algo donde no se sabe el contexto (§11, §12, la promo del 25).
+
+⚠️ **`Pago.tipo` estrena el valor `LOCAL_ADICIONAL`.** Es `String` y no enum, así que no hubo
+migración — pero **quien lo pinta necesita respaldo**: `dashboard/facturacion` lo mapea a
+etiqueta en los dos idiomas con `|| p.tipo`, que es lo que evita repetir el `NEGOCIO` en crudo
+de la barra lateral del 24.
+
+⚠️ **Las cuentas con plan concedido a mano no tienen tarjeta guardada** —las dos del dueño son
+así— y por eso el bloque, ante `SIN_TARJETA` o `SIN_SUSCRIPCION`, **explica en vez de ofrecer un
+contador que va a rebotar**. Son justo las primeras cuentas que van a tocar esto.
 
 ### 8.4 Menciones
 
@@ -2097,6 +2155,7 @@ textos por otros inventados. El procedimiento está en la cabecera del component
 | `prueba-gbp-visible.js` | 37 comprobaciones del interruptor de Google Business **y de que la web dejó de prometerlo**. El bloque 6 lee `page.js` y `layout.js` buscando las frases literales que se retiraron: es lo único que puede cazar que alguien las devuelva sin encender el interruptor |
 | `prueba-cableado.js` | 33 comprobaciones de score/temas/impacto/parte enchufados al correo, al PDF y a la constancia. Vigila los dos fallos mudos: que el `select` del semanal traiga la FECHA de la reseña (sin ella el parte sale vacío siempre) y que el correo **no** llame a Groq |
 | `prueba-expediente.js` | 43 comprobaciones del expediente (I8). 15 son sobre **el límite**: lee el fuente del PDF y falla si alguna vez imprime «reseña falsa», «extorsionando» o cualquier afirmación que le corresponda a Google o a la autoridad, no a nosotros |
+| `prueba-locales.js` | 91 comprobaciones de sumar y quitar locales sobre el plan que ya se tiene (§8.8). Los bloques 1-12 son aritmética y lectura del fuente; el **13 levanta la ruta de verdad** con Prisma y Culqi simulados, que es lo único que comprueba sobre la LLAMADA REAL —y no sobre una regex— que el `update` no escribe `fechaVencimiento` y que a Culqi le llega exactamente el importe que se le anunció al cliente |
 | `prueba-planes.js` | 64 comprobaciones de la tabla de capacidades. Vigila lo que no da señal: que todo plan con precio se COBRE y se BAJE (olvidarlo regala el plan de por vida), que la escalera no pierda capacidades al subir, que un plan desconocido falle CERRADO, y **lee el fuente** para fallar si alguien vuelve a escribir `['NEGOCIO','FRANQUICIA']` a mano |
 | `prueba-parte-equipo.js` | 66 comprobaciones del parte semanal para el equipo. Casi todas sobre lo que el prompt NO consigue: que el saneador quite las frases que el modelo escribe pese a prohibírselo **sin estropear las que estaban bien**, y que un conteo que no cuadre con los hechos tire el parte entero. Incluye una prueba de que el fuente no tiene bytes de control invisibles — un `` mal escapado escribió un `0x08` dentro de una regex y la dejó sin casar nunca, en silencio |
 | `prueba-panel.js` | 83 comprobaciones de score, temas, tareas e impacto. Comprueba que la fórmula del score NO cambió al mudarse al backend (replica la aritmética original), que la tendencia de temas compara porcentajes y no conteos, y que no se inventa una cifra en soles donde el estudio no aplica |
@@ -2156,30 +2215,26 @@ y rechaza otra cosa). Así se descartaron rutas enteras de TikTok sin credencial
 
 ## 19. Pendientes, ordenados por quién los desbloquea
 
-> ### Lo que queda por programar (2026-08-25)
+> ### Lo que queda por programar (2026-08-26)
 >
-> El 25 se desplegó un bloque grande: el **interruptor de Google Business**, los **tres frenos de
-> costo de Places**, el **cobro por local**, el **cableado** de score/temas/impacto/parte y el
-> **expediente (I8)**. Queda **una sola cosa** pendiente de escribir, y es una decisión de
-> facturación antes que código:
+> **Nada.** La lista está vacía otra vez.
 >
-> 🟡 **P1 — Sumar un local en el plan que YA tienes.** El selector de locales sale en las
-> tarjetas de los planes que **no** son el actual (`!esPlanActual` en `dashboard/planes`), así
-> que un cliente ya suscrito a NEGOCIO que abre su segundo local no tiene por dónde comprarlo
-> desde el panel. El backend lo cubre entero —`montoSuscripcion` cobra bien, `negociosPermitidos`
-> respeta el tope, el corte del worker funciona y el mensaje del tope ya apunta a Planes— pero el
-> control no está ahí para su propio plan.
->
-> ⚠️ **No es un botón, y por eso no se hizo:** hay que decidir qué se cobra al añadir a mitad de
-> periodo. Volver a pasar por el alta reinicia `fechaVencimiento` **desde hoy** y le come al
-> cliente los días que le quedaban; prorratear exige aritmética que Culqi no da hecha (acá los
-> cargos son manuales, no suscripciones nativas). Las dos salidas son defendibles y la elección
-> es del dueño.
->
-> Hoy no bloquea a nadie —**0 cuentas con locales extra**— pero es lo primero que hará falta el
-> día que alguien contrate el segundo local.
+> ✅ **P1 — Sumar un local en el plan que YA tienes: HECHO el 2026-08-26.** Ver §8.8.
 >
 > ── Lo que se cerró antes ──────────────────────────────────────────────────
+>
+> 🟡 **P1, el pendiente del 25**, era una decisión de facturación antes que código: el selector
+> de locales solo salía en las tarjetas de los planes que **no** son el actual, así que el
+> cliente ya suscrito a NEGOCIO que abría su segundo local no tenía por dónde comprarlo — y el
+> 403 al crear el negocio lo mandaba justamente a Planes, donde ese control no existía para él.
+>
+> 🔴 **Al ponerle números, una de las dos salidas que la nota daba por defendibles dejó de
+> serlo.** Volver a pasar por el alta no cobra solo el local: cobra **el plan entero otra vez** y
+> arranca el vencimiento desde hoy. A un cliente de NEGOCIO anual con 11 meses por delante,
+> sumar un local de S/372 le habría costado S/936 tirando S/517 de servicio ya pagado. Se
+> descartó, junto con la de dejarlo gratis hasta la renovación (en anual son hasta 364 días
+> gratis, y repetible). **Decidido: prorrateo, con piso de S/5.**
+>
 >
 > El 2026-08-23 esta lista estaba vacía. El 24 se hizo un bloque grande de trabajo —el plan
 > **Impulso**, el **panel accionable** (score, temas, tareas), **estrellas a soles**, el **parte
@@ -2356,6 +2411,13 @@ flujo entero.
 > **renovación** tiene que volver a cobrar los extras el mes siguiente. Ese último tramo es el
 > único que no se puede comprobar el mismo día, y es justo el que si falla regala los locales
 > para siempre sin que nada avise. Anotar la fecha de vencimiento y mirar el cargo cuando toque.
+>
+> ⚠️ **Y desde el 2026-08-26 hay un SEGUNDO camino que también cobra y que no es el mismo**: el
+> de sumar un local a mitad de periodo (§8.8), que cobra **prorrateado contra la tarjeta
+> guardada** en vez de pasar por el widget. Son dos rutas distintas hacia el mismo sitio, así
+> que probar una no prueba la otra. La barata de ejercitar es esta: no hace falta contratar
+> nada, basta con estar suscrito y pulsar «+». ⚠️ Gasta un correlativo fiscal igual que
+> cualquier cobro, así que también hay que anular su boleta si se reembolsa.
 >
 > 🟡 **Correr `scripts/respaldo.js` de vez en cuando.** El primero se hizo y se verificó el
 > 2026-08-24 (2397 filas, íntegro). No hay cron: es a mano, y con razón —el archivo lleva datos
@@ -2707,10 +2769,8 @@ y si un componente puede montarse en una pantalla que no lo tiene, hay que poder
 
 ### 🟡 El único hueco conocido
 
-**Sumar un local en el plan que ya tienes.** Está descrito entero como pendiente **P1** en §19,
-con las dos salidas de facturación entre las que hay que elegir. No se repite acá a propósito:
-dos copias del mismo pendiente se desincronizan, que es la lección que ya dejaron los precios y
-el FAQ del JSON-LD.
+**Ninguno.** El que había —sumar un local en el plan que ya tienes— se cerró el 2026-08-26
+(§8.8).
 
 ### 🔴 Bugs abiertos en producción
 

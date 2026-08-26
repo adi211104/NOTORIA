@@ -88,6 +88,16 @@ const descripcionDe = (pago) => {
   // un plan nuevo caía al `|| pago.plan`, o sea que la BOLETA salía impresa
   // diciendo "Notoria — IMPULSO" en vez de "Plan Impulso". No revienta nada,
   // pero queda en un documento fiscal que se le manda al cliente.
+  //
+  // 🔴 El cobro de un local adicional lleva su propia descripción, y no es
+  // cosmética: se cobra PRORRATEADO por los días que le quedan al periodo (ver
+  // lib/localesExtra.js), así que la frase genérica imprimiría "suscripción por
+  // 1 mes" en un documento fiscal por un servicio que no es de un mes. Un
+  // comprobante que describe mal lo vendido es un problema ante SUNAT, no un
+  // detalle de redacción.
+  if (pago.tipo === 'LOCAL_ADICIONAL') {
+    return `Notoria — ${etiquetaDe(pago.plan)}, local(es) adicional(es) — parte proporcional del periodo`;
+  }
   const periodo = pago.periodo === 'anual' ? '12 meses' : '1 mes';
   return `Notoria — ${etiquetaDe(pago.plan)}, suscripción por ${periodo}`;
 };

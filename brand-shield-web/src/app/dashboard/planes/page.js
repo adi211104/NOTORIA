@@ -282,6 +282,27 @@ const TEXTOS = {
       extra: (S, precio, anual) =>
         precio ? `El primero va incluido · ${S}${precio} por cada local extra ${anual ? 'al año' : 'al mes'}` : '',
     },
+    // Bloque del plan que YA se tiene: acá los locales no se compran con el
+    // widget sino con la tarjeta guardada, y el importe lo dice el servidor.
+    misLocales: {
+      titulo: 'Tus locales',
+      sub: (n) => `Ahora monitoreas ${n} local${n === 1 ? '' : 'es'}`,
+      cobroHoy: (S, monto, dias) =>
+        `Se cobrará ${S}${monto} ahora, por los ${dias} día${dias === 1 ? '' : 's'} que le quedan a tu periodo.`,
+      cobroGratis: 'No te cobramos nada por lo que queda del periodo.',
+      renovacion: (S, monto, fecha) => `Desde el ${fecha} pagarás ${S}${monto}.`,
+      bajada: (S, monto, fecha) => `Dejarás de pagarlos: desde el ${fecha} pagarás ${S}${monto}.`,
+      confirmarSumar: 'Confirmar y pagar',
+      confirmarGratis: 'Confirmar',
+      confirmarBajar: 'Confirmar cambio',
+      cancelar: 'Cancelar',
+      procesando: 'Procesando…',
+      // El tope no es el del plan, es cuántas fichas tiene cargadas: bajar por
+      // debajo de eso apagaría la vigilancia de un local sin avisar.
+      enUso: (n) => `Tienes ${n} local${n === 1 ? '' : 'es'} cargado${n === 1 ? '' : 's'}. Desactiva los que ya no uses para poder bajar.`,
+      sinSuscripcion: 'Necesitas una suscripción activa para cambiar tus locales.',
+      sinTarjeta: 'No hay una tarjeta guardada en esta cuenta, así que no podemos cobrar el local. Contrata el plan desde esta pantalla para registrar una.',
+    },
     valorTitulo: '¿Por qué vale la pena pagar?',
     valorItems: [
       { t:'Cada hora importa', d:'Un ataque de reseñas falsas puede destruir semanas de trabajo en una noche. Con escaneo cada 4 horas, actúas antes de que el daño sea irreversible.' },
@@ -317,6 +338,23 @@ const TEXTOS = {
       extra: (S, precio, anual) =>
         precio ? `First one included · ${S}${precio} per extra location ${anual ? 'a year' : 'a month'}` : '',
     },
+    misLocales: {
+      titulo: 'Your locations',
+      sub: (n) => `You are monitoring ${n} location${n === 1 ? '' : 's'}`,
+      cobroHoy: (S, monto, dias) =>
+        `You will be charged ${S}${monto} now, for the ${dias} day${dias === 1 ? '' : 's'} left in your period.`,
+      cobroGratis: 'We will not charge you anything for the rest of the period.',
+      renovacion: (S, monto, fecha) => `From ${fecha} you will pay ${S}${monto}.`,
+      bajada: (S, monto, fecha) => `You will stop paying for them: from ${fecha} you will pay ${S}${monto}.`,
+      confirmarSumar: 'Confirm and pay',
+      confirmarGratis: 'Confirm',
+      confirmarBajar: 'Confirm change',
+      cancelar: 'Cancel',
+      procesando: 'Processing…',
+      enUso: (n) => `You have ${n} location${n === 1 ? '' : 's'} set up. Deactivate the ones you no longer use to lower this.`,
+      sinSuscripcion: 'You need an active subscription to change your locations.',
+      sinTarjeta: 'There is no saved card on this account, so we cannot charge for the location. Subscribe from this screen to register one.',
+    },
     valorTitulo: 'Why is it worth paying?',
     valorItems: [
       { t:'Every hour matters', d:'A fake-review attack can destroy weeks of work in one night. With scans every 4 hours, you act before the damage becomes irreversible.' },
@@ -332,6 +370,213 @@ const CheckIcon = ({ ok }) => (
     {ok ? <path d="M20 6L9 17l-5-5"/> : <path d="M18 6L6 18M6 6l12 12"/>}
   </svg>
 );
+
+// Céntimos → soles legibles. "1510" → "15.10", "9800" → "98". Los importes
+// llegan en céntimos porque es lo que maneja Culqi y lo que devuelve el
+// backend; acá solo se pintan.
+const soles = (centimos) => (Number(centimos || 0) / 100).toFixed(2).replace(/\.00$/, '');
+
+// ── Locales del plan que YA se tiene ────────────────────────────────────────
+//
+// 🔴 Va en un componente A NIVEL DE MÓDULO, no dentro de PlanesPage: en este
+// proyecto un componente definido dentro de su padre se remonta en cada render
+// y los controles pierden el foco (§16 del CLAUDE.md).
+//
+// 🔴 Y sobre todo: acá NO se calcula ningún importe. El prorrateo, el total de
+// la renovación y hasta si el cambio es posible los dice el backend
+// (`GET /api/pagos/locales`), que es el mismo código que va a cobrar. Este
+// proyecto ya se equivocó dos veces por calcular precios en la pantalla —el
+// widget que mostraba S/30 y cobraba S/29.50, y el cartel de la promo con los
+// importes escritos a mano— y esta pantalla es justo donde no puede volver a
+// pasar.
+//
+// ⚠️ El periodo lo manda la SUSCRIPCIÓN del cliente, no el interruptor
+// mensual/anual de arriba: quien paga anual y mira la pestaña "mensual" tiene
+// que ver igualmente lo que le van a cobrar a él. Por eso ni se le pasa `anual`.
+function MisLocales({ t, idioma, onAplicado }) {
+  const [estado, setEstado] = useState(null);
+  const [objetivo, setObjetivo] = useState(null); // locales TOTALES elegidos
+  const [previo, setPrevio] = useState(null);
+  const [aplicando, setAplicando] = useState(false);
+  const [error, setError] = useState('');
+
+  // Carga inicial: cuántos locales tiene hoy y qué se le cobraría.
+  useEffect(() => {
+    let vivo = true;
+    pagos.previsualizarLocales(0)
+      .then((r) => {
+        if (!vivo) return;
+        setEstado(r);
+        setObjetivo(r.incluidos + r.localesExtraActual);
+      })
+      // Un fallo acá no puede romper la pantalla de planes entera: el bloque
+      // simplemente no se pinta y el resto sigue vendiéndose.
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, []);
+
+  // Previsualización del número elegido. Con espera: el contador se pulsa
+  // varias veces seguidas y no hace falta una petición por clic.
+  useEffect(() => {
+    if (!estado || objetivo === null) return;
+    const extras = objetivo - estado.incluidos;
+    if (extras === estado.localesExtraActual) { setPrevio(null); return; }
+    const id = setTimeout(() => {
+      pagos.previsualizarLocales(extras).then(setPrevio).catch(() => setPrevio(null));
+    }, 300);
+    return () => clearTimeout(id);
+  }, [objetivo, estado]);
+
+  if (!estado) return null;
+
+  // Cuentas que no se pueden cobrar de ninguna manera: se explica en vez de
+  // ofrecer un contador que va a rebotar al confirmar. Es la regla de «lo que no
+  // podemos entregar no se muestra» — y el caso NO es teórico: los planes
+  // concedidos a mano (los del dueño) tienen `suscripcionActiva` pero ninguna
+  // tarjeta guardada, así que son justo los primeros que van a tocar esto.
+  const bloqueado = estado.motivo === 'SIN_SUSCRIPCION' || estado.motivo === 'SIN_TARJETA';
+  if (bloqueado) {
+    return (
+      <div style={{
+        background: 'var(--surface2)', border: '1px solid var(--border-c)', borderRadius: 6,
+        padding: '11px 12px', marginBottom: 12,
+      }}>
+        <div style={{ fontSize: 12.5, color: 'var(--text-2)' }}>{t.misLocales.titulo}</div>
+        <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 4, lineHeight: 1.5 }}>
+          {estado.motivo === 'SIN_TARJETA' ? t.misLocales.sinTarjeta : t.misLocales.sinSuscripcion}
+        </div>
+      </div>
+    );
+  }
+
+  const actual = estado.incluidos + estado.localesExtraActual;
+  // ⚠️ El suelo NO es el del plan: es cuántas fichas tiene cargadas. Bajar por
+  // debajo dejaría de pagar locales que se están vigilando y el corte de
+  // `negociosVigilables` los sacaría del barrido en silencio — el cliente vería
+  // el historial de sus fichas congelarse sin un solo error en pantalla.
+  const minimo = Math.max(estado.incluidos, estado.negociosActivos);
+  const maximo = estado.incluidos + estado.maximoExtra;
+  const hayCambio = objetivo !== actual;
+  const sube = objetivo > actual;
+  const fecha = estado.fechaVencimiento
+    ? new Date(estado.fechaVencimiento).toLocaleDateString(idioma === 'en' ? 'en-US' : 'es-PE',
+        { day: 'numeric', month: 'long' })
+    : '';
+
+  const aplicar = async () => {
+    setAplicando(true); setError('');
+    try {
+      const r = await pagos.cambiarLocales(objetivo - estado.incluidos);
+      setEstado(r);
+      setObjetivo(r.incluidos + r.localesExtraActual);
+      setPrevio(null);
+      onAplicado?.(r);
+    } catch (e) {
+      setError(e.message || 'No se pudo aplicar el cambio');
+    } finally {
+      setAplicando(false);
+    }
+  };
+
+  const paso = (delta) => setObjetivo((n) => Math.max(minimo, Math.min(maximo, n + delta)));
+
+  const botonTexto = !sube ? t.misLocales.confirmarBajar
+    : previo?.gratis ? t.misLocales.confirmarGratis
+    : t.misLocales.confirmarSumar;
+
+  return (
+    <div style={{
+      background: 'var(--surface2)', border: '1px solid var(--border-c)', borderRadius: 6,
+      padding: '11px 12px', marginBottom: 12,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 12.5, color: 'var(--text-2)' }}>{t.misLocales.titulo}</div>
+          <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 2 }}>
+            {t.misLocales.sub(actual)}
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          <button type="button" aria-label={t.locales.quitar} onClick={() => paso(-1)}
+            disabled={objetivo <= minimo || aplicando}
+            style={{
+              width: 26, height: 26, borderRadius: 5, border: '1px solid var(--border-c)',
+              background: 'var(--surface)', color: 'var(--text-2)', fontSize: 15, lineHeight: 1,
+              cursor: objetivo <= minimo || aplicando ? 'default' : 'pointer',
+              opacity: objetivo <= minimo || aplicando ? 0.4 : 1, fontFamily: GEO,
+            }}>−</button>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', minWidth: 18, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
+            {objetivo}
+          </span>
+          <button type="button" aria-label={t.locales.sumar} onClick={() => paso(1)}
+            disabled={objetivo >= maximo || aplicando}
+            style={{
+              width: 26, height: 26, borderRadius: 5, border: '1px solid var(--border-c)',
+              background: 'var(--surface)', color: 'var(--text-2)', fontSize: 15, lineHeight: 1,
+              cursor: objetivo >= maximo || aplicando ? 'default' : 'pointer',
+              opacity: objetivo >= maximo || aplicando ? 0.4 : 1, fontFamily: GEO,
+            }}>+</button>
+        </div>
+      </div>
+
+      {/* Por qué no se puede bajar más. Se dice SIEMPRE que el suelo lo marquen
+          las fichas cargadas, no solo al intentarlo: un botón apagado sin
+          explicación es exactamente el «mensaje que manda a un sitio sin el
+          botón que promete» al revés. */}
+      {minimo > estado.incluidos && objetivo <= minimo && !hayCambio && (
+        <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 8, lineHeight: 1.5 }}>
+          {t.misLocales.enUso(estado.negociosActivos)}
+        </div>
+      )}
+
+      {hayCambio && previo && (
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border-c)' }}>
+          <div style={{ fontSize: 11.5, color: 'var(--text-2)', lineHeight: 1.6 }}>
+            {sube && (previo.gratis
+              ? t.misLocales.cobroGratis
+              : t.misLocales.cobroHoy(S, soles(previo.aCobrarHoy), previo.dias))}
+            {' '}
+            {sube
+              ? t.misLocales.renovacion(S, soles(previo.renovacionNueva), fecha)
+              : t.misLocales.bajada(S, soles(previo.renovacionNueva), fecha)}
+          </div>
+
+          {previo.motivo && (
+            <div style={{ fontSize: 11.5, color: '#C0392B', marginTop: 8, lineHeight: 1.5 }}>
+              {previo.motivo === 'LOCALES_EN_USO' ? t.misLocales.enUso(estado.negociosActivos)
+                : previo.motivo === 'SIN_SUSCRIPCION' ? t.misLocales.sinSuscripcion
+                : t.errorPagoGenerico}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <button type="button" onClick={aplicar} disabled={aplicando || !!previo.motivo}
+              style={{
+                flex: 1, padding: '9px', borderRadius: 5, fontSize: 12.5, fontWeight: 600,
+                fontFamily: GEO, border: 'none', color: '#fff',
+                background: aplicando || previo.motivo ? 'var(--text-3)' : G,
+                cursor: aplicando || previo.motivo ? 'default' : 'pointer',
+              }}>
+              {aplicando ? t.misLocales.procesando : botonTexto}
+            </button>
+            <button type="button" onClick={() => { setObjetivo(actual); setError(''); }} disabled={aplicando}
+              style={{
+                padding: '9px 14px', borderRadius: 5, fontSize: 12.5, fontFamily: GEO,
+                background: 'var(--surface)', color: 'var(--text-2)',
+                border: '1px solid var(--border-c)', cursor: aplicando ? 'default' : 'pointer',
+              }}>
+              {t.misLocales.cancelar}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div style={{ fontSize: 11.5, color: '#C0392B', marginTop: 8, lineHeight: 1.5 }}>{error}</div>
+      )}
+    </div>
+  );
+}
 
 export default function PlanesPage() {
   const router = useRouter();
@@ -608,6 +853,16 @@ export default function PlanesPage() {
                   «1 local adicional» obliga a hacer una suma mental para saber
                   cuántos tendrás. El importe se recalcula a la vista, que es lo
                   que evita la sorpresa en el widget de Culqi. */}
+              {/* El plan que YA se tiene lleva su propio control: acá no se
+                  compra con el widget de Culqi sino con la tarjeta guardada, se
+                  cobra prorrateado y el importe lo dice el servidor. Sin esto,
+                  el cliente que ya está en NEGOCIO y abre su segundo local no
+                  tenía por dónde comprarlo — y el 403 al crear el negocio lo
+                  mandaba justamente a esta pantalla. */}
+              {vendeLocales(plan.id) && puede('facturacion') && esPlanActual && (
+                <MisLocales t={t} idioma={idioma} onAplicado={refrescarPerfil} />
+              )}
+
               {vendeLocales(plan.id) && puede('facturacion') && !esPlanActual && (
                 <div style={{
                   display:'flex', alignItems:'center', justifyContent:'space-between', gap:10,

@@ -17,6 +17,7 @@ const router = express.Router();
 // mismos valores desde ahí. Culqi recibe la moneda explícita en cada cargo.
 const { MONEDA, montoSuscripcion, precioLocal } = require('../../lib/precios');
 const { etiquetaDe, puede: planPuede, PLANES_DE_PAGO } = require('../../lib/planes');
+const locales = require('../../lib/localesExtra');
 
 // Guarda un registro de Facturación a partir de la respuesta de un cargo de
 // Culqi exitoso. Solo persiste los primeros 4 dígitos de la tarjeta
@@ -390,6 +391,211 @@ router.get('/estado', async (req, res, next) => {
     res.json(usuario);
   } catch (error) {
     next(error);
+  }
+});
+
+// ── Locales adicionales sobre el plan que YA se tiene ─────
+//
+// 🔴 El agujero que cierran estas dos rutas: los locales solo se podían elegir
+// en el alta, y el selector de la pantalla de Planes únicamente sale en las
+// tarjetas de los planes que NO son el actual. El cliente que ya está en
+// NEGOCIO y abre su segundo local no tenía por dónde comprarlo — y el 403 de
+// negocio.routes.js lo mandaba justamente a Planes, o sea a un sitio donde ese
+// control no existía para él.
+//
+// La aritmética vive entera en lib/localesExtra.js, que explica por qué se
+// prorratea en vez de recobrar el plan. Acá solo van los efectos: el cargo, el
+// comprobante y la fila del usuario.
+
+// Lee al usuario y cuenta sus negocios activos — lo necesitan las dos rutas.
+const contextoLocales = async (usuarioId) => {
+  const usuario = await prisma.usuario.findUnique({
+    where: { id: usuarioId },
+    select: {
+      id: true, email: true, nombre: true, plan: true, suscripcionActiva: true,
+      suscripcionId: true, fechaVencimiento: true, periodoFacturacion: true,
+      localesExtra: true, mesesPromoRestantes: true, direccionFiscal: true,
+    },
+  });
+  // ⚠️ Se cuentan los negocios del PROPIETARIO, no los de `req.cuenta`: estas
+  // rutas ya van detrás de `permitir('facturacion')`, que en este proyecto es
+  // permiso exclusivo del propietario, y los locales se pagan sobre la cuenta
+  // que los tiene cargados. Contar los de otra cuenta dejaría pasar una bajada
+  // que sí apaga vigilancia.
+  const negociosActivos = await prisma.negocio.count({
+    where: { usuarioId, activo: true },
+  });
+  return { usuario, negociosActivos };
+};
+
+// Todo lo que la pantalla necesita para pintar el control y el importe.
+const resumenLocales = (usuario, negociosActivos, localesExtraNuevo) => {
+  const anual = usuario.periodoFacturacion === 'anual';
+  const nuevo = Number.isInteger(localesExtraNuevo) ? localesExtraNuevo : usuario.localesExtra;
+  const cuenta = locales.prorrateo({
+    plan: usuario.plan,
+    anual,
+    fechaVencimiento: usuario.fechaVencimiento,
+    localesExtraActual: usuario.localesExtra,
+    localesExtraNuevo: nuevo,
+    mesesPromoRestantes: usuario.mesesPromoRestantes,
+  });
+  return {
+    plan: usuario.plan,
+    periodo: anual ? 'anual' : 'mensual',
+    incluidos: locales.incluidosEnElPlan(usuario.plan),
+    // Lo que hoy paga y lo que pagaría: los dos salen de `montoSuscripcion`,
+    // que es la MISMA función que usan el alta y la renovación. Calcular el
+    // total en el panel sería la quinta copia de los precios de este proyecto.
+    localesExtraActual: usuario.localesExtra,
+    localesExtraNuevo: nuevo,
+    negociosActivos,
+    maximoExtra: locales.MAXIMO_EXTRA,
+    fechaVencimiento: usuario.fechaVencimiento,
+    moneda: MONEDA,
+    // El cargo de HOY (prorrateado) y el que se hará en la renovación.
+    aCobrarHoy: cuenta.centimos,
+    gratis: cuenta.gratis,
+    dias: cuenta.dias,
+    diasPeriodo: cuenta.diasPeriodo,
+    promoAplicada: cuenta.promoAplicada,
+    renovacionActual: montoSuscripcion(usuario.plan, anual, usuario.localesExtra),
+    renovacionNueva: montoSuscripcion(usuario.plan, anual, nuevo),
+    motivo: locales.validarCambio({
+      plan: usuario.plan,
+      suscripcionActiva: usuario.suscripcionActiva,
+      tieneTarjeta: !!usuario.suscripcionId,
+      localesExtraNuevo: nuevo,
+      negociosActivos,
+    }),
+  };
+};
+
+// ── GET /api/pagos/locales?localesExtra=N ─────────────────
+// Previsualización. Existe para que el importe que se PINTA antes de confirmar
+// salga del mismo código que lo va a cobrar: en este proyecto ya hubo precios
+// escritos a mano en una pantalla de venta (el cartel de la promo anunciaba dos
+// planes de tres) y un redondeo hecho en soles que mostraba S/30 y cobraba
+// S/29.50.
+router.get('/locales', async (req, res, next) => {
+  try {
+    const { usuario, negociosActivos } = await contextoLocales(req.usuario.id);
+    if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    const pedido = req.query.localesExtra;
+    const nuevo = pedido === undefined || pedido === ''
+      ? usuario.localesExtra
+      : Math.max(0, Math.trunc(Number(pedido) || 0));
+
+    res.json(resumenLocales(usuario, negociosActivos, nuevo));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ── POST /api/pagos/locales ───────────────────────────────
+// Aplica el cambio. Subir cobra el prorrateo a la tarjeta guardada; bajar no
+// devuelve dinero y surte efecto en la próxima renovación.
+router.post('/locales', async (req, res) => {
+  try {
+    const { usuario, negociosActivos } = await contextoLocales(req.usuario.id);
+    if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    const nuevo = Math.trunc(Number(req.body?.localesExtra));
+    const motivo = locales.validarCambio({
+      plan: usuario.plan,
+      suscripcionActiva: usuario.suscripcionActiva,
+      tieneTarjeta: !!usuario.suscripcionId,
+      localesExtraNuevo: nuevo,
+      negociosActivos,
+    });
+    if (motivo) {
+      // Cada motivo tiene su propia salida, así que se distinguen en vez de
+      // devolver un 403 genérico: al de `LOCALES_EN_USO` hay que decirle que
+      // desactive una ficha primero, no que su plan no da.
+      const MENSAJES = {
+        PLAN_SIN_LOCALES: 'Tu plan no vende locales adicionales. Cambia de plan desde esta misma pantalla.',
+        SIN_SUSCRIPCION: 'Necesitas una suscripción activa para sumar locales.',
+        SIN_TARJETA: 'No tenemos una tarjeta guardada para cobrar el local. Vuelve a contratar tu plan.',
+        CANTIDAD_INVALIDA: 'La cantidad de locales no es válida.',
+        LOCALES_EN_USO: `Tienes ${negociosActivos} local(es) cargados. Desactiva los que ya no uses antes de bajar tu suscripción.`,
+      };
+      return res.status(409).json({ error: MENSAJES[motivo] || 'No se puede aplicar el cambio', codigo: motivo });
+    }
+
+    if (nuevo === usuario.localesExtra) {
+      return res.json({ mensaje: 'No hay cambios que aplicar', ...resumenLocales(usuario, negociosActivos, nuevo) });
+    }
+
+    const anual = usuario.periodoFacturacion === 'anual';
+    const cuenta = locales.prorrateo({
+      plan: usuario.plan,
+      anual,
+      fechaVencimiento: usuario.fechaVencimiento,
+      localesExtraActual: usuario.localesExtra,
+      localesExtraNuevo: nuevo,
+      mesesPromoRestantes: usuario.mesesPromoRestantes,
+    });
+
+    // Bajar, o subir por un importe que no llega al piso: no hay cargo. Se
+    // actualiza la fila y ya — la renovación cobrará el total nuevo.
+    if (cuenta.centimos <= 0) {
+      await prisma.usuario.update({ where: { id: usuario.id }, data: { localesExtra: nuevo } });
+      return res.json({
+        mensaje: cuenta.delta > 0
+          ? 'Local(es) agregado(s). No te cobramos nada por lo que queda del periodo.'
+          : 'Locales actualizados. El cambio se refleja en tu próxima renovación.',
+        cobrado: 0,
+        ...resumenLocales({ ...usuario, localesExtra: nuevo }, negociosActivos, nuevo),
+      });
+    }
+
+    // 🔴 Se cobra la TARJETA GUARDADA, igual que la renovación, no un token
+    // nuevo del widget. El cliente ya la registró al contratar y volver a
+    // pedírsela para sumar un local sería fricción inventada — además de que el
+    // widget cobra lo que se le diga y acá el importe lo decide el servidor.
+    const cargo = await culqi.crearCargo({
+      monto: cuenta.centimos,
+      moneda: MONEDA,
+      email: usuario.email,
+      sourceId: usuario.suscripcionId,
+      descripcion: `Notoria — ${etiquetaDe(usuario.plan)}, +${cuenta.delta} local(es)`
+        + ` (${cuenta.dias} de ${cuenta.diasPeriodo} días)`
+        + (cuenta.promoAplicada ? ' — promo 50% bienvenida' : ''),
+    });
+
+    // ⚠️ El vencimiento NO se toca. Es la diferencia con pasar por el alta, y es
+    // el motivo de todo esto: el aniversario del cliente no se mueve porque haya
+    // sumado un local a mitad de mes.
+    await prisma.usuario.update({
+      where: { id: usuario.id },
+      data: { localesExtra: nuevo },
+    });
+
+    const pago = await registrarPago({
+      usuarioId: usuario.id, plan: usuario.plan, periodo: anual ? 'anual' : 'mensual',
+      tipo: 'LOCAL_ADICIONAL', monto: cuenta.centimos, titular: usuario.nombre, cargo,
+    });
+    // El comprobante nunca tumba el cobro, igual que en el alta.
+    const comprobante = pago ? await emitirComprobante({ pago, usuario }) : null;
+
+    res.json({
+      mensaje: `Sumaste ${cuenta.delta} local(es) a tu plan.`,
+      cobrado: cuenta.centimos,
+      moneda: MONEDA,
+      cargoId: cargo.id,
+      comprobante: comprobante ? { tipo: comprobante.tipo, numero: comprobante.numero } : null,
+      ...resumenLocales({ ...usuario, localesExtra: nuevo }, negociosActivos, nuevo),
+    });
+  } catch (error) {
+    // Mismo tratamiento que el alta: al usuario el mensaje redactado, al log
+    // además el `merchant_message` y el campo, que es lo único que diagnostica.
+    const datos = error.response?.data;
+    const msg = datos?.user_message || datos?.merchant_message || error.message;
+    console.error('[Culqi] Error al sumar locales:', msg,
+      datos?.merchant_message ? `| motivo: ${datos.merchant_message}` : '',
+      datos?.param ? `| campo: ${datos.param}` : '');
+    res.status(400).json({ error: msg || 'No se pudo procesar el cobro' });
   }
 });
 

@@ -109,7 +109,12 @@ model Pago {
   usuario       Usuario      @relation(fields: [usuarioId], references: [id])
   plan          Plan
   periodo       String // "mensual" | "anual"
-  tipo          String // "INICIAL" | "RENOVACION"
+  // "INICIAL" | "RENOVACION" | "LOCAL_ADICIONAL" (este último es el cobro
+  // prorrateado de un local que se suma a mitad de periodo, ver
+  // lib/localesExtra.js). Es String y no enum a propósito: agregar un valor no
+  // obliga a migrar. ⚠️ Quien lo lee para PINTARLO tiene que tener respaldo —
+  // dashboard/facturacion lo mapea a una etiqueta con `|| p.tipo`.
+  tipo          String
   estado        String // "EXITOSO" | "FALLIDO" | "REEMBOLSADO"
   monto         Int // en céntimos, misma unidad que Culqi
   // Los precios de los planes están en soles (7500 = S/75.00) y los cargos se
