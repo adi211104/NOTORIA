@@ -326,7 +326,7 @@ los logs del servidor y en un cambio observable en la salida.
 | **Culqi** | ✅ LIVE en producción. Webhook de reembolsos registrado |
 | **TikTok (Accounts API)** | ✅ Completo: perfil, videos, comentarios, responder, borrar respuesta, ocultar, fijar |
 | **TikTok Display API** | Conservada como respaldo, sin usarse |
-| **Instagram** | Código completo y desplegado, **oculto tras interruptor** hasta que Meta apruebe (§8.3). App Review enviado el 2026-08-15 |
+| **Instagram** | ✅ **ENCENDIDO para todos desde el 2026-08-26** (`INSTAGRAM_ACTIVO=true`). Meta aprobó los cuatro permisos que hacían falta. ⚠️ **Sin webhooks**: `pages_manage_metadata` fue RECHAZADO, así que los comentarios llegan por el escaneo periódico (§8.3) |
 | **Menciones** | Motor y panel completos. Instagram es su **única** fuente, así que hoy la sección está invisible. TikTok exigiría proveedor de pago |
 | **Facebook Reviews** | ✅ **Terminado el 2026-08-23 y OCULTO tras interruptor** (`lib/facebookVisible.js`, gemelo del de Instagram): scraper con `recommendation_type`, ruta de conexión, callback propio, desconexión, aviso por reseña negativa y fila en el panel. Sigue invisible hasta que Meta conceda **`pages_read_user_content`** (segunda solicitud, §19 A). ⚠️ Antes de encenderlo: **una llamada real contra una página con reseñas** |
 | **TripAdvisor** | Solo base preparada a propósito (scraper + campos en schema + enum `TRIPADVISOR`). Sin ruta de conexión, sin cableado en el worker, sin UI. Decisión de negocio: activar cuando haya masa de hoteles |
@@ -618,11 +618,56 @@ user.info.basic,user.info.profile,user.info.stats,video.list,comment.list,commen
 - Revocación cableada (`/tt_user/oauth2/revoke/`), y solo si ningún otro negocio comparte el
   refresh token.
 
-### 8.3 Instagram — completo pero oculto tras interruptor
+### 8.3 Instagram — ENCENDIDO desde el 2026-08-26
 
-**Por qué está oculto.** Los permisos siguen en **acceso estándar**: con ese nivel solo los
-concede alguien con **rol en la app**. El botón funcionaría para el dueño y **fallaría con el
-primer cliente real**, con un error que el cliente no puede resolver.
+✅ **Meta cerró el App Review del 15/08 y aprobó lo que hacía falta.** El interruptor está en
+`true` y la conexión es visible para **todas** las cuentas. Con él reapareció sola la sección
+**Menciones**, que dependía de esto (§8.4).
+
+| Permiso | Resultado | Qué habilita |
+|---|---|---|
+| `instagram_basic` | ✅ Avanzado | leer publicaciones y menciones |
+| `instagram_manage_comments` | ✅ Avanzado | leer y responder comentarios |
+| `pages_show_list` | ✅ Avanzado | encontrar la página vinculada |
+| `pages_read_engagement` | ✅ Avanzado | leer la página |
+| `public_profile` | ✅ Renovado | — |
+| **`pages_manage_metadata`** | 🔴 **RECHAZADO** | suscribir el webhook de comentarios |
+
+🔴 **El rechazo y por qué Meta tenía razón.** Motivo textual: *«Disallowed Use Case — Developer
+Policy 1.6. We have determined that your app's use case for the requested permission is invalid
+or is not needed to support its core functionality»*. Ese permiso solo servía para
+`suscribirWebhookInstagram()`, una llamada que **nunca llegó a funcionar** y que ya solo escupía
+un warning. Se pedía un permiso para algo que el código no hacía.
+- **Se retiró del scope y se retiró la llamada del callback.** Mantenerla ahora fallaría en
+  TODAS las conexiones y escribiría un warning por cada cliente: un log que grita en cada alta y
+  no significa nada enseña a ignorar los logs.
+- La función sigue exportada y probada. El día que ese permiso se conceda, volver a llamarla es
+  una línea. La DESuscripción al desconectar se conserva: es defensiva y es lo que un revisor
+  quiere ver.
+- ⚠️ **Consecuencia de producto, y hay que decirla:** los comentarios de Instagram llegan **solo
+  por el escaneo periódico** (24 h en Gratis, 12 h en Impulso, 4 h en Negocio, 1 h en
+  Franquicia). No es una degradación — es como funcionó siempre.
+
+🔴 **Los permisos de acceso ESTÁNDAR no rompen el login, y esto es lo que decidió que se podía
+encender.** La Configuración `4655107931374707` («Notoria — comentarios de Insta») declara seis
+permisos, dos de ellos en estándar (`business_management` y `pages_manage_metadata`). El propio
+panel de Meta lo dice: *«Permissions in standard access will only be requested from people with
+roles on this app»*. O sea que a un cliente real **ni se le piden**: no hay error, ni diálogo
+roto, ni permiso a medias. Se dejan en la Configuración a propósito, para no tener que volver a
+añadirlos el día que se concedan.
+
+⚠️ **Con `META_LOGIN_CONFIG_ID` puesta, Meta IGNORA el `scope` del código** y usa la
+Configuración de la consola. Al quitar o añadir un permiso hay que tocar **los dos sitios**, o el
+código dice una cosa y el diálogo real pide otra. Comprobado el 2026-08-26: el `conectar`
+devuelve una URL con `config_id=4655107931374707` y **sin** parámetro `scope`.
+
+⚠️ **Lo que sigue sin probarse: una conexión REAL.** El circuito responde —`disponible: true`,
+`conectar` da 200 con la URL correcta— pero nadie ha completado todavía el OAuth con una cuenta
+de Instagram de verdad. Hace falta una cuenta profesional vinculada a una página de Facebook.
+Es lo primero que hay que mirar; los tres modos de fallo y cómo se distinguen están más abajo.
+
+**Cómo se apaga si algo sale mal:** `INSTAGRAM_ACTIVO=false` en Railway. Se cierra para todos sin
+desplegar, y una cuenta ya conectada **no se esconde** (ver la excepción de más abajo).
 
 Fuente única: **`src/lib/instagramVisible.js`**.
 
@@ -2316,7 +2361,7 @@ y rechaza otra cosa). Así se descartaron rutas enteras de TikTok sin credencial
 
 | Qué | Desde | Qué bloquea |
 |---|---|---|
-| **Meta — App Review de Instagram** (5 permisos) | 2026-08-15 | Instagram para clientes reales, la sección **Menciones** entera y los webhooks de comentarios (exigen Acceso Avanzado) |
+| ~~Meta — App Review de Instagram~~ | ✅ **RESUELTO el 2026-08-26** | 4 de 5 aprobados; `pages_manage_metadata` rechazado. Instagram y Menciones **ya están abiertos** (§8.3) |
 | **Google — acceso a las GBP APIs**, caso `3-5553000040900` | 2026-08-16, plazo 7-10 días hábiles. **Revisado el 2026-08-22: sigue sin aprobar** (RPM=0 en `mybusinessbusinessinformation`) | Conectar Google Business |
 
 **Revisión del panel de Meta del 2026-08-22 — nada que hacer, solo esperar.** Estado
@@ -2379,15 +2424,26 @@ acuse**. Se confirmó además, buscando en `usenotoria@gmail.com`, que **no ha l
 correo de Google** sobre el caso ni sobre "Business Profile" desde el 10/08.
 | **Google — verificación del Perfil de Empresa** | pendiente | Que algunos cambios de la ficha se vean |
 
-**Al aprobar Meta**, en este orden: poner `INSTAGRAM_ACTIVO=true` en Railway (se abre para
-todos sin desplegar) → comprobar si los eventos del webhook llegan **sin**
-`suscribirWebhookInstagram()`, y si llegan **borrar esa llamada** → enviar la **segunda**
-solicitud, que ahora lleva **dos** permisos:
-- **`business_management`**, que quedó fuera porque su botón de acceso avanzado seguía
-  deshabilitado al enviar (Meta no deja pedirlo sin llamadas registradas).
-- **`pages_read_user_content`**, el que habilita **Facebook Reviews** (§19 C). ⚠️ Es este y
-  **no `pages_read_engagement`**, que es lo que se dio por hecho durante meses: con la
-  solicitud actual aprobada, las reseñas de Facebook seguirían sin funcionar.
+✅ **Ejecutado el 2026-08-26.** `INSTAGRAM_ACTIVO=true` está puesto y verificado en el
+contenedor; la llamada a `suscribirWebhookInstagram()` se retiró (el permiso que necesitaba fue
+rechazado, así que no había nada que comprobar: no puede llegar ningún evento).
+
+🔴 **La SEGUNDA solicitud sigue pendiente y su contenido CAMBIÓ.** Lo que dice el borrador de
+`docs/app-review-meta.md` §8 hay que corregirlo antes de enviarlo:
+- **`pages_read_user_content`** — sigue siendo el permiso que habilita **Facebook Reviews**
+  (§8.5). Es este y **no `pages_read_engagement`**, que es lo que se dio por hecho durante meses.
+  Hoy está en estándar con 17 llamadas registradas.
+- **`business_management`** — sigue en estándar (97 llamadas). Sin él, la página que vive dentro
+  de un **portfolio comercial** no aparece en `me/accounts`, que es una de las tres causas
+  documentadas de «0 páginas utilizables». Con Instagram ya abierto, este es el fallo que más
+  probablemente reporte el primer cliente.
+- 🔴 **`pages_manage_metadata` NO se vuelve a pedir.** Meta lo rechazó diciendo que no hace falta
+  para la funcionalidad principal, y tenía razón: se pedía para una llamada que no funcionaba y
+  que ya se retiró. Volver a pedirlo sin haber cambiado nada es pedir el mismo rechazo, y las
+  solicitudes repetidas sin justificación nueva penalizan a la app.
+
+⚠️ **Enviar una solicitud de App Review es una acción hacia fuera y la hace el dueño**, no el
+agente: modifica el expediente de la app ante Meta.
 
 El detalle del paquete está en `docs/app-review-meta.md`.
 
@@ -2807,6 +2863,34 @@ nunca `onboarding/page.js`; y la de `dashboard/layout.js` buscaba un texto que v
 `components/GBPBanner.js`, del que el layout solo tiene `<GBPBanner/>`.
 **Una prueba que lee los archivos que uno recuerda no es un barrido.** Ahora los lee, y lleva su
 control de que las sondas saben fallar.
+
+**Corregido el 2026-08-26 — el CLIENTE elegía su país fiscal, y con él si había IGV.**
+`PUT /api/pagos/datos-fiscales` aceptaba cualquier código de dos letras. Con `paisFiscal: 'MX'`
+el receptor pasa a **no domiciliado**, `tipoFiscalPara` devuelve FACTURA de exportación y
+`desglosar` la emite **sin IGV**. O sea que un campo del cuerpo de la petición decidía si Notoria
+declara IGV — y encima **sin estar inscrita en el Registro de Exportadores de Servicios**, sin el
+cual esa venta no califica como exportación y sí lo lleva. Ahora `SOLO_NACIONAL` en
+`lib/tributario.js` lo rechaza al guardar.
+⚠️ **La lógica de exportación NO se borró**, solo se cerró la puerta: `esDomestico`, `desglosar`
+y `tipoFiscalPara` siguen enteras y probadas, y reabrir el servicio al exterior es **una línea**.
+La prueba lo vigila por los dos lados: que MX se rechace al guardar Y que `desglosar` siga
+tratándolo como exportación.
+⚠️ La UI nunca ofreció elegir país (manda `'PE'` fijo), que es justo por lo que nadie lo vio:
+**un campo que la pantalla no enseña sigue llegando por el cuerpo de la petición.**
+
+**Corregido el 2026-08-26 — `razonSocial` y `direccionFiscal` sin longitud máxima.** Viajan tal
+cual a `cbc:RegistrationName` y `cbc:Line` del XML (SUNAT los acota a 100). Sin tope se guardan
+sin problema, el cobro pasa sin problema, y **el comprobante lo rechaza SUNAT después**: cliente
+cobrado, sin documento y con un correlativo gastado que no admite huecos. Es el peor orden
+posible de los tres.
+⚠️ Se **valida al guardar**, no se trunca al emitir: truncar dejaría en el comprobante una razón
+social distinta de la que el cliente escribió, que también es un documento mal emitido, solo que
+en silencio.
+✅ Revisado el resto de la superficie de pago **sin más hallazgos**: solo tres puntos cobran
+(alta, locales, renovación) y los tres calculan el importe en el servidor; el PDF y el historial
+filtran por dueño; `xmlbuilder2` escapa el texto ajeno solo; y `culqi.js` ya truncaba lo que le
+manda. El webhook de Culqi sí ganó una guarda: `chargeId` salía de un JSON ajeno directo a un
+`findUnique` sin comprobar que fuera una cadena.
 
 **Corregido el 2026-08-26 — el ALTA no acotaba `localesExtra` por arriba.** El número llega del
 **cuerpo de la petición**; el selector del panel lo limita a 50, pero eso es una cortesía del
