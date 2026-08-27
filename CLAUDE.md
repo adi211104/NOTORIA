@@ -2366,7 +2366,7 @@ y rechaza otra cosa). Así se descartaron rutas enteras de TikTok sin credencial
 | Qué | Desde | Qué bloquea |
 |---|---|---|
 | ~~Meta — App Review de Instagram~~ | ✅ **RESUELTO el 2026-08-26** | 4 de 5 aprobados; `pages_manage_metadata` rechazado. Instagram y Menciones **ya están abiertos** (§8.3) |
-| **Google — acceso a las GBP APIs**, caso `3-5553000040900` | 2026-08-16, plazo 7-10 días hábiles. **Revisado el 2026-08-22: sigue sin aprobar** (RPM=0 en `mybusinessbusinessinformation`) | Conectar Google Business |
+| **Google — acceso a las GBP APIs**, caso `3-5553000040900` | 2026-08-16. **Revisado el 2026-08-27 por siete vías: sigue sin aprobar** — RPM=0 en las TRES APIs y cero respuesta en el buzón (ver abajo) | Conectar Google Business |
 
 **Revisión del panel de Meta del 2026-08-22 — nada que hacer, solo esperar.** Estado
 `Review in progress` con los cinco permisos correctos, app en **modo Live**, y las dos
@@ -2426,7 +2426,37 @@ nunca la usó. Y los MX del dominio son de **Cloudflare Email Routing**
 regla que crearle. Queda la otra explicación: Google dio el número en pantalla **sin mandar
 acuse**. Se confirmó además, buscando en `usenotoria@gmail.com`, que **no ha llegado ningún
 correo de Google** sobre el caso ni sobre "Business Profile" desde el 10/08.
-| **Google — verificación del Perfil de Empresa** | pendiente | Que algunos cambios de la ficha se vean |
+### Revisión del 2026-08-27 — sin acceso, verificado por SIETE vías
+
+`Requests per minute = 0` en **las tres** APIs de GBP habilitadas
+(`mybusinessbusinessinformation`, `mybusinessaccountmanagement`, `businessprofileperformance`),
+`mybusiness.googleapis.com` sigue sin existir para el proyecto, **cero casos** de asistencia —ni
+en el proyecto ni en la organización `didierprincipe-org` (id `1030697741189`)—, las cuatro
+notificaciones de la consola son acciones nuestras, y de los **41 correos de google.com de los
+últimos 60 días** ninguno habla de Business Profile. No hay respuesta perdida en ningún buzón.
+
+⚠️ **Los dos controles que hacen que ese veredicto valga:** la Biblioteca **sí** carga la ficha de
+`mybusinessbusinessinformation`, o sea que el error de la v4 es del proyecto y no del navegador; y
+las otras tres cuotas siguen con valores (100 / 200 / 10 000), que es la trampa de siempre. Sin los
+controles, «da error» y «no está» se ven igual.
+
+🔴 **El Perfil de Empresa SÍ está verificado, y esta lista decía lo contrario desde hacía semanas.**
+En `business.google.com/locations` hay **dos** fichas «Notoria», las dos **Verificadas**, con
+`https://usenotoria.app/` cargado. O sea que el bloqueo **no** es la verificación. Pero de abrir la
+ficha salieron las tres cosas que sí pueden explicar el silencio, y ninguna se arregla
+escribiéndole a Google:
+
+| Qué | Por qué importa |
+|---|---|
+| 🔴 **El requisito de los 60 días** | Google exige un perfil verificado y activo **60+ días** y con web. La solicitud se envió el **16/08**: si el perfil se verificó después de mediados de junio, no calificaba — y en ese caso Google no contesta, simplemente no aprueba. ⚠️ **Falta el dato de cuándo se verificó**: no está en la interfaz y no hay correo de verificación en `usenotoria@gmail.com` |
+| ⚠️ **Dos fichas duplicadas** | «Notoria · Lima, Perú» y «Notoria · Perú». Un duplicado es problema de política para Google |
+| ⚠️ **Categoría «Servicio de logística»** | No es lo que hace Notoria. Un revisor que abre la ficha y ve una categoría que no cuadra con lo que la API pediría tiene motivo para descartar |
+
+⚠️ **Lo que NO hay que hacer: pedir un aumento de cuota.** La documentación es explícita —se
+reenvía la *Application for Basic API Access*—, y en el foro de desarrolladores hay casos idénticos
+de julio y agosto de 2026: solicitud enviada, cero respuesta, cuota en 0. **No es algo nuestro.**
+Reenviar el formulario **antes** de arreglar categoría, duplicado y los 60 días es pedir el mismo
+silencio. Lo envía el dueño: es una acción hacia fuera.
 
 ✅ **Ejecutado el 2026-08-26.** `INSTAGRAM_ACTIVO=true` está puesto y verificado en el
 contenedor; la llamada a `suscribirWebhookInstagram()` se retiró (el permiso que necesitaba fue
