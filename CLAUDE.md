@@ -3028,6 +3028,38 @@ resúmenes **solo agrupa días cerrados**, así que se informa el 29/08. Límite
 con 6 días de margen. Los dos workers están activos en `produccion` y el log confirma
 `[Comprobante] Emitido B001-00000002 (BOLETA)`.
 
+✅ **SUNAT la ACEPTÓ el mismo día.** Se forzó el resumen en vez de esperar al cron
+(`forzar-resumen-sunat.js --aplicar`), tras comprobar la precondición que lo hace seguro: solo
+había **una** boleta ese día y **cero** cobros posibles en 24 h. La única suscripción vencida
+—`didierprincipe@`, 9 h pasada— no tiene tarjeta guardada, y la renovación filtra por
+`suscripcionId: { not: null }`, así que la salta sin cargo, sin fila FALLIDO y sin correo.
+
+| | |
+|---|---|
+| Resumen | **RC-20260828-1** · ticket `202621748898727` · **ACEPTADO (0)** |
+| Boleta | **B001-00000002 · ACEPTADO** |
+| Conservación | XML firmado 6397 car. y **CDR 5621 car.**, los dos guardados **en el RESUMEN** |
+| Cola | 0 comprobantes pendientes |
+| Plazo para anular | hasta **2026-09-05** |
+
+🔴 **La lección más cara de la sesión, y la cazó un simulacro: los scripts que tocan SUNAT o
+Culqi hay que correrlos DENTRO del contenedor.** Ejecutado en local, `forzar-resumen-sunat.js`
+anunciaba `entorno SUNAT : beta`, `emisión activa: NO` y el endpoint `e-beta` — porque el
+`.env` local tiene los ajustes de prueba a propósito (§3). Con `--aplicar` habría mandado el
+resumen **al sitio equivocado sin fallar**: el script hace lo correcto, solo que contra el
+entorno que no es. Lo mismo vale para `reembolsar-cargo.js`, que en local usa las llaves de
+test aunque el cargo sea `chr_live_`.
+
+⚠️ **La regla que queda: correr siempre el simulacro primero y LEER la cabecera del entorno.**
+Ese bloque de tres líneas —entorno, endpoint, emisión activa— existe justo para esto, y es lo
+único que separa un envío correcto de uno a beta que nadie notaría hasta que SUNAT reclamara la
+boleta que nunca recibió.
+
+```bash
+railway ssh --service api "node scripts/forzar-resumen-sunat.js"            # simulacro
+railway ssh --service api "node scripts/forzar-resumen-sunat.js --aplicar"  # de verdad
+```
+
 🔴 **Y lo que no se puede olvidar: al reembolsar hay que ANULAR la boleta aparte**, dentro de
 7 días desde el CDR del resumen. `scripts/reembolsar-cargo.js` avisa antes de devolver nada y
 `scripts/anular-boleta.js` la anula; el cron de las 8:00 insiste por correo hasta que se haga.
