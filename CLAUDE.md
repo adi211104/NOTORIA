@@ -2565,6 +2565,15 @@ flujo entero.
 > Pone `suscripcionActiva: true` y adelanta `fechaVencimiento` a ayer. El filtro del
 > cron es `lte` sin `gte`, así que coge todo lo vencido. **El script no cobra nada.**
 >
+> ✅ **ARMADO el 2026-08-28.** Comprobado no con el mensaje del propio script sino
+> **corriendo el `where` exacto del cron**: devuelve 1 cuenta, `revisorculqi@`, y el
+> control confirma que **ninguna otra se cuela** — importa, porque `didierprincipe@`
+> también está vencida, pero sin tarjeta guardada el filtro la descarta.
+>
+> 🔙 **Marcha atrás, si se decide no seguir:** los valores previos eran
+> `suscripcionActiva: false` y `fechaVencimiento: 2026-09-28T14:35:03.111Z`.
+> Restaurarlos antes de las 5:00 cancela el cobro sin dejar rastro.
+>
 > **Paso 2, mañana después de las 5:00 AM:** mirar las cinco cosas que el propio
 > script enumera — un `Pago` EXITOSO de **S/14.50** con tipo **RENOVACION** (no
 > INICIAL), el comprobante **B001-00000003**, `mesesPromoRestantes` 1 → 0,
