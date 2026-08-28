@@ -2566,15 +2566,14 @@ flujo entero.
 > - ⚠️ El último paso es del dueño en cualquier caso: revisar **Data handling** (declaraciones
 >   sobre los proveedores de datos, prerrellenadas con el envío anterior) y darle a *Submit*.
 >
-> 🔴 **Nuevo el 2026-08-24 — un cobro real de IMPULSO, de punta a punta.** El plan ya se puede
-> contratar y cobra S/29 de verdad. El circuito entero (cargo → boleta → SUNAT → CDR) se probó
-> el 23/08, pero **con el plan NEGOCIO**: Impulso tiene su propio precio, su propia descripción
-> en el comprobante y su propia rama en la renovación. Nada hace pensar que falle —las 64
-> comprobaciones de `prueba-planes.js` cubren justo eso— pero **la parte que no se puede probar
-> sin gastar es la que hay que probar gastando**. Se hace igual que la prueba de S/1: correr
-> antes `scripts/sonda-sunat-produccion.js`, cobrar, comprobar la boleta y reembolsar.
-> ⚠️ Y acordarse de **anular la boleta** dentro de los 7 días: reembolsar en Culqi NO la anula
-> (§9). Desde el 23/08 el propio producto avisa, así que basta con hacerle caso al correo.
+> ✅ **HECHO el 2026-08-28 — el cobro real de IMPULSO, de punta a punta y cerrado.** Cargo
+> `chr_live_ke6VcRnUy0XhbvMQ`, boleta **B001-00000002**, resumen RC-20260828-1 ACEPTADO,
+> reembolso `ref_live_GzFISGw0csFYkV2k` y anulación por RC-20260828-2. El detalle y las tres
+> lecciones que dejó están más arriba, en «Cobro real de IMPULSO».
+> ⚠️ **Cobró S/14.50 y no S/29** porque la promo de bienvenida aplicó sola — se supo antes de
+> pagar, no después. Lo que queda **sin ejercitar** de IMPULSO es la **renovación**, que caería
+> el 28/09 y ya no caerá porque la suscripción se reembolsó: eso sigue pendiente y solo se puede
+> ver con un cobro que se deje correr un mes.
 >
 > 🔴 **Y desde el 2026-08-25 hay que probar además un cobro CON LOCALES ADICIONALES**, que es
 > camino nuevo y no se ha ejercitado nunca con dinero real: el importe deja de ser el precio de
@@ -2591,11 +2590,15 @@ flujo entero.
 > nada, basta con estar suscrito y pulsar «+». ⚠️ Gasta un correlativo fiscal igual que
 > cualquier cobro, así que también hay que anular su boleta si se reembolsa.
 >
-> 🟡 **Correr `scripts/respaldo.js` de vez en cuando.** El primero se hizo y se verificó el
-> 2026-08-24 (2397 filas, íntegro). No hay cron: es a mano, y con razón —el archivo lleva datos
-> personales de terceros y no puede acabar en un servidor cualquiera—. Lo que justifica repetirlo
-> es que **los snapshots son lo único que no se puede volver a conseguir**: Google enseña la foto
-> de hoy, no la película. Una vez al mes basta hoy.
+> ✅ **Respaldo hecho el 2026-08-28** antes de borrar la cuenta de prueba: 2488 filas, 0.76 MB,
+> verificado íntegro (`respaldos/notoria-2026-08-28T01-51-01.json`). El anterior fue el 24/08.
+> Sigue sin haber cron, a propósito: el archivo lleva datos personales de terceros. Una vez al
+> mes basta hoy.
+>
+> 🟡 **Nuevo el 2026-08-28 — un monitor de uptime EXTERNO.** El workflow de Actions ya avisa
+> cuando deja de mirar, pero sigue sin mirar cada 15 minutos: GitHub degrada los cron y los
+> huecos medidos llegaron a 11 h. UptimeRobot y BetterStack tienen plan gratuito y vigilan desde
+> fuera de GitHub, que es lo que falta. Requiere crear una cuenta, así que lo hace el dueño.
 >
 > 🔴 **Lo único verdaderamente irreversible que sigue abierto: respaldar
 > `notoria-upload.jks` y su contraseña fuera de esta PC.** Si esa clave se pierde antes de la
@@ -3065,6 +3068,33 @@ railway ssh --service api "node scripts/forzar-resumen-sunat.js --aplicar"  # de
 `scripts/anular-boleta.js` la anula; el cron de las 8:00 insiste por correo hasta que se haga.
 ⚠️ El orden importa: **primero que SUNAT la acepte, después reembolsar y anular** — una boleta
 no aceptada todavía no se puede anular.
+
+✅ **Reembolsado y anulado el mismo día — el circuito completo, cerrado.**
+
+| Paso | Resultado |
+|---|---|
+| Reembolso | `ref_live_GzFISGw0csFYkV2k` · S/14.50 |
+| **Webhook de Culqi** | ✅ llegó solo: `[Culqi webhook] refund.creation.succeeded` → pago en `REEMBOLSADO` |
+| Anulación | **RC-20260828-2** · ticket `202621748921782` · **ACEPTADO (0)** → B001-00000002 `ANULADO` |
+| Estado final | 2 pagos REEMBOLSADO · 2 boletas ANULADO · 4 resúmenes ACEPTADO · 0 en cola |
+
+✅ **`suscripcionActiva` quedó en `false` y aquí NO hay que restaurarlo.** El aviso de §9 —«tras
+un cobro suelto hay que restaurar el campo a mano»— aplica a un cargo suelto; este era una
+suscripción de verdad y el dinero se devolvió, así que apagarla es lo correcto.
+
+✅ **El cron de anulaciones se calla solo:** `necesitaAnulacion` exige
+`estadoSunat === 'ACEPTADO'`, y la boleta ya está `ANULADO`. No hay que silenciar nada.
+
+⚠️ **Lo que queda suelto, y es menor:** `revisorculqi@gmail.com` conserva **plan IMPULSO sin
+haber pagado** hasta el 28/09, porque `iniciarBajadaDePlanes` solo mira a los que tienen
+`fechaVencimiento` ya pasada. No inflama el embudo —ese cuenta `suscripcionActiva`, que está en
+`false`— así que no corre prisa; se limpia con `node scripts/dar-plan.js revisorculqi@gmail.com GRATIS`.
+
+🔴 **Lo que este cobro NO llegó a probar, y sigue pendiente: la RENOVACIÓN.** Habría caído el
+28/09, y al reembolsar la suscripción ya no caerá. Es justo el tramo que si falla **regala el
+plan de por vida sin producir ninguna señal** (§8.6), así que sigue sin ejercitarse con dinero
+real. La única forma de verlo es un cobro que se deje correr un mes.
+
 
 ⚠️ **La promo de esa tarjeta ya no se puede devolver.** Queda su huella en `promo_tarjetas` y
 `limpiar-pagos-prueba.js` **se niega a tocar cargos que no sean `chr_test_`**, así que esto no
