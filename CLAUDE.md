@@ -2449,8 +2449,34 @@ escribiéndole a Google:
 | Qué | Por qué importa |
 |---|---|
 | 🔴 **El requisito de los 60 días** | Google exige un perfil verificado y activo **60+ días** y con web. La solicitud se envió el **16/08**: si el perfil se verificó después de mediados de junio, no calificaba — y en ese caso Google no contesta, simplemente no aprueba. ⚠️ **Falta el dato de cuándo se verificó**: no está en la interfaz y no hay correo de verificación en `usenotoria@gmail.com` |
-| ⚠️ **Dos fichas duplicadas** | «Notoria · Lima, Perú» y «Notoria · Perú». Un duplicado es problema de política para Google |
-| ⚠️ **Categoría «Servicio de logística»** | No es lo que hace Notoria. Un revisor que abre la ficha y ve una categoría que no cuadra con lo que la API pediría tiene motivo para descartar |
+| ⚠️ **Dos fichas duplicadas** | «Notoria · Lima, Perú» y «Notoria · Perú». Un duplicado es problema de política para Google. ✅ **Resuelto el 2026-08-27** — ver abajo |
+| ⚠️ **Categoría «Servicio de logística»** | No es lo que hace Notoria. Un revisor que abre la ficha y ve una categoría que no cuadra con lo que la API pediría tiene motivo para descartar. ✅ **Resuelto el 2026-08-27**, y no cambiando nada: era la ficha duplicada la que la tenía |
+
+✅ **La ficha buena, y la única que queda: `13273074415378486285` «Notoria · Perú».** Categoría
+**Asistencia y servicios informáticos**, descripción completa (702/750), área de servicio **todo
+Perú**, sin ubicación (solo servicios), `usenotoria.app` y 955 599 041. 0 reseñas.
+🔴 **La duplicada y la de la categoría mala eran LA MISMA** (`02903859902986212295` «Notoria ·
+Lima, Perú»: «Servicio de logística», sin descripción, área solo Lima, mismo teléfono y misma web).
+Retirarla arregló las dos cosas de un tirón, y **la categoría no hubo que tocarla** — que era
+además lo prudente, porque editar una ficha verificada la manda a revisión unos días.
+⚠️ Se retira desde el Administrador: seleccionar la fila → **Acciones → Quitar empresa**.
+
+⚠️ **Y lo que la comprobación posterior dejó ver, que es más importante que el duplicado: NO HAY
+NINGUNA ficha de Notoria visible en Maps.** Cuatro sondas coinciden — Places `findplacefromtext`
+por teléfono (`+51955599041`) da **ZERO_RESULTS**, la búsqueda de texto por «Notoria» solo devuelve
+notarías, `"Notoria" usenotoria.app` en el buscador da solo resultados web sin panel de empresa, y
+el `cid` del perfil abre un sitio **en blanco** en Maps.
+- **El control dice que las sondas sirven:** el mismo `findplacefromtext` por teléfono con un
+  número que sí está indexado devuelve sus fichas. O sea que el ZERO_RESULTS es real.
+- 🔴 **Pero eso vale para las DOS fichas, también para la que se conservó.** Así que la lectura
+  correcta **no** es «se borró la duplicada y ya»: es que **el perfil que queda no tiene presencia
+  pública**. Y el requisito de Google no es un perfil verificado a secas, es uno **verificado y
+  ACTIVO**. Si la ficha no se ve en Maps, difícilmente cuenta como activa.
+- ⚠️ Por eso **no se puede afirmar que la duplicada desapareciera de Maps al retirarla**: nunca fue
+  visible. Lo único que está probado es que salió de la cuenta (el Administrador pasó de 2 a 1).
+- ➡️ Es lo primero que hay que mirar antes de reenviar el formulario: una ficha sin presencia
+  pública es exactamente lo que hace que la solicitud no prospere, y explicaría el silencio mucho
+  mejor que el duplicado.
 
 ⚠️ **Lo que NO hay que hacer: pedir un aumento de cuota.** La documentación es explícita —se
 reenvía la *Application for Basic API Access*—, y en el foro de desarrolladores hay casos idénticos
