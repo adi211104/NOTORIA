@@ -4,6 +4,11 @@
 > lecciones que evitan repetir errores; la narrativa de cómo se llegó a cada cosa se
 > compactó el 2026-08-19 (el historial completo está en git).
 
+> 🔴 **LEE PRIMERO `docs/ESTADO-AL-MUDARSE.md` (escrito el 2026-08-28).** La sesión se mudó de
+> PC y la memoria de Claude Code va por ruta, así que empieza en blanco. Ese archivo dice dónde
+> quedó la mudanza y —lo que corre el reloj— que **hay una renovación ARMADA que cobra sola a
+> las 5:00** y hay que verificar y luego reembolsar y anular. Bórralo cuando eso esté cerrado.
+
 ## 1. Qué es Notoria
 
 Plataforma SaaS de monitoreo de reputación para restaurantes y hoteles **del Perú**.
@@ -2580,6 +2585,9 @@ flujo entero.
 > 🔙 **Marcha atrás, si se decide no seguir:** los valores previos eran
 > `suscripcionActiva: false` y `fechaVencimiento: 2026-09-28T14:35:03.111Z`.
 > Restaurarlos antes de las 5:00 cancela el cobro sin dejar rastro.
+>
+> ⚠️ **La sesión se mudó de PC el 28/08.** Los cinco pasos y el estado exacto están en
+> `docs/ESTADO-AL-MUDARSE.md`, que es lo primero que hay que leer al retomar.
 >
 > **Paso 2, mañana después de las 5:00 AM:** mirar las cinco cosas que el propio
 > script enumera — un `Pago` EXITOSO de **S/14.50** con tipo **RENOVACION** (no
