@@ -2917,6 +2917,58 @@ su página). La regla que va quedando: **lo que lleva idioma se compone donde se
 y si un componente puede montarse en una pantalla que no lo tiene, hay que poder decírselo —
 `BannerPromo` acepta `idiomaForzado` justo por eso.
 
+### 🔴 La conexión de TikTok vive en «Don Tito San Miguel» desde el 2026-08-28
+
+Estaba colgada del negocio «KFC» de **`padkar4@gmail.com`**, una cuenta de prueba del
+dueño que se iba a borrar — y era la **única conexión de TikTok viva en toda la
+plataforma** (la cuenta **@usenotoria**, de la que salen los 2 comentarios sociales de la
+base). Borrar esa cuenta se la habría llevado por delante sin que nada lo dijera.
+
+Se movió con **`scripts/mover-tiktok.js <origen> <destino> [--aplicar]`**, que copia —no
+corta— las doce columnas de TikTok. Copiar es lo correcto porque el producto **ya
+contempla que una misma cuenta esté en varios negocios**: los tokens se persisten con
+`updateMany` justo por eso (§8.2). Dejar el origen intacto es la marcha atrás.
+
+⚠️ **`DELETE /api/auth/cuenta` NO revoca los tokens de TikTok**, solo borra las filas. Es
+lo que hace que mover y luego borrar la cuenta de origen funcione. Dos consecuencias que
+conviene tener escritas:
+- Si algún día ese borrado empieza a revocar, **esta receta deja de valer** y hay que
+  reconectar por OAuth.
+- Visto como producto es un cabo suelto: quien borra su cuenta deja un token autorizado
+  vivo en TikTok. La ruta de *desconectar* sí revoca; la de *borrar la cuenta* no.
+
+🔴 **Y lo que el traslado destapó: la conexión llevaba 13 días dormida.** El access token
+había vencido el 15/08 y nada lo renovaba, porque `padkar4` es plan **GRATIS** y las redes
+van desde NEGOCIO — o sea que el worker nunca corrió su rama de TikTok. La conexión no
+estaba rota, estaba **fuera del alcance del worker por el plan**, que desde fuera se ve
+igual. Al pasar a una cuenta NEGOCIO el worker vuelve a renovarla sola.
+
+✅ **Probado contra la API real**, por el mismo camino que producción
+(`tokenTikTokBizVigente` → `obtenerPerfilTikTokBiz`): el refresh token seguía sirviendo,
+el token se renovó (vence 2026-08-29), TikTok devolvió el perfil **«Notoria app» /
+@usenotoria**, y el `updateMany` actualizó **las dos filas** a la vez, que es exactamente
+lo que ese `updateMany` existe para hacer.
+⚠️ **`obtenerVideosTikTokBiz` devuelve 0 videos**, y es correcto: TikTok solo expone los
+**públicos** (§8.2). Sin videos públicos no hay comentarios que escanear, así que la
+conexión está viva y no va a producir nada hasta que la cuenta publique.
+
+### El monitor de uptime avisa cuando deja de monitorear (2026-08-28)
+
+`*/15` era una promesa que GitHub no cumple: medidos los huecos reales, iban de 28 a
+**665 minutos**, con los dos últimos en 11 h y 9,3 h. El workflow seguía **en verde**
+mientras no miraba nada — un monitor que calla cuando está ciego es peor que no tenerlo,
+porque produce confianza.
+
+`.github/workflows/uptime.yml` conserva el `*/15` (pedir más seguido no cuesta nada) y
+añade el paso **«Cuánto tardó en volver»**, que consulta la corrida anterior por la API,
+**avisa** por encima de 45 min y **falla** por encima de 4 h. Va con `if: always()` porque
+«el sitio está caído» y «llevo 9 h sin comprobarlo» son hechos distintos y los dos hay que
+saberlos. Comprobado en vivo: *«Corrida anterior: 23:57Z — hace 114 min»* + warning.
+
+⚠️ **Es una mitigación, no un arreglo.** El arreglo es un monitor externo (UptimeRobot y
+BetterStack tienen plan gratuito) que además vigile desde fuera de GitHub. Está escrito en
+la cabecera del propio workflow para que no se pierda.
+
 ### 🟡 El único hueco conocido
 
 **Ninguno.** El que había —sumar un local en el plan que ya tienes— se cerró el 2026-08-26
