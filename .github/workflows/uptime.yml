@@ -1,8 +1,27 @@
 # Monitor de uptime sin servicios externos: GitHub Actions golpea el backend y
-# el landing cada 15 minutos. Si algo no responde 200, el workflow falla y
-# GitHub le manda un email al dueño del repo (configuración por defecto de
-# notificaciones). El cron de Actions puede atrasarse unos minutos en horas
-# pico — es aceptable para este uso.
+# el landing. Si algo no responde 200, el workflow falla y GitHub le manda un
+# email al dueño del repo (configuración por defecto de notificaciones).
+#
+# 🔴 LO QUE HAY QUE SABER, Y QUE ESTE ARCHIVO PROMETÍA AL REVÉS HASTA EL
+#    2026-08-27: el cron de GitHub Actions NO cumple `*/15`. Medido sobre las
+#    15 corridas anteriores a esa fecha, los huecos reales fueron de 28 a 665
+#    minutos, y los dos últimos fueron de 11 h y 9,3 h. GitHub degrada los cron
+#    programados en repos de poca actividad y no avisa de que lo hace.
+#
+#    O sea que el servicio podía estar caído medio día y este vigilante seguía
+#    en verde. Un monitor que calla cuando no está mirando es peor que no tener
+#    monitor, porque produce confianza.
+#
+#    Se deja el `*/15` a propósito —pedir más seguido no cuesta nada y GitHub
+#    entrega lo que entrega— y se añade el paso «Cuánto tardó en volver», que
+#    es el que convierte el fallo silencioso en uno ruidoso: avisa si pasó más
+#    de 45 min desde la corrida anterior y FALLA si pasaron más de 4 h, que es
+#    el punto en el que este monitor ya no monitorea nada.
+#
+# ⚠️ Esto es una mitigación, no un arreglo. El arreglo de verdad es un monitor
+#    externo (UptimeRobot, BetterStack y similares tienen plan gratuito), que
+#    además vigila desde fuera de GitHub. Mientras no exista, esta es la única
+#    señal de que el vigilante se durmió.
 name: uptime
 
 on:
@@ -10,19 +29,56 @@ on:
     - cron: '*/15 * * * *'
   workflow_dispatch: {}
 
+permissions:
+  actions: read
+  contents: read
+
 jobs:
   ping:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 5
     steps:
       - name: Backend /health
         run: |
           codigo=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 https://api.usenotoria.app/health)
           echo "api.usenotoria.app/health -> $codigo"
           [ "$codigo" = "200" ]
+
       - name: Landing
         if: always()
         run: |
           codigo=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 https://usenotoria.app/)
           echo "usenotoria.app -> $codigo"
           [ "$codigo" = "200" ]
+
+      # Se pregunta a la API por la corrida ANTERIOR de este mismo workflow y se
+      # mide el hueco. `if: always()` para que también informe cuando la caída ya
+      # hizo fallar los pasos de arriba: son dos hechos distintos y los dos
+      # importan — «el sitio está caído» y «llevo 9 h sin comprobarlo».
+      - name: Cuánto tardó en volver
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -u
+          anterior=$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/uptime.yml/runs?event=schedule&per_page=5" \
+            --jq "[.workflow_runs[] | select(.id != ${RUN_ID}) | .created_at] | first // empty")
+
+          if [ -z "$anterior" ]; then
+            echo "Primera corrida programada, o no hay anterior con la que comparar."
+            exit 0
+          fi
+
+          ahora=$(date -u +%s)
+          antes=$(date -u -d "$anterior" +%s)
+          min=$(( (ahora - antes) / 60 ))
+          echo "Corrida anterior: $anterior — hace ${min} min (lo declarado son 15)"
+
+          if [ "$min" -gt 240 ]; then
+            echo "::error::El monitor estuvo CIEGO ${min} min (más de 4 h). GitHub no está respetando el cron: durante esa ventana nadie comprobó nada. Hace falta un monitor externo."
+            exit 1
+          elif [ "$min" -gt 45 ]; then
+            echo "::warning::Hueco de ${min} min entre comprobaciones, muy por encima de los 15 declarados."
+          fi
