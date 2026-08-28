@@ -20,7 +20,11 @@ const TEXTOS = {
     sub: 'Historial de los pagos realizados en tu cuenta',
     plan: (p) => nombrePlanLargo(p, 'es'),
     periodo: { mensual: 'mensual', anual: 'anual' },
-    tipo: { INICIAL: 'Primer cobro', RENOVACION: 'Renovación', LOCAL_ADICIONAL: 'Local adicional' },
+    // ⚠️ PRUEBA sale de la página de cobro de prueba que se retiró el 2026-08-23
+    // (commit 6129adf). Ya no se generan filas así, pero la de aquel día vive en
+    // producción, y sin esta entrada el `|| p.tipo` la pintaba como «PRUEBA» en
+    // crudo — el mismo enum a la vista que el «NEGOCIO» de la barra lateral.
+    tipo: { INICIAL: 'Primer cobro', RENOVACION: 'Renovación', LOCAL_ADICIONAL: 'Local adicional', PRUEBA: 'Cobro de prueba' },
     estado: { EXITOSO: 'Pagado', FALLIDO: 'Fallido', REEMBOLSADO: 'Reembolsado' },
     columnas: { fecha: 'Fecha', concepto: 'Concepto', titular: 'Titular', tarjeta: 'Tarjeta', monto: 'Monto', estado: 'Estado', comprobante: 'Comprobante' },
     notaTarjeta: 'Por seguridad solo mostramos los primeros 4 dígitos de la tarjeta (identifican al banco emisor), nunca el número completo.',
@@ -44,7 +48,7 @@ const TEXTOS = {
     sub: 'History of payments made on your account',
     plan: (p) => nombrePlanLargo(p, 'en'),
     periodo: { mensual: 'monthly', anual: 'yearly' },
-    tipo: { INICIAL: 'First charge', RENOVACION: 'Renewal', LOCAL_ADICIONAL: 'Extra location' },
+    tipo: { INICIAL: 'First charge', RENOVACION: 'Renewal', LOCAL_ADICIONAL: 'Extra location', PRUEBA: 'Test charge' },
     estado: { EXITOSO: 'Paid', FALLIDO: 'Failed', REEMBOLSADO: 'Refunded' },
     columnas: { fecha: 'Date', concepto: 'Details', titular: 'Cardholder', tarjeta: 'Card', monto: 'Amount', estado: 'Status', comprobante: 'Receipt' },
     notaTarjeta: 'For security we only show the first 4 digits of the card (they identify the issuing bank), never the full card number.',

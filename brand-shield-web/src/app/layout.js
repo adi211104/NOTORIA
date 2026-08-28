@@ -1,6 +1,7 @@
 import './globals.css';
 import Script from 'next/script';
 import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import { AuthProvider } from '../context/AuthContext';
 import { IdiomaProvider } from '../context/IdiomaContext';
 import CookieBanner from '../components/CookieBanner';
@@ -123,6 +124,14 @@ export default function RootLayout({ children }) {
         </IdiomaProvider>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }} />
         <Analytics />
+        {/* ⚠️ Speed Insights llevaba encendido en el panel de Vercel desde que se
+            activó y con `hasData: false`: la casilla estaba marcada y no medía
+            nada, porque faltaba este componente. Se descubrió auditando el
+            proyecto el 2026-08-28, no por un error — no lo produce.
+            La CSP no hace falta tocarla: Vercel sirve el script y el beacon
+            desde el propio origen (/_vercel/speed-insights/…), que `'self'`
+            ya cubre en script-src y en connect-src. */}
+        <SpeedInsights />
       </body>
     </html>
   );

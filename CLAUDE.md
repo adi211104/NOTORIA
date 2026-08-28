@@ -3178,6 +3178,28 @@ suscripción de **NEGOCIO o FRANQUICIA** con tarjeta, porque Impulso no vende lo
 cuenta de hoy el endpoint devuelve `PLAN_SIN_LOCALES`, comprobado. El camino que COBRA sigue
 sin poder verse en pantalla.
 
+✅ **Speed Insights, encendido de verdad el 2026-08-28.** Llevaba activado en el panel de
+Vercel con **`hasData: false`** desde que se marcó la casilla: medía cero porque **faltaba el
+componente** en el frontend. `@vercel/analytics` sí estaba montado —por eso Web Analytics sí
+tenía datos—, así que era una asimetría fácil de no ver. Se descubrió auditando el proyecto,
+no por un error: una casilla marcada que no mide nada no produce ninguna señal.
+⚠️ **La CSP no hubo que tocarla**: Vercel sirve el script y el beacon desde el propio origen
+(`/_vercel/speed-insights/…`), que `'self'` ya cubre en `script-src` y en `connect-src`.
+
+✅ **`PRUEBA` mapeado en Facturación.** La pantalla pinta `{t.tipo[p.tipo] || p.tipo}`, y ese
+valor —creado por la página de cobro de prueba que se retiró el 23/08— no estaba en el mapa,
+así que la fila del S/1 salía como **«PRUEBA»** en crudo. Es el mismo enum a la vista que el
+«NEGOCIO» de la barra lateral del 24/08, en otra pantalla.
+✅ De paso quedó comprobado que **`RENOVACION` sí está mapeado** en los dos idiomas, que es lo
+que se verá mañana por primera vez en la historia del producto.
+
+🔎 **Barrido completo de suites el 2026-08-28: 37 archivos, ~830 comprobaciones, 0 fallos.**
+⚠️ Y una lección de método: 16 suites no imprimen línea de resumen, y contarlas por el texto
+las daba por buenas **igual que si hubieran reventado**. Lo que distingue es el **código de
+salida**, que hubo que mirar aparte. Es el «404 de control» otra vez: ante un resultado,
+preguntar primero si el método sabe fallar.
+⚠️ `prueba-publico.js` **gasta ~6 llamadas reales de Places**: excluirla de los barridos.
+
 ### 🟡 El único hueco conocido
 
 **Ninguno.** El que había —sumar un local en el plan que ya tienes— se cerró el 2026-08-26
