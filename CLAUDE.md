@@ -341,7 +341,7 @@ los logs del servidor y en un cambio observable en la salida.
 (`notoria-web`), DNS en Cloudflare en "DNS only". Dominio verificado en Resend. Search
 Console verificado (`public/googlebab20eafdad21f30.html` — **no borrarlo**, Google
 re-verifica). DMARC en **`p=quarantine`** desde el 2026-08-19
-(`v=DMARC1; p=quarantine; rua=mailto:padkar4@gmail.com`). Monitor de uptime en `.github/workflows/uptime.yml`
+(`v=DMARC1; p=quarantine; rua=mailto:didier@usenotoria.app`). Monitor de uptime en `.github/workflows/uptime.yml`
 (golpea `/health` y el landing cada 15 min).
 
 ### Email Routing de Cloudflare — el catch-all está en **Drop**
@@ -420,6 +420,28 @@ resolutores (1.1.1.1, 8.8.8.8, 9.9.9.9) y contando que siguiera habiendo **un so
 
 El siguiente escalón sería `p=reject`, pero no antes de varios meses de informes limpios con
 más volumen del que hay hoy.
+
+✅ **Los informes van a `didier@usenotoria.app` desde el 2026-08-28.** Antes iban a
+`padkar4@gmail.com`, una dirección personal de prueba cuya cuenta de Notoria se borró ese
+mismo día. Dos motivos, y el segundo importa más que el primero:
+- 🔴 **Los informes DMARC son la ÚNICA evidencia que sostiene el `p=quarantine`.** Estaban
+  llegando a un buzón que no es el de la empresa; el día que esa cuenta se cerrara, la serie
+  se cortaría **sin que nada avisara** — y sin informes no hay forma de saber si algo empezó
+  a fallar la alineación, que con `quarantine` significa correo nuestro en la carpeta de spam
+  del cliente.
+- Ahora el `rua` es **del mismo dominio** que el registro, así que desaparece la pregunta de
+  la autorización entre dominios (un `rua` externo exige que el dominio receptor publique un
+  registro que lo consienta; algunos emisores lo comprueban y otros no).
+
+⚠️ **Se editó el registro existente, no se creó otro** — dos TXT de DMARC en el mismo nombre
+hacen que DMARC falle entero. Comprobado después: Cloudflare siguió marcando **14 registros**
+en la zona, y los tres resolutores (1.1.1.1, 8.8.8.8, 9.9.9.9) devuelven **uno solo** con el
+valor nuevo. `didier@` tiene su regla de Email Routing activa, así que el correo aterriza.
+
+⚠️ **Lo que todavía NO está probado: que llegue un informe de verdad.** Google los manda una
+vez al día, así que hasta ~24 h después no hay prueba de entrega. Es el mismo criterio de
+siempre: `delivered` en el remitente no es «alguien lo tiene» (§6, *Email Routing*). Si en dos
+días no ha llegado ninguno, el sitio donde mirar es el buzón, no el DNS.
 
 **Correo de la empresa:** `usenotoria@gmail.com` **es la misma cuenta renombrada**, no una
 nueva — por eso no hubo migración de IAM ni del caso de soporte.
