@@ -147,6 +147,13 @@ comm -23 /tmp/code.txt /tmp/rw.txt   # se leen pero no están
 comm -13 /tmp/code.txt /tmp/rw.txt   # están pero no se leen
 ```
 
+📋 **Para mudar el proyecto a otra PC: `docs/mudanza-de-pc.md`.** El código se clona; lo
+que hay que llevar a mano son **cinco archivos** fuera de git (los dos `.env`, el `.p12`, el
+`.jks` y su `keystore.properties`) y ninguno debe viajar por un canal sin cifrar: el `.env` del
+backend lleva la `DATABASE_URL` de producción y el `JWT_SECRET`. ⚠️ Y no vale «si se filtra lo
+roto»: `PROMO_HASH_SECRET` no se puede rotar sin vaciar `promo_tarjetas`, y `JWT_SECRET`
+invalida las constancias en circulación.
+
 📋 **Inventario completo en `docs/secretos.md`** (sin valores): qué secreto existe, dónde está
 su única copia y —lo que de verdad ordena la lista— **qué haría falta para volver a tenerlo si
 se perdiera**. Con esa vara solo dos son graves: la contraseña del certificado
