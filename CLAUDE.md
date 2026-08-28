@@ -3144,6 +3144,40 @@ real. La única forma de verlo es un cobro que se deje correr un mes.
 `limpiar-pagos-prueba.js` **se niega a tocar cargos que no sean `chr_test_`**, así que esto no
 se limpia: esa tarjeta y esa cuenta gastaron la promo para siempre.
 
+🔴 **Bug corregido el 2026-08-28 — el bloque de locales se ofrecía en un plan que NO los
+vende.** `bloqueado` solo contemplaba `SIN_SUSCRIPCION` y `SIN_TARJETA`, así que con
+**`PLAN_SIN_LOCALES`** el bloque pintaba **el contador entero, ofreciendo hasta 50 locales**, y
+al confirmar devolvía `errorPagoGenerico`: un mensaje de problema de cobro para algo que no es
+un problema de cobro. Es la regla de «lo que no podemos entregar no se muestra», y el mismo
+fallo que tuvo la fila fija de Facebook — prometer una función que no existe sin dar forma de
+llegar a ella.
+
+🔴 **Y lo que lo hace interesante: NO era alcanzable hasta ese mismo día.** Hacía falta una
+cuenta con **plan de pago Y tarjeta guardada**, y no existía ninguna: las dos del dueño tienen
+el plan concedido a mano, sin tarjeta. El cobro de prueba de IMPULSO creó la primera, y con
+ella el bug pasó de teórico a lo primero que habría visto el primer suscriptor de Impulso.
+⚠️ **La lección: al crear el primer caso real de algo, mirar las pantallas que ese caso
+desbloquea.** No salió de leer código buscando fallos, sino de preguntarse qué se ve ahora que
+antes no se veía.
+
+Ahora `PLAN_SIN_LOCALES` apaga el bloque y explica lo que de verdad corresponde: *«El Plan
+Impulso cubre un solo local. Para vigilar más de uno, el salto es al Plan Negocio»* — que es
+justo la decisión de §8.6, «quien abre el segundo local es exactamente a quien le toca subir».
+En los dos idiomas, y con el motivo cableado también en el aviso del previo, por defensa.
+Cuatro comprobaciones nuevas en `prueba-locales.js` (**107**), una de ellas de control.
+
+⚠️ **Queda una incoherencia menor, a propósito:** `maximoExtra('IMPULSO')` devuelve **49**
+aunque el plan no venda ninguno, porque se deriva de `MAX_LOCALES_TOTALES − incluidos`. No es
+explotable —`validarCambio` corta antes con `PLAN_SIN_LOCALES`, y el alta guarda
+`localesExtra: puedeLocales ? extras : 0`— pero son dos funciones respondiendo distinto a la
+misma pregunta. Si algún día alguien usa `maximoExtra` como única guarda, ahí está el agujero.
+
+🔴 **Y una corrección al pendiente de «sumar un local a mitad de periodo»: NO se desbloqueó con
+este cobro.** La nota decía que bastaba «estar suscrito y pulsar +»; es falso. Hace falta una
+suscripción de **NEGOCIO o FRANQUICIA** con tarjeta, porque Impulso no vende locales. Con la
+cuenta de hoy el endpoint devuelve `PLAN_SIN_LOCALES`, comprobado. El camino que COBRA sigue
+sin poder verse en pantalla.
+
 ### 🟡 El único hueco conocido
 
 **Ninguno.** El que había —sumar un local en el plan que ya tienes— se cerró el 2026-08-26

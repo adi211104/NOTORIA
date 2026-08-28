@@ -301,6 +301,7 @@ const TEXTOS = {
       // debajo de eso apagaría la vigilancia de un local sin avisar.
       enUso: (n) => `Tienes ${n} local${n === 1 ? '' : 'es'} cargado${n === 1 ? '' : 's'}. Desactiva los que ya no uses para poder bajar.`,
       sinSuscripcion: 'Necesitas una suscripción activa para cambiar tus locales.',
+      planSinLocales: 'El Plan Impulso cubre un solo local. Para vigilar más de uno, el salto es al Plan Negocio, que incluye uno y permite sumar los demás.',
       sinTarjeta: 'No hay una tarjeta guardada en esta cuenta, así que no podemos cobrar el local. Contrata el plan desde esta pantalla para registrar una.',
     },
     valorTitulo: '¿Por qué vale la pena pagar?',
@@ -353,6 +354,7 @@ const TEXTOS = {
       procesando: 'Processing…',
       enUso: (n) => `You have ${n} location${n === 1 ? '' : 's'} set up. Deactivate the ones you no longer use to lower this.`,
       sinSuscripcion: 'You need an active subscription to change your locations.',
+      planSinLocales: 'The Impulso plan covers a single location. To monitor more than one, the step up is the Negocio plan, which includes one and lets you add the rest.',
       sinTarjeta: 'There is no saved card on this account, so we cannot charge for the location. Subscribe from this screen to register one.',
     },
     valorTitulo: 'Why is it worth paying?',
@@ -434,7 +436,16 @@ function MisLocales({ t, idioma, onAplicado }) {
   // podemos entregar no se muestra» — y el caso NO es teórico: los planes
   // concedidos a mano (los del dueño) tienen `suscripcionActiva` pero ninguna
   // tarjeta guardada, así que son justo los primeros que van a tocar esto.
-  const bloqueado = estado.motivo === 'SIN_SUSCRIPCION' || estado.motivo === 'SIN_TARJETA';
+  // ⚠️ PLAN_SIN_LOCALES va en ESTA lista y no en el aviso de abajo. Sin él, un
+  // plan que no vende locales —hoy Impulso— pintaba el contador entero ofreciendo
+  // hasta 50, y al confirmar devolvía el error de pago genérico: un mensaje de
+  // cobro para algo que no es un problema de cobro. Es la regla de «lo que no
+  // podemos entregar no se muestra», y el mismo fallo que tuvo la fila fija de
+  // Facebook: prometer una función que no existe sin dar forma de llegar a ella.
+  // 🔴 No era alcanzable hasta el 2026-08-28: hacía falta una cuenta con plan de
+  // pago Y tarjeta guardada, y hasta ese día no existía ninguna.
+  const bloqueado = estado.motivo === 'SIN_SUSCRIPCION' || estado.motivo === 'SIN_TARJETA'
+    || estado.motivo === 'PLAN_SIN_LOCALES';
   if (bloqueado) {
     return (
       <div style={{
@@ -443,7 +454,9 @@ function MisLocales({ t, idioma, onAplicado }) {
       }}>
         <div style={{ fontSize: 12.5, color: 'var(--text-2)' }}>{t.misLocales.titulo}</div>
         <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 4, lineHeight: 1.5 }}>
-          {estado.motivo === 'SIN_TARJETA' ? t.misLocales.sinTarjeta : t.misLocales.sinSuscripcion}
+          {estado.motivo === 'SIN_TARJETA' ? t.misLocales.sinTarjeta
+            : estado.motivo === 'PLAN_SIN_LOCALES' ? t.misLocales.planSinLocales
+            : t.misLocales.sinSuscripcion}
         </div>
       </div>
     );
@@ -545,6 +558,7 @@ function MisLocales({ t, idioma, onAplicado }) {
             <div style={{ fontSize: 11.5, color: '#C0392B', marginTop: 8, lineHeight: 1.5 }}>
               {previo.motivo === 'LOCALES_EN_USO' ? t.misLocales.enUso(estado.negociosActivos)
                 : previo.motivo === 'SIN_SUSCRIPCION' ? t.misLocales.sinSuscripcion
+                : previo.motivo === 'PLAN_SIN_LOCALES' ? t.misLocales.planSinLocales
                 : t.errorPagoGenerico}
             </div>
           )}

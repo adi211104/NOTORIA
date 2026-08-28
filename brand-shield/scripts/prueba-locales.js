@@ -251,6 +251,22 @@ check('MisLocales está a nivel de módulo, no dentro de PlanesPage',
   'dentro del padre se remontaría en cada render y el contador perdería el foco');
 check('el suelo del contador son los negocios cargados, no el del plan',
   /Math\.max\(estado\.incluidos,\s*estado\.negociosActivos\)/.test(mis));
+// 🔴 PLAN_SIN_LOCALES tiene que APAGAR el bloque, no caer en el aviso rojo.
+// Sin esto, un plan que no vende locales —hoy Impulso— pinta el contador entero
+// ofreciendo hasta 50 y al confirmar devuelve el error de pago genérico. No era
+// alcanzable hasta que existió una cuenta con plan de pago Y tarjeta guardada.
+check('PLAN_SIN_LOCALES apaga el bloque entero',
+  /bloqueado\s*=[\s\S]{0,220}PLAN_SIN_LOCALES/.test(mis),
+  'si no, el contador ofrece locales que ese plan no vende');
+check('PLAN_SIN_LOCALES tiene su propio texto, no el error de pago genérico',
+  /PLAN_SIN_LOCALES.*planSinLocales/.test(mis),
+  'un error de cobro para algo que no es un problema de cobro no explica nada');
+check('el texto planSinLocales existe en los DOS idiomas',
+  (panel.match(/planSinLocales:/g) || []).length >= 2,
+  'es el quinto camino por el que este proyecto se equivoca de idioma');
+check('CONTROL: la sonda de PLAN_SIN_LOCALES sabe fallar',
+  !/PLAN_SIN_LOCALES/.test('const bloqueado = a || b;'));
+
 check('el bloque no depende del interruptor mensual/anual de la pantalla',
   !/\banual\b/.test(mis),
   'quien paga anual y mira la pestaña mensual tiene que ver lo que le van a cobrar A ÉL');
