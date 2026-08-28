@@ -2991,6 +2991,53 @@ saberlos. Comprobado en vivo: *«Corrida anterior: 23:57Z — hace 114 min»* + 
 BetterStack tienen plan gratuito) que además vigile desde fuera de GitHub. Está escrito en
 la cabecera del propio workflow para que no se pierda.
 
+### ✅ Cobro real de IMPULSO — 2026-08-28
+
+Cerraba el pendiente que estaba abierto desde el 24/08: el circuito se había probado con
+NEGOCIO, y IMPULSO tiene su propio precio, su propia descripción en el comprobante y su
+propia rama en la renovación.
+
+🔴 **Cobró S/14.50 y no S/29, y eso NO fue un error: la promo de bienvenida aplicó sola.**
+Todas las cuentas tenían la promo libre y `promo_tarjetas` estaba vacía, así que el primer
+cobro entró al 50%. Se comprobó **antes** de pagar, no después. De paso quedó estrenada la
+promo con dinero real, que tampoco se había probado nunca.
+
+| | |
+|---|---|
+| Cargo | `chr_live_ke6VcRnUy0XhbvMQ` · S/14.50 PEN · **`outcome.type: venta_exitosa`** |
+| ⚠️ `paid` | **`false`**, otra vez. Confirma en vivo que ese campo NO dice si se cobró |
+| Descripción en Culqi | «Notoria — Plan Impulso (mensual) — promo 50% bienvenida» |
+| Tarjeta | Visa débito `455788******2224`, guardada como `crd_live_…` |
+| Cuenta | `revisorculqi@gmail.com` → plan **IMPULSO**, vence 28/09, `mesesPromoRestantes: 1` |
+| Comprobante | **BOLETA B001-00000002** · S/14.50 = gravadas 12.29 + IGV 2.21, **cuadra al céntimo** |
+
+✅ **Lo que solo se podía probar con un correo que rebota, y salió bien.** El comprobante al
+cliente quedó `suppressed` (esa dirección rebota desde siempre) y **la copia a contabilidad
+llegó `delivered`** a `didier@usenotoria.app`. Es exactamente lo que la copia aparte —y no en
+BCC— existe para garantizar: el comprobante llega a la empresa aunque el buzón del cliente
+falle. Hasta hoy era una decisión de diseño; ahora es un hecho observado.
+
+⚠️ **Al verificar, la primera sonda dijo que la marca y los dígitos de la tarjeta estaban
+VACÍOS.** Era falso: los campos se llaman `tarjetaMarca` y `tarjetaInicio`, y mi consulta
+pedía otros nombres, que en Prisma llegan como `undefined` sin fallar. Los datos estaban bien
+(`Visa`, `4557`). Es el mismo patrón del «404 de control» de §5 aplicado a una consulta:
+**ante un campo vacío, preguntar primero si se está leyendo el campo correcto.**
+
+⏳ **Lo que falta, y es cuestión de esperar:** la boleta está en `PENDIENTE` porque el cron de
+resúmenes **solo agrupa días cerrados**, así que se informa el 29/08. Límite de envío 04/09,
+con 6 días de margen. Los dos workers están activos en `produccion` y el log confirma
+`[Comprobante] Emitido B001-00000002 (BOLETA)`.
+
+🔴 **Y lo que no se puede olvidar: al reembolsar hay que ANULAR la boleta aparte**, dentro de
+7 días desde el CDR del resumen. `scripts/reembolsar-cargo.js` avisa antes de devolver nada y
+`scripts/anular-boleta.js` la anula; el cron de las 8:00 insiste por correo hasta que se haga.
+⚠️ El orden importa: **primero que SUNAT la acepte, después reembolsar y anular** — una boleta
+no aceptada todavía no se puede anular.
+
+⚠️ **La promo de esa tarjeta ya no se puede devolver.** Queda su huella en `promo_tarjetas` y
+`limpiar-pagos-prueba.js` **se niega a tocar cargos que no sean `chr_test_`**, así que esto no
+se limpia: esa tarjeta y esa cuenta gastaron la promo para siempre.
+
 ### 🟡 El único hueco conocido
 
 **Ninguno.** El que había —sumar un local en el plan que ya tienes— se cerró el 2026-08-26
