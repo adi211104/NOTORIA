@@ -480,6 +480,9 @@ la función, no anunciarla como "próximamente".
       cargada en Railway **antes** del deploy (44 caracteres, verificada sin BOM).
       Sin ella el revisor de Meta no vería la integración y rechazaría la
       revisión entera, que sigue en curso desde el 15/08
+      ⚠️ **El valor de hoy es solo `revisormeta@usenotoria.app`.** `padkar4@gmail.com`
+      salió de la lista y su cuenta de Notoria se borró el 2026-08-28: era una cuenta de
+      prueba del dueño. Se deja la línea como registro de lo que se cargó aquel día.
 - [x] **DESPLEGADO Y VERIFICADO EN VIVO (16/08/2026).** Railway `2d096b34`
       SUCCESS, Vercel `notoria-nyvag1t0l` Ready. Comprobado **dentro del
       contenedor de producción**, no por el panel:
