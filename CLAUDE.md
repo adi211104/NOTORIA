@@ -2241,6 +2241,7 @@ textos por otros inventados. El procedimiento está en la cabecera del component
 | `prueba-cableado.js` | 33 comprobaciones de score/temas/impacto/parte enchufados al correo, al PDF y a la constancia. Vigila los dos fallos mudos: que el `select` del semanal traiga la FECHA de la reseña (sin ella el parte sale vacío siempre) y que el correo **no** llame a Groq |
 | `prueba-expediente.js` | 43 comprobaciones del expediente (I8). 15 son sobre **el límite**: lee el fuente del PDF y falla si alguna vez imprime «reseña falsa», «extorsionando» o cualquier afirmación que le corresponda a Google o a la autoridad, no a nosotros |
 | `prueba-locales.js` | **103** comprobaciones de sumar y quitar locales sobre el plan que ya se tiene (§8.8). Los bloques 1-12 son aritmética y lectura del fuente; el **13 levanta la ruta de verdad** con Prisma y Culqi simulados, que es lo único que comprueba sobre la LLAMADA REAL —y no sobre una regex— que el `update` no escribe `fechaVencimiento` y que a Culqi le llega exactamente el importe que se le anunció al cliente |
+| `armar-renovacion.js <email> [--aplicar]` | Deja una cuenta lista para que el cron de renovación la cobre en su próxima pasada: pone `suscripcionActiva` y adelanta `fechaVencimiento`. 🔴 **No cobra nada** — quien cobra es el cron, solo y desatendido, que es justo lo que hay que probar: llamar al cobro a mano probaría otra cosa. Calcula el importe con `montoSuscripcion`, el MISMO de producción, para que el script y el worker no puedan discrepar. Se niega sobre cuentas que no sean del dueño y sobre una sin tarjeta guardada. ✅ Se corre EN LOCAL, al revés que `forzar-resumen-sunat.js`: solo escribe en la base, no llama a Culqi ni a SUNAT |
 | `prueba-planes.js` | 64 comprobaciones de la tabla de capacidades. Vigila lo que no da señal: que todo plan con precio se COBRE y se BAJE (olvidarlo regala el plan de por vida), que la escalera no pierda capacidades al subir, que un plan desconocido falle CERRADO, y **lee el fuente** para fallar si alguien vuelve a escribir `['NEGOCIO','FRANQUICIA']` a mano |
 | `prueba-parte-equipo.js` | 66 comprobaciones del parte semanal para el equipo. Casi todas sobre lo que el prompt NO consigue: que el saneador quite las frases que el modelo escribe pese a prohibírselo **sin estropear las que estaban bien**, y que un conteo que no cuadre con los hechos tire el parte entero. Incluye una prueba de que el fuente no tiene bytes de control invisibles — un `` mal escapado escribió un `0x08` dentro de una regex y la dejó sin casar nunca, en silencio |
 | `prueba-panel.js` | 83 comprobaciones de score, temas, tareas e impacto. Comprueba que la fórmula del score NO cambió al mudarse al backend (replica la aritmética original), que la tendencia de temas compara porcentajes y no conteos, y que no se inventa una cifra en soles donde el estudio no aplica |
@@ -2545,6 +2546,40 @@ flujo entero.
 > ✅ Los dos comandos que esperaban aprobación —el ensayo de alertas y el recordatorio a las
 > cuentas sin verificar— **se ejecutaron el 2026-08-23**. Sus resultados están más abajo y en
 > §12. No hay que repetirlos.
+>
+> 🔴 **URGENTE MAÑANA (2026-08-29) — la RENOVACIÓN, que es el único tramo del cobro
+> que nunca se ha ejercitado y el más caro de equivocar.** Si falla, el cliente paga
+> UNA vez y conserva el plan gratis para siempre: ni error, ni log, ni cargo fallido
+> (§8.6). El cobro del 28/08 no llegó a probarlo —habría caído el 28/09 y al
+> reembolsar ya no cae—, así que se adelanta a mano.
+>
+> **Paso 1, hoy o esta noche:** armar la cuenta. Se corre EN LOCAL a propósito (solo
+> escribe en la base; el `.env` local apunta a producción):
+>
+> ```bash
+> cd brand-shield
+> node -r dotenv/config scripts/armar-renovacion.js revisorculqi@gmail.com            # simulacro
+> node -r dotenv/config scripts/armar-renovacion.js revisorculqi@gmail.com --aplicar  # armar
+> ```
+>
+> Pone `suscripcionActiva: true` y adelanta `fechaVencimiento` a ayer. El filtro del
+> cron es `lte` sin `gte`, así que coge todo lo vencido. **El script no cobra nada.**
+>
+> **Paso 2, mañana después de las 5:00 AM:** mirar las cinco cosas que el propio
+> script enumera — un `Pago` EXITOSO de **S/14.50** con tipo **RENOVACION** (no
+> INICIAL), el comprobante **B001-00000003**, `mesesPromoRestantes` 1 → 0,
+> `fechaVencimiento` movido un mes, y el ciclo de las 5:00 en los logs.
+>
+> ⚠️ **Cobrará S/14.50 y no S/29**: queda un mes de promo, y el cron parte el
+> `precioBase` por la mitad igual que el alta. De paso ejercita el **segundo mes de
+> la promo**, que tampoco se ha visto nunca.
+>
+> 🔴 **Y después, lo de siempre: reembolsar Y ANULAR la boleta dentro de 7 días.**
+> Son dos sistemas distintos; reembolsar en Culqi no anula nada ante SUNAT.
+>
+> ⚠️ Si se decide NO hacerlo, hay que dejar la cuenta como está o pasarla a GRATIS
+> (`dar-plan.js`): hoy conserva IMPULSO sin haber pagado hasta el 28/09. No inflama
+> el embudo, que cuenta `suscripcionActiva` y está en `false`.
 >
 > 🔴 **Nuevo el 2026-08-26 — los DOS screencasts de la segunda solicitud de App Review.**
 > La solicitud está armada y guardada en el panel (`submission_id 2252144948952187`) con los dos
