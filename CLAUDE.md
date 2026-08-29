@@ -2401,7 +2401,7 @@ y rechaza otra cosa). Así se descartaron rutas enteras de TikTok sin credencial
 | Qué | Desde | Qué bloquea |
 |---|---|---|
 | ~~Meta — App Review de Instagram~~ | ✅ **RESUELTO el 2026-08-26** | 4 de 5 aprobados; `pages_manage_metadata` rechazado. Instagram y Menciones **ya están abiertos** (§8.3) |
-| **Google — acceso a las GBP APIs**, caso `3-5553000040900` | 2026-08-16. **Revisado el 2026-08-27 por siete vías: sigue sin aprobar** — RPM=0 en las TRES APIs y cero respuesta en el buzón (ver abajo) | Conectar Google Business |
+| **Google — acceso a las GBP APIs**, caso `3-5553000040900` | 2026-08-16. **Re-verificado el 2026-08-29: sigue sin aprobar** — RPM=0 en las TRES APIs (con las otras cuotas mostrando valores, que es la trampa) y la v4 sin existir para el proyecto, con su control. ⚠️ Ese día se CAYÓ la hipótesis de la ficha invisible (ver abajo) | Conectar Google Business |
 
 **Revisión del panel de Meta del 2026-08-22 — nada que hacer, solo esperar.** Estado
 `Review in progress` con los cinco permisos correctos, app en **modo Live**, y las dos
@@ -2496,28 +2496,44 @@ Retirarla arregló las dos cosas de un tirón, y **la categoría no hubo que toc
 además lo prudente, porque editar una ficha verificada la manda a revisión unos días.
 ⚠️ Se retira desde el Administrador: seleccionar la fila → **Acciones → Quitar empresa**.
 
-⚠️ **Y lo que la comprobación posterior dejó ver, que es más importante que el duplicado: NO HAY
-NINGUNA ficha de Notoria visible en Maps.** Cuatro sondas coinciden — Places `findplacefromtext`
-por teléfono (`+51955599041`) da **ZERO_RESULTS**, la búsqueda de texto por «Notoria» solo devuelve
-notarías, `"Notoria" usenotoria.app` en el buscador da solo resultados web sin panel de empresa, y
-el `cid` del perfil abre un sitio **en blanco** en Maps.
-- **El control dice que las sondas sirven:** el mismo `findplacefromtext` por teléfono con un
-  número que sí está indexado devuelve sus fichas. O sea que el ZERO_RESULTS es real.
-- 🔴 **Pero eso vale para las DOS fichas, también para la que se conservó.** Así que la lectura
-  correcta **no** es «se borró la duplicada y ya»: es que **el perfil que queda no tiene presencia
-  pública**. Y el requisito de Google no es un perfil verificado a secas, es uno **verificado y
-  ACTIVO**. Si la ficha no se ve en Maps, difícilmente cuenta como activa.
-- ⚠️ Por eso **no se puede afirmar que la duplicada desapareciera de Maps al retirarla**: nunca fue
-  visible. Lo único que está probado es que salió de la cuenta (el Administrador pasó de 2 a 1).
-- ➡️ Es lo primero que hay que mirar antes de reenviar el formulario: una ficha sin presencia
-  pública es exactamente lo que hace que la solicitud no prospere, y explicaría el silencio mucho
-  mejor que el duplicado.
+🔴 **CORREGIDO el 2026-08-29: el perfil SÍ tiene presencia pública.** Lo que se escribió el 27 —y
+que se conserva más abajo— concluía lo contrario, y mandaba a arreglar algo que no está roto.
+Abierto el perfil desde la Búsqueda de Google, sale el **panel de conocimiento**: «Notoria ·
+Soporte y servicios informáticos», con sitio web, teléfono y **22 vistas**, marcado como
+**«Información completa»**. El Administrador sigue con **una sola ficha y Verificada**, o sea que
+el duplicado retirado no volvió.
+
+- 🔴 **Lo que no tiene es PIN EN MAPS, y es lo correcto:** es un negocio de **área de servicio sin
+  dirección**. Google no puede colocarlo en el mapa porque no hay dónde ponerlo. Notoria no tiene
+  oficinas, así que no debería salir — no es un defecto de la ficha, es lo que la ficha declara.
+- ⚠️ **El error fue de método, y es el «404 de control» por un camino nuevo:** ni la búsqueda de
+  Maps ni `findplacefromtext` distinguen **«no existe»** de **«existe pero no tiene ubicación que
+  mostrar»**. Las cuatro sondas coincidían, y las cuatro compartían el mismo punto ciego — que es
+  justo lo que hace que coincidir no pruebe nada. El control que faltaba no era otro teléfono
+  indexado (eso solo probaba que la API responde) sino **un negocio de área de servicio sin
+  dirección**, que habría dado ZERO_RESULTS estando perfectamente publicado.
+- ➡️ **Se cae la hipótesis principal del silencio de Google.** No hay nada que arreglar en la ficha
+  antes de reenviar el formulario. Del hilo solo queda el requisito de los **60 días verificado y
+  activo**, y ese dato sigue sin estar en la interfaz: Rendimiento da **0 interacciones** en todo
+  mar–ago 2026, así que tampoco acota la antigüedad del perfil.
+- ⚠️ **Lo que sigue sin comprobarse:** qué ve un visitante **sin sesión**. Todo esto se miró con la
+  cuenta que administra el perfil. Las 22 vistas son evidencia de que se mostró a alguien, no una
+  medición del panel público.
+
+⚠️ **Y lo que se escribió el 2026-08-27, que resultó ser una lectura equivocada de datos correctos.**
+Se conserva porque la lección de método vale más que el error: NO HAY ninguna ficha de Notoria
+visible en Maps —Places `findplacefromtext` por teléfono (`+51955599041`) da **ZERO_RESULTS**, la
+búsqueda de texto por «Notoria» solo devuelve notarías, y el `cid` del perfil abre un sitio en
+blanco en Maps—. Todo eso es **cierto**; lo falso fue la conclusión que se sacó: que el perfil «no
+tiene presencia pública» y que por eso difícilmente contaba como activo ante Google.
 
 ⚠️ **Lo que NO hay que hacer: pedir un aumento de cuota.** La documentación es explícita —se
 reenvía la *Application for Basic API Access*—, y en el foro de desarrolladores hay casos idénticos
 de julio y agosto de 2026: solicitud enviada, cero respuesta, cuota en 0. **No es algo nuestro.**
-Reenviar el formulario **antes** de arreglar categoría, duplicado y los 60 días es pedir el mismo
-silencio. Lo envía el dueño: es una acción hacia fuera.
+Reenviar el formulario **antes** de cumplir los 60 días es pedir el mismo silencio — y esa es ya
+la ÚNICA condición pendiente: la categoría y el duplicado se arreglaron el 27, y la «ficha sin
+presencia pública» resultó ser un error de medición nuestro (2026-08-29). Lo envía el dueño: es
+una acción hacia fuera.
 
 ✅ **Ejecutado el 2026-08-26.** `INSTAGRAM_ACTIVO=true` está puesto y verificado en el
 contenedor; la llamada a `suscribirWebhookInstagram()` se retiró (el permiso que necesitaba fue
