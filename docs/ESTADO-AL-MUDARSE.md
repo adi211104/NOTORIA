@@ -9,32 +9,44 @@
 
 ---
 
-## 🔴 Lo primero al retomar: la renovación está ARMADA y cobra sola
+## ✅ La renovación ya se verificó (2026-08-29) — lo que queda es cerrarla
 
-**`revisorculqi@gmail.com` tiene el vencimiento adelantado a ayer y `suscripcionActiva: true`.**
-El cron de renovaciones (`0 5 * * *`, hora del servidor) le va a cobrar **S/14.50** a la tarjeta
-guardada **sin que nadie lo toque**. Es la primera vez que se ejercita la renovación con dinero
-real, y es el tramo que si falla **regala el plan de por vida sin producir ninguna señal**.
+El cron cobró **solo y desatendido** a `revisorculqi@gmail.com` a las 5:00. Los cinco puntos que
+esta nota dejaba por mirar salieron los cinco bien:
 
-**Las cinco cosas que hay que mirar después de esa pasada:**
+| Qué | Resultado |
+|---|---|
+| `Pago` | **EXITOSO, S/14.50, tipo RENOVACION** (no INICIAL) · `chr_live_s8Kf6bzHHeefEls3` |
+| Comprobante | **B001-00000003** · 1450 = gravadas 1229 + IGV 221 |
+| Promo | `mesesPromoRestantes` 1 → 0 |
+| Vencimiento | **29/09** (desde hoy, porque el anterior ya había pasado — es el `max` del código) |
+| Logs | `[Culqi] Renovación cobrada a revisorculqi@gmail.com` |
 
-1. Un `Pago` **EXITOSO de S/14.50** con `tipo: RENOVACION` — si dice `INICIAL`, fue por la rama
-   equivocada.
-2. Un comprobante nuevo: **B001-00000003**.
-3. `mesesPromoRestantes`: **1 → 0** (era el segundo y último mes de la promo).
-4. `fechaVencimiento` movido un mes, calculado **desde hoy** porque el anterior ya pasó.
-5. En los logs, el ciclo de renovaciones de las 5:00.
+Extras comprobados: el cargo existe de verdad en **Culqi live** (`venta_exitosa`), el correo del
+comprobante salió (`suppressed` al cliente, **copia a contabilidad `delivered`**) y el `where`
+exacto del cron confirma que **no arrastró a ninguna otra cuenta**.
 
-**Y después, sin falta:** reembolsar **y ANULAR la boleta** dentro de 7 días. Son dos sistemas
-distintos; reembolsar en Culqi no anula nada ante SUNAT.
+### ⏳ Lo que falta, en este orden y sin saltarse ninguno
+
+1. **Esperar al resumen diario.** B001-00000003 está en `PENDIENTE` hasta que el 29 cierre en
+   Lima; el cron lo agrupa a las **~00:05 del 30/08**. Límite de envío **05/09**.
+   🔴 **Se decidió NO forzarlo**: el 23 y el 28 se forzó las dos veces, así que el camino
+   automático del resumen nunca ha corrido solo. Con 7 días de plazo, dejarlo correr lo prueba
+   sin costo.
+2. **Comprobar que SUNAT lo ACEPTÓ** (`estadoSunat: ACEPTADO` y su RC con `sunatCodigo: 0`).
+3. **Reembolsar** — y solo entonces:
+4. **ANULAR la boleta**, dentro de 7 días desde el CDR del resumen.
 
 ```bash
-railway ssh --service api "node scripts/reembolsar-cargo.js <chr_live_...> --aplicar"
+railway ssh --service api "node scripts/reembolsar-cargo.js chr_live_s8Kf6bzHHeefEls3 --aplicar"
 railway ssh --service api "node scripts/anular-boleta.js B001-00000003 --aplicar"
 ```
 
-🔙 **Marcha atrás, si se decide no seguir** (antes de las 5:00): los valores previos eran
-`suscripcionActiva: false` y `fechaVencimiento: 2026-09-28T14:35:03.111Z`.
+⚠️ **Dentro del contenedor, no en local.** En local esos scripts usan las llaves de test y el
+entorno beta de SUNAT, y harían lo correcto contra el sitio equivocado **sin fallar**.
+
+⚠️ Tras el reembolso la cuenta conserva IMPULSO hasta el 29/09 sin haber pagado. No inflama el
+embudo; se limpia con `node scripts/dar-plan.js revisorculqi@gmail.com GRATIS`.
 
 ---
 

@@ -2559,51 +2559,53 @@ flujo entero.
 > cuentas sin verificar— **se ejecutaron el 2026-08-23**. Sus resultados están más abajo y en
 > §12. No hay que repetirlos.
 >
-> 🔴 **URGENTE MAÑANA (2026-08-29) — la RENOVACIÓN, que es el único tramo del cobro
-> que nunca se ha ejercitado y el más caro de equivocar.** Si falla, el cliente paga
-> UNA vez y conserva el plan gratis para siempre: ni error, ni log, ni cargo fallido
-> (§8.6). El cobro del 28/08 no llegó a probarlo —habría caído el 28/09 y al
-> reembolsar ya no cae—, así que se adelanta a mano.
+> ✅ **HECHO Y VERIFICADO el 2026-08-29 — la RENOVACIÓN, que era el único tramo del cobro que
+> nunca se había ejercitado y el más caro de equivocar.** Se armó a mano el 28 (adelantando el
+> vencimiento) y el cron de las 5:00 cobró **solo y desatendido**, que es justo lo que había que
+> probar: llamar al cobro a mano habría probado otra cosa.
 >
-> **Paso 1, hoy o esta noche:** armar la cuenta. Se corre EN LOCAL a propósito (solo
-> escribe en la base; el `.env` local apunta a producción):
+> | Qué | Resultado |
+> |---|---|
+> | Cargo | `chr_live_s8Kf6bzHHeefEls3` · S/14.50 PEN · **`outcome.type: venta_exitosa`** |
+> | Tipo del `Pago` | **RENOVACION**, no INICIAL — entró por la rama correcta |
+> | Comprobante | **B001-00000003** · 1450 = gravadas 1229 + IGV 221, **cuadra al céntimo** |
+> | Promo | `mesesPromoRestantes` 1 → 0. Ejercitó el **segundo y último mes**, que tampoco se había visto |
+> | Vencimiento | vencido el 28/08 → **29/09** |
+> | Logs | `[Culqi] Renovación cobrada a revisorculqi@gmail.com` + `[Comprobante] Emitido B001-00000003` |
+> | Correo | comprobante `suppressed` al cliente (esa dirección rebota desde siempre) y **copia a contabilidad `delivered`** |
 >
-> ```bash
-> cd brand-shield
-> node -r dotenv/config scripts/armar-renovacion.js revisorculqi@gmail.com            # simulacro
-> node -r dotenv/config scripts/armar-renovacion.js revisorculqi@gmail.com --aplicar  # armar
-> ```
+> ⚠️ `paid: false` **otra vez** — tercera confirmación en vivo de que ese campo no dice si se cobró.
 >
-> Pone `suscripcionActiva: true` y adelanta `fechaVencimiento` a ayer. El filtro del
-> cron es `lte` sin `gte`, así que coge todo lo vencido. **El script no cobra nada.**
+> 🔴 **El vencimiento se calculó desde HOY y no desde el anterior, y es correcto.** El código hace
+> `base = fechaVencimiento > ahora ? fechaVencimiento : ahora`: ese `max` con hoy evita que una
+> cuenta muy atrasada quede con el vencimiento todavía en el pasado y se le vuelva a cobrar al día
+> siguiente. La regla de §8.1 —«desde el anterior, no desde hoy»— gobierna el caso normal; este
+> era el otro, y conviene saber distinguirlos antes de leerlo como un fallo.
 >
-> ✅ **ARMADO el 2026-08-28.** Comprobado no con el mensaje del propio script sino
-> **corriendo el `where` exacto del cron**: devuelve 1 cuenta, `revisorculqi@`, y el
-> control confirma que **ninguna otra se cuela** — importa, porque `didierprincipe@`
-> también está vencida, pero sin tarjeta guardada el filtro la descarta.
+> ⚠️ **Se comprobó además que no arrastró a nadie más**, corriendo el `where` exacto del cron en
+> vez de fiarse del log: una sola cuenta cobrada, y `didierprincipe@` —también vencida— descartada
+> por no tener tarjeta guardada, que es lo que debe pasar.
 >
-> 🔙 **Marcha atrás, si se decide no seguir:** los valores previos eran
-> `suscripcionActiva: false` y `fechaVencimiento: 2026-09-28T14:35:03.111Z`.
-> Restaurarlos antes de las 5:00 cancela el cobro sin dejar rastro.
+> ⚠️ **`0 5 * * *` es hora del SERVIDOR (UTC), o sea las 00:00 de Lima**, aunque el comentario del
+> worker diga «5:00 AM». La boleta quedó emitida a las 00:00:07 hora peruana, en el primer segundo
+> del día. Fiscalmente da igual —`fechaPeru` lo calcula bien y el plazo son 7 días— pero significa
+> que **una boleta de renovación siempre espera casi 24 h antes de poder informarse**, porque el
+> resumen solo agrupa días ya cerrados.
 >
-> ⚠️ **La sesión se mudó de PC el 28/08.** Los cinco pasos y el estado exacto están en
-> `docs/ESTADO-AL-MUDARSE.md`, que es lo primero que hay que leer al retomar.
+> ⏳ **Lo que queda es esperar:** B001-00000003 sigue en `PENDIENTE` hasta que el 29 cierre en
+> Lima, y el cron de resúmenes lo agrupa a las ~00:05 del 30/08. Límite de envío **05/09**.
+> 🔴 **Se decidió NO forzarlo** (2026-08-29, con el dueño): el 23 y el 28 se forzó las dos veces,
+> así que **el camino automático del resumen diario nunca ha corrido desatendido**. Es el mismo
+> tipo de tramo que la renovación —algo que corre solo y que nadie ha visto correr solo— y con
+> 7 días de plazo, forzarlo otra vez desperdiciaría la ocasión de probarlo sin costo.
 >
-> **Paso 2, mañana después de las 5:00 AM:** mirar las cinco cosas que el propio
-> script enumera — un `Pago` EXITOSO de **S/14.50** con tipo **RENOVACION** (no
-> INICIAL), el comprobante **B001-00000003**, `mesesPromoRestantes` 1 → 0,
-> `fechaVencimiento` movido un mes, y el ciclo de las 5:00 en los logs.
+> 🔴 **Y después, en ESTE orden: que SUNAT ACEPTE → reembolsar → ANULAR la boleta**, dentro de los
+> 7 días que corren desde el CDR del resumen. Son dos sistemas distintos; reembolsar en Culqi no
+> anula nada ante SUNAT, y una boleta que SUNAT todavía no aceptó no se puede anular.
 >
-> ⚠️ **Cobrará S/14.50 y no S/29**: queda un mes de promo, y el cron parte el
-> `precioBase` por la mitad igual que el alta. De paso ejercita el **segundo mes de
-> la promo**, que tampoco se ha visto nunca.
->
-> 🔴 **Y después, lo de siempre: reembolsar Y ANULAR la boleta dentro de 7 días.**
-> Son dos sistemas distintos; reembolsar en Culqi no anula nada ante SUNAT.
->
-> ⚠️ Si se decide NO hacerlo, hay que dejar la cuenta como está o pasarla a GRATIS
-> (`dar-plan.js`): hoy conserva IMPULSO sin haber pagado hasta el 28/09. No inflama
-> el embudo, que cuenta `suscripcionActiva` y está en `false`.
+> ⚠️ Tras el reembolso la cuenta conserva IMPULSO hasta el 29/09 sin haber pagado, porque
+> `iniciarBajadaDePlanes` solo mira vencimientos ya pasados. No inflama el embudo, que cuenta
+> `suscripcionActiva`. Se limpia con `node scripts/dar-plan.js revisorculqi@gmail.com GRATIS`.
 >
 > 🔴 **Nuevo el 2026-08-26 — los DOS screencasts de la segunda solicitud de App Review.**
 > La solicitud está armada y guardada en el panel (`submission_id 2252144948952187`) con los dos
@@ -2630,9 +2632,8 @@ flujo entero.
 > reembolso `ref_live_GzFISGw0csFYkV2k` y anulación por RC-20260828-2. El detalle y las tres
 > lecciones que dejó están más arriba, en «Cobro real de IMPULSO».
 > ⚠️ **Cobró S/14.50 y no S/29** porque la promo de bienvenida aplicó sola — se supo antes de
-> pagar, no después. Lo que queda **sin ejercitar** de IMPULSO es la **renovación**, que caería
-> el 28/09 y ya no caerá porque la suscripción se reembolsó: eso sigue pendiente y solo se puede
-> ver con un cobro que se deje correr un mes.
+> pagar, no después. Lo que quedaba **sin ejercitar** de IMPULSO era la **renovación**, y se
+> verificó el **2026-08-29** armando el vencimiento a mano para que el cron la cobrara solo.
 >
 > 🔴 **Y desde el 2026-08-25 hay que probar además un cobro CON LOCALES ADICIONALES**, que es
 > camino nuevo y no se ha ejercitado nunca con dinero real: el importe deja de ser el precio de
@@ -3149,10 +3150,10 @@ haber pagado** hasta el 28/09, porque `iniciarBajadaDePlanes` solo mira a los qu
 `fechaVencimiento` ya pasada. No inflama el embudo —ese cuenta `suscripcionActiva`, que está en
 `false`— así que no corre prisa; se limpia con `node scripts/dar-plan.js revisorculqi@gmail.com GRATIS`.
 
-🔴 **Lo que este cobro NO llegó a probar, y sigue pendiente: la RENOVACIÓN.** Habría caído el
-28/09, y al reembolsar la suscripción ya no caerá. Es justo el tramo que si falla **regala el
-plan de por vida sin producir ninguna señal** (§8.6), así que sigue sin ejercitarse con dinero
-real. La única forma de verlo es un cobro que se deje correr un mes.
+✅ **Lo que este cobro no llegó a probar, la RENOVACIÓN, quedó verificado el 2026-08-29** con un
+segundo cobro armado a mano: `chr_live_s8Kf6bzHHeefEls3`, S/14.50, tipo **RENOVACION**, boleta
+**B001-00000003**. Era el tramo que si falla **regala el plan de por vida sin producir ninguna
+señal** (§8.6). El detalle está en §19 B.
 
 
 ⚠️ **La promo de esa tarjeta ya no se puede devolver.** Queda su huella en `promo_tarjetas` y
