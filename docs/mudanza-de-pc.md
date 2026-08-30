@@ -3,6 +3,10 @@
 > Escrito el 2026-08-28, al pasar el trabajo de la PC de casa a la del taller.
 > Complementa `docs/secretos.md`, que responde «si esto se pierde, ¿qué haría falta para
 > volver a tenerlo?». Aquí la pregunta es otra: **qué hay que llevarse.**
+>
+> ✅ **La mudanza está HECHA y verificada el 2026-08-30.** Lo que sigue ya no es un plan: es la
+> receta, probada una vez. **§9 deja escrito cómo quedó la máquina del taller** y las dos cosas
+> que le siguen faltando.
 
 ## La idea en una línea
 
@@ -37,13 +41,16 @@ git log origin/main..HEAD --oneline # tiene que salir vacío
 
 ## 2. Los cinco archivos que NO están en git
 
-| Qué | Dónde está hoy | Nota |
-|---|---|---|
-| `brand-shield/.env` | en el repo, ignorado | 31 claves. **`DATABASE_URL` apunta a PRODUCCIÓN** |
-| `brand-shield-web/.env.local` | ídem | **No lo copies**: se regenera con `vercel env pull` |
-| `certificado.p12` | `C:\Users\Admin\Downloads\` | El certificado tributario de SUNAT |
-| `notoria-upload.jks` | `C:\Users\Admin\Downloads\NotoriaApp-firma\` | 🔴 Nivel 1: **no se puede regenerar** |
-| `keystore.properties` | `C:\Users\Admin\Downloads\NotoriaApp\` | Las 4 claves de firma: `almacen`, `claveAlmacen`, `alias`, `claveAlias` |
+| Qué | Dónde estaba (PC de casa) | Dónde quedó en el taller | Nota |
+|---|---|---|---|
+| `brand-shield/.env` | en el repo, ignorado | ídem | **30 claves** — ver §9 |
+| `brand-shield-web/.env.local` | ídem | ídem | **No lo copies**: se regenera con `vercel env pull` |
+| `certificado.p12` | `C:\Users\Admin\Downloads\` | `C:\Users\Taller\notoria-secrets\` | El certificado tributario de SUNAT |
+| `notoria-upload.jks` | `C:\Users\Admin\Downloads\NotoriaApp-firma\` | `C:\Users\Taller\notoria-secrets\` | 🔴 Nivel 1: **no se puede regenerar** |
+| `keystore.properties` | `C:\Users\Admin\Downloads\NotoriaApp\` | `C:\Users\Taller\NotoriaApp\` | Las 4 claves de firma: `almacen`, `claveAlmacen`, `alias`, `claveAlias` |
+
+⚠️ **`DATABASE_URL` del `.env` apunta a PRODUCCIÓN**, y eso no cambia al mudarse: en la PC nueva
+un script de mantenimiento corre contra la base real desde el primer minuto.
 
 Y aparte, **`brand-shield/respaldos/*.json`** (~1.5 MB): ver §4.
 
@@ -204,9 +211,75 @@ En la PC nueva ponlo en un sitio estable, no ahí.
 - **La ruta de la carpeta afecta a Claude Code.** Su memoria e historial van por ruta
   (`.claude/projects/C--Users-Admin-Downloads-Vigilio`). Si en el taller clonas en otra ruta,
   empiezas con memoria en blanco; no se pierde nada del proyecto, pero conviene saberlo.
+  ✅ **Pasó exactamente eso:** el proyecto vive en `C:\Users\Taller\Vigilio` y la sesión abre
+  desde `C:\Users\Taller`, o sea `.claude/projects/C--Users-Taller`. La memoria arrancó en
+  blanco — por eso la nota de traspaso del 28 tenía que estar **en el repo** y no en la sesión.
 - **`keystore.properties` guarda la ruta del `.jks` en `almacen`.** Si en el taller lo pones en
   otra carpeta, hay que actualizar esa línea o la firma de release falla.
+  ✅ Ya apunta a `C:/Users/Taller/notoria-secrets/notoria-upload.jks` y el archivo está ahí
+  (comprobado el 30/08). La trampa se esquivó; queda escrita porque solo avisa al firmar.
 - **El `.env` local todavía tiene `TELEGRAM_BOT_TOKEN`**, que ya no usa nadie: Telegram se
   eliminó del producto el 2026-08-22. Aprovecha para no copiarlo.
+  ⚠️ **Viajó igual.** Es inofensivo —de `src/` no lo lee nadie, solo lo nombran dos comentarios
+  en `auth.routes.js`— pero sobra. Se quita con `sed -i '42,44d' brand-shield/.env`, que borra
+  la clave y su cabecera; comprobar después que quedan **29** líneas con `=`.
 - **Firewall de Windows**: si vas a probar desde el móvil en la red local, hace falta abrir el
   puerto 3000 en la PC nueva (§7 de `CLAUDE.md`).
+
+---
+
+## 9. Cómo quedó la PC del taller (verificado el 2026-08-30)
+
+No es «arrancó»: es cada cosa comprobada por separado, que es la vara que pone §6.
+
+| Qué | Resultado |
+|---|---|
+| Herramientas | Node **v24.18.0**, npm **11.16.0**, git 2.55.0 — mismas versiones que la PC de casa |
+| `brand-shield` | `node_modules` instalado y **cliente de Prisma generado** (`.prisma/client` existe) |
+| `.env` del backend | **30 claves**, sin líneas sueltas ni duplicadas |
+| `.env.local` del frontend | **solo `VERCEL_OIDC_TOKEN`**, y eso es lo correcto: `vercel env pull` baja el entorno *development*, que está vacío (§5) |
+| Pruebas sin red | `node scripts/prueba-planes.js` → **109 pasadas · 0 fallidas** |
+| Railway | `railway status` desde `brand-shield/` → proyecto **notoria-api**, servicio **api**, entorno production |
+| Vercel | `vercel whoami` → `adi211104`; `.vercel/project.json` enlazado a **notoria-web** |
+| GitHub | `gh auth status` → `adi211104`, scopes `gist, read:org, repo` |
+| Base de producción | alcanzable desde local: 10 usuarios · 13 negocios · 96 reseñas |
+| Build del frontend | `npm run build` **compila entero** |
+| Los 3 secretos fuera del repo | `certificado.p12` y `notoria-upload.jks` en `C:\Users\Taller\notoria-secrets\`, `keystore.properties` en `C:\Users\Taller\NotoriaApp\`. Los otros dos de §2 son los `.env`, que van dentro del repo pero ignorados |
+| Respaldo | regenerado en la máquina nueva y verificado: **1926 filas, 0.67 MB, 0 filas que se perderían** |
+
+### Lo que a esta PC todavía le falta
+
+🔴 **No hay JDK ni Android SDK.** `keytool` no responde y no está instalado Android Studio, así
+que en el taller **no se puede compilar el AAB ni comprobar el keystore** (`keytool -list -v`),
+que es justo lo que §19 E de `CLAUDE.md` manda hacer *antes de nada* al retomar Google Play.
+El `.jks` está a salvo y su ruta configurada; lo que falta es la herramienta para abrirlo.
+⚠️ Es una diferencia real con la PC de casa y no se nota hasta que se intenta publicar, así que
+va escrita acá y no en la cabeza de nadie.
+
+⚠️ **La carpeta `respaldos/` llegó vacía**, como debe (§4). Se regeneró el mismo 30/08. Mientras
+no se regenere, una PC recién mudada **no tiene copia local de nada**: es el hueco más silencioso
+de toda la mudanza, porque todo lo demás falla ruidosamente y esto no falla, simplemente no está.
+
+🔴 **No está la extensión de navegador, y media lista de pendientes la necesita.** Es la tercera
+cosa que no viaja con el repo y la más fácil de no echar en falta, porque nada la reclama: sin
+ella no se puede mirar el buzón de `usenotoria@gmail.com` (el acuse de Google), ni los paneles de
+Meta y Google Cloud, ni cerrar el pendiente del **panel en móvil y en inglés** — que sigue abierto
+justamente porque el proxy sirve desde `localhost:3001`, otro origen, y ahí no hay sesión.
+
+- Se instala desde la Chrome Web Store (busca «Claude», extensión de Anthropic) y después se
+  arranca la sesión con `claude --chrome`, o se deja fijo con `/chrome` → *Enabled by default*.
+- Funciona en Chrome, Edge y los demás Chromium (Brave, Arc, Vivaldi, Opera). **No en WSL.**
+- ⚠️ **Una sesión sin `--chrome` no tiene herramientas de navegador aunque la extensión esté
+  instalada.** Es la confusión previsible: la extensión es condición necesaria, no suficiente.
+
+### Lo que la mudanza dejó como enseñanza
+
+🔴 **Lo que se arregló en origen, no documentando.** npm 11 no ejecuta scripts de instalación por
+defecto y dejaba a Prisma **sin motores, en silencio**. Se resolvió con el campo `allowScripts`
+en los dos `package.json` (commit `0496e7d`), porque una trampa que solo vive en un documento se
+la come el siguiente que no lo lea. **No borrar ese campo.**
+
+⚠️ **Reproducir la mudanza destapó cosas que nada más habría destapado:** `dar-plan.js` se había
+quedado sin IMPULSO en su lista de planes, el contador de `prueba-planes.js` decía 64 cuando eran
+109, y un par de rutas seguían apuntando a la PC anterior. Ninguna se ve desde una máquina que ya
+funciona — que es el argumento para instalar de cero de vez en cuando aunque no toque mudarse.

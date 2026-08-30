@@ -2548,6 +2548,14 @@ acuse** a `usenotoria@gmail.com`. La vez pasada nunca llegó, y esa ausencia fue
 que algo no había ido bien. A los dos minutos del envío todavía no estaba, lo cual no dice nada.
 Si en 24 h no ha llegado, el caso probablemente no se registró.
 
+🔴 **El plazo de esas 24 h se cumplió el 2026-08-30 y el buzón SIGUE SIN MIRARSE.** No es que no
+haya llegado: es que nadie ha comprobado si llegó, que no es lo mismo y conviene no confundirlo
+dentro de una semana. La comprobación necesita el buzón —o sea navegador—, y la PC del taller
+todavía no tiene la extensión instalada (`docs/mudanza-de-pc.md` §9).
+⚠️ **Es la única señal temprana que existe.** Si no llegó el acuse, esperar los 7-10 días hábiles
+es esperar de balde por segunda vez, y lo que toca es rehacer el envío por el asistente
+(`support.google.com/business/workflow/16726127`) en vez de dejar correr el plazo.
+
 ### Revisión del 2026-08-27 — sin acceso, verificado por SIETE vías
 
 `Requests per minute = 0` en **las tres** APIs de GBP habilitadas
@@ -2767,10 +2775,22 @@ flujo entero.
 > Sigue sin haber cron, a propósito: el archivo lleva datos personales de terceros. Una vez al
 > mes basta hoy.
 >
+> ✅ **Y otro el 2026-08-30, el primero de la PC del taller:** 1926 filas, 0.67 MB, verificado
+> con `--verificar` y **0 filas que se perderían** (`respaldos/notoria-2026-08-30T13-08-49.json`).
+> La carpeta llegó **vacía** a la máquina nueva, que es lo correcto —los respaldos no viajan, se
+> regeneran (`docs/mudanza-de-pc.md` §4)—, pero significaba que durante dos días la única copia
+> viva estaba en la PC de casa. Regenerarlo es lo que **cierra** una mudanza, no un extra.
+> ⚠️ **Bajó de 2488 a 1926 filas y no falta nada:** el del 28 se tomó **antes** de borrar la
+> cuenta de prueba. El detalle, en «Estado de la base de producción» al final de esta sección.
+>
 > 🟡 **Nuevo el 2026-08-28 — un monitor de uptime EXTERNO.** El workflow de Actions ya avisa
 > cuando deja de mirar, pero sigue sin mirar cada 15 minutos: GitHub degrada los cron y los
 > huecos medidos llegaron a 11 h. UptimeRobot y BetterStack tienen plan gratuito y vigilan desde
 > fuera de GitHub, que es lo que falta. Requiere crear una cuenta, así que lo hace el dueño.
+> ⚠️ **Sigue igual de vigente el 2026-08-30, medido otra vez:** en las últimas 24 h los huecos
+> entre corridas fueron de **5,0 h y 5,1 h**. El arreglo del 29 quitó los correos falsos, y por
+> eso mismo el problema es ahora más fácil de olvidar: la bandeja está limpia y la vigilancia
+> sigue siendo de una vez cada cinco horas.
 >
 > 🔴 **Lo único verdaderamente irreversible que sigue abierto: respaldar
 > `notoria-upload.jks` y su contraseña fuera de esta PC.** Si esa clave se pierde antes de la
@@ -2960,8 +2980,37 @@ por el paso 1 de esta lista, no por el principio:
 esa clave se perdiera durante la espera, no hay app que publicar. Y releer los requisitos de
 alta en la consola, que Google los cambia.
 
+🔴 **Y desde el 2026-08-30 eso exige un paso previo que antes no existía: la PC del taller no
+tiene JDK ni Android SDK.** `keytool` no está, así que la comprobación de arriba **hoy no se
+puede hacer**, y el AAB tampoco se puede reconstruir — que es justo lo que
+`NotoriaApp/PENDIENTES.md` exige desde que el backend estrenó Impulso. Instalar un JDK (o
+Android Studio) deja de ser un detalle de entorno y pasa a ser el **paso 0** de publicar.
+⚠️ Lo que sí viajó es lo que no se puede regenerar: el `.jks` vive en la carpeta
+`notoria-secrets` del taller y `keystore.properties` ya apunta ahí, comprobado. Falta la
+herramienta, no la clave — y de las dos, la herramienta es la que se arregla descargando algo.
 
-### Estado de la base de producción (última lectura, 2026-08-25)
+### Estado de la base de producción (última lectura, 2026-08-30)
+
+`10 usuarios (4 sin verificar, 1 con idioma 'en') · 13 negocios (8 activos, 12 place IDs
+distintos) · 1612 snapshots · 96 reseñas (14 de ≤2★) · **4 alertas** · 2 competidores con 174
+snapshots · 3 pagos (S/1 + S/14.50 + S/14.50, los tres REEMBOLSADO) · 3 comprobantes
+(B001-00000001/2/3, los tres ANULADO) · 6 resúmenes SUNAT · 1 promo_tarjeta · 0 miembros ·
+0 invitaciones · 0 reclamaciones · 0 menciones · **0 cuentas con locales extra**`.
+
+🔴 **Los totales BAJARON respecto al 25/08 y no se ha perdido nada.** El 28 se borró la cuenta
+de prueba y con ella se fueron sus negocios, sus snapshots y un competidor; el respaldo se tomó
+justo antes, a propósito. Conviene dejarlo escrito porque la serie de snapshots es lo único
+irrecuperable que tiene Notoria (`scripts/respaldo.js`): el día que encoja de verdad el reflejo
+tiene que ser alarmarse, y para eso las caídas explicables no pueden quedar sin explicar.
+
+⚠️ **Las alertas van por 4, y las dos nuevas también son REALES:** KFC el 26/08 y La Mar otra
+vez el 29/08, las dos `RESENA_MUY_NEGATIVA` y las cuatro con `notificada: true`. El circuito
+lleva una semana disparando solo, sin un ensayo de por medio.
+
+✅ **Los tres comprobantes están ANULADOS y ninguno es de un cliente.** La serie B001 va por el
+correlativo 3, gastado entero en las tres pruebas de cobro. **Cargos reales de clientes: cero.**
+
+#### Lectura anterior (2026-08-25)
 
 `11 usuarios (4 sin verificar, 1 con idioma 'en') · 15 negocios (10 activos, 9 place IDs
 distintos) · 1845 snapshots · 92 reseñas (14 de ≤2★) · **2 alertas** · 3 competidores con 433
@@ -3309,6 +3358,18 @@ HEAD` y `HEAD~1`) y ejecutarlo con huecos inventados:
 
 Es el «404 de control» aplicado a un cambio propio: ante un verde, preguntar primero si la prueba
 sabía ponerse en rojo.
+
+✅ **Confirmado en producción el 2026-08-30, y esta vez sin simular nada.** Las últimas 15
+corridas dicen que el corte está donde debe: **las cinco `failure` son todas ANTERIORES** al
+arreglo (la última, 29/08 14:35 UTC) y **desde entonces van siete verdes seguidas** — entre ellas
+dos corridas programadas con huecos de **299 y 307 minutos**, o sea por encima del umbral de 4 h
+que antes las habría tumbado. El caso que la tabla de arriba predijo con «300 min → exit 0»
+ocurrió solo, dos veces, y salió como decía.
+
+🔴 **Y de paso, el argumento del monitor externo se hizo más fuerte, no menos:** esos mismos
+huecos de **5,0 h y 5,1 h son de las últimas 24 horas**, con el `*/15` intacto. El arreglo quitó
+el ruido del buzón; **no acercó ni un minuto la vigilancia real**. Un verde de este workflow
+sigue significando «cuando miré, respondía», nunca «lleva quince minutos bien».
 
 ⚠️ **Sigue siendo una mitigación.** El arreglo es el monitor externo, y ahora tiene un argumento
 medido en vez de una intuición: el 2026-08-28 hubo una ventana de **11,8 h** en la que nadie
