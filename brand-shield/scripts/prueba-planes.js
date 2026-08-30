@@ -397,6 +397,43 @@ check('CONTROL: la sonda no ve una cadencia inventada',
   !numerosDe(resumenEs).includes(7) && !numerosDe(resumenEn).includes(7));
 
 // ─────────────────────────────────────────────────────────────────────────────
+titulo('13. El nav no ofrece una función que el plan no incluye');
+
+// 🔴 Encontrado el 2026-08-29 abriendo el panel con una cuenta IMPULSO: el ítem
+// «Menciones» salía en la barra lateral, y `mencion.routes.js` contestaba 403 al
+// entrar. El nav se apoyaba, sin decirlo, en que Instagram estuviera APAGADO:
+// con la única fuente oculta `hayFuenteDisponible` daba false para todos. Al
+// encender INSTAGRAM_ACTIVO el 26/08 la muleta desapareció.
+const perfilSrc = fs.readFileSync(path.join(RAIZ, 'src', 'api', 'routes', 'auth.routes.js'), 'utf8');
+const lineaBandera = (perfilSrc.match(/mencionesDisponibles:.*/) || [''])[0];
+
+check('el perfil existe y expone mencionesDisponibles', !!lineaBandera);
+check('mencionesDisponibles mira TAMBIÉN el plan',
+  /puede\(\s*req\.cuenta\.plan\s*,\s*'menciones'\s*\)/.test(lineaBandera),
+  `dice: ${lineaBandera.trim()}`);
+check('el sujeto es la CUENTA, no la persona (quien paga es la empresa)',
+  !/req\.usuario\.plan/.test(lineaBandera));
+
+// Control: la sonda tiene que saber ponerse en rojo. La versión anterior de esa
+// línea —solo `hayFuenteDisponible(req.cuenta)`— debe fallarla.
+check('CONTROL: la sonda rechaza la versión sin gating por plan',
+  !/puede\(\s*req\.cuenta\.plan\s*,\s*'menciones'\s*\)/
+    .test('mencionesDisponibles: hayFuenteDisponible(req.cuenta) });'));
+
+// Y el otro lado: la ruta sigue gateada. Si alguna vez se quita de ahí, el nav
+// dejaría de ser la última defensa.
+const rutaMenciones = fs.readFileSync(path.join(RAIZ, 'src', 'api', 'routes', 'mencion.routes.js'), 'utf8');
+check('la ruta de menciones sigue gateada por plan',
+  /verificarPlan\(planesCon\('menciones'\)\)/.test(rutaMenciones));
+
+// Los dos lados tienen que decir lo MISMO: el nav se calcula con `puede` y la
+// ruta con `planesCon`, así que se comprueba que coincidan plan por plan.
+for (const plan of planes.ORDEN) {
+  check(`${plan}: nav y ruta coinciden sobre menciones`,
+    planes.puede(plan, 'menciones') === planes.planesCon('menciones').includes(plan));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 console.log('\n──────────────────────────────────────────────────');
 console.log(`${ok} pasadas · ${fallos} fallidas`);
 process.exit(fallos ? 1 : 0);

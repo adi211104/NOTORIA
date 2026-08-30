@@ -3051,6 +3051,62 @@ fuente única cambia su forma (mapa → función), y los call-sites viejos sigue
 ⚠️ **Al convertir un mapa en función, buscar los `[` que lo indexan.** `grep -rn "NOMBRE\["` es
 literalmente todo lo que hacía falta.
 
+### 🔴 Cuatro fallos que solo se vieron ABRIENDO la página (2026-08-29)
+
+Tercera vez que pasa esto, después del 24 y del 25, y **con la misma forma exacta**: la suite en
+verde (81 comprobaciones en `prueba-planes.js`), el build limpio, la consola sin un error, y cuatro
+fallos en producción que solo aparecen mirando. Los cuatro **fallan suave**: hay un valor de
+reserva, o el enlace va a un sitio válido, o la ruta contesta un 403 correcto. Nada lanza.
+
+| Qué se veía | Qué pasaba |
+|---|---|
+| El landing decía **«Plan actual» sobre el Gratuito** a un cliente que paga | El CTA se decidía por el ÍNDICE: `i===0 ? ctaActual : ctaUpgrade`. A cualquiera con sesión le señalaba el gratuito como suyo y «Actualizar» sobre el plan que ya pagaba |
+| «Escaneo programado cada **1, 4 o 24 horas**» | Se comió las **12 h de IMPULSO**, en los dos idiomas, desde el 24/08 |
+| El panel ofrecía **«Menciones» a una cuenta IMPULSO** | El nav no gateaba por plan; la ruta sí (403). Una puerta cerrada — ver abajo, es el más interesante |
+| Al responder una reseña, el panel decía **«copiada»** aunque el backend fallara | No se miraba `res.ok`. La respuesta no se guardaba y el usuario se iba convencido de que sí |
+
+🔴 **El de Menciones es el que deja la lección, porque nadie lo introdujo: lo destapó encender otra
+cosa.** El nav se apoyaba, sin decirlo en ninguna parte, en que Instagram estuviera **apagado**: con
+la única fuente oculta, `hayFuenteDisponible` daba `false` para todos y Menciones no se veía. Al
+poner `INSTAGRAM_ACTIVO=true` el 26/08 esa muleta desapareció y quedó a la vista que **el gating por
+plan nunca existió en el nav**. El propio comentario del código documentaba la suposición que se
+rompió — *«para el resto no hay ninguna fuente encendida, así que Menciones vuelve a estar
+invisible»*.
+- ⚠️ **La regla que deja: encender un interruptor puede DESTAPAR un hueco, no solo abrir una
+  función.** Al activar algo que llevaba tiempo apagado, mirar qué otras decisiones se estaban
+  apoyando en ese apagado.
+- El arreglo mira `req.cuenta.plan`, no `req.usuario.plan`, igual que `verificarPlan`: quien paga es
+  la empresa, y preguntar por la persona le escondería la sección al invitado de una cuenta que sí
+  la tiene contratada.
+
+⚠️ **Y el del `res.ok` es el `.catch(console.error)` otra vez, por un cuarto camino:** decirle al
+usuario que algo salió bien sin haberlo comprobado. Junto a él había un segundo agujero en el mismo
+bloque — el destino se construía desde `negocio.googlePlaceId` **sin mirar la plataforma de la
+reseña**, así que una reseña de FACEBOOK abriría Google Maps en cuanto el negocio tuviera ficha de
+Google. Hoy no se nota porque Facebook sigue tras interruptor; el día que se encienda no habría dado
+ninguna señal. El backend ya calculaba el enlace correcto en `linkRespuesta` y el frontend lo tiraba.
+
+✅ **Lo que ahora los vigila:** `prueba-planes.js` pasó de **81 a 109 comprobaciones**, con dos
+bloques nuevos que **leen el fuente** — el 12 ata las tarjetas del landing al orden y a la cadencia
+de cada plan (y falla si el CTA vuelve a mirar el índice), y el 13 comprueba que el nav y la ruta de
+menciones digan lo mismo plan por plan. Los dos **llevan su control**, y se comprobó que saben
+fallar: reintroduciendo los bugs, el bloque 12 caza 3 comprobaciones y el mensaje dice exactamente
+qué texto está mal.
+
+⚠️ **Lo que el repaso NO cubrió, para que no se dé por hecho:** el panel en **móvil**, el panel en
+**inglés**, el FAQ y el pie del landing, y el flujo de registro/onboarding con una cuenta nueva.
+Se revisaron landing, `/precios` y la pantalla de inicio del panel, en escritorio y en español.
+
+🟡 **Y un hueco de producto que NO se tocó porque es una decisión, no un bug:** en `/precios`,
+`esActual` compara **solo el plan y no el periodo**, así que a un cliente de IMPULSO mensual le
+marca «Es tu plan actual» también sobre el **anual**, con el botón deshabilitado. O sea que **no
+puede pasarse a anual desde el catálogo** — y el anual es justo a lo que conviene empujar. Dejarlo
+habilitado tal cual sería peor: cobraría el año entero y arrancaría el vencimiento desde hoy,
+tirando los días ya pagados (el mismo problema que el prorrateo resolvió para los locales, §8.8).
+⚠️ Además `periodoFacturacion` **no llega al frontend** —el perfil no lo devuelve—, así que ni
+siquiera se puede distinguir hoy. Arreglarlo bien es: exponer el periodo, y decidir si el cambio
+mensual→anual se prorratea o se aplica al vencer.
+
 ### 🔴 Lo que enseñó el 2026-08-25, y que ninguna prueba vio
 
 El día se cerró con **~570 comprobaciones en verde, el build limpio y la consola sin un

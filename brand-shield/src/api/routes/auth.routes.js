@@ -13,6 +13,8 @@ const prisma = require('../../lib/prisma');
 const router = express.Router();
 const { autenticar } = require('../middlewares/auth.middleware');
 const { hayFuenteDisponible } = require('../../lib/menciones');
+// La capacidad sale de la tabla de planes, nunca de una lista escrita a mano (§8.6).
+const { puede } = require('../../lib/planes');
 const { dondeNegocio, permisosDe, cuentasDe } = require('../../lib/equipo');
 
 // 🔴 El correo se normaliza SIEMPRE antes de tocar la base.
@@ -272,16 +274,27 @@ router.get('/perfil', autenticar, async (req, res, next) => {
       alcanceParcial: !!req.alcance,
     };
 
-    // Bandera de disponibilidad, no una columna del usuario: depende sobre todo
-    // de la configuración del servidor. Viaja en el perfil porque el layout del
-    // dashboard ya lo carga y así no hace falta un request extra solo para
-    // decidir si el menú muestra "Menciones".
+    // Bandera de disponibilidad, no una columna del usuario: depende de la
+    // configuración del servidor Y del plan de la cuenta. Viaja en el perfil
+    // porque el layout del dashboard ya lo carga y así no hace falta un request
+    // extra solo para decidir si el menú muestra "Menciones".
     //
-    // Se le pasa el usuario porque hoy la única fuente es Instagram y está
-    // oculto hasta que Meta apruebe, salvo para las cuentas de prueba de la
-    // revisión (lib/instagramVisible.js). Para el resto no hay ninguna fuente
-    // encendida, así que Menciones vuelve a estar invisible.
-    res.json({ ...usuario, mencionesDisponibles: hayFuenteDisponible(req.cuenta) });
+    // 🔴 Hasta el 2026-08-29 esto NO miraba el plan, y el nav se apoyaba sin
+    // saberlo en que Instagram estuviera apagado: con la única fuente oculta,
+    // `hayFuenteDisponible` daba false para todos y Menciones no se veía. Al
+    // encender INSTAGRAM_ACTIVO el 26/08 esa muleta desapareció y el ítem
+    // empezó a salirle también a GRATIS e IMPULSO, que no lo tienen — hacían
+    // clic y `mencion.routes.js` les contestaba 403. Una puerta cerrada, que es
+    // justo lo que este producto no hace (§8.4, y el mismo fallo que la fila
+    // fija de Facebook y el bloque de locales en un plan que no los vende).
+    //
+    // ⚠️ El sujeto es `req.cuenta`, igual que `verificarPlan`: quien paga es la
+    // empresa, no cada persona. Preguntar por `req.usuario.plan` le escondería
+    // la sección al invitado de una cuenta que sí la tiene contratada.
+    res.json({
+      ...usuario,
+      mencionesDisponibles: hayFuenteDisponible(req.cuenta) && puede(req.cuenta.plan, 'menciones'),
+    });
   } catch (error) {
     next(error);
   }
