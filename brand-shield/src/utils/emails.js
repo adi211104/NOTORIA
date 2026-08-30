@@ -122,6 +122,14 @@ const CUENTA = {
     cancelConserva: 'Tus negocios siguen monitoreados y no se borra nada de tu historial. Puedes reactivar el plan cuando quieras.',
     cancelCta: 'Ver mis planes →',
     cancelFeedback: 'Si cancelaste por algo que podamos mejorar, respóndenos a este correo: lo leemos todo.',
+
+    reembolsoAsunto: (importe) => `Te devolvimos ${importe} — Notoria`,
+    reembolsoTitulo: 'Reembolso emitido',
+    reembolsoIntro: (n, importe) => `Hola ${n}, emitimos la devolución de <strong>${importe}</strong> a la misma tarjeta con la que pagaste.`,
+    reembolsoPlazo: 'El dinero lo tiene que asentar tu banco, y eso suele tardar <strong>entre 5 y 15 días hábiles</strong> según el emisor. De nuestro lado ya está hecho: si pasado ese plazo no aparece en tu estado de cuenta, reclámaselo a tu banco citando la fecha de este correo.',
+    reembolsoSinCobros: 'No volveremos a cobrarte automáticamente.',
+    reembolsoCta: 'Ver mi facturación →',
+    reembolsoDudas: '¿Algo no cuadra? Respóndenos a este correo y lo revisamos.',
   },
   en: {
     bienvenidaAsunto: (n) => `Welcome to Notoria, ${n}`,
@@ -170,6 +178,14 @@ const CUENTA = {
     cancelConserva: 'Your businesses stay monitored and nothing in your history is deleted. You can reactivate the plan whenever you want.',
     cancelCta: 'See my plans →',
     cancelFeedback: 'If you cancelled over something we can fix, reply to this email: we read every one.',
+
+    reembolsoAsunto: (importe) => `We refunded ${importe} — Notoria`,
+    reembolsoTitulo: 'Refund issued',
+    reembolsoIntro: (n, importe) => `Hi ${n}, we issued a refund of <strong>${importe}</strong> to the same card you paid with.`,
+    reembolsoPlazo: 'Your bank still has to post it, and that usually takes <strong>5 to 15 business days</strong> depending on the issuer. On our side it is already done: if it has not shown up on your statement after that, claim it with your bank quoting the date of this email.',
+    reembolsoSinCobros: 'We will not charge you automatically again.',
+    reembolsoCta: 'View my billing →',
+    reembolsoDudas: 'Something not adding up? Reply to this email and we will look into it.',
   },
 };
 
@@ -1087,6 +1103,40 @@ const enviarCancelacion = async (usuario, fechaFin) => {
   return res;
 };
 
+// ── Reembolso ─────────────────────────────────────────────
+//
+// 🔴 POR QUÉ EXISTE. Hasta el 2026-08-30 devolver el dinero no avisaba a nadie:
+// `procesarReembolso` actualizaba la base y mandaba el aviso INTERNO de anulación
+// pendiente, pero al cliente no le llegaba nada. Se descubrió con el reembolso de
+// prueba, cuando el propio dueño esperó un correo que el producto nunca mandó.
+//
+// ⚠️ EL PLAZO BANCARIO VA EN EL CORREO A PROPÓSITO. Un reembolso emitido y todavía
+// no visible en la tarjeta es indistinguible, para quien lo espera, de un reembolso
+// que no se hizo. Sin esa frase, cada devolución genera un reclamo evitable.
+//
+// ⚠️ No dice nada del comprobante: anularlo ante SUNAT es un trámite aparte y
+// manual, y cuando esto se envía casi nunca ha ocurrido todavía. Prometerlo aquí
+// sería mentir en el 100% de los casos.
+const enviarReembolso = async (usuario, { monto, moneda }) => {
+  const t = textosCuenta(usuario);
+  const importe = `${moneda === 'USD' ? 'USD' : 'S/'} ${(monto / 100).toFixed(2)}`;
+  const res = await getResend().emails.send({
+    from: FROM(), to: usuario.email,
+    subject: t.reembolsoAsunto(importe),
+    html: base(`
+      ${h1(t.reembolsoTitulo)}
+      ${p(t.reembolsoIntro(esc(usuario.nombre?.split(' ')[0] || ''), importe))}
+      ${hr()}
+      ${p(t.reembolsoPlazo)}
+      ${p(t.reembolsoSinCobros)}
+      ${btn(t.reembolsoCta, `${FRONT()}/dashboard/facturacion`)}
+      ${p(`<span style="font-size:12px;color:#9C9B96;">${t.reembolsoDudas}</span>`)}
+    `),
+  });
+  console.log(`[Cobro] Aviso de reembolso enviado a ${usuario.email}`);
+  return res;
+};
+
 // ── 18. Invitación al equipo ──────────────────────────────
 //
 // El enlace lleva el token en claro; en la base solo vive su hash (ver
@@ -1161,4 +1211,4 @@ const enviarSalidaEquipo = async ({ miembro, cuenta }) => {
   });
 };
 
-module.exports = { enviarBienvenida, enviarVerificacion, enviarConfirmacionContrasena, enviarRecuperacionContrasena, enviarAlertaCritica, enviarResumenAlertas, enviarResumenSemanal, enviarResumenSemanalConsolidado, enviarComprobante, enviarDrip, enviarCargoReclamacion, enviarAvisoReclamacionInterno, enviarRespuestaReclamacion, enviarAvisoPlazoReclamaciones, enviarAvisoAnulacionPendiente, enviarConfirmacionCambioPassword, enviarCobroFallido, enviarCancelacion, enviarInvitacionEquipo, enviarAvisoNuevoMiembro, enviarSalidaEquipo, getResend, FROM, base, h1, p, btn, hr };
+module.exports = { enviarBienvenida, enviarVerificacion, enviarConfirmacionContrasena, enviarRecuperacionContrasena, enviarAlertaCritica, enviarResumenAlertas, enviarResumenSemanal, enviarResumenSemanalConsolidado, enviarComprobante, enviarDrip, enviarCargoReclamacion, enviarAvisoReclamacionInterno, enviarRespuestaReclamacion, enviarAvisoPlazoReclamaciones, enviarAvisoAnulacionPendiente, enviarConfirmacionCambioPassword, enviarCobroFallido, enviarCancelacion, enviarReembolso, enviarInvitacionEquipo, enviarAvisoNuevoMiembro, enviarSalidaEquipo, getResend, FROM, base, h1, p, btn, hr };

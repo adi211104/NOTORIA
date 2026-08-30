@@ -7,7 +7,7 @@ const prisma = require('../../lib/prisma');
 const culqi = require('../../lib/culqi');
 const tributario = require('../../lib/tributario');
 const { emitirComprobante, pdfDeComprobante } = require('../../services/comprobante.service');
-const { enviarCancelacion, enviarAvisoAnulacionPendiente } = require('../../utils/emails');
+const { enviarCancelacion, enviarReembolso, enviarAvisoAnulacionPendiente } = require('../../utils/emails');
 const anulacion = require('../../lib/anulacionPendiente');
 const { autenticar, permitir } = require('../middlewares/auth.middleware');
 
@@ -105,7 +105,14 @@ const procesarReembolso = async (datos) => {
 
   const pago = await prisma.pago.findUnique({
     where: { culqiCargoId: cargoId },
-    select: { id: true, usuarioId: true, culqiCargoId: true, estado: true, comprobante: true },
+    select: {
+      id: true, usuarioId: true, culqiCargoId: true, estado: true, comprobante: true,
+      monto: true, moneda: true,
+      // 🔴 `idioma` no es opcional: sin él el aviso de reembolso sale siempre en
+      // español, sin fallar y sin dejar rastro. Es la mitad que se olvida —
+      // prueba-correos-idioma.js §4 la vigila leyendo este mismo fuente.
+      usuario: { select: { email: true, nombre: true, idioma: true } },
+    },
   });
   if (!pago) {
     // Puede ser legítimo (un cargo hecho fuera de Notoria), pero si empieza a
@@ -117,6 +124,15 @@ const procesarReembolso = async (datos) => {
   await prisma.pago.update({ where: { id: pago.id }, data: { estado: 'REEMBOLSADO' } });
   await prisma.usuario.update({ where: { id: pago.usuarioId }, data: { suscripcionActiva: false } });
   console.log(`[Culqi webhook] Reembolso aplicado al cargo ${cargoId}`);
+
+  // El cliente no se enteraba por ningún sitio de que se le devolvió el dinero.
+  // Va con su propio catch, igual que el aviso de anulación: un fallo del correo
+  // no puede tumbar el webhook, o Culqi lo reintentaría y acabaría desactivando
+  // la suscripción de eventos.
+  if (pago.usuario?.email) {
+    await enviarReembolso(pago.usuario, { monto: pago.monto, moneda: pago.moneda })
+      .catch((e) => console.error('[Cobro] No se pudo avisar del reembolso:', e.message));
+  }
 
   // 🔴 Devolver el dinero NO anula el comprobante ante SUNAT, y el plazo para
   // anularlo son 7 días. Sin este aviso queda declarada una venta cuyo importe

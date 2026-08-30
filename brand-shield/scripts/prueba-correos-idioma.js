@@ -71,6 +71,7 @@ const BILINGUES = [
   'enviarBienvenida', 'enviarConfirmacionContrasena', 'enviarRecuperacionContrasena',
   'enviarConfirmacionCambioPassword', 'enviarCobroFallido', 'enviarCancelacion',
   'enviarInvitacionEquipo', 'enviarAvisoNuevoMiembro', 'enviarSalidaEquipo',
+  'enviarReembolso',
 ];
 
 // Los cinco que quedan están en español POR DECISIÓN, y el motivo va escrito.
@@ -229,6 +230,22 @@ const correr = async () => {
   check('🔴   …y la FECHA se formatea en el idioma del destinatario',
     /setiembre/.test(enviados[0].html) && /September/.test(enviados[1].html),
     'estaba fija con toLocaleDateString("es-PE"): metía "15 de setiembre" en un párrafo en inglés');
+
+  // 🔴 El correo que faltaba. Nació de un reembolso real (2026-08-30) en el que
+  // quien lo esperaba no recibió nada: el producto devolvía el dinero en silencio.
+  // La segunda comprobación es la que de verdad importa — sin el plazo bancario
+  // el correo llega y aun así deja al cliente pensando que no le devolvieron nada.
+  enviados = [];
+  await emails.enviarReembolso(usr('es'), { monto: 1450, moneda: 'PEN' });
+  await emails.enviarReembolso(usr('en'), { monto: 1450, moneda: 'PEN' });
+  check('reembolso', /Te devolvimos/.test(enviados[0].subject) && /We refunded/.test(enviados[1].subject),
+    `${enviados[0].subject} / ${enviados[1].subject}`);
+  check('  …con el importe formateado en soles', /S\/ 14\.50/.test(enviados[0].html));
+  check('🔴   …y avisa del PLAZO BANCARIO, que es lo que evita el "no me llegó el dinero"',
+    /días hábiles/.test(enviados[0].html) && /business days/.test(enviados[1].html),
+    'sin esta frase, un reembolso emitido parece un reembolso que no se hizo');
+  check('  …y no promete que el comprobante quede anulado (es un trámite aparte)',
+    !/anulad/i.test(enviados[0].html) && !/void|cancelled invoice/i.test(enviados[1].html));
 
   enviados = [];
   const proximo = new Date('2026-08-29T12:00:00');

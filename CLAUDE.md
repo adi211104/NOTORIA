@@ -539,6 +539,8 @@ debe cuadrar con ese archivo, y el landing deriva el anual con `Math.round(p.p*0
 | **`culqi.obtenerOCrearCliente()` en el alta**, nunca `crearCliente` directo | Culqi rechaza un segundo customer con el mismo correo → quien se suscribiera dos veces quedaba sin poder pagar nunca |
 | **`culqi.datosTarjeta(cargo)`** para leer marca y últimos dígitos | Con **tarjeta guardada** los campos van en `cargo.source.source`, no en `cargo.source`. Leerlos mal dejaba el historial vacío **en silencio** |
 | **`paid` NO indica si el cobro se hizo** | Una venta aceptada devuelve `paid: false` (se refiere a la liquidación). El estado real es `outcome.type === 'venta_exitosa'` |
+| **`creation_date` viene en MILISEGUNDOS** | No en segundos. Multiplicarlo por 1000, como pide el constructor de `Date`, da el **año 58631** — un absurdo tan visible que se detecta, pero solo si alguien mira la fecha. Comprobado el 2026-08-30 sobre un cargo y un reembolso reales |
+| **El reembolso se consulta con `GET /refunds/{id}`** | `culqi.js` solo sabe crearlos. El estado que interesa es `status: "completa"`, y en el cargo, `amount_refunded` con el importe en céntimos |
 | **`Culqi.close()` va primero** en el callback `window.culqi`, antes de cualquier `await` | El widget entrega el token y **deja su ventana abierta**: el cobro se procesaba detrás de un formulario que seguía visible |
 | El resultado del pago vive en `components/ResultadoPago.js` | Superposición a pantalla completa, inmune al scroll, sin redirección automática. Un aviso de pago no puede depender de dónde esté el scroll |
 | La moneda es única y sale de `precios.js` | Ambos call-sites la pasan explícita; `Pago.moneda` tiene default `"PEN"` |
@@ -552,6 +554,16 @@ solo lo de hoy (si no, un día sin correr dejaba vencimientos atrás para siempr
 vencimiento se calcula **desde el anterior**, no desde hoy, para no comerle días ni correrle
 el aniversario. Cron aparte `iniciarBajadaDePlanes` (5:30 AM) para quien canceló y ya terminó
 su periodo pagado.
+
+**Reembolsar:** `scripts/reembolsar-cargo.js <chargeId> --aplicar`. El webhook
+`refund.creation.succeeded` marca el `Pago` como `REEMBOLSADO`, pone `suscripcionActiva:
+false` y **avisa al cliente por correo** (`enviarReembolso`, bilingüe). 🔴 **Ese correo lleva
+el plazo bancario a propósito** — entre 5 y 15 días hábiles según el emisor. Nació el
+2026-08-30, cuando un reembolso real emitido y correcto pareció no haberse hecho porque el
+dinero no estaba en la tarjeta unas horas después y el producto no mandaba nada: un reembolso
+emitido y todavía no asentado es indistinguible, para quien lo espera, de uno que no ocurrió.
+⚠️ El correo **no** menciona el comprobante: anularlo ante SUNAT es un trámite aparte y manual
+(§9), y cuando ese correo sale casi nunca ha ocurrido todavía.
 
 **Cancelar:** `POST /api/pagos/cancelar` + sección **Suscripción** en Configuración (ese
 nombre exacto: `/devoluciones` y el FAQ lo prometen así). Apaga la renovación y **conserva el
