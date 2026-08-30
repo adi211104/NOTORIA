@@ -29,6 +29,24 @@ Detecta reseñas falsas, ataques de bots y caídas de rating.
 
 ## 2. Repositorio, stack y comandos
 
+> ### 🖥️ Dónde se trabaja: la PC del taller, desde el 2026-08-30
+>
+> **Nuevo entorno, mismo trabajo.** El proyecto vive en `C:\Users\Taller\Vigilio` y la sesión
+> abre desde `C:\Users\Taller`. La PC de casa (`C:\Users\Admin\Downloads\Vigilio`) **deja de ser
+> la máquina de referencia**: lo que esté solo allí no cuenta, y las rutas de este archivo que
+> empiecen por `C:\Users\Admin\` son historia, no instrucciones.
+>
+> ⚠️ **Lo que cambia de verdad no es la ruta, son tres cosas que la máquina nueva no tiene** y
+> que ninguna prueba detecta porque no fallan, simplemente faltan — están en
+> `docs/mudanza-de-pc.md` §9: **JDK/Android SDK** (sin `keytool` no hay AAB ni comprobación del
+> keystore), **la extensión de navegador** (sin ella no hay buzón, ni paneles de Meta y Cloud,
+> ni repaso del panel en móvil) y **`respaldos/`**, que llegó vacía y ya se regeneró.
+>
+> ⚠️ **La memoria de Claude Code va por ruta**, así que la sesión del taller arrancó en blanco y
+> las siguientes también empiezan por leer este archivo. Es la razón de fondo por la que todo lo
+> que se decide acaba escrito acá y no en una conversación: el proyecto sobrevive a la sesión,
+> la sesión no.
+
 ```
 Vigilio/
 ├── brand-shield/          ← Backend (Node + Express + Prisma + PostgreSQL)
