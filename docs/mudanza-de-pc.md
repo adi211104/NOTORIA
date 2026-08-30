@@ -114,10 +114,27 @@ git clone https://github.com/adi211104/APKNotoria NotoriaApp
 cd Vigilio/brand-shield     && npm install
 cd ../brand-shield-web      && npm install
 
+#    ℹ️ npm 11 no ejecuta los scripts de instalación por defecto, pero eso YA ESTÁ
+#    RESUELTO en el repo: los dos package.json llevan un campo `allowScripts` con
+#    prisma/@prisma/client/@prisma/engines y sharp/unrs-resolver ya aprobados.
+#    🔴 NO BORRARLO. Sin él no se descargan los motores de Prisma, `prisma generate`
+#    se queda sin nada, y el único aviso ("npm warn allow-scripts") se pierde entre el
+#    ruido del final: la instalación queda a medias EN SILENCIO.
+#    ⚠️ Las aprobaciones llevan la VERSIÓN EXACTA (prisma@5.22.0). Al subir versión o
+#    al añadir un paquete con scripts hay que reaprobar: npm approve-scripts <pkg>
+#    ⚠️ No sirve para instalaciones globales (error EGLOBAL): con @railway/cli y vercel
+#    hay que comprobar a mano que el binario responde, no solo que el mandato exista.
+
 # 5. Frontend: en vez de copiar el .env.local, pedírselo a Vercel
 vercel login
 vercel link            # elegir el proyecto notoria-web
 vercel env pull .env.local
+                       # ⚠️ baja el entorno *development*, que está VACÍO: las cuatro
+                       #    NEXT_PUBLIC_* solo viven en *Production*. El .env.local sale
+                       #    casi vacío y ESO ES NORMAL: el build pasa y el panel carga
+                       #    porque NEXT_PUBLIC_API_URL cae a http://localhost:3000. Pero
+                       #    el login con Google y el checkout de Culqi quedan muertos en
+                       #    local hasta ponerles valores de test a mano.
 
 # 6. Backend: el cliente de Prisma
 cd ../brand-shield
@@ -139,7 +156,7 @@ No des la mudanza por buena porque «arrancó». Estas cuatro cosas sí lo prueb
 
 ```bash
 cd brand-shield
-node scripts/prueba-planes.js          # 81 comprobaciones, sin red ni base
+node scripts/prueba-planes.js          # 109 comprobaciones, sin red ni base
 railway status                          # debe decir notoria-api / servicio api
 node -e "require('dotenv').config();const{PrismaClient}=require('@prisma/client');
   new PrismaClient().usuario.count().then(n=>console.log('usuarios en produccion:',n))"
@@ -157,6 +174,16 @@ railway ssh --service api "node scripts/forzar-resumen-sunat.js"
 
 Esa trampa costó tiempo el 2026-08-28: el script **no falla**, hace lo correcto contra el
 entorno equivocado. Correr siempre el simulacro y **leer la cabecera de entorno**.
+
+✅ **Matiz comprobado el 2026-08-30:** `railway run` **también** sirve, y es lo que documentan
+las cabeceras de esos scripts. Inyecta los secretos de producción en un proceso local y
+`lib-env-produccion.js` sustituye la `DATABASE_URL` interna por la del `.env`. Con `railway ssh`
+se ejecuta dentro del contenedor y el ayudante detecta que no hay `.env` local, avisa y no toca
+nada: las dos vías son buenas. Lo prohibido es llamarlos **a pelo**, sin ningún envoltorio.
+
+⚠️ **La excepción es `dar-plan.js`**, que usa `dotenv.config()` a secas en vez del ayudante.
+Con `railway run` se quedaría con la `DATABASE_URL` **interna** y no alcanzaría la base. Va en
+local y sin envoltorio.
 
 ---
 

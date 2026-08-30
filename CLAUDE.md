@@ -4,11 +4,6 @@
 > lecciones que evitan repetir errores; la narrativa de cómo se llegó a cada cosa se
 > compactó el 2026-08-19 (el historial completo está en git).
 
-> 🔴 **LEE PRIMERO `docs/ESTADO-AL-MUDARSE.md` (escrito el 2026-08-28).** La sesión se mudó de
-> PC y la memoria de Claude Code va por ruta, así que empieza en blanco. Ese archivo dice dónde
-> quedó la mudanza y —lo que corre el reloj— que **hay una renovación ARMADA que cobra sola a
-> las 5:00** y hay que verificar y luego reembolsar y anular. Bórralo cuando eso esté cerrado.
-
 ## 1. Qué es Notoria
 
 Plataforma SaaS de monitoreo de reputación para restaurantes y hoteles **del Perú**.
@@ -65,7 +60,7 @@ Vigilio/
 | Auth | JWT + Google Sign-In |
 | Alertas | **Email (Resend), canal único.** El aviso que suena lo da la app Android |
 | Pagos | **Culqi, llaves LIVE en producción.** Cobra dinero real |
-| App Android | `C:\Users\Admin\Downloads\NotoriaApp` (repo `adi211104/APKNotoria`) — Kotlin + Compose, cliente de este mismo API |
+| App Android | Clonado junto a `Vigilio` (repo `adi211104/APKNotoria`) — Kotlin + Compose, cliente de este mismo API |
 
 ```bash
 cd brand-shield     && npm run dev   # backend, puerto 3000
@@ -166,9 +161,9 @@ se perdiera**. Con esa vara solo dos son graves: la contraseña del certificado
 SUNAT) y el keystore de Android. `SUNAT_SOL_CLAVE`, que es la que suele preocupar, se resetea
 en cinco minutos.
 - ⚠️ **Railway no es un respaldo**, es un servicio del que se depende.
-- ⚠️ El `certificado.p12` real vive en `C:\Users\Admin\Downloads\` — una carpeta que se limpia
-  sola. Los `.p12` están cubiertos por `.gitignore` y ninguno está en git (comprobado el
-  2026-08-23).
+- ⚠️ El `certificado.p12` real vive **fuera del repo**, en una carpeta estable de la máquina —
+  en el taller, `C:\Users\Taller\notoria-secrets\`. **Nunca en `Downloads`**, que se limpia sola.
+  Los `.p12` están cubiertos por `.gitignore` y ninguno está en git (comprobado el 2026-08-23).
 - ⚠️ **Anotar los PERMISOS junto a la clave, no solo el valor.** El usuario SOL `NOTORIAS`
   estaba activo y con el nombre correcto y aun así fallaba, porque no tenía asignada ninguna
   opción del menú (§9).
@@ -2177,6 +2172,29 @@ textos por otros inventados. El procedimiento está en la cabecera del component
 - **Alertas de `window.alert()`**: fuera del panel, sustituidas por avisos en página. Un aviso
   de error no puede pintarse en verde.
 
+### Entorno de desarrollo
+
+- 🔴 **npm 11 no ejecuta los scripts de instalación por defecto.** En una máquina nueva,
+  `npm install` se salta los `postinstall` y lo avisa en un `npm warn allow-scripts` perdido
+  entre el ruido del final. Afecta a **`prisma`, `@prisma/client` y `@prisma/engines`** —sin
+  ellos no se descargan los motores y `prisma generate` no tiene con qué trabajar— y en el web
+  a **`sharp`** y **`unrs-resolver`**. No falla: deja la instalación a medias **en silencio**,
+  que es la misma familia de trampa que el `copy` que calla. ✅ **Ya resuelto en el repo**: los
+  dos `package.json` llevan un campo **`allowScripts`** con esos paquetes aprobados, así que un
+  `npm install` limpio ya corre bien. 🔴 **No borrarlo.** ⚠️ Las aprobaciones van con la
+  **versión exacta** (`prisma@5.22.0`): al subir versión, o al añadir un paquete con scripts,
+  hay que reaprobar con `npm approve-scripts <pkg>`. ⚠️ **No funciona sobre instalaciones
+  globales** (`EGLOBAL`): para `@railway/cli` y `vercel` hay que comprobar a mano que el binario
+  responde de verdad, no solo que el mandato exista.
+- **El PATH de usuario de Windows suele ser `REG_EXPAND_SZ`.** Escribirlo con
+  `[Environment]::SetEnvironmentVariable` lo degrada a `REG_SZ` y congela los `%USERPROFILE%`
+  que hubiera dentro. Al añadir rutas, escribir en el registro conservando el tipo.
+- **El frontend no recupera sus variables con `vercel env pull`.** Las cuatro `NEXT_PUBLIC_*`
+  solo existen en el entorno *Production*, y `env pull` baja *development*, que está vacío: el
+  `.env.local` sale con el token OIDC y poco más. El build pasa y el panel carga porque
+  `NEXT_PUBLIC_API_URL` cae a `http://localhost:3000`, pero **el login con Google y el checkout
+  de Culqi quedan muertos en local** hasta ponerles valores de test a mano.
+
 ### Verificación
 
 - 🔴 **La técnica del iframe para revisar móvil YA NO FUNCIONA sola:** con las cabeceras de
@@ -2240,7 +2258,7 @@ textos por otros inventados. El procedimiento está en la cabecera del component
 
 | Script | Para qué |
 |--------|----------|
-| `dar-plan.js <email> <PLAN>` | Cambia el plan a mano. No crea `Pago` ni comprobante (la numeración es correlativa y no admite huecos) |
+| `dar-plan.js <email> <PLAN>` | Cambia el plan a mano. No crea `Pago` ni comprobante (la numeración es correlativa y no admite huecos). Con `GRATIS` limpia `suscripcionActiva`, `fechaVencimiento` y `periodoFacturacion`, pero **no toca `suscripcionId`**: la tarjeta guardada sigue ahí. ⚠️ **Su lista `PLANES` se quedó sin `IMPULSO`** (que entró el 2026-08-24): hoy rechazaría ese plan como inválido. ⚠️ **NO llamarlo con `railway run`** — usa `dotenv.config()` a secas en vez de `lib-env-produccion()`, y como dotenv **no pisa** variables ya puestas, se quedaría con la `DATABASE_URL` **interna** y moriría sin alcanzar la base. Va en local |
 | `escanear.js` | Fuerza un ciclo sin cooldown (`railway run --service api`) |
 | `enlaces-venta.js "<búsqueda>" [--paginas N] [--csv]` | Prospección: genera enlaces `/para` ordenados por prioridad |
 | `forzar-resumen-sunat.js [--aplicar]` | Manda el resumen diario de las boletas de HOY sin esperar a que el día cierre. El cron solo agrupa días cerrados, y esa regla es correcta; esto usa la costura `agruparPendientes({ incluirHoy: true })`, que el cron **nunca** usa. ⚠️ Solo es seguro si no van a entrar más boletas ese día |
@@ -2254,7 +2272,7 @@ textos por otros inventados. El procedimiento está en la cabecera del component
 | `prueba-expediente.js` | 43 comprobaciones del expediente (I8). 15 son sobre **el límite**: lee el fuente del PDF y falla si alguna vez imprime «reseña falsa», «extorsionando» o cualquier afirmación que le corresponda a Google o a la autoridad, no a nosotros |
 | `prueba-locales.js` | **103** comprobaciones de sumar y quitar locales sobre el plan que ya se tiene (§8.8). Los bloques 1-12 son aritmética y lectura del fuente; el **13 levanta la ruta de verdad** con Prisma y Culqi simulados, que es lo único que comprueba sobre la LLAMADA REAL —y no sobre una regex— que el `update` no escribe `fechaVencimiento` y que a Culqi le llega exactamente el importe que se le anunció al cliente |
 | `armar-renovacion.js <email> [--aplicar]` | Deja una cuenta lista para que el cron de renovación la cobre en su próxima pasada: pone `suscripcionActiva` y adelanta `fechaVencimiento`. 🔴 **No cobra nada** — quien cobra es el cron, solo y desatendido, que es justo lo que hay que probar: llamar al cobro a mano probaría otra cosa. Calcula el importe con `montoSuscripcion`, el MISMO de producción, para que el script y el worker no puedan discrepar. Se niega sobre cuentas que no sean del dueño y sobre una sin tarjeta guardada. ✅ Se corre EN LOCAL, al revés que `forzar-resumen-sunat.js`: solo escribe en la base, no llama a Culqi ni a SUNAT |
-| `prueba-planes.js` | 64 comprobaciones de la tabla de capacidades. Vigila lo que no da señal: que todo plan con precio se COBRE y se BAJE (olvidarlo regala el plan de por vida), que la escalera no pierda capacidades al subir, que un plan desconocido falle CERRADO, y **lee el fuente** para fallar si alguien vuelve a escribir `['NEGOCIO','FRANQUICIA']` a mano |
+| `prueba-planes.js` | **109** comprobaciones de la tabla de capacidades (eran 64 cuando se escribió esta fila: la cifra envejece sola, contrastar con la salida real). Vigila lo que no da señal: que todo plan con precio se COBRE y se BAJE (olvidarlo regala el plan de por vida), que la escalera no pierda capacidades al subir, que un plan desconocido falle CERRADO, y **lee el fuente** para fallar si alguien vuelve a escribir `['NEGOCIO','FRANQUICIA']` a mano |
 | `prueba-parte-equipo.js` | 66 comprobaciones del parte semanal para el equipo. Casi todas sobre lo que el prompt NO consigue: que el saneador quite las frases que el modelo escribe pese a prohibírselo **sin estropear las que estaban bien**, y que un conteo que no cuadre con los hechos tire el parte entero. Incluye una prueba de que el fuente no tiene bytes de control invisibles — un `` mal escapado escribió un `0x08` dentro de una regex y la dejó sin casar nunca, en silencio |
 | `prueba-panel.js` | 83 comprobaciones de score, temas, tareas e impacto. Comprueba que la fórmula del score NO cambió al mudarse al backend (replica la aritmética original), que la tendencia de temas compara porcentajes y no conteos, y que no se inventa una cifra en soles donde el estudio no aplica |
 | `embudo.js` | Foto de solo lectura del embudo, de registro a suscripción viva. Con 11 usuarios no hace falta analítica de producto: hace falta una consulta. Nombra las cuentas atascadas y **avisa de que una «suscripción viva» sin cobro es un plan dado a mano, no un cliente** |
@@ -2665,20 +2683,29 @@ flujo entero.
 > que **una boleta de renovación siempre espera casi 24 h antes de poder informarse**, porque el
 > resumen solo agrupa días ya cerrados.
 >
-> ⏳ **Lo que queda es esperar:** B001-00000003 sigue en `PENDIENTE` hasta que el 29 cierre en
-> Lima, y el cron de resúmenes lo agrupa a las ~00:05 del 30/08. Límite de envío **05/09**.
-> 🔴 **Se decidió NO forzarlo** (2026-08-29, con el dueño): el 23 y el 28 se forzó las dos veces,
-> así que **el camino automático del resumen diario nunca ha corrido desatendido**. Es el mismo
-> tipo de tramo que la renovación —algo que corre solo y que nadie ha visto correr solo— y con
-> 7 días de plazo, forzarlo otra vez desperdiciaría la ocasión de probarlo sin costo.
+> ✅ **CERRADO el 2026-08-30, y el camino automático salió bien a la primera.** El cron agrupó
+> B001-00000003 en `RC-20260830-1` a las **00:10** de Lima y lo envió a las 00:30, con
+> `intentosEnvio: 1` y CDR **código 0**. Es la **primera vez que el resumen diario se ve correr
+> desatendido**: el 23 y el 28 se había forzado las dos veces, y no forzarlo el 29 —decidido con
+> el dueño— es lo que dejó sitio para verlo. Con 7 días de plazo, esperar no costaba nada.
 >
-> 🔴 **Y después, en ESTE orden: que SUNAT ACEPTE → reembolsar → ANULAR la boleta**, dentro de los
-> 7 días que corren desde el CDR del resumen. Son dos sistemas distintos; reembolsar en Culqi no
-> anula nada ante SUNAT, y una boleta que SUNAT todavía no aceptó no se puede anular.
+> 🔴 **La regla, que sigue valiendo: SUNAT ACEPTA → reembolsar → ANULAR**, dentro de los 7 días
+> que corren desde el CDR del resumen. Son dos sistemas distintos; reembolsar en Culqi no anula
+> nada ante SUNAT, y una boleta que SUNAT todavía no aceptó no se puede anular. Ejecutado en ese
+> orden el 2026-08-30: reembolso `ref_live_gDmxqHjPC4ngRY4J` (S/14.50) → anulación en
+> `RC-20260830-2`, aceptada con **código 0** al primer intento, boleta en `ANULADO` el día 1 de 7.
 >
 > ⚠️ Tras el reembolso la cuenta conserva IMPULSO hasta el 29/09 sin haber pagado, porque
 > `iniciarBajadaDePlanes` solo mira vencimientos ya pasados. No inflama el embudo, que cuenta
-> `suscripcionActiva`. Se limpia con `node scripts/dar-plan.js revisorculqi@gmail.com GRATIS`.
+> `suscripcionActiva`. Se limpió con `node scripts/dar-plan.js revisorculqi@gmail.com GRATIS`.
+>
+> ⚠️ El webhook de Culqi ya había puesto `suscripcionActiva: false` por su cuenta — se vio en el
+> «antes» que imprime `dar-plan.js`, que salió de comprobación gratuita del webhook.
+>
+> ⚠️ Quedó un **resumen vacío** —`RC-20260828-2`, 0 boletas, enviado y aceptado— como poso de
+> haber forzado dos veces el 28. No rompe nada; es un argumento más para dejar correr el cron.
+>
+> **Cargos reales de clientes: sigue siendo cero.**
 >
 > 🔴 **Nuevo el 2026-08-26 — los DOS screencasts de la segunda solicitud de App Review.**
 > La solicitud está armada y guardada en el panel (`submission_id 2252144948952187`) con los dos
