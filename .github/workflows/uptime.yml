@@ -13,15 +13,30 @@
 #    monitor, porque produce confianza.
 #
 #    Se deja el `*/15` a propósito —pedir más seguido no cuesta nada y GitHub
-#    entrega lo que entrega— y se añade el paso «Cuánto tardó en volver», que
-#    es el que convierte el fallo silencioso en uno ruidoso: avisa si pasó más
-#    de 45 min desde la corrida anterior y FALLA si pasaron más de 4 h, que es
-#    el punto en el que este monitor ya no monitorea nada.
+#    entrega lo que entrega— y se mide el hueco en el paso «Cuánto tardó en
+#    volver», que es el que convierte el fallo silencioso en uno visible.
 #
-# ⚠️ Esto es una mitigación, no un arreglo. El arreglo de verdad es un monitor
-#    externo (UptimeRobot, BetterStack y similares tienen plan gratuito), que
-#    además vigila desde fuera de GitHub. Mientras no exista, esta es la única
-#    señal de que el vigilante se durmió.
+# 🔴 POR QUÉ ESE PASO AVISA PERO YA NO FALLA (2026-08-29). Al principio fallaba
+#    por encima de 4 h, y en dos días mandó CINCO correos de «Run failed:
+#    uptime» con el sitio respondiendo 200 en todas las sondas (huecos de 8,5 h,
+#    11,8 h, 6,6 h, 6,6 h y 5,2 h). El problema no era que mintiera —decía la
+#    verdad— sino que dejaba el correo significando DOS cosas que no se
+#    distinguen desde la bandeja: «tu sitio está caído» y «GitHub tardó seis
+#    horas en mirar». Cinco avisos seguidos que no piden hacer nada enseñan a
+#    ignorar el aviso, y el día de una caída real ese correo llega igual que
+#    estos.
+#
+#    Además el aviso de ceguera es RETROACTIVO por naturaleza: llega cuando el
+#    monitor ya volvió, así que en ese momento no hay nada que hacer con él.
+#
+#    Por eso ahora: el workflow falla SOLO si una sonda no devuelve 200, y el
+#    hueco se reporta como warning y en el resumen del run — sigue estando a la
+#    vista en la pestaña Actions, sin gastar la única alarma que importa.
+#
+# ⚠️ Esto sigue siendo una mitigación, no un arreglo. El arreglo de verdad es un
+#    monitor externo (UptimeRobot, BetterStack y similares tienen plan gratuito),
+#    que además vigila desde fuera de GitHub. El argumento medido a favor: el
+#    2026-08-28 hubo una ventana de 11,8 h en la que nadie comprobó nada.
 name: uptime
 
 on:
@@ -55,6 +70,9 @@ jobs:
       # mide el hueco. `if: always()` para que también informe cuando la caída ya
       # hizo fallar los pasos de arriba: son dos hechos distintos y los dos
       # importan — «el sitio está caído» y «llevo 9 h sin comprobarlo».
+      #
+      # ⚠️ Este paso NO debe volver a hacer `exit 1`: ver la cabecera. Su trabajo
+      #    es dejar constancia, no disparar la alarma.
       - name: Cuánto tardó en volver
         if: always()
         env:
@@ -68,6 +86,7 @@ jobs:
 
           if [ -z "$anterior" ]; then
             echo "Primera corrida programada, o no hay anterior con la que comparar."
+            echo "Sin corrida anterior con la que comparar." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
 
@@ -76,9 +95,21 @@ jobs:
           min=$(( (ahora - antes) / 60 ))
           echo "Corrida anterior: $anterior — hace ${min} min (lo declarado son 15)"
 
+          {
+            echo "### Cadencia real del monitor"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Corrida anterior | \`$anterior\` |"
+            echo "| Hueco | **${min} min** (lo declarado son 15) |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
           if [ "$min" -gt 240 ]; then
-            echo "::error::El monitor estuvo CIEGO ${min} min (más de 4 h). GitHub no está respetando el cron: durante esa ventana nadie comprobó nada. Hace falta un monitor externo."
-            exit 1
+            echo "| Veredicto | 🔴 El monitor estuvo CIEGO ${min} min (más de 4 h): durante esa ventana nadie comprobó nada |" >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::El monitor estuvo CIEGO ${min} min (más de 4 h). GitHub no está respetando el cron. Hace falta un monitor externo."
           elif [ "$min" -gt 45 ]; then
+            echo "| Veredicto | ⚠️ Muy por encima de los 15 min declarados |" >> "$GITHUB_STEP_SUMMARY"
             echo "::warning::Hueco de ${min} min entre comprobaciones, muy por encima de los 15 declarados."
+          else
+            echo "| Veredicto | ✅ Dentro de lo razonable |" >> "$GITHUB_STEP_SUMMARY"
           fi
