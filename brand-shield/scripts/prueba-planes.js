@@ -330,6 +330,73 @@ check('el espejo trae nombre es/en de cada plan',
   planes.ORDEN.every((p) => new RegExp(`${p}:[\\s\\S]{0,200}?es: '[^']+', en: '[^']+'`).test(espejo)));
 
 // ─────────────────────────────────────────────────────────────────────────────
+titulo('12. El landing no se ha separado de la escalera de planes');
+
+// 🔴 Este bloque nació de dos fallos encontrados MIRANDO la página el 2026-08-29,
+// con toda la suite en verde. Los dos son del mismo tipo: texto del landing que
+// se quedó atrás al añadir IMPULSO, sin que nada fallara.
+const landing = fs.readFileSync(path.join(RAIZ, '..', 'brand-shield-web', 'src', 'app', 'page.js'), 'utf8');
+
+// (a) El CTA de cada tarjeta decidía el «Plan actual» por el ÍNDICE:
+//     `i===0 ? ctaActual : ctaUpgrade`. O sea que a cualquiera con sesión el
+//     landing le señalaba «Plan actual» sobre el Gratuito y «Actualizar» sobre
+//     el plan que ya estaba pagando. Falla suave: el enlace va a un sitio
+//     válido y nada revienta.
+check('el CTA no vuelve a decidir el plan actual por el índice',
+  !/i\s*===\s*0\s*\?\s*t\.precios\.ctaActual/.test(landing));
+check('el CTA compara contra el plan del usuario',
+  /usuario\?\.plan\s*===\s*planTarjeta/.test(landing));
+check('el landing toma el orden de ORDEN, no de una lista a mano',
+  /import \{ ORDEN \} from '\.\.\/lib\/planes'/.test(landing));
+
+// (b) Las tarjetas del landing van en el MISMO orden que ORDEN, y cada una
+//     declara la cadencia de su plan. Atarlo por la cadencia es lo que hace que
+//     reordenar el array rompa la prueba en vez de romper la página.
+const bloqueEs = landing.slice(landing.indexOf('planes: ['));
+const tarjetas = bloqueEs.split(/\{ n:'/).slice(1, planes.ORDEN.length + 1);
+check(`el landing declara ${planes.ORDEN.length} tarjetas de plan`,
+  tarjetas.length === planes.ORDEN.length, `encontradas: ${tarjetas.length}`);
+
+planes.ORDEN.forEach((plan, i) => {
+  const h = planes.PLANES[plan].horasEscaneo;
+  const esperado = h === 1 ? /cada hora/ : new RegExp(`cada ${h} horas`);
+  check(`la tarjeta ${i + 1} es ${plan} y dice su cadencia (${h} h)`,
+    !!tarjetas[i] && esperado.test(tarjetas[i]),
+    `no encontré "${esperado}" en la tarjeta ${i + 1}`);
+});
+
+// Control: la sonda de arriba tiene que saber fallar. Con la cadencia de OTRO
+// plan debe dar negativo, o estaría casando con cualquier cosa.
+const cadenciasDistintas = planes.ORDEN
+  .map((p) => planes.PLANES[p].horasEscaneo)
+  .filter((h, i, a) => a.indexOf(h) === i);
+check('CONTROL: la sonda de cadencia distingue (no casa con la de otro plan)',
+  cadenciasDistintas.length > 1 &&
+  !new RegExp(`cada ${planes.PLANES[planes.ORDEN[0]].horasEscaneo} horas`).test(tarjetas[1] || ''));
+
+// (c) El resumen de funcionalidades enumera las cadencias A MANO, en los dos
+//     idiomas. Decía «cada 1, 4 o 24 horas» y se comió las 12 h de IMPULSO, que
+//     llevaba ahí desde el 2026-08-24 sin que nada fallara.
+const frase = (re) => (landing.match(re) || [''])[0];
+const resumenEs = frase(/Escaneo programado cada[^']*/);
+const resumenEn = frase(/Scheduled scanning every[^']*/);
+const numerosDe = (s) => (s.match(/\d+/g) || []).map(Number);
+
+for (const h of cadenciasDistintas) {
+  check(`el resumen de funciones menciona la cadencia de ${h} h (es)`,
+    numerosDe(resumenEs).includes(h), `dice: "${resumenEs}"`);
+  check(`el resumen de funciones menciona la cadencia de ${h} h (en)`,
+    numerosDe(resumenEn).includes(h), `dice: "${resumenEn}"`);
+}
+
+// Controles: que las dos frases existan de verdad (si el texto se renombra, lo
+// de arriba pasaría en vacío) y que la sonda no dé por bueno un número que no
+// está — sin esto, «menciona la cadencia» no significaría nada.
+check('CONTROL: las dos frases del resumen existen', !!resumenEs && !!resumenEn);
+check('CONTROL: la sonda no ve una cadencia inventada',
+  !numerosDe(resumenEs).includes(7) && !numerosDe(resumenEn).includes(7));
+
+// ─────────────────────────────────────────────────────────────────────────────
 console.log('\n──────────────────────────────────────────────────');
 console.log(`${ok} pasadas · ${fallos} fallidas`);
 process.exit(fallos ? 1 : 0);

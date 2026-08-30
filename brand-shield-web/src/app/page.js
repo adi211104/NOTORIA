@@ -4,6 +4,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useAuth } from '../context/AuthContext';
 import { useIdioma } from '../context/IdiomaContext';
+import { ORDEN } from '../lib/planes';
 
 // WebGL — solo en cliente, no tiene sentido en el render de servidor
 const PixelBlast = dynamic(() => import('../components/PixelBlast'), { ssr: false });
@@ -201,7 +202,7 @@ const TEXTOS = {
       scoreTitulo:'Y un solo número que lo resume todo',
       scoreDesc:'El score de reputación combina tu rating, el ritmo de reseñas nuevas, cuántas son negativas y cuántas huelen a bot. Lo miras una vez al día y sabes si hay algo que atender.',
       masTitulo:'También incluido en todos los planes',
-      mas:['Historial de rating por escaneo', 'Escaneo programado cada 1, 4 o 24 horas', 'La matemática de tu rating: cuántas reseñas te faltan y cuántas aguantas'],
+      mas:['Historial de rating por escaneo', 'Escaneo programado cada 1, 4, 12 o 24 horas', 'La matemática de tu rating: cuántas reseñas te faltan y cuántas aguantas'],
     },
     precios: {
       tag:'Precios', titulo:'Precios sin sorpresas',
@@ -210,7 +211,7 @@ const TEXTOS = {
       // ctaPago NO puede prometer días gratis: no hay periodo de prueba, el
       // cobro es inmediato. Lleva a /precios, donde está el detalle y el botón
       // de pago.
-      ctaGratis:'Empezar gratis', ctaPago:'Ver precios y contratar', ctaActual:'Plan actual', ctaUpgrade:'Actualizar',
+      ctaGratis:'Empezar gratis', ctaPago:'Ver precios y contratar', ctaActual:'Plan actual', ctaUpgrade:'Actualizar', ctaCambiar:'Cambiar de plan',
       noIncluyeLabel:'No incluye:',
       planes: [
         { n:'Gratuito', p:0,
@@ -418,13 +419,13 @@ const TEXTOS = {
       scoreTitulo:'And one number that sums it all up',
       scoreDesc:'The reputation score combines your rating, the pace of new reviews, how many are negative and how many look like bots. Check it once a day and you know whether something needs attention.',
       masTitulo:'Also included in every plan',
-      mas:['Rating history per scan', 'Scheduled scanning every 1, 4 or 24 hours', 'The reason spelled out on every flagged review'],
+      mas:['Rating history per scan', 'Scheduled scanning every 1, 4, 12 or 24 hours', 'The reason spelled out on every flagged review'],
     },
     precios: {
       tag:'Pricing', titulo:'Pricing with no surprises',
       mensual:'Monthly', anual:'Yearly (20% off)', ahorras:(m)=>`Save ${S}${m}/year`,
       gratis:'Free', mes:'/mo', anio:'/yr', popular:'Most popular', promoBienvenida:'50% OFF your first 2 months',
-      ctaGratis:'Start free', ctaPago:'See pricing and subscribe', ctaActual:'Current plan', ctaUpgrade:'Upgrade',
+      ctaGratis:'Start free', ctaPago:'See pricing and subscribe', ctaActual:'Current plan', ctaUpgrade:'Upgrade', ctaCambiar:'Change plan',
       noIncluyeLabel:'Not included:',
       planes: [
         { n:'Free', p:0,
@@ -1167,11 +1168,35 @@ export default function LandingPage() {
                     </div>
                     {/* Los planes de pago llevan al catálogo público /precios, que
                         tiene el botón de pago a la vista sin necesidad de sesión.
-                        El plan Gratuito sigue llevando al registro, que es su flujo. */}
-                    <Link href={gratis ? (loggedIn ? '/dashboard' : '/registro') : '/precios'}
-                      style={{ display:'block', textAlign:'center', padding:'11px', borderRadius:5, fontWeight:700, fontSize:14, textDecoration:'none', transition:'all 0.15s', background:featured?C.green:'transparent', color:featured?'#fff':C.text2, border:featured?'none':`1px solid ${C.border}` }}>
-                      {loggedIn?(i===0?t.precios.ctaActual:t.precios.ctaUpgrade):(gratis?t.precios.ctaGratis:t.precios.ctaPago)}
-                    </Link>
+                        El plan Gratuito sigue llevando al registro, que es su flujo.
+                        🔴 El plan actual se decide comparando con `usuario.plan`, NO
+                        con el índice. Antes era `i===0 ? ctaActual : ctaUpgrade`, así
+                        que a CUALQUIERA con sesión el landing le señalaba «Plan
+                        actual» sobre el Gratuito y «Actualizar» sobre el plan que ya
+                        estaba pagando. Falla suave —nada revienta, el enlace va a un
+                        sitio válido— y por eso no lo vio ninguna prueba.
+                        ⚠️ El orden sale de `ORDEN` (lib/planes), nunca de una lista
+                        escrita a mano: es la regla de §8.6, y es lo que hace que
+                        añadir un plan no vuelva a romper esto. */}
+                    {(() => {
+                      const planTarjeta = ORDEN[i];
+                      const esActual = loggedIn && usuario?.plan === planTarjeta;
+                      // indexOf da -1 con un plan desconocido, así que cae en
+                      // «Actualizar»: falla hacia el lado que no miente.
+                      const esSuperior = loggedIn && ORDEN.indexOf(usuario?.plan) < i;
+                      const destino = esActual ? '/dashboard'
+                        : gratis ? (loggedIn ? '/dashboard' : '/registro')
+                        : '/precios';
+                      const texto = esActual ? t.precios.ctaActual
+                        : loggedIn ? (esSuperior ? t.precios.ctaUpgrade : t.precios.ctaCambiar)
+                        : (gratis ? t.precios.ctaGratis : t.precios.ctaPago);
+                      return (
+                        <Link href={destino}
+                          style={{ display:'block', textAlign:'center', padding:'11px', borderRadius:5, fontWeight:700, fontSize:14, textDecoration:'none', transition:'all 0.15s', background:featured?C.green:'transparent', color:featured?'#fff':C.text2, border:featured?'none':`1px solid ${C.border}` }}>
+                          {texto}
+                        </Link>
+                      );
+                    })()}
                   </div>
                 );
               })}
