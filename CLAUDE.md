@@ -3107,6 +3107,66 @@ tirando los días ya pagados (el mismo problema que el prorrateo resolvió para 
 siquiera se puede distinguir hoy. Arreglarlo bien es: exponer el periodo, y decidir si el cambio
 mensual→anual se prorratea o se aplica al vencer.
 
+### Repaso en MÓVIL y en INGLÉS (2026-08-29) — un fallo, y el resto limpio
+
+Se hizo con el proxy (`brand-shield-web/scripts/proxy-movil.js`) y un iframe de 390 px, o sea
+**anchos reales**: las media queries responden al viewport del iframe. Comprobado antes de medir
+nada, como manda §16: `innerWidth` del iframe daba **390**.
+
+⚠️ **`resize_window` sigue sin servir, y MIENTE al decirlo:** responde *«Successfully resized window
+to 390x844»* y `window.innerWidth` se queda en **1920**. Es la trampa ya documentada; lo que la
+delata es medir `innerWidth` y no fiarse del mensaje.
+
+🔴 **El fallo: la barra superior no cabía a 390 px, y el selector de idioma quedaba INUTILIZABLE.**
+Medido, no visto de reojo:
+
+| | Antes | Después |
+|---|---|---|
+| `scrollWidth` vs viewport | 398 / 385 → **scroll horizontal del documento** | 385 / 385 |
+| Elementos fuera de pantalla | 2 | **0** |
+| «Empezar gratis» | 13 px fuera | dentro |
+| Botón **EN** visible | **19 de 30 px** | completo |
+
+- 🔴 **La causa de fondo del recorte no era el ancho, era `flex-shrink`.** El selector de idioma es
+  un flex item con `overflow:hidden` —lo lleva para redondear las esquinas—, así que al comprimirse
+  **no se aprieta: recorta**. A 390 px tenía 47 px útiles para 59 px de contenido y se comía media
+  «N». Y `overflow:hidden` lo esconde sin dejar rastro: no hay scroll, no hay error, solo un botón
+  que parece otra cosa. Se arregla con **`.lang-wrap{flex-shrink:0}`** — el mismo remedio que ya
+  llevaban las pestañas de la ficha (§16).
+- ⚠️ **Consecuencia de producto que lo hacía urgente:** la web es bilingüe y en el móvil **no se
+  podía pasar a inglés**. La detección por navegador sí funcionaba, así que el fallo solo lo sufría
+  quien quisiera cambiarlo a mano — invisible desde dentro.
+- El resto es una media query a ≤430 px que aprieta paddings. Lleva `!important` porque el padding
+  y el gap van **inline** en esos divs, que es la razón de siempre.
+
+⚠️ **Y una trampa nueva al escribir esa media query: los BACKTICKS dentro del `<style jsx>`.** Ese
+bloque es un **template literal**, así que un `` `!important` `` en un comentario CSS **cierra la
+cadena** y el build muere con *«Parsing ecmascript source code failed»* señalando una línea de
+comentario. Es el primo del aviso de §16 sobre backticks en `node -e`, por otro camino.
+
+✅ **Lo demás, limpio.** Barrido programático (todo elemento cuyo rect se sale del viewport,
+ignorando lo que vive dentro de una caja con scroll propio):
+
+| Ruta | Móvil 390 px |
+|---|---|
+| `/` (17 797 px de alto) | 0 fuera · sin scroll horizontal |
+| `/registro` · `/login` · `/contacto` · `/devoluciones` · `/libro-reclamaciones` | 0 fuera |
+| `/precios` | 0 fuera — el único candidato era `span.promo-brillo`, un efecto animado con el padre en `overflow:hidden` |
+
+✅ **Inglés: nada sin traducir**, ni en móvil ni en escritorio (1275 px). `<html lang>` cambia a
+`en` correctamente. Se buscaron 15 palabras españolas típicas en todos los nodos de texto.
+
+🔴 **Las tres sondas llevaron su CONTROL, y es lo que hace que el cero signifique algo:**
+- La de desbordes: se inyecta un `div` de 900 px → pasa de 2 a 3 y vuelve a 2 al quitarlo.
+- La de traducción: se inyecta un párrafo en español → pasa de 0 a 1 y vuelve a 0.
+- ⚠️ El primer barrido dio **un falso positivo** (`span.promo-brillo`) porque filtraba los padres
+  con `overflow-x: auto/scroll` pero **no los de `overflow: hidden`**, que recortan igual. Si se
+  reutiliza la sonda, hay que filtrar los tres valores.
+
+⚠️ **Lo que este repaso NO cubre:** el **panel** en móvil y en inglés. El proxy sirve desde
+`localhost:3001`, otro origen, así que ahí no hay sesión — y mover el token entre orígenes para
+probar no compensa. Queda pendiente y hay que decirlo, no darlo por revisado.
+
 ### 🔴 Lo que enseñó el 2026-08-25, y que ninguna prueba vio
 
 El día se cerró con **~570 comprobaciones en verde, el build limpio y la consola sin un

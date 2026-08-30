@@ -742,6 +742,32 @@ export default function LandingPage() {
           background:${C.green};color:#fff;margin-left:10px;vertical-align:middle;
         }
 
+
+        /* 🔴 A 390 px la barra superior NO cabía. Medido el 2026-08-29 dentro de
+           un iframe de ancho real: el documento daba scrollWidth 398 sobre un
+           viewport de 385 —o sea SCROLL HORIZONTAL del documento, que este
+           proyecto prohíbe— y el botón «EN» del selector de idioma se solapaba
+           7 px con «Iniciar sesión». La web es bilingüe y en el móvil no se
+           podía pasar a inglés.
+           ⚠️ Lleva !important porque el padding y el gap van INLINE en esos
+           divs, y un estilo inline gana a cualquier selector — la misma razón
+           por la que los bordes de los inputs del panel lo llevan. */
+        /* El selector de idioma NO se encoge NUNCA. Es un flex item con
+           overflow:hidden (lo lleva para redondear las esquinas), así que
+           encogerse no lo aprieta: le CORTA el boton EN y no se ve que pasa.
+           Medido a 390 px: 47 px utiles para 59 px de contenido, o sea 19 de
+           los 30 px de EN visibles. Mismo caso que las pestanas de la ficha. */
+        .lang-wrap{ flex-shrink:0; }
+
+        @media (max-width: 430px) {
+          .nav-inner{ padding:0 10px !important; }
+          .nav-inner > div{ gap:3px !important; }
+          .nav-inner .btn-nav{ padding:7px 9px; font-size:12.5px; }
+          .nav-inner .nav-link{ padding:6px 4px; font-size:13px; }
+          .nav-inner .lang-btn{ padding:4px 6px; }
+          .nav-inner .logo-txt{ font-size:16px; }
+        }
+
         a{font-family:${GEO};}
         button{font-family:${GEO};}
       `}</style>
@@ -750,10 +776,10 @@ export default function LandingPage() {
 
         {/* Navbar */}
         <nav style={{ borderBottom:`1px solid ${C.border}`, position:'sticky', top:0, background:C.bg, zIndex:100 }}>
-          <div style={{ maxWidth:1060, margin:'0 auto', padding:'0 24px', height:58, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div className="nav-inner" style={{ maxWidth:1060, margin:'0 auto', padding:'0 24px', height:58, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
             <Link href="/" style={{ display:'flex', alignItems:'center', gap:10, textDecoration:'none' }}>
               <span className="logo-icon"><LogoNotoria size={20} color={C.green}/></span>
-              <span style={{ fontSize:18, fontWeight:800, color:C.text, letterSpacing:'-0.5px' }}>Notoria</span>
+              <span className="logo-txt" style={{ fontSize:18, fontWeight:800, color:C.text, letterSpacing:'-0.5px' }}>Notoria</span>
             </Link>
             <div style={{ display:'flex', gap:6, alignItems:'center' }}>
               {/* Tema claro/oscuro — comparte localStorage y <html data-theme>
@@ -764,7 +790,7 @@ export default function LandingPage() {
                 <Icon d={tema === 'dark' ? ICONS.sol : ICONS.luna} size={16} color="currentColor" strokeWidth={2}/>
               </button>
               {/* Selector de idioma */}
-              <div style={{ display:'flex', alignItems:'center', border:`1px solid ${C.border}`, borderRadius:5, marginRight:6, overflow:'hidden' }}>
+              <div className="lang-wrap" style={{ display:'flex', alignItems:'center', border:`1px solid ${C.border}`, borderRadius:5, marginRight:6, overflow:'hidden' }}>
                 <button className="lang-btn" onClick={() => cambiarIdioma('es')}
                   style={{ color: idioma==='es' ? '#fff' : C.text3, background: idioma==='es' ? C.green : 'transparent', fontWeight: idioma==='es' ? 700 : 400 }}>ES</button>
                 <button className="lang-btn" onClick={() => cambiarIdioma('en')}
