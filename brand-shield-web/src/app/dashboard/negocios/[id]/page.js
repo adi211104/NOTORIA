@@ -1938,16 +1938,33 @@ export default function DetallePage() {
         body: JSON.stringify({ resenaId: respModal.id, respuesta: textoResp }),
       });
       const data = await res.json();
+      // 🔴 Sin este `res.ok` el panel decía «copiada, ábrela en la plataforma»
+      // aunque el backend hubiera respondido 404 o 500: la respuesta NO se
+      // guardaba y el usuario se iba convencido de que sí. Es el mismo patrón
+      // que el `.catch(console.error)` que pintaba «todo tranquilo por ahora»
+      // ante un error — decirle al usuario que salió bien sin haberlo mirado.
+      if (!res.ok) { setMsgResp(data.error || t.modal.errorGuardar); return; }
       // Copiar el texto de la respuesta al portapapeles
       try { await navigator.clipboard.writeText(textoResp); } catch {}
-      // Construir URL de Google Maps para el negocio (query_place_id es el
-      // parámetro válido — "query=place_id:..." hace que Maps no encuentre nada)
-      const mapsUrl = negocio?.googlePlaceId
-        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(negocio.nombre)}&query_place_id=${negocio.googlePlaceId}`
-        : data.linkRespuesta || null;
-      if (mapsUrl) {
+      // 🔴 El enlace lo decide el BACKEND (`linkRespuesta`), que mira la
+      // PLATAFORMA de la reseña. Acá se construía a mano desde
+      // `negocio.googlePlaceId` sin mirarla, así que una reseña de FACEBOOK
+      // abría Google Maps en cuanto el negocio tuviera ficha de Google, y el
+      // enlace bueno —que el backend ya calculaba— se tiraba. Hoy no se nota
+      // porque Facebook sigue tras interruptor; el día que se encienda no
+      // habría dado ninguna señal.
+      // Y de paso es el mejor destino: `search.google.com/local/reviews`
+      // resuelve a `#lrd=`, o sea al panel de reseñas de esa ficha, que es
+      // donde el dueño responde. Maps lo deja buscando la reseña a mano.
+      // El de Maps queda de respaldo y SOLO para Google (`query_place_id` es el
+      // parámetro válido — "query=place_id:..." hace que Maps no encuentre nada).
+      const destino = data.linkRespuesta
+        || (respModal.plataforma === 'GOOGLE' && negocio?.googlePlaceId
+              ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(negocio.nombre)}&query_place_id=${negocio.googlePlaceId}`
+              : null);
+      if (destino) {
         setMsgResp(t.modal.respuestaCopiada);
-        setTimeout(() => window.open(mapsUrl, '_blank'), 800);
+        setTimeout(() => window.open(destino, '_blank'), 800);
       } else {
         setMsgResp(t.modal.respuestaGuardadaOk);
       }
