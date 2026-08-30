@@ -2401,7 +2401,7 @@ y rechaza otra cosa). Así se descartaron rutas enteras de TikTok sin credencial
 | Qué | Desde | Qué bloquea |
 |---|---|---|
 | ~~Meta — App Review de Instagram~~ | ✅ **RESUELTO el 2026-08-26** | 4 de 5 aprobados; `pages_manage_metadata` rechazado. Instagram y Menciones **ya están abiertos** (§8.3) |
-| **Google — acceso a las GBP APIs**, caso `3-5553000040900` | 2026-08-16. **Re-verificado el 2026-08-29: sigue sin aprobar** — RPM=0 en las TRES APIs (con las otras cuotas mostrando valores, que es la trampa) y la v4 sin existir para el proyecto, con su control. ⚠️ Ese día se CAYÓ la hipótesis de la ficha invisible (ver abajo) | Conectar Google Business |
+| **Google — acceso a las GBP APIs** | 1.ª solicitud 2026-08-16 (caso `3-5553000040900`, sin acuse y sin respuesta). **2.ª solicitud enviada el 2026-08-29 — caso `0-4623000041642`**, plazo declarado 7-10 días hábiles. RPM sigue en 0 en las tres APIs. 📬 Lo que hay que vigilar es que llegue el ACUSE, que la vez pasada nunca llegó | Conectar Google Business |
 
 **Revisión del panel de Meta del 2026-08-22 — nada que hacer, solo esperar.** Estado
 `Review in progress` con los cinco permisos correctos, app en **modo Live**, y las dos
@@ -2461,6 +2461,63 @@ nunca la usó. Y los MX del dominio son de **Cloudflare Email Routing**
 regla que crearle. Queda la otra explicación: Google dio el número en pantalla **sin mandar
 acuse**. Se confirmó además, buscando en `usenotoria@gmail.com`, que **no ha llegado ningún
 correo de Google** sobre el caso ni sobre "Business Profile" desde el 10/08.
+### ✅ SEGUNDA solicitud de acceso enviada el 2026-08-29 — caso `0-4623000041642`
+
+Enviada por el agente con autorización explícita del dueño, desde `usenotoria@gmail.com`, que es
+**Propietario del proyecto GCP** (comprobado en IAM) **y** administra el Perfil de Empresa. Plazo
+declarado por Google en pantalla: **7 a 10 días hábiles**.
+
+🔴 **El formulario CAMBIÓ y ya no es el que dice la documentación.** `support.google.com/business/contact/api_default`
+ya no tiene campos: al elegir «Solicitud de acceso básico a las APIs» solo muestra un botón que
+lleva a un asistente por pasos, **`support.google.com/business/workflow/16726127`**. Ahí es donde
+se rellena. Quien busque el formulario viejo no lo va a encontrar.
+
+⚠️ **Y una trampa del asistente que hay que saber: NO tiene pantalla de revisión.** El botón
+«Continuar» del paso al 50% **es el envío**: salta directo al 100% con el número de caso. No hay
+resumen previo ni confirmación. Si alguna vez hay que revisar el texto antes de mandarlo, hay que
+leerlo **en los propios campos**, porque después ya no se puede.
+
+**Los cuatro campos que pide, y lo que se puso:**
+
+| Campo | Valor |
+|---|---|
+| Número del proyecto de Google Cloud | `798376364749` |
+| Sitio web de empresa | `https://usenotoria.app` |
+| ¿Cómo supiste que existe este formulario? | Por la documentación oficial para desarrolladores (`prereqs`) |
+| **¿Cuál es el motivo principal por el que quieres acceder?** | Ver abajo |
+
+> Notoria (usenotoria.app) es una plataforma peruana de monitoreo de reputación para restaurantes
+> y hoteles. Necesitamos `reviews.list` para leer las reseñas y `reviews.updateReply` para publicar
+> la respuesta que el propio dueño del negocio redacta en nuestro panel, además de `accounts.list`
+> y `locations.list` para identificar sus ubicaciones. Cada propietario nos autoriza él mismo
+> mediante OAuth 2.0 y puede revocar el acceso cuando quiera; no accedemos a ningún perfil sin ese
+> consentimiento. Hoy nuestros usuarios ya redactan la respuesta en Notoria y deben copiarla y
+> pegarla a mano en su Perfil de Empresa. También gestionamos con ella nuestro propio perfil
+> verificado.
+
+🔴 **Por qué ese texto y no el que recomienda medio internet.** El consejo que circula es
+presentarlo como automatización del negocio propio, porque las solicitudes que suenan a SaaS
+multi-inquilino se descartan más. **Eso sería mentirle a Google**, y el riesgo no es moral sino de
+negocio: si más adelante detectan uso multi-inquilino pueden revocar el acceso **con clientes de
+pago dependiendo de él**, que es mucho peor que esperar. Lo que sí se hizo, sin faltar a la verdad,
+es ser **específico**: los cuatro endpoints exactos, quién autoriza, cómo se revoca, y qué problema
+concreto resuelve. Un motivo verificable pesa más que uno entusiasta.
+
+⚠️ **Lo que sigue sin saberse y puede tumbarla: los 60 días.** El asistente repite el requisito en
+el paso 2. A favor: **el perfil apareció en la lista de empresas seleccionables** («Notoria ·
+Empresa de servicios locales · Verificada»), o sea que Google lo ofreció como elegible — pero eso
+no prueba que el filtro de antigüedad se aplique ahí y no después.
+
+⚠️ **Y un hallazgo que no se puede afirmar del todo:** al entrar, el asistente dijo *«Parece que ya
+has empezado a trabajar en esta sesión»*, o sea que había un borrador **sin terminar**. Puede
+explicar por qué del caso `3-5553000040900` nunca llegó acuse — pero también puede ser el rastro de
+la revisión del 27/08. **No se puede concluir que la primera solicitud quedara a medias.**
+
+📬 **Lo que hay que mirar, y es la diferencia con la vez anterior:** que llegue el **correo de
+acuse** a `usenotoria@gmail.com`. La vez pasada nunca llegó, y esa ausencia fue la única señal de
+que algo no había ido bien. A los dos minutos del envío todavía no estaba, lo cual no dice nada.
+Si en 24 h no ha llegado, el caso probablemente no se registró.
+
 ### Revisión del 2026-08-27 — sin acceso, verificado por SIETE vías
 
 `Requests per minute = 0` en **las tres** APIs de GBP habilitadas
