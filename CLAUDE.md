@@ -3110,7 +3110,7 @@ lo que ese `updateMany` existe para hacer.
 **públicos** (§8.2). Sin videos públicos no hay comentarios que escanear, así que la
 conexión está viva y no va a producir nada hasta que la cuenta publique.
 
-### El monitor de uptime avisa cuando deja de monitorear (2026-08-28)
+### El monitor de uptime avisa cuando deja de monitorear (2026-08-28, ajustado el 29)
 
 `*/15` era una promesa que GitHub no cumple: medidos los huecos reales, iban de 28 a
 **665 minutos**, con los dos últimos en 11 h y 9,3 h. El workflow seguía **en verde**
@@ -3119,9 +3119,45 @@ porque produce confianza.
 
 `.github/workflows/uptime.yml` conserva el `*/15` (pedir más seguido no cuesta nada) y
 añade el paso **«Cuánto tardó en volver»**, que consulta la corrida anterior por la API,
-**avisa** por encima de 45 min y **falla** por encima de 4 h. Va con `if: always()` porque
+**avisa** por encima de 45 min (y hasta el 29 **fallaba** por encima de 4 h — ver abajo). Va con `if: always()` porque
 «el sitio está caído» y «llevo 9 h sin comprobarlo» son hechos distintos y los dos hay que
 saberlos. Comprobado en vivo: *«Corrida anterior: 23:57Z — hace 114 min»* + warning.
+
+🔴 **Corregido el 2026-08-29, un día después: ese «falla por encima de 4 h» gastaba la única
+alarma que importa.** En dos días mandó **cinco** correos de «Run failed: uptime» con el sitio
+respondiendo **200 en todas las sondas** (huecos de 8,5 h, 11,8 h, 6,6 h, 6,6 h y 5,2 h). El aviso
+no mentía — GitHub de verdad no corre el cron — pero dejaba el correo significando **dos cosas que
+no se distinguen desde la bandeja**: «tu sitio está caído» y «GitHub tardó seis horas en mirar».
+
+- **Es el patrón que este archivo ya documenta en otros sitios**: un aviso que se repite y no pide
+  hacer nada enseña a ignorar los avisos (§9 con el cron de anulaciones, §8.3 con el warning del
+  webhook). Acá el precio es concreto: el día de una caída real, ese correo llega igual que estos
+  cinco.
+- 🔴 **Y la razón de fondo: el aviso de ceguera es RETROACTIVO por naturaleza.** Llega cuando el
+  monitor ya volvió, así que en ese momento no hay nada que hacer con él. Una alarma que solo se
+  puede leer en pasado no debería tener el mismo canal que una que exige actuar ahora.
+
+**Ahora el workflow falla SOLO si una sonda no devuelve 200.** El hueco se reporta como `::warning::`
+y en el **resumen del run** (`$GITHUB_STEP_SUMMARY`, con una tabla), así que sigue a la vista en la
+pestaña Actions sin llegar al buzón.
+
+⚠️ **Cómo se verificó, porque la prueba obvia NO distinguía.** Un `workflow_dispatch` pasó en verde
+con un hueco de 106 min — pero 106 min ya era warning **antes** del cambio, así que ese verde no
+probaba nada. La prueba buena fue **extraer el condicional real de las dos versiones** (`git show
+HEAD` y `HEAD~1`) y ejecutarlo con huecos inventados:
+
+| Hueco | Versión nueva | Versión anterior (control) |
+|---|---|---|
+| 300 min | **exit 0** | exit 1 |
+| 100 min | exit 0 | exit 0 |
+| 10 min | exit 0 | exit 0 |
+
+Es el «404 de control» aplicado a un cambio propio: ante un verde, preguntar primero si la prueba
+sabía ponerse en rojo.
+
+⚠️ **Sigue siendo una mitigación.** El arreglo es el monitor externo, y ahora tiene un argumento
+medido en vez de una intuición: el 2026-08-28 hubo una ventana de **11,8 h** en la que nadie
+comprobó nada, y el mejor intervalo del 29 fueron **2,2 h**.
 
 ⚠️ **Es una mitigación, no un arreglo.** El arreglo es un monitor externo (UptimeRobot y
 BetterStack tienen plan gratuito) que además vigile desde fuera de GitHub. Está escrito en
