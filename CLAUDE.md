@@ -2574,6 +2574,84 @@ todavía no tiene la extensión instalada (`docs/mudanza-de-pc.md` §9).
 es esperar de balde por segunda vez, y lo que toca es rehacer el envío por el asistente
 (`support.google.com/business/workflow/16726127`) en vez de dejar correr el plazo.
 
+### 🔴 2026-08-30: falta un prerrequisito que nadie había mirado — la Organization account
+
+Se buscó la causa del silencio de Google y apareció **un requisito obligatorio que no estaba en
+ninguna de las listas de comprobación anteriores**, ni en las siete vías del 27 ni en las cinco
+del 30 por la mañana. No es una teoría: es texto de la documentación oficial.
+
+> *«Every 3P / partner who requests access to Business Profile APIs must have an Organization
+> account.»* — `developers.google.com/my-business/content/accounts`
+
+Y la FAQ oficial lo repite sin ambigüedad: *«If you are a third-party partner who performs listing
+management for businesses: Register for a GBP Organization account as an agency.»*
+
+🔴 **Notoria ES un 3P/partner, y lo dice su propia solicitud.** El texto que se envió el 29/08
+describe literalmente el modelo — «cada propietario nos autoriza él mismo mediante OAuth 2.0» —,
+o sea que se pidió acceso presentándose (con razón) como tercero **sin tener la cuenta que Google
+le exige a un tercero**. En la lista de prerrequisitos, «Create an Organization account» es el
+**paso 4**, justo antes de «Request access to the API». Se envió el formulario saltándose el paso
+anterior, dos veces.
+
+✅ **Verificado en el Administrador el 2026-08-30:** no existe ninguna organización. Solo la ficha
+suelta «Notoria · Perú» (`13273074415378486285`) en una cuenta personal, y el botón «Crear grupo»
+sin usar.
+
+### El bloqueo real, y por qué esto no se arregla en cinco minutos
+
+Hay una **pinza entre dos requisitos que se contradicen**, y es lo que hace que esto no se haya
+resuelto solo:
+
+| | Qué exige | Consecuencia |
+|---|---|---|
+| Formulario de acceso a la API | enviarlo desde una cuenta **owner/manager del perfil** | → `usenotoria@gmail.com` |
+| Registro de la organización | una cuenta que **NO tenga ni administre ubicaciones** | → `usenotoria@gmail.com` **queda descartada** |
+
+🔴 **Y encima, el registro exige una cuenta DEL DOMINIO.** Comprobado en pantalla en
+`business.google.com/agencysignup`, tras poner `usenotoria.app` como web de la agencia:
+
+> *«Utiliza una cuenta del dominio de la agencia: usenotoria.app. Para crear una cuenta de agencia
+> de Perfil de Empresa en Google, inicia sesión con una dirección de correo del dominio
+> usenotoria.app.»*
+
+O sea que **ninguna cuenta `@gmail.com` sirve**, y eso tumba la salida fácil: `padkar4@gmail.com`
+cumple lo de «0 ubicaciones» (comprobado: 0 empresas) y aun así Google lo rechaza por el dominio.
+
+➡️ **Lo que hace falta es una cuenta de Google cuya dirección sea `@usenotoria.app`.** El dominio
+no tiene Workspace —usa Cloudflare Email Routing (§6)—, así que la vía es crear una cuenta de
+Google con la opción **«usar mi dirección de correo electrónico actual»** sobre `hola@` o
+`didier@usenotoria.app`, que **sí tienen regla de reenvío activa** y por tanto pueden recibir el
+código de verificación. Sin esa regla el código se descartaría en silencio, que es exactamente la
+trampa que documenta §6.
+⚠️ **Ese paso lo hace el dueño**: crear cuentas de Google no lo puede hacer el agente.
+
+### Lo que este hallazgo descarta, y lo que no
+
+✅ **Descartado del todo: el acuse NO se perdió en otro buzón.** Buscado el 2026-08-30 en las **dos**
+cuentas del navegador con `in:anywhere` —que incluye spam y papelera— por el número de caso y por
+«Business Profile / Perfil de Empresa / Perfil de Negocio»: **cero en las dos**.
+🔴 **Con su control, que es lo que hace que ese cero valga:** en `padkar4@gmail.com`,
+`in:anywhere from:google.com newer_than:30d` devuelve **«1–50 de muchas»**, spam incluido. El buzón
+recibe correo de Google y se ha mirado; el acuse simplemente no existe.
+
+⚠️ **Lo que NO se puede afirmar todavía.** Que falte la Organization account explica bien que
+**no aprueben**; no está probado que explique que no llegue **ni el acuse automático**. Pueden ser
+dos causas distintas y conviene no fundirlas. Lo que sí cambia es el orden de trabajo: hasta hoy
+la única hipótesis viva eran los 60 días —que **no se pueden fechar desde ninguna interfaz**, o
+sea que no son accionables—, y ahora hay una causa **documentada, verificada y accionable**.
+
+⚠️ **Y una lección de método, que es la de siempre por un camino nuevo:** las cinco comprobaciones
+del 30 por la mañana (propietario, verificación, web, notificaciones, 60 días) salieron de la
+página `prereqs`, y las cinco daban ✅ o ❓. La que faltaba estaba en **otra página** de la misma
+documentación (`accounts`), y no se llegó a ella porque la lista que se estaba verificando parecía
+completa. **Una lista de comprobación heredada no es un barrido**: es la misma trampa que
+`prueba-gbp-visible.js` con sus 44 comprobaciones en verde mirando los archivos equivocados.
+
+📌 **Fuentes** (2026-08-30): `developers.google.com/my-business/content/accounts` ·
+`.../content/faq` · `.../content/prereqs` · `support.google.com/business/answer/7353903`
+(registro de agencia) · `support.google.com/business/answer/9118250` (mover un perfil a una
+organización).
+
 ### Revisión del 2026-08-27 — sin acceso, verificado por SIETE vías
 
 `Requests per minute = 0` en **las tres** APIs de GBP habilitadas
