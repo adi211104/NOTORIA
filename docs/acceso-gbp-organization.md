@@ -107,6 +107,32 @@ cuenta de empresa. Volver a empezar eligiendo «Para uso personal».
 
 ## Fase 3 — Registrar la Organization account
 
+> ✅ **HECHA el 2026-08-30.** La organización **Notoria** existe.
+>
+> | | |
+> |---|---|
+> | **ID de organización** | **`5269452463`** — el de 10 dígitos, el que hace falta en la Fase 5 |
+> | Identificador largo (URL) | `115249408036143018774` |
+> | Cuenta propietaria | `agencia@usenotoria.app` |
+> | Datos | Notoria · Perú · Callao · La Perla · Cal. Isla Filipinas Mza. G9 Lote 8 · +51 955599041 |
+>
+> 🔴 **Un requisito que este procedimiento NO anticipaba: Google obliga a invitar a un SEGUNDO
+> propietario**, y avisa de que *«users having locations cannot accept invitation»*. O sea que
+> **`usenotoria@gmail.com` no puede serlo**, porque administra la ficha de Notoria. Se invitó a
+> `padkar4@gmail.com`, que tiene 0 ubicaciones (comprobado).
+> ⚠️ **Consecuencia que hay que recordar:** esa cuenta tampoco debería aceptar nunca una ficha de
+> negocio, o perdería su sitio en la organización. Son ya **dos** cuentas condenadas a no tener
+> ubicaciones: `agencia@` y `padkar4@`.
+>
+> ⚠️ **El ID de 10 dígitos no está donde uno lo busca.** No aparece en Overview ni en Settings
+> (que abre un diálogo de notificaciones), y las URLs directas a `/settings` y `/businesses`
+> devuelven **404**: hay que navegar por el menú. Está en **Manage invitations**, dentro del
+> párrafo de ayuda del pie.
+>
+> ✅ Y ahí mismo está el botón **«Request access»**, que es la vía de la Fase 4: pedir acceso a un
+> negocio **sin** transferir su propiedad. Confirma que esa fase es viable tal como está escrita.
+
+
 **Quién:** el dueño o el agente, con la sesión de `agencia@usenotoria.app`.
 
 12. Ir a **`business.google.com/agencysignup`**.
@@ -226,8 +252,8 @@ lo único que quedaría es esperar a cumplir la antigüedad y reenviar.
 
 - [x] Fase 1 — dirección `agencia@usenotoria.app` creada y **probada con marca única** ✅ 2026-08-30
       (y de paso arreglada `didier@`, que estaba perdiendo correo)
-- [ ] Fase 2 — cuenta de Google creada y contraseña guardada en el gestor
-- [ ] Fase 3 — organización registrada · **ID de 10 dígitos: ________**
+- [x] Fase 2 — cuenta `agencia@usenotoria.app` creada ✅ 2026-08-30 (0 ubicaciones, comprobado)
+- [x] Fase 3 — organización registrada ✅ 2026-08-30 · **ID de 10 dígitos: `5269452463`**
 - [ ] Fase 4 — la organización administra la ficha; propiedad **sin tocar**
 - [ ] Fase 5 — solicitud reenviada · **caso n.º ________**
 - [ ] Fase 6 — acuse recibido (< 1 h) · cuota revisada a los 7-10 días hábiles
