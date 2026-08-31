@@ -2390,11 +2390,81 @@ y rechaza otra cosa). Así se descartaron rutas enteras de TikTok sin credencial
 
 ---
 
+### 📌 2026-08-30 — el día que se destrabó Google, y tres cosas que iban rotas en silencio
+
+Se empezó preguntando «¿queda algún pendiente?» y acabó con **la solicitud de GBP enviada por
+tercera vez, esta vez cumpliendo el requisito que faltaba**. Lo que sigue es el resumen; cada
+cosa está desarrollada en su sección.
+
+**Lo grande: Google.** Las dos solicitudes anteriores (16/08 y 29/08) **probablemente nunca fueron
+admisibles**. Falta*ba* la **Organization account**, que Google exige por escrito a todo tercero
+—*«Every 3P / partner … must have an Organization account»*— y que es el **paso 4** de sus
+prerrequisitos, justo antes de pedir el acceso. Notoria se presentaba (con razón) como 3P y no la
+tenía. Está creada, y la solicitud salió con su ID dentro. Detalle en §19 A y procedimiento en
+**`docs/acceso-gbp-organization.md`**.
+
+| | |
+|---|---|
+| Organization account | **Notoria** · ID **`5269452463`** · cuenta `agencia@usenotoria.app` |
+| Solicitud | caso **`6-5952000041022`**, 7-10 días hábiles |
+| Casos anteriores | `3-5553000040900` (16/08) y `0-4623000041642` (29/08), los dos sin acuse |
+
+🔴 **Y de camino aparecieron DOS fallos de correo que llevaban tiempo perdiendo mensajes**, los dos
+del mismo tipo —el que este archivo lleva documentando desde el 19/08: aceptar y descartar se ve
+igual que entregar—:
+- **`didier@usenotoria.app` no tenía regla de Email Routing**, pese a que §6 afirmaba lo contrario.
+  Nueve intentos fallidos de Google en 24 h. Ahí van contabilidad, reclamaciones, el aviso de
+  anular comprobantes y los informes DMARC.
+- **`agencia@usenotoria.app` ya existía, en `Drop`.** Se iba a usar para la cuenta de Google: el
+  código de verificación se habría descartado en silencio y el bloqueo habría parecido cosa de
+  Google.
+
+🔴 **Y una hipótesis nueva sobre los acuses que nunca aparecieron: iban a SPAM.** Un correo de
+`businessprofile-noreply@google.com` aterrizó ahí dos minutos después del envío, con el motivo
+textual de Gmail: *«similar a mensajes que se identificaron como spam en el pasado»*. Si pasó lo
+mismo con los dos acuses anteriores y Gmail vació la carpeta a los 30 días, hoy **no quedaría
+rastro ni con `in:anywhere`** — que es justo lo que se observó. Marcado como «no es spam».
+
+**Lo demás: tres cosas que fallaban sin producir ninguna señal.**
+
+| Qué | Por qué no lo veía nadie |
+|---|---|
+| `dar-plan.js` y `cuenta-revisor.js` **rechazaban IMPULSO** desde el 24/08 | Tenían su propia copia de la lista de planes. Es el fallo que §8.6 existe para impedir |
+| El **alta tiraba los días ya pagados** al cambiar de periodo | `fechaVencimiento = new Date()` a secas, mientras el cron de renovación ya usaba el máximo con el vencimiento. La misma regla en un sitio y no en el otro |
+| `maximoExtra` devolvía **49 para un plan que no vende locales** | Dos funciones contestando distinto a la misma pregunta, y ese número viaja al panel |
+
+🔴 **La lección del día, y es la de siempre por un camino nuevo: `prueba-planes.js` estaba en verde
+con 109 comprobaciones mientras el bug de los scripts vivía en producción.** Tenía **dos** agujeros
+y por los dos se le escapaba lo mismo: solo barría `src/`, y su regex exigía que el primer elemento
+fuese un plan de pago, así que una lista que empieza por `'GRATIS'` pasaba limpia **incluso dentro
+de `src/`**. Es el mismo patrón que `prueba-gbp-visible.js` el 26/08 con sus 44 en verde mirando
+los archivos equivocados. **Una prueba que no se comprueba a sí misma acaba certificando lo que no
+mira.** Los tres arreglos se verificaron **poniendo la sonda en rojo** antes de darla por buena.
+
+⚠️ **Y un tropiezo propio que conviene tener escrito, porque casi cuela:** al «limpiar» un check de
+`prueba-planes.js` se rompió la sintaxis del archivo, y el `exit 1` que salió después se leyó al
+principio como «la sonda caza el bug». No lo cazaba: fallaba al parsear. **Un rojo tampoco vale sin
+preguntar de dónde viene.**
+
+**Suites al cerrar:** `prueba-planes` **122**, `prueba-locales` **111**, y en verde también panel,
+equipo, comprobantes, emisor, expediente, alertas, correos-idioma y gbp-visible. Build del frontend
+compila.
+⚠️ El worktree llegó **sin `node_modules`**, y eso hace que `prueba-locales.js` reviente en su
+bloque 13 con `Cannot find module 'express'` — un fallo que se lee como un bug del código y es del
+entorno. `npm install` antes de dar por mala una suite.
+
+
 ## 19. Pendientes, ordenados por quién los desbloquea
 
-> ### Lo que queda por programar (2026-08-26)
+> ### Lo que queda por programar (2026-08-30)
 >
-> **Nada.** La lista está vacía otra vez.
+> **Uno, y es de navegador, no de código:** el repaso del **panel** en **móvil** y en **inglés**.
+> El barrido del 29/08 cubrió el landing y `/precios`, pero dejó el panel fuera a propósito
+> —el proxy sirve desde `localhost:3001`, otro origen, y ahí no hay sesión—, así que sigue sin
+> revisarse. No hay que darlo por bueno: es la cuarta vez que este proyecto encuentra fallos
+> abriendo pantallas que las pruebas daban por buenas (24/08, 25/08, 29/08).
+>
+> ✅ **El hueco del cambio mensual→anual se cerró el 2026-08-30.** Era el último de producto.
 >
 > ✅ **P1 — Sumar un local en el plan que YA tienes: HECHO el 2026-08-26.** Ver §8.8.
 >
@@ -3691,13 +3761,30 @@ preguntar primero si el método sabe fallar.
 
 ### 🟡 El único hueco conocido
 
-**Ninguno.** El que había —sumar un local en el plan que ya tienes— se cerró el 2026-08-26
-(§8.8).
+**Ninguno de producto.** El del cambio mensual→anual se cerró el **2026-08-30** y el de sumar un
+local en el plan que ya tienes, el 2026-08-26 (§8.8).
+
+⚠️ Lo que sí queda sin revisar es el **panel en móvil y en inglés**, que no es un hueco conocido
+sino una zona **no mirada** — que es distinto y peor de dar por buena.
 
 ### 🔴 Bugs abiertos en producción
 
-**Ninguno conocido** (última revisión: **2026-08-26**, tras cerrar el barrido de Google Business
-y el idioma de la pantalla de inicio — los tres verificados en el navegador contra producción).
+**Ninguno conocido** (última revisión: **2026-08-30**).
+
+**Corregidos el 2026-08-30, y los tres fallaban sin producir ninguna señal:**
+- 🔴 **`dar-plan.js` y `cuenta-revisor.js` rechazaban `IMPULSO`** como plan inválido desde que ese
+  plan entró, el 24/08. Tenían su propia copia de la lista, que es exactamente lo que §8.6 existe
+  para impedir. Ahora la leen de `ORDEN`.
+- 🔴 **El alta tiraba en silencio los días ya pagados.** `fechaVencimiento` se calculaba con
+  `new Date()` a secas, así que pasarse de mensual a anual con veinte días por delante los perdía.
+  El cron de renovación ya usaba la regla correcta: el problema era tenerla en un solo sitio.
+- ⚠️ **`maximoExtra` devolvía 49 para un plan que no vende locales.** No era explotable, pero ese
+  número viaja al panel, así que el agujero ya estaba escrito para quien lo usara como guarda.
+
+🔴 **Y el más importante no era de código sino de correo:** `didier@usenotoria.app` **no tenía
+regla de Email Routing** y llevaba tiempo perdiendo los avisos de contabilidad, reclamaciones,
+anulación de comprobantes y los informes DMARC — con §6 de este archivo afirmando lo contrario.
+Ver §6.
 
 **Corregido el 2026-08-26 — Google Business seguía a la vista en los DOS sitios de más tráfico.**
 El barrido del 25 escondió la función en Conexiones, la web y tres puntos de la ficha, y se dio
