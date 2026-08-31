@@ -20,3 +20,6 @@ dist/
 # Libro de Reclamaciones, DNI y domicilios de terceros protegidos por la Ley
 # 29733). Nunca a git. Ver brand-shield/scripts/respaldo.js
 brand-shield/respaldos/
+
+# Worktrees de Claude Code: son copias de trabajo temporales del propio repo.
+.claude/worktrees/
