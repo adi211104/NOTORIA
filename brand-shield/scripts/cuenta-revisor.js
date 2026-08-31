@@ -23,7 +23,10 @@ require('dotenv').config();
 const bcrypt = require('bcryptjs');
 const prisma = require('../src/lib/prisma');
 
-const PLANES = ['GRATIS', 'NEGOCIO', 'FRANQUICIA'];
+// La lista sale de la tabla de capacidades, NO escrita a mano. Estuvo a mano
+// y se quedo sin IMPULSO: el script rechazaba como invalido un plan que el
+// producto ya vendia. Ver CLAUDE.md 8.6.
+const { ORDEN: PLANES } = require('../src/lib/planes');
 
 const [email, password, plan = 'GRATIS', emailAnterior] = process.argv.slice(2);
 

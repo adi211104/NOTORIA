@@ -15,12 +15,15 @@
 require('dotenv').config();
 const prisma = require('../src/lib/prisma');
 
-const PLANES = ['GRATIS', 'NEGOCIO', 'FRANQUICIA'];
+// La lista sale de la tabla de capacidades, NO escrita a mano. Estuvo a mano
+// y se quedo sin IMPULSO: el script rechazaba como invalido un plan que el
+// producto ya vendia. Ver CLAUDE.md 8.6.
+const { ORDEN: PLANES } = require('../src/lib/planes');
 
 const [email, plan] = process.argv.slice(2);
 
 if (!email || !plan) {
-  console.error('\nUso: node scripts/dar-plan.js <email> <GRATIS|NEGOCIO|FRANQUICIA>\n');
+  console.error(`\nUso: node scripts/dar-plan.js <email> <${PLANES.join('|')}>\n`);
   process.exit(1);
 }
 if (!PLANES.includes(plan)) {
