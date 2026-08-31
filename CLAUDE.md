@@ -36,11 +36,12 @@ Detecta reseñas falsas, ataques de bots y caídas de rating.
 > la máquina de referencia**: lo que esté solo allí no cuenta, y las rutas de este archivo que
 > empiecen por `C:\Users\Admin\` son historia, no instrucciones.
 >
-> ⚠️ **Lo que cambia de verdad no es la ruta, son tres cosas que la máquina nueva no tiene** y
+> ⚠️ **Lo que cambia de verdad no es la ruta, son tres cosas que la máquina nueva no traía** y
 > que ninguna prueba detecta porque no fallan, simplemente faltan — están en
 > `docs/mudanza-de-pc.md` §9: **JDK/Android SDK** (sin `keytool` no hay AAB ni comprobación del
-> keystore), **la extensión de navegador** (sin ella no hay buzón, ni paneles de Meta y Cloud,
-> ni repaso del panel en móvil) y **`respaldos/`**, que llegó vacía y ya se regeneró.
+> keystore), **la extensión de navegador** —✅ **instalada y funcionando el 2026-08-30**; ojo, no
+> basta con instalarla: la sesión tiene que arrancar con `--chrome` o las herramientas no se
+> cargan— y **`respaldos/`**, que llegó vacía y ya se regeneró.
 >
 > ⚠️ **La memoria de Claude Code va por ruta**, así que la sesión del taller arrancó en blanco y
 > las siguientes también empiezan por leer este archivo. Es la razón de fondo por la que todo lo
@@ -2449,7 +2450,7 @@ y rechaza otra cosa). Así se descartaron rutas enteras de TikTok sin credencial
 | Qué | Desde | Qué bloquea |
 |---|---|---|
 | ~~Meta — App Review de Instagram~~ | ✅ **RESUELTO el 2026-08-26** | 4 de 5 aprobados; `pages_manage_metadata` rechazado. Instagram y Menciones **ya están abiertos** (§8.3) |
-| **Google — acceso a las GBP APIs** | 1.ª solicitud 2026-08-16 (caso `3-5553000040900`, sin acuse y sin respuesta). **2.ª solicitud enviada el 2026-08-29 — caso `0-4623000041642`**, plazo declarado 7-10 días hábiles. RPM sigue en 0 en las tres APIs. 📬 Lo que hay que vigilar es que llegue el ACUSE, que la vez pasada nunca llegó | Conectar Google Business |
+| **Google — acceso a las GBP APIs** | 1.ª solicitud 2026-08-16 (caso `3-5553000040900`, sin acuse y sin respuesta). **2.ª solicitud enviada el 2026-08-29 — caso `0-4623000041642`**, plazo declarado 7-10 días hábiles. RPM sigue en 0 en las tres APIs. 📬 Buzón comprobado el 2026-08-30: TAMPOCO llegó acuse, y NO hay ni un correo de Google sobre el Perfil de Empresa en toda la historia del buzón. La documentación dice que el acuse llega solo, en menos de una hora, así que su ausencia SÍ es mala señal. Descartados propietario-vs-administrador, verificación, web y notificaciones (los cuatro cumplen); queda vivo el requisito de los 60 días, que no se puede fechar desde la interfaz | Conectar Google Business |
 
 **Revisión del panel de Meta del 2026-08-22 — nada que hacer, solo esperar.** Estado
 `Review in progress` con los cinco permisos correctos, app en **modo Live**, y las dos
@@ -2566,13 +2567,72 @@ acuse** a `usenotoria@gmail.com`. La vez pasada nunca llegó, y esa ausencia fue
 que algo no había ido bien. A los dos minutos del envío todavía no estaba, lo cual no dice nada.
 Si en 24 h no ha llegado, el caso probablemente no se registró.
 
-🔴 **El plazo de esas 24 h se cumplió el 2026-08-30 y el buzón SIGUE SIN MIRARSE.** No es que no
-haya llegado: es que nadie ha comprobado si llegó, que no es lo mismo y conviene no confundirlo
-dentro de una semana. La comprobación necesita el buzón —o sea navegador—, y la PC del taller
-todavía no tiene la extensión instalada (`docs/mudanza-de-pc.md` §9).
-⚠️ **Es la única señal temprana que existe.** Si no llegó el acuse, esperar los 7-10 días hábiles
-es esperar de balde por segunda vez, y lo que toca es rehacer el envío por el asistente
-(`support.google.com/business/workflow/16726127`) en vez de dejar correr el plazo.
+✅ **Comprobado el 2026-08-30 desde la PC del taller, ya con navegador: NO llegó ningún acuse.**
+Buscado en `usenotoria@gmail.com` con `in:anywhere` —que incluye spam y papelera— por el número de
+caso (`0-4623000041642`) y por `"Business Profile" OR "Perfil de Empresa" newer_than:3d`: **cero
+resultados** en las dos. El control que hace que eso valga: `in:anywhere newer_than:3d` devuelve
+decenas de correos, **entre ellos uno de Google de anoche** (la alerta de acceso nuevo desde esta
+misma PC). El buzón recibe, y se ha mirado. El acuse simplemente no está.
+
+🔴 **Y no hay UN SOLO correo de Google sobre el Perfil de Empresa en toda la historia del buzón.**
+Buscado sin filtro de fecha: `in:anywhere "Perfil de Negocio" OR "Perfil de Empresa" OR "Business
+Profile"` devuelve **un** resultado, y es de otra cosa (documentos de la empresa, 8 de julio). Ni
+acuse, ni el correo de verificación del perfil, ni los resúmenes de rendimiento. Eso ya no es un
+problema de un caso concreto: es que **ese buzón nunca ha recibido nada de Business Profile**.
+
+🔴 **Corrección de la lectura del 30/08 por la mañana.** Se escribió acá que, con dos envíos sin
+acuse, lo más probable era que el asistente no mandara acuse nunca. **La documentación pública dice
+lo contrario y hay que quedarse con eso**: la guía de Xovion Labs describe *«an auto-confirmation
+with a case number within the hour»*, y en el foro oficial de desarrolladores hay un caso calcado
+al nuestro —solicitud del 28/07 **sin correo de confirmación**, cuota 0 diez días hábiles después,
+reenvío el 12/08 y **esa vez sí** llegó confirmación con número de caso (`1-8807000041926`, mismo
+formato que los nuestros)—. O sea: **el acuse sí existe, y su ausencia sigue siendo mala señal.**
+
+### Comprobado el 2026-08-30: las causas documentadas de rechazo silencioso
+
+La documentación oficial solo promete *«a follow-up email will be sent after your request has been
+reviewed»* y remite a la cuota como forma de ver el estado. Lo que **no** documenta —y por lo que
+las solicitudes se caen sin avisar— son los prerrequisitos. Se comprobaron uno por uno:
+
+| Requisito | Estado | Cómo se verificó |
+|---|---|---|
+| Enviar desde el **PROPIETARIO**, no un administrador. *«If you submit the form from a manager-level Google account, it gets bounced»* | ✅ **CUMPLE** | Perfil de Negocio → Configuración → Personas y acceso: `usenotoria@gmail.com` figura como **«Propietario principal»**, y es el **único** usuario del perfil |
+| Perfil **verificado** | ✅ **CUMPLE** | `business.google.com/locations`: «Notoria · Perú · **Verificada**», 1 de 1, «Se verificó el 100 %» |
+| **Web** que represente al negocio | ✅ **CUMPLE** | `usenotoria.app`, enlazada en la ficha |
+| Notificaciones por correo activadas | ✅ **CUMPLE** (y descarta la explicación fácil) | Perfil → Notificaciones: correo `usenotoria@gmail.com`, y **todos** los interruptores encendidos (opiniones, preguntas, estado del perfil, estadísticas…). El silencio **no** es un problema de configuración |
+| **60+ días verificado y activo** | ❓ **SIGUE SIN SABERSE, y es el único que queda** | No está en la interfaz. Se intentaron dos vías nuevas y ninguna sirve: el selector de **Rendimiento** ofrece una ventana móvil de 6 meses (mar–ago 2026) que no depende de la edad del perfil, y el gráfico está a 0 en todos los meses, así que **no distingue «no existía» de «cero interacciones»**. Y el correo de verificación, que lo fecharía, es justamente uno de los que no están |
+
+🔴 **Por eliminación, los 60 días son la hipótesis viva.** Todo lo demás que Google exige está
+cumplido y verificado. Si el perfil se verificó después de mediados de junio, la solicitud del
+**16/08 no calificaba**, y la del **29/08** tampoco si fue después del 30 de junio. Encaja con lo
+único que se observa: dos envíos, número de caso en pantalla las dos veces, y **cero correos**.
+
+⚠️ **Lo que NO se puede concluir todavía.** Que el perfil sea nuevo explicaría que no aprueben; no
+explica por sí solo que no llegue **ningún** correo, ni siquiera el acuse automático. Las dos cosas
+pueden tener causas distintas. Anotarlo por separado.
+
+⚠️ **Lo que no existe, y conviene no volver a buscarlo:** no hay panel de seguimiento de casos de
+Business Profile. La página oficial de asistencia (`developers.google.com/my-business/content/support`)
+solo ofrece el formulario de soporte técnico (`support.google.com/business/contact/api_default`),
+el foro de la comunidad (`support.google.com/business/community`, prefijando el asunto con `[API]`)
+y el centro de ayuda. **La única forma de saber si el caso existe es preguntárselo a Google.**
+
+📌 **Fuentes** (consultadas el 2026-08-30):
+`developers.google.com/my-business/content/prereqs` · `.../content/support` ·
+`discuss.google.dev/t/.../389462` (el caso calcado) · `xovionlabs.com/blog/google-business-profile-api-hidden-gate/`
+
+🔴 **Línea de base del mismo día: la cuota sigue en 0.** `Requests per minute = 0` en las tres
+(`mybusinessaccountmanagement`, `mybusinessbusinessinformation`, `businessprofileperformance`), con
+el control de siempre: las otras cuotas de Business Information conservan sus valores (Create
+Location 100/día, SearchGoogleLocation 200/día), así que es lectura real y no una página a medio
+cargar. **Esto todavía no significa nada** —es el día 1 de un plazo de 7-10 días hábiles—; queda
+anotado para comparar el 12 de septiembre.
+
+⚠️ **Una trampa de la consola, para que no cueste dos veces:** el proyecto `798376364749` se llama
+**«My First Project»**, id `project-f1e03c17-f209-453e-a09`. Abrir una URL con el NÚMERO hace que
+la consola redirija al ID, y el nombre genérico da la falsa impresión de haber aterrizado en otro
+proyecto. Es el correcto: número verificado en IAM → Configuración.
+
 
 ### Revisión del 2026-08-27 — sin acceso, verificado por SIETE vías
 
@@ -2596,7 +2656,7 @@ escribiéndole a Google:
 
 | Qué | Por qué importa |
 |---|---|
-| 🔴 **El requisito de los 60 días** | Google exige un perfil verificado y activo **60+ días** y con web. La solicitud se envió el **16/08**: si el perfil se verificó después de mediados de junio, no calificaba — y en ese caso Google no contesta, simplemente no aprueba. ⚠️ **Falta el dato de cuándo se verificó**: no está en la interfaz y no hay correo de verificación en `usenotoria@gmail.com` |
+| 🔴 **El requisito de los 60 días** | Google exige un perfil verificado y activo **60+ días** y con web. La solicitud se envió el **16/08**: si el perfil se verificó después de mediados de junio, no calificaba — y en ese caso Google no contesta, simplemente no aprueba. ⚠️ **Falta el dato de cuándo se verificó**, y el 2026-08-30 se agotaron las vías: no está en la interfaz, el selector de Rendimiento es una ventana móvil de 6 meses que no depende de la edad del perfil, y el correo de verificación no existe en `usenotoria@gmail.com`. Por eliminación es la ÚNICA causa de rechazo documentada que sigue en pie |
 | ⚠️ **Dos fichas duplicadas** | «Notoria · Lima, Perú» y «Notoria · Perú». Un duplicado es problema de política para Google. ✅ **Resuelto el 2026-08-27** — ver abajo |
 | ⚠️ **Categoría «Servicio de logística»** | No es lo que hace Notoria. Un revisor que abre la ficha y ve una categoría que no cuadra con lo que la API pediría tiene motivo para descartar. ✅ **Resuelto el 2026-08-27**, y no cambiando nada: era la ficha duplicada la que la tenía |
 

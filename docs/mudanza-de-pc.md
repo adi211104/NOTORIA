@@ -260,11 +260,12 @@ va escrita acá y no en la cabeza de nadie.
 no se regenere, una PC recién mudada **no tiene copia local de nada**: es el hueco más silencioso
 de toda la mudanza, porque todo lo demás falla ruidosamente y esto no falla, simplemente no está.
 
-🔴 **No está la extensión de navegador, y media lista de pendientes la necesita.** Es la tercera
-cosa que no viaja con el repo y la más fácil de no echar en falta, porque nada la reclama: sin
-ella no se puede mirar el buzón de `usenotoria@gmail.com` (el acuse de Google), ni los paneles de
-Meta y Google Cloud, ni cerrar el pendiente del **panel en móvil y en inglés** — que sigue abierto
-justamente porque el proxy sirve desde `localhost:3001`, otro origen, y ahí no hay sesión.
+✅ **La extensión de navegador ya está instalada (2026-08-30) y verificada leyendo el buzón.**
+Queda escrito por qué importaba, porque era **la tercera cosa que no viaja con el repo** y la más
+fácil de no echar en falta: sin ella no se puede mirar el buzón de `usenotoria@gmail.com` (el
+acuse de Google), ni los paneles de Meta y Google Cloud, ni cerrar el pendiente del **panel en
+móvil y en inglés** — que sigue abierto justamente porque el proxy sirve desde `localhost:3001`,
+otro origen, y ahí no hay sesión.
 
 - Se instala desde la Chrome Web Store (busca «Claude», extensión de Anthropic) y después se
   arranca la sesión con `claude --chrome`, o se deja fijo con `/chrome` → *Enabled by default*.
