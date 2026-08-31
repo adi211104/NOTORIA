@@ -43,6 +43,23 @@ De ahí que el procedimiento empiece creando una dirección y una cuenta nuevas.
 
 ## Fase 1 — La dirección de correo, en Cloudflare
 
+> ✅ **HECHA el 2026-08-30, y destapó dos cosas que nadie esperaba.**
+>
+> 1. 🔴 **`agencia@usenotoria.app` YA EXISTÍA, con acción `Drop`.** Si se hubiera ido directo a
+>    crear la cuenta de Google, el código de verificación se habría descartado en silencio y el
+>    bloqueo habría parecido cosa de Google. Lo cazó mirar la lista antes de crear nada.
+> 2. 🔴 **`didier@usenotoria.app` no tenía regla**, pese a que `CLAUDE.md` afirmaba lo contrario
+>    desde el 19/08. En 24 h, nueve intentos de entrega del informe DMARC de Google, **todos
+>    fallidos**. Ahí van `EMAIL_CONTABILIDAD`, `EMAIL_RECLAMACIONES` y el aviso de anular
+>    comprobantes. Se creó también.
+>
+> ✅ Las dos comprobadas con la marca `NOTORIA-PRUEBA-RUTAS-MTGL1Y7T`: **`Forwarded`** en el
+> Activity Log, contra el `Dropped` de la misma dirección seis minutos antes.
+> ⚠️ El veredicto se leyó en el **log de Cloudflare, no en el buzón**: Gmail deduplica el correo
+> que uno se manda a sí mismo y reenvía de vuelta, así que `in:inbox` daba cero con el reenvío
+> funcionando. Ante un cero, preguntar si el método distingue.
+
+
 **Quién:** lo puede hacer el agente.
 
 1. Cloudflare → dominio `usenotoria.app` → **Email Routing** → *Direcciones de reenvío personalizadas*.
@@ -207,7 +224,8 @@ lo único que quedaría es esperar a cumplir la antigüedad y reenviar.
 
 ## Estado
 
-- [ ] Fase 1 — dirección `agencia@usenotoria.app` creada y **probada con marca única**
+- [x] Fase 1 — dirección `agencia@usenotoria.app` creada y **probada con marca única** ✅ 2026-08-30
+      (y de paso arreglada `didier@`, que estaba perdiendo correo)
 - [ ] Fase 2 — cuenta de Google creada y contraseña guardada en el gestor
 - [ ] Fase 3 — organización registrada · **ID de 10 dígitos: ________**
 - [ ] Fase 4 — la organización administra la ficha; propiedad **sin tocar**

@@ -382,6 +382,37 @@ SMTP y se descarta**. Desde fuera es indistinguible de una entrega correcta: el 
 | `hola@usenotoria.app` | → `didierprincipe@gmail.com` (creada el 2026-08-19) |
 | `revisormeta@usenotoria.app` | → `didierprincipe@gmail.com` (creada el 2026-08-20) |
 | `didier@usenotoria.app` | → `didierprincipe@gmail.com` |
+| `agencia@usenotoria.app` | → `didierprincipe@gmail.com` (arreglada el 2026-08-30 — **existía y estaba en Drop**) |
+
+🔴 **El 2026-08-30 se descubrió que `didier@` NO tenía regla y llevaba tiempo perdiéndose.** Esta
+misma tabla afirmaba lo contrario desde el 19/08, así que el documento estaba mintiendo sobre el
+estado real. El **Activity Log** de Cloudflare lo dejó a la vista: en 24 horas Google reintentó
+entregar su informe DMARC a `didier@usenotoria.app` **nueve veces**, todas con **`Delivery failed`**
+y la última ya **`Dropped`**, mientras el correo a `revisormeta@` de la misma tarde figuraba
+`Forwarded`. Se creó la regla y quedó comprobado (ver abajo).
+
+⚠️ **Lo que eso significa hacia atrás, y hay que mirarlo:** a `didier@` van `EMAIL_CONTABILIDAD`,
+`EMAIL_RECLAMACIONES`, el aviso urgente de **anular comprobantes** y —desde el 28/08— los
+**informes DMARC**, que son la única evidencia que sostiene el `p=quarantine` (§6). Todo eso se
+estaba aceptando y descartando **sin un solo error visible desde el emisor**: Resend seguiría
+diciendo `delivered`. Es exactamente el fallo que esta sección documenta desde el 19/08, ocurrido
+otra vez y en la dirección que más avisos críticos concentra.
+
+🔴 **Y `agencia@usenotoria.app` YA EXISTÍA con acción `Drop`.** Se iba a usar para crear la cuenta
+de Google de la organización (`docs/acceso-gbp-organization.md`), o sea que el código de
+verificación se habría descartado en silencio y el bloqueo habría parecido cosa de Google. Lo cazó
+**mirar la lista antes de crear nada**, que es el único motivo por el que el procedimiento pone la
+comprobación de entrega como paso obligatorio y no como cortesía.
+
+✅ **Las dos verificadas el 2026-08-30 con marca única** (`NOTORIA-PRUEBA-RUTAS-MTGL1Y7T`), y el
+veredicto se leyó **en el Activity Log de Cloudflare, no en el buzón**: las dos filas dicen
+**`Forwarded`**. El control que hace que eso valga es el propio historial: la **misma** dirección
+`didier@`, seis minutos antes, decía `Dropped`.
+⚠️ **La sonda del buzón NO habría servido, y conviene saberlo antes de repetirla:** Gmail
+**deduplica** el correo que uno se manda a sí mismo por una dirección que reenvía de vuelta, así
+que el mensaje aparece en Enviados y **nunca en Recibidos** — `in:inbox` daba cero con el reenvío
+funcionando perfectamente. Ante un cero, preguntar primero si el método distingue.
+
 
 `didierprincipe@gmail.com` es el **único destino verificado**, y es una dirección alterna de la
 misma cuenta de Google que `usenotoria@gmail.com`, así que todo aterriza en ese buzón.
