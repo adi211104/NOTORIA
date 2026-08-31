@@ -57,7 +57,16 @@ const PISO_CENTIMOS = 500;
 // El máximo de EXTRAS se deriva por plan y no se fija en 49: hoy todos incluyen
 // un local, pero el día que uno incluya dos, un 49 fijo dejaría comprar 51.
 const MAX_LOCALES_TOTALES = 50;
-const maximoExtra = (plan) => Math.max(0, MAX_LOCALES_TOTALES - incluidosEnElPlan(plan));
+//
+// 🔴 Y un plan que NO vende locales tiene máximo 0, no 49. Hasta el 2026-08-30
+// esta función se lo saltaba: `maximoExtra('IMPULSO')` devolvía 49 mientras
+// `validarCambio` respondía `PLAN_SIN_LOCALES` — dos funciones contestando
+// distinto a la misma pregunta. No era explotable (el alta va guardada por
+// `puedeLocales` y la ruta corta antes), pero ese número **viaja al panel** en
+// `GET /api/pagos/locales`, así que el día que alguien lo use como única guarda
+// el agujero ya estaba escrito. Preguntar a la tabla sale gratis.
+const maximoExtra = (plan) =>
+  puede(plan, 'localesAdicionales') ? Math.max(0, MAX_LOCALES_TOTALES - incluidosEnElPlan(plan)) : 0;
 
 // Un periodo mensual mide entre 28 y 31 días y uno anual 365 o 366. Se calcula
 // del calendario real (ver `diasDelPeriodo`) en vez de dar 30 por sentado, pero

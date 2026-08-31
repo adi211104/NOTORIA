@@ -24,6 +24,11 @@ const path = require('path');
 
 const locales = require('../src/lib/localesExtra');
 const { PRECIOS, montoSuscripcion, localesPermitidos } = require('../src/lib/precios');
+const { ORDEN, puede } = require('../src/lib/planes');
+
+// Derivada de la tabla, no escrita a mano: el día que un plan empiece a vender
+// locales, esta lista se actualiza sola en vez de dejar una prueba mintiendo.
+const planesSinLocales = () => ORDEN.filter((p) => !puede(p, 'localesAdicionales'));
 
 let pasadas = 0, fallidas = 0;
 const check = (nombre, condicion, detalle = '') => {
@@ -174,6 +179,20 @@ check('mil locales se rechazan', valido({ localesExtraNuevo: 1000 }) === 'CANTID
 check('el tope de extras se DERIVA del total y de lo que incluye el plan',
   locales.maximoExtra('NEGOCIO') + locales.incluidosEnElPlan('NEGOCIO') === locales.MAX_LOCALES_TOTALES,
   'un 49 fijo dejaría comprar 51 el día que un plan incluya dos locales');
+
+// 🔴 Un plan que no vende locales tiene máximo CERO, y las dos funciones que
+// responden a esa pregunta tienen que decir lo mismo. Hasta el 2026-08-30
+// `maximoExtra('IMPULSO')` daba 49 mientras `validarCambio` daba PLAN_SIN_LOCALES;
+// no era explotable, pero ese número viaja al panel en GET /api/pagos/locales.
+for (const plan of planesSinLocales()) {
+  check(`${plan} no vende locales, así que su máximo de extras es 0`,
+    locales.maximoExtra(plan) === 0,
+    `devuelve ${locales.maximoExtra(plan)}`);
+  check(`…y validarCambio dice lo mismo para ${plan}`,
+    locales.validarCambio({
+      plan, suscripcionActiva: true, tieneTarjeta: true, localesExtraNuevo: 1, negociosActivos: 1,
+    }) === 'PLAN_SIN_LOCALES');
+}
 
 // ── 7. La renovación sigue cobrando los extras ────────────
 bloque('7. Lo que se cobra el mes que viene');
