@@ -218,6 +218,12 @@ router.get('/perfil', autenticar, async (req, res, next) => {
       plan: true,
       suscripcionActiva: true,
       fechaVencimiento: true,
+      // 🔴 Sin esto el panel NO puede distinguir mensual de anual, y hasta el
+      // 2026-08-30 no viajaba: por eso `/precios` marcaba «Es tu plan actual»
+      // sobre las DOS tarjetas del plan contratado y dejaba el botón del anual
+      // apagado. O sea que el cliente no tenía por dónde pasarse a anual, que es
+      // justo a lo que conviene empujarlo.
+      periodoFacturacion: true,
       promoBienvenidaUsada: true,
       prefsAlertas: true,
       // Datos de facturación: el checkout los necesita para saber si tiene que

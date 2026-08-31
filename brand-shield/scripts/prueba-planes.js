@@ -485,6 +485,45 @@ for (const plan of planes.ORDEN) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+titulo('14. Un cliente en mensual puede pasarse a anual');
+
+// 🔴 El hueco que esto cierra: `/precios` comparaba SOLO el plan, así que a quien estaba en
+// IMPULSO mensual le marcaba «Es tu plan actual» también sobre la tarjeta del ANUAL y le
+// dejaba el botón apagado. No tenía por dónde contratar el anual — que es justo a lo que
+// conviene empujar. Y no se podía arreglar sin exponer antes el periodo, que no viajaba.
+const b14Precios = fs.readFileSync(path.join(RAIZ, '..', 'brand-shield-web', 'src', 'app', 'precios', 'page.js'), 'utf8');
+const b14Auth = fs.readFileSync(path.join(RAIZ, 'src', 'api', 'routes', 'auth.routes.js'), 'utf8');
+const b14Pagos = fs.readFileSync(path.join(RAIZ, 'src', 'api', 'routes', 'pago.routes.js'), 'utf8');
+
+check('el perfil expone periodoFacturacion',
+  /periodoFacturacion:\s*true/.test(b14Auth),
+  'sin esto el panel no puede distinguir mensual de anual');
+
+check('esActual compara también el periodo, no solo el plan',
+  /periodoUsuario === item\.periodo/.test(b14Precios),
+  'volvería a marcar el anual como «tu plan actual»');
+
+check('el botón distingue un cambio de periodo de una compra nueva',
+  /esCambioDePeriodo/.test(b14Precios));
+
+// 🔴 Lo que de verdad cuesta dinero al cliente: el alta arrancaba el vencimiento en `new Date()`,
+// así que pasarse a anual con veinte días pagados por delante los tiraba, sin decirlo. Ahora
+// SUMA sobre lo ya pagado, igual que el cron de renovación.
+check('el alta calcula el vencimiento sobre lo YA pagado, no desde hoy',
+  /baseVencimiento/.test(b14Pagos) && /usuario\.fechaVencimiento\)\s*>\s*new Date\(\)/.test(b14Pagos),
+  'volvería a tirar los días que el cliente ya pagó');
+
+// Y que las dos puntas usen la MISMA regla: si el cron y el alta discrepan, el cliente ve una
+// cosa al contratar y otra al renovar, y nadie compara los dos archivos.
+const b14Worker = fs.readFileSync(path.join(RAIZ, 'src', 'workers', 'monitoreo.worker.js'), 'utf8');
+check('el cron de renovación usa la misma regla del máximo',
+  /fechaVencimiento\s*&&\s*usuario\.fechaVencimiento\s*>\s*new Date\(\)/.test(b14Worker));
+
+// Control: las sondas de arriba tienen que poder ponerse en rojo.
+check('la sonda del periodo sabe fallar (control)',
+  !/periodoUsuario === item\.periodo/.test('const esActual = usuario?.plan === item.plan;'));
+
+// ─────────────────────────────────────────────────────────────────────────────
 console.log('\n──────────────────────────────────────────────────');
 console.log(`${ok} pasadas · ${fallos} fallidas`);
 process.exit(fallos ? 1 : 0);

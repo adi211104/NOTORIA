@@ -3312,15 +3312,36 @@ qué texto está mal.
 **inglés**, el FAQ y el pie del landing, y el flujo de registro/onboarding con una cuenta nueva.
 Se revisaron landing, `/precios` y la pantalla de inicio del panel, en escritorio y en español.
 
-🟡 **Y un hueco de producto que NO se tocó porque es una decisión, no un bug:** en `/precios`,
-`esActual` compara **solo el plan y no el periodo**, así que a un cliente de IMPULSO mensual le
-marca «Es tu plan actual» también sobre el **anual**, con el botón deshabilitado. O sea que **no
-puede pasarse a anual desde el catálogo** — y el anual es justo a lo que conviene empujar. Dejarlo
-habilitado tal cual sería peor: cobraría el año entero y arrancaría el vencimiento desde hoy,
-tirando los días ya pagados (el mismo problema que el prorrateo resolvió para los locales, §8.8).
-⚠️ Además `periodoFacturacion` **no llega al frontend** —el perfil no lo devuelve—, así que ni
-siquiera se puede distinguir hoy. Arreglarlo bien es: exponer el periodo, y decidir si el cambio
-mensual→anual se prorratea o se aplica al vencer.
+✅ **CERRADO el 2026-08-30 — un cliente en mensual ya puede pasarse a anual.** Era el último hueco
+de producto conocido: `esActual` comparaba **solo el plan**, así que a un cliente de IMPULSO
+mensual le marcaba «Es tu plan actual» también sobre el **anual** y le dejaba el botón apagado —
+no tenía por dónde contratar lo que más conviene vender.
+
+🔴 **La decisión de cobro, tomada con el dueño: se cobra el anual completo HOY y el vencimiento se
+SUMA al que ya tenía, no arranca de cero.** Se descartaron las otras dos con los números delante:
+prorratear es lo más exacto al céntimo pero añade aritmética nueva a un camino que emite
+comprobantes fiscales, y aplicarlo al vencer retrasa la caja hasta un mes y da tiempo a
+arrepentirse.
+
+⚠️ **Lo que hacía falta tocar eran TRES sitios, y el tercero es el que costaba dinero:**
+1. `auth.routes.js` — el perfil no devolvía `periodoFacturacion`, así que el panel ni siquiera
+   podía distinguir mensual de anual. Sin esto lo demás no se puede ni intentar.
+2. `precios/page.js` — `esActual` compara ahora plan **y** periodo, y el botón dice «Cambiar a
+   anual» en vez de «Pagar», para que no parezca que se paga dos veces.
+3. 🔴 `pago.routes.js` — el alta calculaba `fechaVencimiento` con `new Date()` **a secas**, así
+   que pasarse a anual con veinte días pagados por delante los **tiraba en silencio**. Ahora usa
+   el máximo entre el vencimiento y hoy, que es **exactamente la regla que el cron de renovación
+   ya tenía** (`monitoreo.worker.js`). Tener la misma regla en un sitio y no en el otro era la
+   asimetría que hacía caro cambiarse de periodo, y no la veía nadie porque los dos archivos se
+   leen por separado.
+
+⚠️ **Alcance que conviene saber:** el arreglo del punto 3 aplica a **cualquier** alta con
+vencimiento futuro, no solo al cambio de periodo. En una subida de plan eso regala los días que
+quedaban del plan viejo — es a favor del cliente, está acotado a un periodo y hace el upgrade más
+atractivo. Lo exacto sería prorratear, y se descartó por lo mismo que arriba.
+
+Lo vigila el **bloque 14 de `prueba-planes.js`** (122 comprobaciones), que comprueba las tres
+piezas *y* que el alta y el cron sigan usando la misma regla.
 
 ### Repaso en MÓVIL y en INGLÉS (2026-08-29) — un fallo, y el resto limpio
 
