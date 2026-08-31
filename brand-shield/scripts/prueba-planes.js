@@ -41,6 +41,16 @@ const archivosJs = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap
 });
 const FUENTES = archivosJs(SRC).map((f) => ({ ruta: path.relative(RAIZ, f), texto: fs.readFileSync(f, 'utf8') }));
 
+// Y los scripts OPERATIVOS, que también deciden con el plan y hasta el 2026-08-30 no los
+// miraba nadie: `dar-plan.js` y `cuenta-revisor.js` llevaban seis días rechazando IMPULSO
+// porque tenían su propia copia de la lista. Se excluyen las pruebas y los ensayos, que sí
+// enumeran planes a mano de forma legítima (recorrerlos es justamente su trabajo).
+const ES_PRUEBA = (nombre) => /^(prueba|ensayo|sonda)-/.test(nombre);
+const SCRIPTS = path.join(RAIZ, 'scripts');
+const FUENTES_SCRIPTS = archivosJs(SCRIPTS)
+  .filter((f) => !ES_PRUEBA(path.basename(f)))
+  .map((f) => ({ ruta: path.relative(RAIZ, f), texto: fs.readFileSync(f, 'utf8') }));
+
 // ─────────────────────────────────────────────────────────────────────────────
 titulo('1. El enum de Prisma y la tabla dicen lo mismo');
 
@@ -228,16 +238,57 @@ titulo('7. Nadie volvió a escribir la lista de planes a mano');
 // El bloque que de verdad protege al SIGUIENTE plan. Si alguien vuelve a poner
 // ['NEGOCIO','FRANQUICIA'] en una ruta, ese plan nacerá roto igual que IMPULSO
 // habría nacido, y nada más lo detectaría.
+//
+// 🔴 Esta sonda tenía DOS agujeros hasta el 2026-08-30, y por los dos se le escapó el mismo
+// bug real (`dar-plan.js` y `cuenta-revisor.js` rechazando IMPULSO):
+//   1. solo barría `src/` y no abría `scripts/` jamás;
+//   2. el regex exigía que el PRIMER elemento fuese un plan de pago, así que una lista que
+//      empieza por 'GRATIS' pasaba limpia incluso dentro de `src/`.
+// De ahí que la alternativa se derive de ORDEN y que abajo haya controles sintéticos: una
+// sonda que no se comprueba a sí misma vuelve a mentir en cuanto cambia lo que vigila.
+const ALT_PLANES = planes.ORDEN.join('|');
+const RE_LISTA_A_MANO = new RegExp(`\\[\\s*'(${ALT_PLANES})'\\s*,\\s*'(${ALT_PLANES})'`);
+
+// Control: la sonda tiene que saber ponerse en rojo, y con las DOS formas que se le escaparon.
+check('la sonda caza la lista clásica de planes de pago',
+  RE_LISTA_A_MANO.test("const P = ['NEGOCIO', 'FRANQUICIA'];"));
+check('la sonda caza también la lista que empieza por GRATIS (el agujero de 2026-08-30)',
+  RE_LISTA_A_MANO.test("const PLANES = ['GRATIS', 'NEGOCIO', 'FRANQUICIA'];"));
+check('la sonda NO salta con texto inocente',
+  !RE_LISTA_A_MANO.test("const x = ['uno', 'dos'];"));
+
+const sinComentarios = (t) => t.replace(/\/\/.*$/gm, '');
+const ES_FUENTE_UNICA = (ruta) => ruta === path.join('src', 'lib', 'planes.js');
+
 const conListaAMano = FUENTES.filter((f) =>
-  f.ruta !== path.join('src', 'lib', 'planes.js') &&
-  /\[\s*'(NEGOCIO|FRANQUICIA|IMPULSO)'\s*,\s*'(NEGOCIO|FRANQUICIA|IMPULSO)'/.test(f.texto.replace(/\/\/.*$/gm, '')));
-check('ningún archivo arma a mano la lista de planes de pago',
+  !ES_FUENTE_UNICA(f.ruta) && RE_LISTA_A_MANO.test(sinComentarios(f.texto)));
+check('ningún archivo de src/ arma a mano la lista de planes',
   conListaAMano.length === 0, conListaAMano.map((f) => f.ruta).join(', '));
+
+// 🔴 Lo que faltaba: los scripts operativos tocan producción y deciden con el plan.
+const scriptsConLista = FUENTES_SCRIPTS.filter((f) => RE_LISTA_A_MANO.test(sinComentarios(f.texto)));
+check('ningún script operativo arma a mano la lista de planes',
+  scriptsConLista.length === 0, scriptsConLista.map((f) => f.ruta).join(', '));
+
+// Y que el barrido mire de verdad ahí: si un día `archivosJs` dejara de encontrar scripts, los
+// dos checks de arriba pasarían en verde sin haber leído nada. Es el fallo de la sonda que se
+// da por buena porque no encontró nada.
+check('el barrido de scripts/ encuentra los scripts operativos',
+  FUENTES_SCRIPTS.some((f) => f.ruta.endsWith(path.join('scripts', 'dar-plan.js'))) &&
+  FUENTES_SCRIPTS.some((f) => f.ruta.endsWith(path.join('scripts', 'cuenta-revisor.js'))),
+  `solo encontró ${FUENTES_SCRIPTS.length}`);
+
+// Los dos que estuvieron rotos, cada uno con su nombre, para que la regresión se lea sola.
+for (const nombre of ['dar-plan.js', 'cuenta-revisor.js']) {
+  const f = FUENTES_SCRIPTS.find((x) => x.ruta.endsWith(path.join('scripts', nombre)));
+  check(`${nombre} acepta todos los planes de la tabla`,
+    !!f && f.texto.includes('lib/planes'),
+    'sigue con la lista escrita a mano');
+}
 
 // Las tablas por plan también estaban duplicadas: cinco copias de "GRATIS: n".
 const conTablaPropia = FUENTES.filter((f) =>
-  f.ruta !== path.join('src', 'lib', 'planes.js') &&
-  /GRATIS:\s*\d+/.test(f.texto));
+  !ES_FUENTE_UNICA(f.ruta) && /GRATIS:\s*\d+/.test(f.texto));
 check('ningún archivo mantiene su propia tabla de límites por plan',
   conTablaPropia.length === 0, conTablaPropia.map((f) => f.ruta).join(', '));
 
