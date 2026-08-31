@@ -174,6 +174,44 @@ que conviene revisar antes que ninguna otra.
 
 ## Fase 5 — Reenviar la solicitud
 
+> ✅ **ENVIADA el 2026-08-30 — caso `6-5952000041022`.** Tercera solicitud, y la primera que se
+> manda **cumpliendo el prerrequisito de la Organization account**. Plazo declarado en pantalla:
+> *«approximately 7–10 business days»*, con la coletilla nueva *«due to a high volume of allowlist
+> requests»*.
+>
+> ⚠️ **El asistente cambió otra vez y ahora tiene DOS pasos previos** que no estaban documentados:
+> un **«Confirm your account»** al principio (confirma que se envía como `usenotoria@gmail.com`) y
+> un **«Select your business»** donde hay que elegir la ficha de una lista — apareció como
+> «Notoria · Service-area business · **Verified**», que confirma por enésima vez que la
+> verificación no es el problema. El aviso de los **60 días** se repite ahí.
+>
+> 🔴 **Lo del «Continuar es el envío» SIGUE SIENDO CIERTO**, y ahora se sabe dónde: el botón del
+> paso al **50 %** salta directo al **100 %** con el número de caso. No hay pantalla de revisión.
+
+### 🔴 Lo que apareció al comprobar el acuse: Google Business Profile iba a SPAM
+
+Dos minutos después del envío llegó un correo de **`businessprofile-noreply@google.com`** («chu pi
+is now an owner of Notoria», la confirmación del segundo propietario) y estaba **en la carpeta de
+Spam**, con el motivo que da Gmail: *«Este mensaje es similar a mensajes que se identificaron como
+spam en el pasado.»*
+
+🔴 **Eso es una hipótesis nueva y seria sobre los acuses que nunca aparecieron**, y no se puede
+descartar como se descartó el buzón equivocado: el filtro pudo mandarlos a Spam y, si además
+Gmail los borró pasados los 30 días que conserva esa carpeta, hoy no quedaría rastro **ni siquiera
+con `in:anywhere`**. Encaja con que las búsquedas del 30/08 no encontraran nada de Business
+Profile en toda la historia del buzón.
+
+✅ **Corregido en el momento:** el correo se marcó como **«no es spam»**, que es lo que entrena al
+filtro para que el acuse del caso `6-5952000041022` aterrice en Recibidos.
+
+✅ **Y de paso confirmó la ruta de la Fase 1 por segunda vez:** ese correo iba dirigido «para
+agencia», o sea que entró por `agencia@usenotoria.app` y el reenvío de Cloudflare lo entregó.
+
+⚠️ **Lo que hay que mirar, y es la señal temprana:** que llegue el acuse del caso **en menos de una
+hora**, y mirar **también en Spam** antes de concluir que no llegó. Si a las 24 h no está, el
+problema no es el prerrequisito sino el registro del envío, y toca el foro oficial con `[API]`.
+
+
 **Quién:** **el dueño.** Es una acción hacia fuera: modifica el expediente ante Google.
 
 19. Con la sesión de **`usenotoria@gmail.com`** — el propietario, **no** la cuenta de agencia.
@@ -254,9 +292,10 @@ lo único que quedaría es esperar a cumplir la antigüedad y reenviar.
       (y de paso arreglada `didier@`, que estaba perdiendo correo)
 - [x] Fase 2 — cuenta `agencia@usenotoria.app` creada ✅ 2026-08-30 (0 ubicaciones, comprobado)
 - [x] Fase 3 — organización registrada ✅ 2026-08-30 · **ID de 10 dígitos: `5269452463`**
-- [ ] Fase 4 — la organización administra la ficha; propiedad **sin tocar**
-- [ ] Fase 5 — solicitud reenviada · **caso n.º ________**
-- [ ] Fase 6 — acuse recibido (< 1 h) · cuota revisada a los 7-10 días hábiles
+- [~] Fase 4 — **no conseguida**: el botón «Request access» de la organización no abre ningún
+      diálogo (probado por tres vías). No bloquea: el requisito es *tener* la organización.
+- [x] Fase 5 — solicitud enviada ✅ 2026-08-30 · **caso n.º `6-5952000041022`**
+- [ ] Fase 6 — **acuse recibido (< 1 h), mirando TAMBIÉN en Spam** · cuota revisada a los 7-10 días hábiles
 
 **Casos anteriores, para no confundirlos:** `3-5553000040900` (16/08) y `0-4623000041642` (29/08).
 Ninguno de los dos produjo acuse.
