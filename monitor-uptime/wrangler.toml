@@ -17,9 +17,9 @@ crons = ["*/5 * * * *"]
 # should have a string "id" field»— no dice que lo que falta es crear el
 # namespace. El Worker arranca igual sin KV, pero avisando en CADA pasada.
 #
-# [[kv_namespaces]]
-# binding = "ESTADO"
-# id = "pega-aqui-el-id-de-32-caracteres"
+ [[kv_namespaces]]
+ binding = "ESTADO"
+ id = "f3322663a76044289ca708e150c7fe8e"
 
 [vars]
 EMAIL_DESTINO = "didier@usenotoria.app"

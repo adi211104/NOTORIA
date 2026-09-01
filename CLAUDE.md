@@ -3219,9 +3219,49 @@ flujo entero.
 > ⚠️ **Bajó de 2488 a 1926 filas y no falta nada:** el del 28 se tomó **antes** de borrar la
 > cuenta de prueba. El detalle, en «Estado de la base de producción» al final de esta sección.
 >
-> ✅ **El monitor de uptime EXTERNO está ESCRITO y PROBADO desde el 2026-08-31** — `monitor-uptime/`,
-> un Cloudflare Worker con cron cada 5 min. **Falta solo desplegarlo** (`wrangler login` es
-> interactivo y lo hace el dueño; los cuatro comandos están en su README).
+> ✅ **DESPLEGADO Y VIVO el 2026-08-31** — `monitor-uptime/`, un Cloudflare Worker con cron real
+> cada 5 min, en **`https://notoria-monitor.usenotoria.workers.dev`**. Cierra el pendiente que
+> estaba abierto desde el 28/08.
+>
+> **Comprobadas las DOS mitades, que son cosas distintas:**
+> - **Mide**: `GET /` devuelve las dos sondas en verde (API 664 ms, Landing 294 ms) y el cron
+>   quedó armado (`schedule: */5 * * * *` en la salida del deploy).
+> - 🔴 **Y el aviso LLEGA**, que es lo que de verdad importa y no lo prueba lo anterior:
+>   `GET /?correo=1` devolvió `{"ok":true,"motivo":"enviado"}` **y el correo apareció en
+>   Recibidos** («Prueba del monitor de Notoria — todo bien»), no en spam. De paso confirma por
+>   segunda vía que la ruta `didier@` arreglada el 30/08 entrega de verdad.
+>
+> ✅ **El KV (`f3322663a76044289ca708e150c7fe8e`) quedó enlazado, y se comprobó FUNCIONALMENTE.**
+> Que `env.ESTADO` salga en los bindings del `--dry-run` solo prueba lo que dice el
+> `wrangler.toml` local, no lo que corre desplegado. La prueba buena fue **sembrar un estado
+> falso** y ver si el Worker de producción lo leía:
+>
+> ```bash
+> wrangler kv key put estado '{"caido":true,"desde":"...","ultimo":"..."}' \
+>   --namespace-id f3322663a76044289ca708e150c7fe8e --remote
+> ```
+>
+> La llamada siguiente devolvió **`cambio: "recuperado"`** —que solo puede salir si leyó el KV— y
+> mandó el correo de restablecimiento. **La segunda llamada devolvió `sin-cambio` y
+> `correo: null`**, que es la regla principal del diseño funcionando: avisa una vez y se calla.
+>
+> ⚠️ **Cloudflare KV es EVENTUALMENTE CONSISTENTE, y eso confunde al verificar.** Justo después
+> de que el Worker escriba, `wrangler kv key get` desde fuera puede devolver **el valor viejo**
+> durante hasta ~60 s: parece que no escribió y sí escribió. Lo que lo desmiente es el
+> comportamiento —la segunda llamada ya decía `sin-cambio`, o sea que el Worker sí leía el valor
+> nuevo—, no la lectura externa. **Al comprobar KV, creerle al comportamiento antes que a la
+> lectura.**
+>
+> ⚠️ **Tres trampas del despliegue en Windows, para no repetirlas:**
+> - **PowerShell bloquea `npm.ps1`** por su política de ejecución (*«running scripts is
+>   disabled on this system»*). **La salida es usar `npm.cmd` / `npx.cmd`**, que no pasan por
+>   esa restricción — **no** cambiar la política del sistema por esto.
+> - **npm 11 se saltó los `postinstall` de `esbuild` y `workerd`** y wrangler habría quedado a
+>   medias en silencio. Resuelto con `allowScripts` en `monitor-uptime/package.json`, igual que
+>   ya se hizo con Prisma y sharp. **No borrarlo.**
+> - **El subdominio `workers.dev` se registra en el primer deploy** y su certificado TLS tarda
+>   unos minutos: hasta que se emite, `curl` da un error de SSL (código 35) con el DNS ya
+>   resolviendo. No es un fallo del Worker; es esperar.
 >
 > 🔴 **Va en Cloudflare y no en UptimeRobot por dos razones, y la segunda es la técnica.** La
 > primera es que **no hace falta crear ninguna cuenta**: Cloudflare ya sirve el DNS y el Email
