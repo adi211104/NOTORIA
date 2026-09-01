@@ -51,8 +51,21 @@ export const AuthProvider = ({ children }) => {
           // Token inválido — limpiar sesión
           try { localStorage.removeItem('bs_token'); } catch {}
           setUsuario(null);
-        } else if (err.type === 'NETWORK_ERROR') {
-          // Backend caído — NO borrar token, preservar sesión para cuando vuelva
+        } else if (err.type === 'NETWORK_ERROR' || err.status === 429 || err.status >= 500) {
+          // 🔴 «No vale tu sesión» y «no he podido comprobar tu sesión» NO pueden
+          // acabar en la misma pantalla, que es lo que pasaba hasta el 2026-08-31:
+          // el 429 y los 5xx caían en el `else` de abajo, y `dashboard/layout.js`
+          // expulsa al login ante `!usuario && !errorConexion`. O sea que un pico
+          // de tráfico que dispara el rate-limit, un reinicio de Railway o un 500
+          // pasajero echaban al cliente de su panel sin decirle por qué — y si
+          // volvía a entrar, el limitador de auth (10/15 min, más estricto) podía
+          // rebotarle también. Se descubrió agotando el rate-limit sin querer
+          // durante el repaso del panel en móvil.
+          //
+          // Ninguno de estos códigos dice nada sobre la validez del token, así que
+          // se conserva y se enseña el estado de «sin conexión», que trae
+          // reintentar. Es la misma regla que ya gobierna el panel de alertas: no
+          // pintar «todo tranquilo» cuando lo que pasó es que no se pudo consultar.
           setErrorConexion(true);
           setUsuario(null);
         } else {
