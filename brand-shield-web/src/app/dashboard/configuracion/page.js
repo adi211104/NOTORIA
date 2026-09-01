@@ -130,7 +130,12 @@ const TEXTOS = {
     modal: {
       titulo: '¿Eliminar tu cuenta?',
       texto: (<>Esta acción es <strong className="text-red-400">permanente e irreversible</strong>. Se eliminarán todos tus datos.</>),
-      escribe: (<>Escribe <strong style={{ color: 'var(--text)' }}>ELIMINAR</strong> para confirmar:</>),
+      // 🔴 La palabra a teclear va en el objeto de idioma, no a pelo: el modal
+      // en ingles pedia escribir ELIMINAR, o sea una palabra en espanol dentro
+      // de una pantalla en ingles, y encima era la unica forma de completar la
+      // accion. Quien no supiera espanol quedaba atascado en su propia baja.
+      palabraConfirmar: 'ELIMINAR',
+      escribe: (p) => (<>Escribe <strong style={{ color: 'var(--text)' }}>{p}</strong> para confirmar:</>),
       cancelar: 'Cancelar', confirmar: 'Eliminar cuenta',
       // Se avisa ANTES de borrar: si ya se le emitieron comprobantes, la empresa
       // está obligada a conservarlos 5 años y la cuenta se anonimiza en vez de
@@ -236,7 +241,8 @@ const TEXTOS = {
     modal: {
       titulo: 'Delete your account?',
       texto: (<>This action is <strong className="text-red-400">permanent and irreversible</strong>. All your data will be deleted.</>),
-      escribe: (<>Type <strong style={{ color: 'var(--text)' }}>ELIMINAR</strong> to confirm:</>),
+      palabraConfirmar: 'DELETE',
+      escribe: (p) => (<>Type <strong style={{ color: 'var(--text)' }}>{p}</strong> to confirm:</>),
       cancelar: 'Cancel', confirmar: 'Delete account',
       notaFiscal: 'If we already issued invoices in your name, tax law requires us to keep only those documents, without your personal data.',
     },
@@ -551,7 +557,7 @@ export default function ConfiguracionPage() {
   };
 
   const eliminarCuenta = async () => {
-    if (confirmTexto !== 'ELIMINAR') return;
+    if (confirmTexto !== t.modal.palabraConfirmar) return;
     try {
       await fetch(`${API_URL}/api/auth/cuenta`, {
         method: 'DELETE',
@@ -960,8 +966,8 @@ export default function ConfiguracionPage() {
             <p className="text-xs mb-4 leading-relaxed" style={{ color: 'var(--text-3)' }}>
               {t.modal.notaFiscal}
             </p>
-            <p className="text-sm mb-2" style={{ color: 'var(--text-2)' }}>{t.modal.escribe}</p>
-            <input value={confirmTexto} onChange={e => setConfirmTexto(e.target.value)} placeholder="ELIMINAR"
+            <p className="text-sm mb-2" style={{ color: 'var(--text-2)' }}>{t.modal.escribe(t.modal.palabraConfirmar)}</p>
+            <input value={confirmTexto} onChange={e => setConfirmTexto(e.target.value)} placeholder={t.modal.palabraConfirmar}
               className="w-full rounded-lg px-3 py-2 text-sm border focus:outline-none focus:border-red-500 mb-4"
               style={{ background: 'var(--surface2)', borderColor: 'var(--border-c)', color: 'var(--text)' }} />
             <div className="flex gap-3">
@@ -970,7 +976,7 @@ export default function ConfiguracionPage() {
                 style={{ borderColor: 'var(--border-c)', color: 'var(--text-2)' }}>
                 {t.modal.cancelar}
               </button>
-              <button onClick={eliminarCuenta} disabled={confirmTexto !== 'ELIMINAR'}
+              <button onClick={eliminarCuenta} disabled={confirmTexto !== t.modal.palabraConfirmar}
                 className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed text-white py-2 rounded-lg text-sm transition">
                 {t.modal.confirmar}
               </button>
