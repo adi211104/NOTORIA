@@ -2628,9 +2628,11 @@ entorno. `npm install` antes de dar por mala una suite.
 > `/verificar-email` **no llaman a `useIdioma`** y llevan el texto en español a pelo (~60
 > cadenas). O sea que quien navega en inglés ve el landing en inglés, pulsa «Log in» y **cae en
 > una pantalla en español** — con `<html lang="en">` encima, que es lo que lo delata.
-> - **No se arregló, y es una decisión, no un olvido:** el mercado es Perú, hoy hay **1 cuenta
->   en inglés de 10** (la del dueño), y son ~60 cadenas en las dos direcciones. No mueve ningún
->   ingreso. Queda anotado con su prioridad real: **cosmético hasta que haya clientes fuera**.
+> - ✅ **NO es un pendiente: el dueño lo cerró como decisión el 2026-08-31.** El mercado es Perú,
+>   hay **1 cuenta en inglés de 10** (la suya), y son ~60 cadenas en las dos direcciones que no
+>   mueven ningún ingreso. **No se apunta como tarea ni se vuelve a proponer.** Si algún día hay
+>   clientes fuera del Perú, se reabre; hasta entonces está zanjado, igual que el domicilio
+>   fiscal del pie (§15).
 > - ⚠️ **Distinto de las que están en español A PROPÓSITO** y no hay que tocar: `/precios` (el
 >   catálogo que revisa Culqi, ya documentado como que nunca llama a `useIdioma`), `/terminos`,
 >   `/privacidad`, `/libro-reclamaciones` y `/devoluciones` — instrumentos legales peruanos,
