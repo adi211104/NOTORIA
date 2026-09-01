@@ -27,8 +27,15 @@ const TEXTOS = {
       googlePlaces:  { n:'Google Maps', d:'Rating y reseñas públicas. Es la base del monitoreo.' },
       gbp:           { n:'Google Business Profile', d:'Acceso a todas tus reseñas y respuesta directa.' },
       facebook:      { n:'Facebook Reviews', d:'Recomendaciones y reseñas de tu página.' },
-      instagram:     { n:'Instagram', d:'Comentarios de tus publicaciones y respuesta directa.' },
-      tiktok:        { n:'TikTok', d:'Comentarios de tus videos y respuesta directa.' },
+      // ⚠️ El requisito de Instagram se avisa ANTES de conectar. No es un detalle
+      // técnico: es la causa nº1 de «0 páginas utilizables», y la trampa es que
+      // Meta empuja el «Centro de cuentas» por todas partes, así que el cliente
+      // está convencido de haberlo hecho ya. Decírselo después de que falle es
+      // hacerle perder el intento y la confianza.
+      instagram:     { n:'Instagram', d:'Comentarios de tus publicaciones y respuesta directa.',
+                       req:'Necesitas una cuenta profesional de Instagram vinculada a una página de Facebook. Ojo: enlazarla por el «Centro de cuentas» de Meta no sirve para esto.' },
+      tiktok:        { n:'TikTok', d:'Comentarios de tus videos y respuesta directa.',
+                       req:'TikTok solo expone los videos públicos: los publicados para «Amigos» o «Solo yo» no se pueden monitorear.' },
     },
     ttExito: 'Cuenta de TikTok conectada. Los comentarios entrarán en el próximo escaneo.',
     ttErrorTitulo: 'No se pudo conectar TikTok',
@@ -72,8 +79,10 @@ const TEXTOS = {
       googlePlaces:  { n:'Google Maps', d:'Public rating and reviews. The basis of monitoring.' },
       gbp:           { n:'Google Business Profile', d:'Access to all your reviews with direct reply.' },
       facebook:      { n:'Facebook Reviews', d:'Recommendations and reviews from your page.' },
-      instagram:     { n:'Instagram', d:'Comments on your posts with direct reply.' },
-      tiktok:        { n:'TikTok', d:'Comments on your videos with direct reply.' },
+      instagram:     { n:'Instagram', d:'Comments on your posts with direct reply.',
+                       req:'You need a professional Instagram account linked to a Facebook Page. Note: linking it through Meta’s “Accounts Center” does not work for this.' },
+      tiktok:        { n:'TikTok', d:'Comments on your videos with direct reply.',
+                       req:'TikTok only exposes public videos: anything posted to “Friends” or “Only me” cannot be monitored.' },
     },
     ttExito: 'TikTok account connected. Comments will be picked up on the next scan.',
     ttErrorTitulo: 'Could not connect TikTok',
@@ -124,12 +133,66 @@ const Pastilla = ({ tono, children, title }) => {
 const redesVisibles = (est) =>
   ['instagram', 'facebook', 'tiktok'].filter((red) => est?.[red]?.disponible || est?.[red]?.conectado);
 
-const Fila = ({ nombre, descripcion, children, ultima }) => (
+// `requisito` es una condición que hay que cumplir FUERA de Notoria antes de
+// poder conectar. Se enseña ANTES de pulsar, no después de que falle: los pasos
+// para arreglarlo ya existían, pero vivían en el modal de error de la ficha, o
+// sea que solo los leía quien ya se había estrellado. Avisar antes convierte un
+// fallo en un requisito, que es una conversación muy distinta con el cliente.
+// Logos de marca en SVG inline. Van inline y no como <img> por dos motivos: la
+// CSP de la web solo permite imágenes propias, y así heredan el tamaño exacto
+// sin una petición de red por fila.
+//
+// ⚠️ Son marcas de terceros: se usan para identificar a QUÉ plataforma conecta
+// cada fila, que es uso nominativo y está permitido. No deben aparecer en
+// material promocional ni sugerir que Notoria está afiliada o respaldada por
+// ellas — eso sí violaría sus normas de marca.
+const LOGOS = {
+  googlePlaces: (
+    <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.31v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.09z"/>
+      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"/>
+      <path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.18V7.07H2.18a11 11 0 0 0 0 9.86l3.66-2.84z"/>
+      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1a11 11 0 0 0-9.82 6.07l3.66 2.85C6.71 7.31 9.14 5.38 12 5.38z"/>
+    </svg>
+  ),
+  instagram: (
+    <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+      <defs>
+        <radialGradient id="ig-g" cx="30%" cy="107%" r="150%">
+          <stop offset="0%" stopColor="#FDF497"/><stop offset="5%" stopColor="#FDF497"/>
+          <stop offset="45%" stopColor="#FD5949"/><stop offset="60%" stopColor="#D6249F"/>
+          <stop offset="90%" stopColor="#285AEB"/>
+        </radialGradient>
+      </defs>
+      <rect x="2" y="2" width="20" height="20" rx="5.5" fill="url(#ig-g)"/>
+      <circle cx="12" cy="12" r="4.2" fill="none" stroke="#fff" strokeWidth="1.7"/>
+      <circle cx="17.2" cy="6.8" r="1.15" fill="#fff"/>
+    </svg>
+  ),
+  tiktok: (
+    <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+      <path fill="#25F4EE" d="M9.2 9.6v1.9a3.9 3.9 0 1 0 2.9 3.8V1.6h2.2c.05.5.16 1 .32 1.45A5.3 5.3 0 0 0 16 5.1a5.3 5.3 0 0 0 3 1.2v2.2a7.4 7.4 0 0 1-4.2-1.35v7.9a6 6 0 1 1-6-6c.14 0 .27 0 .4.02z" opacity=".85"/>
+      <path fill="#FE2C55" d="M10.2 8.6v1.9a3.9 3.9 0 1 0 2.9 3.8V.6h2.2c.05.5.16 1 .32 1.45A5.3 5.3 0 0 0 17 4.1a5.3 5.3 0 0 0 3 1.2v2.2a7.4 7.4 0 0 1-4.2-1.35v7.9a6 6 0 1 1-6-6c.14 0 .27 0 .4.02z" opacity=".85"/>
+      <path fill="#000" d="M9.7 9.1v1.9a3.9 3.9 0 1 0 2.9 3.8V1.1h2.2c.05.5.16 1 .32 1.45A5.3 5.3 0 0 0 16.5 4.6a5.3 5.3 0 0 0 3 1.2v2.2a7.4 7.4 0 0 1-4.2-1.35v7.9a6 6 0 1 1-6-6c.14 0 .27 0 .4.02z"/>
+    </svg>
+  ),
+};
+
+const Fila = ({ nombre, descripcion, requisito, logo, children, ultima }) => (
   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:14, padding:'11px 0',
                 borderBottom: ultima ? 'none' : '1px solid var(--border-c)' }}>
     <div style={{ minWidth:0 }}>
-      <span style={{ color:'var(--text-2)', fontSize:13 }}>{nombre}</span>
+      <span style={{ display:'flex', alignItems:'center', gap:7, color:'var(--text-2)', fontSize:13 }}>
+        {logo && <span style={{ display:'flex', flexShrink:0 }}>{logo}</span>}
+        {nombre}
+      </span>
       <p style={{ color:'var(--text-3)', fontSize:11, margin:'2px 0 0', lineHeight:1.45 }}>{descripcion}</p>
+      {requisito && (
+        <p style={{ color:'var(--text-3)', fontSize:10.5, margin:'5px 0 0', lineHeight:1.5,
+                    paddingLeft:8, borderLeft:'2px solid rgba(232,163,61,0.55)' }}>
+          {requisito}
+        </p>
+      )}
     </div>
     <div style={{ flexShrink:0 }}>{children}</div>
   </div>
@@ -284,6 +347,7 @@ export default function ConexionesPage() {
 
                 <div style={{ display:'flex', flexDirection:'column' }}>
                   <Fila nombre={t.redes.googlePlaces.n} descripcion={t.redes.googlePlaces.d}
+                    logo={LOGOS.googlePlaces}
                     ultima={!gbpVisible && sinRedes}>
                     <Pastilla tono={n.googlePlaceId ? 'ok' : 'apagado'}>
                       {n.googlePlaceId ? t.conectado : t.noConectado}
@@ -343,6 +407,11 @@ export default function ConexionesPage() {
                   {visibles.map((red, i) => (
                     <Fila key={red} nombre={t.redes[red].n}
                       descripcion={planPago ? t.redes[red].d : t.soloPlanNegocio}
+                      logo={LOGOS[red]}
+                      // El requisito solo se enseña si la red se puede conectar
+                      // y aún no lo está: a quien ya la tiene funcionando no le
+                      // sirve, y a quien no la tiene en su plan le sobra.
+                      requisito={planPago && !est?.[red]?.conectado ? t.redes[red].req : null}
                       ultima={i === visibles.length - 1}>
                       {!planPago ? (
                         <Link href="/dashboard/planes" style={{ fontSize:11.5, color:'#4CAF66', textDecoration:'none', background:'rgba(11,115,36,0.1)', padding:'3px 10px', borderRadius:10 }}>{t.actualizar}</Link>
