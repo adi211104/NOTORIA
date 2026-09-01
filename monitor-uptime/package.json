@@ -1,0 +1,17 @@
+{
+  "name": "notoria-monitor",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Monitor de uptime externo de Notoria, en Cloudflare Workers",
+  "scripts": {
+    "login": "wrangler login",
+    "crear-kv": "wrangler kv namespace create ESTADO",
+    "secreto": "wrangler secret put RESEND_API_KEY",
+    "desplegar": "wrangler deploy",
+    "probar": "wrangler dev",
+    "logs": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^4.27.0"
+  }
+}

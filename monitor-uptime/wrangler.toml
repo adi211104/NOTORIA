@@ -1,0 +1,30 @@
+name = "notoria-monitor"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+
+# Cada 5 minutos, DE VERDAD. Es la diferencia con el cron de GitHub Actions, que
+# promete `*/15` y entrega huecos de hasta 11 horas en repos de poca actividad.
+[triggers]
+crons = ["*/5 * * * *"]
+
+# Estado entre pasadas. Sin esto el monitor no puede saber si la caída es NUEVA,
+# y acabaría mandando un correo cada 5 minutos mientras dure — que es el fallo
+# que este monitor viene a no repetir.
+#
+# 🔴 HAY QUE DESCOMENTAR ESTAS TRES LÍNEAS antes de desplegar, pegando el id que
+# imprime `npx wrangler kv namespace create ESTADO`. Va comentado y no con
+# `id = ""` porque wrangler rechaza un id vacío y el error que da —«bindings
+# should have a string "id" field»— no dice que lo que falta es crear el
+# namespace. El Worker arranca igual sin KV, pero avisando en CADA pasada.
+#
+# [[kv_namespaces]]
+# binding = "ESTADO"
+# id = "pega-aqui-el-id-de-32-caracteres"
+
+[vars]
+EMAIL_DESTINO = "didier@usenotoria.app"
+EMAIL_FROM = "Notoria <hola@usenotoria.app>"
+
+# RESEND_API_KEY NO va aquí: es un secreto y se carga aparte, con
+#   npx wrangler secret put RESEND_API_KEY
+# Ponerlo en [vars] lo dejaría en texto plano dentro del repositorio.
