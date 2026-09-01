@@ -219,23 +219,23 @@ const TEXTOS = {
       noIncluyeLabel:'No incluye:',
       planes: [
         { n:'Gratuito', p:0,
-          si:['1 negocio monitoreado','Escaneo cada 24 horas','Aviso si tu ficha aparece cerrada en Google','Score de reputación 0-100','QR y enlace para pedir reseñas','30 plantillas de respuesta','5 respuestas con IA a la semana','1 competidor monitoreado','Alertas por email y en la app Android'],
+          si:['1 negocio monitoreado','Escaneo cada 24 horas','Aviso si tu ficha aparece cerrada en Google','Score de reputación 0-100','QR y enlace para pedir reseñas','30 plantillas de respuesta','5 respuestas con IA a la semana','1 competidor monitoreado','Alertas por email'],
           no:['Compartir el panel con tu equipo','Conexión de TikTok','Más respuestas con IA a la semana','Análisis de competencia con IA','Reportes PDF','Soporte prioritario'] },
         { n:'Impulso', p:29,
           si:['1 negocio monitoreado','Escaneo cada 12 horas','Aviso si te cambian el teléfono, el horario o la dirección en Google','25 usos de IA a la semana','3 competidores monitoreados','Aviso si una crítica lleva 24h sin respuesta','Reporte PDF mensual','Boleta o factura electrónica a tu RUC','Todo lo del plan Gratuito'],
           no:['Compartir el panel con tu equipo','Conexión de TikTok','Constancia de reputación verificable'] },
         { n:'Negocio', p:59, badge:true,
-          si:['1 local incluido · S/39 por local adicional','Escaneo cada 4 horas','100 usos de IA a la semana (respuestas y análisis)','5 competidores por negocio','Aviso si te cambian el teléfono, el horario o la dirección en Google','Constancia de reputación verificable','Conexión de TikTok (perfil y videos)','Reporte PDF mensual','Boleta o factura electrónica a tu RUC','Comparte el panel con 2 personas más','Alertas por email y en la app Android','Todo lo del plan Gratuito'],
+          si:['1 local incluido · S/39 por local adicional','Escaneo cada 4 horas','100 usos de IA a la semana (respuestas y análisis)','5 competidores por negocio','Aviso si te cambian el teléfono, el horario o la dirección en Google','Constancia de reputación verificable','Conexión de TikTok (perfil y videos)','Reporte PDF mensual','Boleta o factura electrónica a tu RUC','Comparte el panel con 2 personas más','Alertas por email','Todo lo del plan Gratuito'],
           no:[] },
         { n:'Franquicia', p:179,
-          si:['1 local incluido · S/99 por local adicional','Escaneo cada hora','300 usos de IA a la semana','15 competidores por negocio','Conexión de TikTok (perfil y videos)','Reporte PDF mensual','Comparte el panel con 9 personas más, cada uno solo con su sede','Alertas por email y en la app Android','Soporte prioritario por correo','Todo lo del plan Negocio'],
+          si:['1 local incluido · S/99 por local adicional','Escaneo cada hora','300 usos de IA a la semana','15 competidores por negocio','Conexión de TikTok (perfil y videos)','Reporte PDF mensual','Comparte el panel con 9 personas más, cada uno solo con su sede','Alertas por email','Soporte prioritario por correo','Todo lo del plan Negocio'],
           no:[] },
       ],
     },
     comparativa: {
       tag:'Comparativa completa', titulo:'Lo que cambia de un plan a otro',
       sub:'Sin relleno: solo las diferencias reales entre los cuatro planes.',
-      incluidos:'Los 4 planes incluyen: score de reputación 0-100, detección de reseñas falsas y bots, 30 plantillas de respuesta profesionales, QR para pedir reseñas, alertas por email y la app de Android con notificaciones.',
+      incluidos:'Los 4 planes incluyen: score de reputación 0-100, detección de reseñas falsas y bots, 30 plantillas de respuesta profesionales, QR para pedir reseñas y alertas por email.',
       // Qué columna va resaltada. Era el índice 1 escrito a mano en cinco
       // estilos, y al insertar Impulso el verde se movió a la columna
       // equivocada sin que nada fallara: la tabla seguía compilando y
@@ -295,7 +295,7 @@ const TEXTOS = {
         // pegar allá no es eso. Se dice el límite antes que la función, porque
         // enterarse después de contratar es lo que produce una baja.
         { q:'¿Puedo responder las reseñas desde Notoria?', a:'La redactas en Notoria y la publicas tú en Google, en un clic. Tienes 30 plantillas profesionales según las estrellas de la reseña y un asistente de IA que la escribe por ti: guardamos tu respuesta, la copiamos al portapapeles y te abrimos tu ficha de Google Maps para que la pegues. Publicarla sin salir de Notoria todavía no es posible —hace falta un permiso que Google concede aparte— y estamos trabajando para que todo quede en un solo punto.' },
-        { q:'¿Qué pasa si mi rating cae de repente?', a:'Notoria lo detecta en el siguiente escaneo y te envía una alerta inmediata por email —y una notificación en el teléfono si tienes instalada la app de Android— con el detalle de qué pasó: cuántas reseñas negativas, de qué cuentas y si tienen patrones de bot. Tú decides qué alertas recibir y con qué frecuencia.' },
+        { q:'¿Qué pasa si mi rating cae de repente?', a:'Notoria lo detecta en el siguiente escaneo y te envía una alerta inmediata por email con el detalle de qué pasó: cuántas reseñas negativas, de qué cuentas y si tienen patrones de bot. Tú decides qué alertas recibir y con qué frecuencia.' },
         { q:'¿Cómo sabe Notoria quiénes son mis competidores?', a:'Tú los eliges. Los buscas igual que a tu negocio, en Google Maps, y los agregas a la lista (1 en el plan Gratuito, 3 en Impulso, 5 en Negocio y 15 en Franquicia por cada negocio). Además, en el plan Franquicia Notoria busca por su cuenta locales de tu mismo rubro a la redonda y te los propone, para que descubras rivales que quizá no tenías fichados.' },
         { q:'¿Es legal analizar las reseñas de mis competidores?', a:'Sí. Notoria solo lee lo que ya es público en Google Maps: el mismo rating y las mismas reseñas que vería cualquier persona buscando ese negocio. No accedemos a nada privado de su ficha, no interactuamos con sus reseñas y no publicamos nada en su nombre. Es exactamente la información que tú mismo podrías mirar a mano, ordenada y comparada por ti.' },
         { q:'¿Mis competidores se enteran de que los estoy siguiendo?', a:'No. Notoria consulta la información pública de Google como lo haría cualquier visitante, así que no hay ninguna notificación ni rastro visible para ellos. Tu lista de competidores es privada de tu cuenta.' },
@@ -437,23 +437,23 @@ const TEXTOS = {
       noIncluyeLabel:'Not included:',
       planes: [
         { n:'Free', p:0,
-          si:['1 monitored business','Scan every 24 hours','0-100 reputation score','QR and link to request reviews','30 reply templates','5 AI replies per week','1 monitored competitor','Email and Android app alerts','Alert if your listing shows as closed on Google'],
+          si:['1 monitored business','Scan every 24 hours','0-100 reputation score','QR and link to request reviews','30 reply templates','5 AI replies per week','1 monitored competitor','Email alerts','Alert if your listing shows as closed on Google'],
           no:['Sharing the dashboard with your team','TikTok connection','More AI replies per week','AI competitor analysis','PDF reports','Priority support'] },
         { n:'Impulso', p:29,
           si:['1 monitored business','Scan every 12 hours','Alert if your phone, hours or address are changed on Google','25 AI uses per week','3 monitored competitors','Alert if a critical review goes 24h without a reply','Monthly PDF report','Electronic invoice to your RUC','Everything in the Free plan'],
           no:['Share the dashboard with your team','TikTok connection','Verifiable reputation certificate'] },
         { n:'Business', p:59, badge:true,
-          si:['1 location included · S/39 per extra location','Scan every 4 hours','100 AI uses per week (replies and analysis)','5 competitors per business','Alert if your phone, hours or address change on Google','Reputation certificate with a verifiable code','TikTok connection (profile and videos)','Monthly PDF report','Automatic electronic invoice (SUNAT)','Share the dashboard with 2 more people','Email and Android app alerts','Everything in Free'],
+          si:['1 location included · S/39 per extra location','Scan every 4 hours','100 AI uses per week (replies and analysis)','5 competitors per business','Alert if your phone, hours or address change on Google','Reputation certificate with a verifiable code','TikTok connection (profile and videos)','Monthly PDF report','Automatic electronic invoice (SUNAT)','Share the dashboard with 2 more people','Email alerts','Everything in Free'],
           no:[] },
         { n:'Franchise', p:179,
-          si:['1 location included · S/99 per extra location','Scan every hour','300 AI uses per week','15 competitors per business','TikTok connection (profile and videos)','Monthly PDF report','Share the dashboard with 9 more people, each limited to their location','Email and Android app alerts','Priority email support','Everything in Business'],
+          si:['1 location included · S/99 per extra location','Scan every hour','300 AI uses per week','15 competitors per business','TikTok connection (profile and videos)','Monthly PDF report','Share the dashboard with 9 more people, each limited to their location','Email alerts','Priority email support','Everything in Business'],
           no:[] },
       ],
     },
     comparativa: {
       tag:'Full comparison', titulo:'What actually changes between plans',
       sub:'No filler: only the real differences between the four plans.',
-      incluidos:'All 4 plans include: 0-100 reputation score, fake-review and bot detection, 30 professional reply templates, a QR code to request reviews, email alerts and the Android app with notifications.',
+      incluidos:'All 4 plans include: 0-100 reputation score, fake-review and bot detection, 30 professional reply templates, a QR code to request reviews and email alerts.',
       destacada:'Business',
       columnas:['Free','Impulso','Business','Franchise'],
       filas:[
@@ -500,7 +500,7 @@ const TEXTOS = {
         { q:'Why do I only see 5 reviews if my business has hundreds?', a:'Google’s public API returns at most the 5 most recent reviews per query — that is Google’s limit, not Notoria’s. So Notoria doesn’t work by reading your past, it works by watching what comes in: it scans your listing every 24, 12, 4 or 1 hour depending on your plan and stores every new review that appears. Within a few weeks you have well over five, and from the day you sign up none gets past us. What we don’t do is import the ones that were already there.' },
         { q:'What if someone changes my listing details on Google?', a:'Google Maps lets anyone suggest edits to someone else’s business listing — the hours, the phone number, the address, even marking it permanently closed — and applies them without telling the owner. Notoria compares those details on every scan and warns you the same day if something changed. The permanently-closed alert is in every plan, including Free; phone, hours, name and address from the Impulso plan up.' },
         { q:'Can I reply to reviews from Notoria?', a:'You write the reply in Notoria and publish it yourself on Google, in one click. You get 30 professional templates based on the review’s stars and an AI assistant that drafts it for you: we save your reply, copy it to your clipboard and open your listing on Google Maps so you can paste it. Publishing without leaving Notoria isn’t possible yet — it needs a permission Google grants separately — and we’re working on bringing it all into one place.' },
-        { q:'What happens if my rating suddenly drops?', a:'Notoria detects it on the next scan and sends you an immediate alert by email — plus a phone notification if you have the Android app — detailing what happened: how many negative reviews, from which accounts and whether they show bot patterns. You decide which alerts to receive and how often.' },
+        { q:'What happens if my rating suddenly drops?', a:'Notoria detects it on the next scan and sends you an immediate alert by email detailing what happened: how many negative reviews, from which accounts and whether they show bot patterns. You decide which alerts to receive and how often.' },
         { q:'How does Notoria know who my competitors are?', a:'You choose them. You search for them just like your own business, on Google Maps, and add them to the list (1 on Free, 3 on Impulso, 5 on Business and 15 on Franchise, per business). On the Franchise plan Notoria also searches for venues in your category nearby and suggests them, so you discover rivals you may not have been tracking.' },
         { q:'Is it legal to analyse my competitors’ reviews?', a:'Yes. Notoria only reads what is already public on Google Maps: the same rating and the same reviews anyone searching for that business would see. We do not access anything private on their listing, we do not interact with their reviews and we never post anything on their behalf. It is exactly the information you could look up by hand, organised and compared for you.' },
         { q:'Will my competitors know I am tracking them?', a:'No. Notoria queries Google’s public information the same way any visitor would, so there is no notification and no visible trace for them. Your competitor list is private to your account.' },

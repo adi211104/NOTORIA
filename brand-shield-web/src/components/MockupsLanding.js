@@ -60,7 +60,7 @@ const TEXTOS = {
       motivo: 'Cuenta creada hace 2 días · 1 sola reseña',
       sospechosa: 'Sospechosa',
       mas: '+7 reseñas de 1★ en las últimas 6 horas',
-      canales: 'Email · App Android',
+      canales: 'Email',
     },
     score: {
       etiqueta: 'Score de reputación',
@@ -98,7 +98,7 @@ const TEXTOS = {
       motivo: 'Account created 2 days ago · single review',
       sospechosa: 'Suspicious',
       mas: '+7 one-star reviews in the last 6 hours',
-      canales: 'Email · Android app',
+      canales: 'Email',
     },
     score: {
       etiqueta: 'Reputation score',

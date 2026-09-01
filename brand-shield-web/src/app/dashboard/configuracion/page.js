@@ -67,8 +67,12 @@ const TEXTOS = {
       emailSiempre: 'Siempre activas',
       masControlNota: 'Elige qué tipo de alertas recibir y con qué frecuencia desde',
       masControlLink: 'Alertas →',
-      appTitulo: 'Notificaciones al instante',
-      appTexto: 'El correo es el único canal de alerta de Notoria. Si quieres que te suene el teléfono en el momento en que aparece una reseña sospechosa, instala la app de Android: revisa tus alertas en segundo plano y te avisa con una notificación del sistema.',
+      // ⚠️ Este bloque mandaba a «instalar la app de Android», que no está
+      // publicada ni se puede descargar de ningún sitio. Se retiró el 2026-08-31
+      // junto a las otras 18 menciones. Lo que queda es lo que sí se puede hacer
+      // hoy y consigue lo mismo: que el aviso suene en el teléfono.
+      appTitulo: 'Que te suene el teléfono',
+      appTexto: 'El correo es el único canal de alerta de Notoria. Si quieres enterarte en el momento, activa las notificaciones de tu aplicación de correo para los mensajes de hola@usenotoria.app: la alerta sale en cuanto se detecta la reseña, sin esperar a ningún resumen.',
     },
     automatizaciones: {
       titulo: 'Automatizaciones', descripcion: 'Deja que Notoria trabaje sola por ti',
@@ -176,8 +180,8 @@ const TEXTOS = {
       emailSiempre: 'Always on',
       masControlNota: 'Choose which alert types you get and how often from',
       masControlLink: 'Alerts →',
-      appTitulo: 'Instant notifications',
-      appTexto: 'Email is the only alert channel in Notoria. If you want your phone to ring the moment a suspicious review shows up, install the Android app: it checks your alerts in the background and notifies you through the system.',
+      appTitulo: 'Get it on your phone',
+      appTexto: 'Email is the only alert channel in Notoria. If you want to know the moment it happens, turn on notifications in your email app for messages from hola@usenotoria.app: the alert goes out as soon as the review is detected, without waiting for any digest.',
     },
     automatizaciones: {
       titulo: 'Automations', descripcion: 'Let Notoria work on its own for you',
