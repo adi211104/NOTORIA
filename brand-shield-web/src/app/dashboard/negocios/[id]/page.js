@@ -3759,8 +3759,18 @@ export default function DetallePage() {
             {/* Conversación */}
             <div style={{ flex:1, overflowY:'auto', padding:'18px 20px', display:'flex', flexDirection:'column', gap:14 }}>
 
-              {/* Banner: conectar GBP para publicar directo */}
-              {!gbpConectado && (
+              {/* Banner: conectar GBP para publicar directo.
+                  🔴 Va gateado por `gbpDisponible`, no solo por `!gbpConectado`.
+                  Con el interruptor de Google Business apagado NADIE lo tiene
+                  conectado, así que la condición vieja se cumplía para TODOS: a
+                  cada cliente se le prometía «publica tus respuestas sin salir de
+                  Notoria» con un botón que lleva a un flujo bloqueado. Es el
+                  mismo fallo que ya se corrigió el 25 y el 26/08 en Conexiones,
+                  la web, el onboarding y GBPBanner — este es el quinto sitio, y
+                  se escapó porque su guarda SÍ existía dos bloques más arriba
+                  (línea ~2506), lo que hacía parecer que la pantalla ya estaba
+                  cubierta. */}
+              {gbpDisponible && !gbpConectado && (
                 <div style={{ background:'rgba(66,133,244,0.07)', border:'1px solid rgba(66,133,244,0.3)', borderRadius:10, padding:'11px 14px' }}>
                   <p style={{ color:'var(--text)', fontSize:12, fontWeight:600, margin:'0 0 3px' }}>{t.modal.publicaTitulo}</p>
                   <p style={{ color:'var(--text-2)', fontSize:11.5, margin:'0 0 8px', lineHeight:1.55 }}>

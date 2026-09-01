@@ -174,11 +174,39 @@ check('y el botón junto al aviso de respuesta también',
 
 // Cada `conectarGBP` que se pueda pulsar tiene que estar detrás del flag. Se
 // cuenta en vez de mirar uno: al añadir una superficie nueva, esto lo caza.
-const invocaciones = (ficha.match(/onClick=\{conectarGBP\}/g) || []).length;
-const gateadas = (ficha.match(/gbpDisponible/g) || []).length;
-check(`las ${invocaciones} invocaciones de conectarGBP están cubiertas por el flag`,
-  invocaciones > 0 && gateadas >= invocaciones,
-  `${invocaciones} botones vs ${gateadas} menciones del flag`);
+//
+// 🔴 CÓMO ESTABA MAL HASTA EL 2026-08-31, porque la lección es sobre la sonda y
+// no sobre GBP. Comparaba dos conteos GLOBALES del archivo:
+//
+//     gateadas = ficha.match(/gbpDisponible/g).length   // 5
+//     check(..., gateadas >= invocaciones)              // 5 >= 3 → verde
+//
+// Pero `gbpDisponible` aparece también en su `useState`, en su setter y en la
+// llamada que lo resuelve, así que el conteo salía holgado **aunque un botón no
+// tuviera guarda ninguna**. Y eso es justo lo que pasaba: el banner del modal de
+// respuesta («Publica tus respuestas sin salir de Notoria») colgaba de un
+// `!gbpConectado` a secas, así que con el interruptor apagado —o sea, para
+// TODOS los clientes— se ofrecía una conexión imposible. La suite estuvo en
+// verde con ese fallo dentro, igual que el 26/08 estuvo en verde con el
+// onboarding roto.
+//
+// ⚠️ La regla: **contar ocurrencias en todo un archivo no prueba proximidad.**
+// Para afirmar que cada botón está protegido hay que mirar CADA botón.
+const trozos = ficha.split(/onClick=\{conectarGBP\}/);
+const invocaciones = trozos.length - 1;
+// De cada botón se miran los 800 caracteres previos: la ventana del bloque JSX
+// que lo envuelve. Si su guarda no está ahí, no lo está protegiendo.
+const sinGuarda = trozos.slice(0, -1).filter((t) => !/gbpDisponible/.test(t.slice(-800))).length;
+check(`los ${invocaciones} botones de conectarGBP tienen su guarda AL LADO`,
+  invocaciones >= 2 && sinGuarda === 0,
+  sinGuarda ? `${sinGuarda} sin guarda cercana: se ofrecerían con el interruptor apagado` : '');
+
+// Control de la sonda nueva: sobre un fuente inventado con un botón desnudo
+// tiene que dar positivo. Sin esto solo sabríamos que no protesta.
+const cebo = 'x'.repeat(900) + '{!gbpConectado && (<button onClick={conectarGBP}>c</button>)}';
+const ceboTrozos = cebo.split(/onClick=\{conectarGBP\}/);
+check('   …y esa sonda sabe cazar un botón sin guarda (control)',
+  ceboTrozos.slice(0, -1).filter((t) => !/gbpDisponible/.test(t.slice(-800))).length === 1);
 
 // Y las frases de pasada que prometían la función sin ofrecer botón.
 const layoutPanel = fs.readFileSync(path.join(WEB, 'src/app/dashboard/layout.js'), 'utf8');
