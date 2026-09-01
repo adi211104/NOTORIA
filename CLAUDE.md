@@ -4097,6 +4097,68 @@ sino una zona **no mirada** — que es distinto y peor de dar por buena.
 
 **Ninguno conocido** (última revisión: **2026-08-31**).
 
+### ✅ 2026-08-31 — el ALTA COMPLETA, recorrida por primera vez de punta a punta
+
+Se hizo con una cuenta real (`usenotoria+alta@gmail.com`, un alias de Gmail que aterriza en el
+buzón propio y por eso permite leer el correo de verificación) y se borró al terminar. **La base
+volvió exactamente a su estado de partida** —11 usuarios, 13 negocios, 1645 snapshots, 5 alertas,
+2 competidores— sin un residuo.
+
+| Paso | Resultado |
+|---|---|
+| Registro | Cuenta creada, y **`idioma: 'en'` guardado del navegador** — la regla de `idiomaPreferido()` funciona |
+| Los dos correos | **Recibidos, no spam**, y en inglés: «Confirm your email» y «Welcome to Notoria» |
+| Verificación | `emailVerificado: true` y el token consumido (`tokenVerificaExpira: null`) |
+| Alta de negocio | Búsqueda en Google, selección y guardado correctos |
+| Primer escaneo | 5 reseñas, snapshot, score **81/100** con su desglose, y **0 alertas** — correcto: el primer barrido calla por diseño |
+| Borrado | Limpio y completo, con confirmación por palabra tecleada |
+
+🔴 **Y encontró CINCO fallos que ninguna prueba veía**, todos en el camino que recorre cada
+cliente nuevo. Es la sexta vez que aparecen abriendo pantallas (24/08, 25/08, 29/08, 31/08 ×2):
+
+1. **«el total es `undefined`»** en la ficha, dos veces, antes del primer escaneo:
+   `snap?.totalResenas?.toLocaleString()` sobre un negocio sin snapshot devuelve `undefined`, y
+   `undefined` interpolado en una plantilla **se imprime como palabra**. No lanza, no sale en
+   consola. ⚠️ La regla: **pasar `null` explícito a una plantilla de texto**, nunca dejar que un
+   `?.` entregue `undefined`.
+2. **El pie de TODOS los correos decía «Monitor de reputación para LATAM»**, con el servicio
+   limitado al Perú — y en español dentro de correos en inglés.
+3. **El modal de borrado en inglés pedía teclear «ELIMINAR»**, y era la única forma de completar
+   la acción: quien no supiera español quedaba atascado **en su propia baja**. Séptima vez que
+   este proyecto se equivoca de idioma, y la primera en que el fallo **bloquea** algo.
+4. **El banner de cookies salía en inglés sobre páginas fijas en español** (`/registro`,
+   `/login`…). Se resolvió con `usePathname` y una lista de rutas: la página manda sobre el
+   navegador. Es el error del cartel de la promo del 25/08 por un camino nuevo.
+5. **La pantalla vacía de comentarios le explicaba TikTok a quien conectó Instagram** — ver
+   abajo.
+
+### ✅ Instagram: PRIMERA conexión real verificada (2026-08-31)
+
+Esto cierra el «lo que sigue sin probarse» que §8.3 arrastraba desde el 26/08.
+
+- ✅ **El OAuth completa y persiste**: `instagramUserId 17841443218774198`, token de página
+  guardado, vence a los 60 días.
+- ✅ **La Graph API responde con ese token**: perfil (`@notoriaapp`) y publicaciones.
+- ✅ **El panel lo pinta bien**: la cuenta con su avatar y «escuchando los comentarios».
+- ✅ **Desconectar revoca y limpia** (`instagramUserId` y token a `null`).
+
+⚠️ **El token del dueño trae MÁS permisos que los aprobados** —`debug_token` devuelve también
+`business_management`, `pages_read_user_content` y `pages_manage_metadata`— porque **tiene rol en
+la app y Meta le concede los de acceso estándar**. A un cliente sin rol **no se le piden**. O sea
+que **esta prueba no demuestra que un cliente cualquiera pueda conectar**: demuestra que el
+circuito funciona. El caso del cliente sigue dependiendo de la segunda solicitud de App Review.
+
+⚠️ **El scraper NO se puede ejercitar en local**: `META_APP_ID` y `META_APP_SECRET` están
+**vacíos** en el `.env` (a propósito, los secretos viven en Railway), así que `configurado()` da
+`false` y todas las funciones devuelven `null` sin error. Parece un fallo del producto y es el
+entorno. Para probarlo de verdad, la llamada directa a la Graph API con el token de la BD.
+
+**Y lo que la prueba real destapó en la pantalla:** el texto de «no hay comentarios» era uno
+solo (`vacioDescTikTok`) para cualquier red, así que a quien conectaba Instagram se le explicaba
+que *«TikTok solo muestra los videos públicos»*. Ahora la nota la pone **cada red conectada**, y
+la de Instagram dice lo que además hacía falta decir: **sus comentarios se recogen en cada
+escaneo, no al instante**. Es exactamente lo que no hay que prometer al venderlo.
+
 **Corregido el 2026-08-31 — un 429 o un 500 echaban al cliente de su panel como si su sesión
 no valiera.** `AuthContext` trataba tres casos al cargar el perfil: `401` borraba el token,
 `NETWORK_ERROR` conservaba la sesión y marcaba `errorConexion`, y **todo lo demás caía en un
