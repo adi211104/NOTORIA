@@ -214,6 +214,26 @@ Los CLIs de Railway y Vercel están instalados, autenticados y linkeados. Git fu
 `C:\Program Files\GitHub CLI\gh.exe`, autenticado como `adi211104`. **Commitear y pushear al
 cerrar cada bloque de trabajo.**
 
+🔴 **Y comprobar en qué RAMA quedó, que no es lo mismo.** El 2026-08-31 se descubrió que `main`
+no tenía **11 commits** del 30/08 por la tarde: vivían en `worktree-planes-en-scripts`, la rama
+de un worktree de Claude Code. O sea que todo lo de la Organization account, la tercera solicitud
+de GBP, el arreglo de `agencia@` y `didier@` en Cloudflare y el cambio mensual→anual estaba
+fuera de la rama principal — y **`main` llevaba dos días sin pushear** por su lado.
+- ⚠️ **Lo que lo hace peligroso no es perder código, es el CLAUDE.md.** Las dos ramas lo editan,
+  así que durante esos días el archivo de `main` **afirmaba cosas que ya se sabían falsas** —que
+  `didier@usenotoria.app` tenía regla de Email Routing, cuando el 30/08 se había comprobado que
+  no y que llevaba días perdiendo los informes DMARC. Un documento de estado en una rama que
+  nadie fusiona es peor que no tenerlo: se lee con la misma confianza y va desfasado.
+- **Se detecta con `git log --all --oneline` o `git branch -av`**, no con `git log` a secas, que
+  solo enseña la rama actual. Y `git worktree list` dice si hay worktrees vivos.
+- ⚠️ **Al terminar en un worktree, fusionar antes de cerrar.** El merge del 31/08 no dio ni un
+  conflicto (los archivos de código eran disjuntos y CLAUDE.md se auto-fusionó), así que el coste
+  de haberlo hecho el mismo día habría sido cero.
+- 🔴 **Un merge sin conflictos no es un merge verificado.** Git auto-fusionando CLAUDE.md puede
+  dejar conviviendo una afirmación y su corrección. Después del merge hay que **buscar la
+  contradicción a mano** —acá, qué decía la tabla de Email Routing— y **correr las suites**,
+  porque el auto-merge tocó `pago.routes.js` y `localesExtra.js`. Salieron 250+ en verde.
+
 ```bash
 cd brand-shield     && railway up --service api --detach   # → https://api.usenotoria.app
 cd brand-shield-web && vercel --prod --yes                 # → https://usenotoria.app
@@ -2408,6 +2428,36 @@ tenía. Está creada, y la solicitud salió con su ID dentro. Detalle en §19 A 
 |---|---|
 | Organization account | **Notoria** · ID **`5269452463`** · cuenta `agencia@usenotoria.app` |
 | Solicitud | caso **`6-5952000041022`**, 7-10 días hábiles |
+
+### 📅 Revisión del 2026-08-31 — sin acuse por TERCERA vez, y la cuota sigue en 0
+
+Comprobadas las dos puntas el día siguiente al envío, que es cuando el acuse ya debería estar
+(la documentación promete uno automático «within the hour»):
+
+| Qué se buscó en `usenotoria@gmail.com` | Resultado |
+|---|---|
+| `in:anywhere 6-5952000041022` | **0** |
+| `in:anywhere 0-4623000041642` | **0** |
+| `from:businessprofile-noreply@google.com` | **1**, y es el de la organización — no un acuse |
+| Carpeta **Spam** entera (109 mensajes, hasta el 18/08) | ningún correo de acceso a la API |
+| Cuota `Requests per minute` en las GBP APIs | **0** |
+
+⚠️ **El control de la cuota, que es lo que hace que ese 0 signifique algo:** las otras dos cuotas
+de Business Information siguen con valores (Create Location 100, SearchGoogleLocation 200), así
+que es lectura real y no una página a medio cargar. Es la trampa de siempre.
+
+🔴 **Se comprobó además la ruta `agencia@`, y esto cierra una duda razonable:** que la solicitud
+saliera de la cuenta de la organización no significa que el acuse vaya a un buzón distinto.
+`agencia@usenotoria.app` es una **regla de reenvío** hacia `didierprincipe@gmail.com`, que es la
+dirección alterna de la misma cuenta de Google. Buscar `in:anywhere to:agencia@usenotoria.app`
+devuelve **4 correos** —el de Business Profile, el código de verificación, la alerta de seguridad
+y la marca de prueba del 30/08—, o sea que **la ruta entrega y el buzón mirado es el correcto**.
+No hay un segundo buzón donde mirar.
+
+⚠️ **Esto todavía no significa que la solicitud vaya mal**: es el día 1 de un plazo de 7-10 días
+hábiles. Lo que sí es dato es que **son tres envíos y tres silencios**, y la hipótesis del spam
+—única explicación que quedaba— se debilita: hoy la carpeta está entera y no hay nada. Volver a
+mirar alrededor del **11 de septiembre**; antes de esa fecha, mirar no dice nada.
 | Casos anteriores | `3-5553000040900` (16/08) y `0-4623000041642` (29/08), los dos sin acuse |
 
 🔴 **Y de camino aparecieron DOS fallos de correo que llevaban tiempo perdiendo mensajes**, los dos
@@ -3040,14 +3090,43 @@ flujo entero.
 > ⚠️ **Bajó de 2488 a 1926 filas y no falta nada:** el del 28 se tomó **antes** de borrar la
 > cuenta de prueba. El detalle, en «Estado de la base de producción» al final de esta sección.
 >
-> 🟡 **Nuevo el 2026-08-28 — un monitor de uptime EXTERNO.** El workflow de Actions ya avisa
-> cuando deja de mirar, pero sigue sin mirar cada 15 minutos: GitHub degrada los cron y los
-> huecos medidos llegaron a 11 h. UptimeRobot y BetterStack tienen plan gratuito y vigilan desde
-> fuera de GitHub, que es lo que falta. Requiere crear una cuenta, así que lo hace el dueño.
-> ⚠️ **Sigue igual de vigente el 2026-08-30, medido otra vez:** en las últimas 24 h los huecos
-> entre corridas fueron de **5,0 h y 5,1 h**. El arreglo del 29 quitó los correos falsos, y por
-> eso mismo el problema es ahora más fácil de olvidar: la bandeja está limpia y la vigilancia
-> sigue siendo de una vez cada cinco horas.
+> ✅ **El monitor de uptime EXTERNO está ESCRITO y PROBADO desde el 2026-08-31** — `monitor-uptime/`,
+> un Cloudflare Worker con cron cada 5 min. **Falta solo desplegarlo** (`wrangler login` es
+> interactivo y lo hace el dueño; los cuatro comandos están en su README).
+>
+> 🔴 **Va en Cloudflare y no en UptimeRobot por dos razones, y la segunda es la técnica.** La
+> primera es que **no hace falta crear ninguna cuenta**: Cloudflare ya sirve el DNS y el Email
+> Routing del dominio. La segunda pesa más — **es la única de las cuatro piezas que no aloja nada
+> del producto** (backend en Railway, web en Vercel, workflow viejo en GitHub). Un monitor que
+> vive en la misma plataforma que vigila se cae con ella.
+>
+> ⚠️ **El workflow de GitHub se queda**, pero no cubre lo que promete: los huecos medidos entre
+> pasadas fueron de 28 min a 11 h, y **5,0 h y 5,1 h en las últimas 24 h del 30/08**, con el cron
+> intacto. Una vigilancia cada cinco horas produce confianza sin dar cobertura.
+>
+> **Las dos reglas del diseño, las dos aprendidas de fallos ya cometidos aquí:**
+> - 🔴 **Solo se avisa en el CAMBIO de estado.** Un correo cada 5 min durante una caída de tres
+>   horas son 36 correos que enseñan a ignorar el remitente — y entonces el aviso de la caída
+>   siguiente llega igual que esos 36. Es exactamente lo que hizo el workflow en agosto con sus
+>   cinco «Run failed» y el sitio respondiendo 200. Requiere estado, y de ahí el KV.
+> - ⚠️ **Se reintenta antes de declarar una caída.** Una sonda que falla una vez no es una caída:
+>   es una sonda que falló. Sin eso, cualquier microcorte produce una alarma y una recuperación
+>   cinco minutos después — el mismo ruido por otro camino.
+>
+> ⚠️ **Las sondas comprueban CONTENIDO, no solo el 200**: Railway puede devolver 200 con una
+> página de error suya, y un landing que responde 200 con el HTML vacío es el bug que rompió la
+> verificación de marca de Google.
+>
+> ✅ **Probado con su CONTROL, que es lo que hace que el verde signifique algo:** contra
+> producción mide 200 en ambas (739 ms y 345 ms); con una URL inexistente y una comprobación de
+> contenido imposible devuelve **503**, marca `empieza-caida` y dispara el correo. Un monitor que
+> no sabe ponerse en rojo no es un monitor.
+>
+> ⚠️ **Dos trampas del despliegue, ya resueltas en el repo.** `wrangler` **rechaza un `id = ""`**
+> en `[[kv_namespaces]]` con un error que no dice que lo que falta es crear el namespace, así que
+> el bloque va **comentado**. Y el `*/5` del cron **no se puede escribir dentro de un comentario
+> de bloque de JS**: el `*/` lo cierra y el archivo deja de compilar. Lo cazó la prueba, no la
+> lectura.
 >
 > 🔴 **Lo único verdaderamente irreversible que sigue abierto: respaldar
 > `notoria-upload.jks` y su contraseña fuera de esta PC.** Si esa clave se pierde antes de la
@@ -3238,10 +3317,28 @@ esa clave se perdiera durante la espera, no hay app que publicar. Y releer los r
 alta en la consola, que Google los cambia.
 
 🔴 **Y desde el 2026-08-30 eso exige un paso previo que antes no existía: la PC del taller no
-tiene JDK ni Android SDK.** `keytool` no está, así que la comprobación de arriba **hoy no se
-puede hacer**, y el AAB tampoco se puede reconstruir — que es justo lo que
-`NotoriaApp/PENDIENTES.md` exige desde que el backend estrenó Impulso. Instalar un JDK (o
-Android Studio) deja de ser un detalle de entorno y pasa a ser el **paso 0** de publicar.
+tiene JDK ni Android SDK.** `keytool` no está, así que **el AAB no se puede reconstruir** — que
+es justo lo que `NotoriaApp/PENDIENTES.md` exige desde que el backend estrenó Impulso. Instalar
+un JDK (o Android Studio) deja de ser un detalle de entorno y pasa a ser el **paso 0** de
+publicar.
+
+✅ **Pero COMPROBAR el keystore sí se puede sin JDK, y el 2026-08-31 se hizo.** Esta nota decía
+que la comprobación «hoy no se puede hacer», y era falso: un `.jks` moderno es **PKCS#12** (los
+magic bytes son `30 82`, no `feedfeed`), y `node-forge` —que ya está instalado para el
+certificado de SUNAT— lo abre igual que `keytool`. Diez líneas de Node bastan:
+
+```js
+const p12 = forge.pkcs12.pkcs12FromAsn1(forge.asn1.fromDer(der), clave);  // lanza si la clave es mala
+```
+
+Resultado: **abre con su contraseña**, llave privada presente, `NOTORIA E.I.R.L.`, RSA 4096,
+válido hasta 2054-01-02, SHA-1 `B5:74:06:…:56:BF`.
+🔴 **Importa porque «tener copia no es saber restaurarla»**, y hasta ese día nadie había
+verificado que el archivo abriera de verdad. Faltar la herramienta no era lo mismo que no poder
+comprobarlo — y dar por imposible una comprobación de un secreto de nivel 1 durante una espera
+indefinida es justo el caso en que hay que buscar la segunda vía.
+⚠️ Huella del archivo, para verificar cualquier copia:
+`d3480fa32539a5ac2dcdd35a178013eb5e8bedc7efd40a6fcadc60cdef9d15ee` (4456 bytes).
 ⚠️ Lo que sí viajó es lo que no se puede regenerar: el `.jks` vive en la carpeta
 `notoria-secrets` del taller y `keystore.properties` ya apunta ahí, comprobado. Falta la
 herramienta, no la clave — y de las dos, la herramienta es la que se arregla descargando algo.
