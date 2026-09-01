@@ -285,7 +285,18 @@ export default function PreciosPage() {
         {/* Catálogo */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 18 }}>
           {CATALOGO.map((item) => {
-            const esActual = usuario?.plan === item.plan;
+            // 🔴 Compara plan Y PERIODO. Hasta el 2026-08-30 miraba solo el plan,
+            // así que a un cliente de IMPULSO mensual le marcaba «Es tu plan
+            // actual» también sobre la tarjeta del ANUAL y le dejaba el botón
+            // apagado: no tenía por dónde pasarse a anual, que es justo a lo que
+            // conviene empujarlo. El plan Gratuito lleva `periodo: null` y una
+            // cuenta gratis tiene `periodoFacturacion` null, así que casan solos.
+            const periodoUsuario = usuario?.periodoFacturacion || null;
+            const esActual = usuario?.plan === item.plan
+              && (item.periodo === null || periodoUsuario === item.periodo);
+            // Mismo plan, otro periodo: no es una compra nueva, es un cambio de
+            // modalidad. Decirlo evita que el cliente crea que va a pagar dos veces.
+            const esCambioDePeriodo = usuario?.plan === item.plan && !esActual && item.periodo !== null;
             const promo = item.periodo === 'mensual' && puedeUsarPromo;
             return (
               <div key={item.id} style={{
@@ -346,7 +357,9 @@ export default function PreciosPage() {
                     }}
                     onMouseEnter={e => { if (!procesando && !esActual) e.currentTarget.style.background = GH; }}
                     onMouseLeave={e => { if (!procesando && !esActual) e.currentTarget.style.background = G; }}>
-                    {esActual ? 'Es tu plan actual' : `Pagar ${SIMBOLO}${formatearSoles(montoEnCentimos(item.precio, promo))}`}
+                    {esActual
+                      ? 'Es tu plan actual'
+                      : `${esCambioDePeriodo ? `Cambiar a ${item.periodo}` : 'Pagar'} ${SIMBOLO}${formatearSoles(montoEnCentimos(item.precio, promo))}`}
                   </button>
                 ) : (
                   <Link href="/registro" style={{ display: 'block', textAlign: 'center', width: '100%', padding: '12px', borderRadius: 5, fontSize: 14.5, fontWeight: 700, background: '#fff', color: G, border: `1px solid ${G}`, textDecoration: 'none', boxSizing: 'border-box' }}>

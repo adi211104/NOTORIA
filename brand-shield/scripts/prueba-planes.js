@@ -41,6 +41,16 @@ const archivosJs = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap
 });
 const FUENTES = archivosJs(SRC).map((f) => ({ ruta: path.relative(RAIZ, f), texto: fs.readFileSync(f, 'utf8') }));
 
+// Y los scripts OPERATIVOS, que también deciden con el plan y hasta el 2026-08-30 no los
+// miraba nadie: `dar-plan.js` y `cuenta-revisor.js` llevaban seis días rechazando IMPULSO
+// porque tenían su propia copia de la lista. Se excluyen las pruebas y los ensayos, que sí
+// enumeran planes a mano de forma legítima (recorrerlos es justamente su trabajo).
+const ES_PRUEBA = (nombre) => /^(prueba|ensayo|sonda)-/.test(nombre);
+const SCRIPTS = path.join(RAIZ, 'scripts');
+const FUENTES_SCRIPTS = archivosJs(SCRIPTS)
+  .filter((f) => !ES_PRUEBA(path.basename(f)))
+  .map((f) => ({ ruta: path.relative(RAIZ, f), texto: fs.readFileSync(f, 'utf8') }));
+
 // ─────────────────────────────────────────────────────────────────────────────
 titulo('1. El enum de Prisma y la tabla dicen lo mismo');
 
@@ -228,16 +238,57 @@ titulo('7. Nadie volvió a escribir la lista de planes a mano');
 // El bloque que de verdad protege al SIGUIENTE plan. Si alguien vuelve a poner
 // ['NEGOCIO','FRANQUICIA'] en una ruta, ese plan nacerá roto igual que IMPULSO
 // habría nacido, y nada más lo detectaría.
+//
+// 🔴 Esta sonda tenía DOS agujeros hasta el 2026-08-30, y por los dos se le escapó el mismo
+// bug real (`dar-plan.js` y `cuenta-revisor.js` rechazando IMPULSO):
+//   1. solo barría `src/` y no abría `scripts/` jamás;
+//   2. el regex exigía que el PRIMER elemento fuese un plan de pago, así que una lista que
+//      empieza por 'GRATIS' pasaba limpia incluso dentro de `src/`.
+// De ahí que la alternativa se derive de ORDEN y que abajo haya controles sintéticos: una
+// sonda que no se comprueba a sí misma vuelve a mentir en cuanto cambia lo que vigila.
+const ALT_PLANES = planes.ORDEN.join('|');
+const RE_LISTA_A_MANO = new RegExp(`\\[\\s*'(${ALT_PLANES})'\\s*,\\s*'(${ALT_PLANES})'`);
+
+// Control: la sonda tiene que saber ponerse en rojo, y con las DOS formas que se le escaparon.
+check('la sonda caza la lista clásica de planes de pago',
+  RE_LISTA_A_MANO.test("const P = ['NEGOCIO', 'FRANQUICIA'];"));
+check('la sonda caza también la lista que empieza por GRATIS (el agujero de 2026-08-30)',
+  RE_LISTA_A_MANO.test("const PLANES = ['GRATIS', 'NEGOCIO', 'FRANQUICIA'];"));
+check('la sonda NO salta con texto inocente',
+  !RE_LISTA_A_MANO.test("const x = ['uno', 'dos'];"));
+
+const sinComentarios = (t) => t.replace(/\/\/.*$/gm, '');
+const ES_FUENTE_UNICA = (ruta) => ruta === path.join('src', 'lib', 'planes.js');
+
 const conListaAMano = FUENTES.filter((f) =>
-  f.ruta !== path.join('src', 'lib', 'planes.js') &&
-  /\[\s*'(NEGOCIO|FRANQUICIA|IMPULSO)'\s*,\s*'(NEGOCIO|FRANQUICIA|IMPULSO)'/.test(f.texto.replace(/\/\/.*$/gm, '')));
-check('ningún archivo arma a mano la lista de planes de pago',
+  !ES_FUENTE_UNICA(f.ruta) && RE_LISTA_A_MANO.test(sinComentarios(f.texto)));
+check('ningún archivo de src/ arma a mano la lista de planes',
   conListaAMano.length === 0, conListaAMano.map((f) => f.ruta).join(', '));
+
+// 🔴 Lo que faltaba: los scripts operativos tocan producción y deciden con el plan.
+const scriptsConLista = FUENTES_SCRIPTS.filter((f) => RE_LISTA_A_MANO.test(sinComentarios(f.texto)));
+check('ningún script operativo arma a mano la lista de planes',
+  scriptsConLista.length === 0, scriptsConLista.map((f) => f.ruta).join(', '));
+
+// Y que el barrido mire de verdad ahí: si un día `archivosJs` dejara de encontrar scripts, los
+// dos checks de arriba pasarían en verde sin haber leído nada. Es el fallo de la sonda que se
+// da por buena porque no encontró nada.
+check('el barrido de scripts/ encuentra los scripts operativos',
+  FUENTES_SCRIPTS.some((f) => f.ruta.endsWith(path.join('scripts', 'dar-plan.js'))) &&
+  FUENTES_SCRIPTS.some((f) => f.ruta.endsWith(path.join('scripts', 'cuenta-revisor.js'))),
+  `solo encontró ${FUENTES_SCRIPTS.length}`);
+
+// Los dos que estuvieron rotos, cada uno con su nombre, para que la regresión se lea sola.
+for (const nombre of ['dar-plan.js', 'cuenta-revisor.js']) {
+  const f = FUENTES_SCRIPTS.find((x) => x.ruta.endsWith(path.join('scripts', nombre)));
+  check(`${nombre} acepta todos los planes de la tabla`,
+    !!f && f.texto.includes('lib/planes'),
+    'sigue con la lista escrita a mano');
+}
 
 // Las tablas por plan también estaban duplicadas: cinco copias de "GRATIS: n".
 const conTablaPropia = FUENTES.filter((f) =>
-  f.ruta !== path.join('src', 'lib', 'planes.js') &&
-  /GRATIS:\s*\d+/.test(f.texto));
+  !ES_FUENTE_UNICA(f.ruta) && /GRATIS:\s*\d+/.test(f.texto));
 check('ningún archivo mantiene su propia tabla de límites por plan',
   conTablaPropia.length === 0, conTablaPropia.map((f) => f.ruta).join(', '));
 
@@ -432,6 +483,45 @@ for (const plan of planes.ORDEN) {
   check(`${plan}: nav y ruta coinciden sobre menciones`,
     planes.puede(plan, 'menciones') === planes.planesCon('menciones').includes(plan));
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+titulo('14. Un cliente en mensual puede pasarse a anual');
+
+// 🔴 El hueco que esto cierra: `/precios` comparaba SOLO el plan, así que a quien estaba en
+// IMPULSO mensual le marcaba «Es tu plan actual» también sobre la tarjeta del ANUAL y le
+// dejaba el botón apagado. No tenía por dónde contratar el anual — que es justo a lo que
+// conviene empujar. Y no se podía arreglar sin exponer antes el periodo, que no viajaba.
+const b14Precios = fs.readFileSync(path.join(RAIZ, '..', 'brand-shield-web', 'src', 'app', 'precios', 'page.js'), 'utf8');
+const b14Auth = fs.readFileSync(path.join(RAIZ, 'src', 'api', 'routes', 'auth.routes.js'), 'utf8');
+const b14Pagos = fs.readFileSync(path.join(RAIZ, 'src', 'api', 'routes', 'pago.routes.js'), 'utf8');
+
+check('el perfil expone periodoFacturacion',
+  /periodoFacturacion:\s*true/.test(b14Auth),
+  'sin esto el panel no puede distinguir mensual de anual');
+
+check('esActual compara también el periodo, no solo el plan',
+  /periodoUsuario === item\.periodo/.test(b14Precios),
+  'volvería a marcar el anual como «tu plan actual»');
+
+check('el botón distingue un cambio de periodo de una compra nueva',
+  /esCambioDePeriodo/.test(b14Precios));
+
+// 🔴 Lo que de verdad cuesta dinero al cliente: el alta arrancaba el vencimiento en `new Date()`,
+// así que pasarse a anual con veinte días pagados por delante los tiraba, sin decirlo. Ahora
+// SUMA sobre lo ya pagado, igual que el cron de renovación.
+check('el alta calcula el vencimiento sobre lo YA pagado, no desde hoy',
+  /baseVencimiento/.test(b14Pagos) && /usuario\.fechaVencimiento\)\s*>\s*new Date\(\)/.test(b14Pagos),
+  'volvería a tirar los días que el cliente ya pagó');
+
+// Y que las dos puntas usen la MISMA regla: si el cron y el alta discrepan, el cliente ve una
+// cosa al contratar y otra al renovar, y nadie compara los dos archivos.
+const b14Worker = fs.readFileSync(path.join(RAIZ, 'src', 'workers', 'monitoreo.worker.js'), 'utf8');
+check('el cron de renovación usa la misma regla del máximo',
+  /fechaVencimiento\s*&&\s*usuario\.fechaVencimiento\s*>\s*new Date\(\)/.test(b14Worker));
+
+// Control: las sondas de arriba tienen que poder ponerse en rojo.
+check('la sonda del periodo sabe fallar (control)',
+  !/periodoUsuario === item\.periodo/.test('const esActual = usuario?.plan === item.plan;'));
 
 // ─────────────────────────────────────────────────────────────────────────────
 console.log('\n──────────────────────────────────────────────────');

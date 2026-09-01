@@ -347,7 +347,24 @@ router.post('/culqi', async (req, res) => {
         + (aplicaPromo ? ' — promo 50% bienvenida' : ''),
     });
 
-    const fechaVencimiento = new Date();
+    // 🔴 El periodo nuevo se SUMA a lo que el cliente ya tiene pagado, no arranca
+    // hoy. Hasta el 2026-08-30 esto era `new Date()` a secas, y el precio lo
+    // pagaba el cliente: quien estaba en mensual con veinte días por delante y
+    // se pasaba a anual perdía esos veinte días sin que nada se lo dijera. Es la
+    // MISMA regla que ya usa el cron de renovación (`monitoreo.worker.js`, el
+    // `base` con el máximo entre vencimiento y ahora); tenerla en un solo sitio
+    // y no en el otro era la asimetría que hacía caro cambiarse de periodo.
+    //
+    // ⚠️ Alcance: aplica a CUALQUIER alta con vencimiento futuro, no solo al
+    // cambio de periodo. En una subida de plan eso regala los días que quedaban
+    // del plan viejo — es a favor del cliente, acotado a un periodo, y hace el
+    // upgrade más atractivo. Lo exacto sería prorratear, y se descartó a
+    // propósito: añadir esa aritmética a un camino que emite comprobantes
+    // fiscales no compensa por unos días (misma decisión que en §8.8).
+    const baseVencimiento = usuario.fechaVencimiento && new Date(usuario.fechaVencimiento) > new Date()
+      ? new Date(usuario.fechaVencimiento)
+      : new Date();
+    const fechaVencimiento = new Date(baseVencimiento);
     fechaVencimiento.setMonth(fechaVencimiento.getMonth() + (anual ? 12 : 1));
 
     const usuarioActualizado = await prisma.usuario.update({
