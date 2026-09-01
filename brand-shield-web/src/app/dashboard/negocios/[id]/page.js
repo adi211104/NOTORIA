@@ -604,7 +604,15 @@ const TEXTOS = {
       vacioDesc:'Se revisan cada 4 horas junto con el resto del monitoreo. También puedes forzar un escaneo desde el botón de arriba.',
       // La explicación honesta cuando la cuenta SÍ está conectada: el monitoreo
       // funciona, lo que no existe es la vía para leer comentarios.
-      vacioDescTikTok:'Tu cuenta está conectada y el monitoreo corre. Los comentarios nuevos aparecen acá en cuanto se detectan, y puedes responderlos sin salir de Notoria. Ten en cuenta que TikTok solo muestra los videos públicos: los publicados para "Amigos" o "Solo yo" quedan fuera.',
+      // ⚠️ Antes esto era UN solo texto (`vacioDescTikTok`) que se enseñaba con
+      // cualquier red conectada, así que a quien acababa de conectar Instagram
+      // se le explicaba una limitación de TikTok. Ahora la nota la pone la red
+      // que de verdad está conectada. Al sumar una red, sumarle su nota.
+      vacioDescConectado:'Tu cuenta está conectada y el monitoreo corre. Los comentarios nuevos aparecen acá en cuanto se detectan, y puedes responderlos sin salir de Notoria.',
+      notaVacio:{
+        tiktok:'Ten en cuenta que TikTok solo muestra los videos públicos: los publicados para "Amigos" o "Solo yo" quedan fuera.',
+        instagram:'En Instagram los comentarios se recogen en cada escaneo, no al instante: pueden tardar hasta lo que dure tu ciclo de monitoreo en aparecer acá.',
+      },
       vacioFiltro:'Ningún comentario coincide con este filtro.',
       enVideo:'En este video',
       enPublicacion:'En esta publicación',
@@ -1064,7 +1072,11 @@ const TEXTOS = {
       videosVistas:(n) => `${n} views`,
       vacio:'No comments yet',
       vacioDesc:'They are checked every 4 hours along with the rest of the monitoring. You can also force a scan with the button above.',
-      vacioDescTikTok:'Your account is connected and monitoring is running. New comments show up here as soon as they are detected, and you can reply without leaving Notoria. Note that TikTok only exposes public videos: anything posted to "Friends" or "Only me" stays out.',
+      vacioDescConectado:'Your account is connected and monitoring is running. New comments show up here as soon as they are detected, and you can reply without leaving Notoria.',
+      notaVacio:{
+        tiktok:'Note that TikTok only exposes public videos: anything posted to "Friends" or "Only me" stays out.',
+        instagram:'On Instagram, comments are collected on each scan rather than instantly: they can take up to your monitoring cycle to show up here.',
+      },
       vacioFiltro:'No comment matches this filter.',
       enVideo:'On this video',
       enPublicacion:'On this post',
@@ -2822,11 +2834,21 @@ export default function DetallePage() {
                     {/* Con la cuenta conectada, "se revisan cada 4 horas" era falso
                         y contradecía lo que muestra el resto del tab: el escaneo
                         corre, pero TikTok no expone los comentarios (§15-quinquies).
-                        Sin cuenta conectada el texto genérico sí aplica. */}
+                        Sin cuenta conectada el texto genérico sí aplica.
+                        ⚠️ Y la nota va POR RED conectada: enseñarle la de TikTok
+                        a quien conectó Instagram le explica un límite que no es
+                        el suyo. */}
                     {!hayFiltro && (
-                      <p style={{ color:'var(--text-3)', fontSize:12, margin:0, lineHeight:1.55 }}>
-                        {conectado ? tc.vacioDescTikTok : tc.vacioDesc}
-                      </p>
+                      <>
+                        <p style={{ color:'var(--text-3)', fontSize:12, margin:0, lineHeight:1.55 }}>
+                          {conectado ? tc.vacioDescConectado : tc.vacioDesc}
+                        </p>
+                        {conectado && redes.map(r => tc.notaVacio?.[r.id] && (
+                          <p key={r.id} style={{ color:'var(--text-3)', fontSize:12, margin:'6px 0 0', lineHeight:1.55 }}>
+                            {tc.notaVacio[r.id]}
+                          </p>
+                        ))}
+                      </>
                     )}
                   </Card>
                 ) : agrupadosPorPublicacion(comentarios).map(([pubId, delGrupo]) => (
