@@ -514,8 +514,15 @@ const TEXTOS = {
       graficaPunto:(v, f) => `${v} estrellas el ${f}`,
       distribucion:'Distribución de estrellas',
       sinResenas:'Sin reseñas captadas aún',
-      sinResenasDesc:(n) => `La Google Places API devuelve máximo 5 reseñas por consulta. Para negocios muy activos como este, a veces el array viene vacío aunque el total sea ${n}.`,
-      verEnMaps:(n) => `Ver las ${n} reseñas en Google Maps →`,
+      // ⚠️ `n` puede no existir: un negocio recién agregado todavía no tiene
+      // snapshot, y el call-site hacía `snap?.totalResenas?.toLocaleString()`,
+      // que en ese caso devuelve `undefined` y se interpola COMO TEXTO. El
+      // cliente nuevo leía «aunque el total sea undefined» en la primera
+      // pantalla del producto. Las dos frases tienen ahora versión sin número.
+      sinResenasDesc:(n) => n
+        ? `La Google Places API devuelve máximo 5 reseñas por consulta. Para negocios muy activos como este, a veces el array viene vacío aunque el total sea ${n}.`
+        : 'La Google Places API devuelve máximo 5 reseñas por consulta. Para negocios muy activos, a veces el array viene vacío aunque la ficha tenga muchas.',
+      verEnMaps:(n) => n ? `Ver las ${n} reseñas en Google Maps →` : 'Ver las reseñas en Google Maps →',
       ultimoEscaneo:'Último escaneo',
       metricas: { rating:'Rating', totalResenas:'Total reseñas', enGoogleMaps:'en Google Maps', negativos24h:'Negativos 24h', tomadoEl:'Tomado el' },
     },
@@ -990,8 +997,10 @@ const TEXTOS = {
       graficaPunto:(v, f) => `${v} stars on ${f}`,
       distribucion:'Star distribution',
       sinResenas:'No reviews captured yet',
-      sinResenasDesc:(n) => `The Google Places API returns at most 5 reviews per query. For very active businesses like this one, the array can come back empty even though the total is ${n}.`,
-      verEnMaps:(n) => `View all ${n} reviews on Google Maps →`,
+      sinResenasDesc:(n) => n
+        ? `The Google Places API returns at most 5 reviews per query. For very active businesses like this one, the array can come back empty even though the total is ${n}.`
+        : 'The Google Places API returns at most 5 reviews per query. For very active businesses, the array can come back empty even though the listing has many.',
+      verEnMaps:(n) => n ? `View all ${n} reviews on Google Maps →` : 'View the reviews on Google Maps →',
       ultimoEscaneo:'Last scan',
       metricas: { rating:'Rating', totalResenas:'Total reviews', enGoogleMaps:'on Google Maps', negativos24h:'Negative in 24h', tomadoEl:'Taken on' },
     },
@@ -2384,8 +2393,10 @@ export default function DetallePage() {
             }) : (
               <div style={{ background:'rgba(245,158,11,0.06)', border:'1px solid rgba(245,158,11,0.2)', borderRadius:10, padding:14 }}>
                 <p style={{ color:'#f59e0b', fontSize:13, fontWeight:500, margin:'0 0 6px', display:'flex', alignItems:'center', gap:6 }}><Icon name="alerta" size={14} /> {t.resumen.sinResenas}</p>
-                <p style={{ color:'var(--text-2)', fontSize:12, margin:'0 0 8px', lineHeight:1.5 }}>{t.resumen.sinResenasDesc(snap?.totalResenas?.toLocaleString())}</p>
-                {linkMaps && <a href={linkMaps} target="_blank" rel="noopener noreferrer" style={{ color:'#4CAF66', fontSize:12 }}>{t.resumen.verEnMaps(snap?.totalResenas?.toLocaleString())}</a>}
+                {/* Se pasa null explícito cuando no hay total, en vez de dejar que
+                    el `?.` entregue `undefined` a una plantilla de texto. */}
+                <p style={{ color:'var(--text-2)', fontSize:12, margin:'0 0 8px', lineHeight:1.5 }}>{t.resumen.sinResenasDesc(snap?.totalResenas ? snap.totalResenas.toLocaleString() : null)}</p>
+                {linkMaps && <a href={linkMaps} target="_blank" rel="noopener noreferrer" style={{ color:'#4CAF66', fontSize:12 }}>{t.resumen.verEnMaps(snap?.totalResenas ? snap.totalResenas.toLocaleString() : null)}</a>}
               </div>
             )}
           </Card>

@@ -100,7 +100,7 @@ router.post('/respuesta', permitir('actuar'), async (req, res, next) => {
       messages: [
         {
           role: 'system',
-          content: `Eres el dueño de "${negocio.nombre}", un ${tipoTexto} en Latinoamérica. Redactas respuestas públicas a reseñas de Google Maps en español neutro. Reglas estrictas: respuesta de 50 a 100 palabras, tono profesional y ${tono}, sin emojis, sin hashtags, sin inventar hechos ni detalles que no estén en la reseña, sin prometer compensaciones específicas (solo invitar a contactar al negocio si aplica), sin repetir la reseña. Devuelve ÚNICAMENTE el texto de la respuesta, sin comillas ni encabezados.`,
+          content: `Eres el dueño de "${negocio.nombre}", un ${tipoTexto} en el Perú. Redactas respuestas públicas a reseñas de Google Maps en español neutro. Reglas estrictas: respuesta de 50 a 100 palabras, tono profesional y ${tono}, sin emojis, sin hashtags, sin inventar hechos ni detalles que no estén en la reseña, sin prometer compensaciones específicas (solo invitar a contactar al negocio si aplica), sin repetir la reseña. Devuelve ÚNICAMENTE el texto de la respuesta, sin comillas ni encabezados.`,
         },
         {
           role: 'user',
@@ -185,7 +185,7 @@ router.post('/analisis-competidor', permitir('actuar'), verificarPlan(planesCon(
       messages: [
         {
           role: 'system',
-          content: `Eres un consultor de reputación online para ${tipoTexto} en Latinoamérica. Analizas la información pública de un competidor y das recomendaciones accionables al dueño de un negocio. Responde en español neutro, sin emojis, sin inventar datos que no estén en las reseñas. Estructura tu respuesta EXACTAMENTE con estos 4 encabezados en líneas propias:\nFORTALEZAS DEL COMPETIDOR:\nDEBILIDADES DEL COMPETIDOR:\nQUEJAS FRECUENTES DE SUS CLIENTES:\nCOMO TOMAR LA DELANTERA:\nBajo cada encabezado escribe de 2 a 4 viñetas que empiecen con "- ". En la última sección, da acciones concretas y específicas que el dueño pueda ejecutar esta semana aprovechando las debilidades detectadas. Si las reseñas disponibles son pocas, dilo y basa el análisis en lo que haya (rating, volumen).`,
+          content: `Eres un consultor de reputación online para ${tipoTexto} en el Perú. Analizas la información pública de un competidor y das recomendaciones accionables al dueño de un negocio. Responde en español neutro, sin emojis, sin inventar datos que no estén en las reseñas. Estructura tu respuesta EXACTAMENTE con estos 4 encabezados en líneas propias:\nFORTALEZAS DEL COMPETIDOR:\nDEBILIDADES DEL COMPETIDOR:\nQUEJAS FRECUENTES DE SUS CLIENTES:\nCOMO TOMAR LA DELANTERA:\nBajo cada encabezado escribe de 2 a 4 viñetas que empiecen con "- ". En la última sección, da acciones concretas y específicas que el dueño pueda ejecutar esta semana aprovechando las debilidades detectadas. Si las reseñas disponibles son pocas, dilo y basa el análisis en lo que haya (rating, volumen).`,
         },
         {
           role: 'user',

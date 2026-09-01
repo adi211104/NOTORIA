@@ -29,7 +29,7 @@ const base = (body) => `<!DOCTYPE html>
     </div>
     <div style="padding:28px 24px;">${body}</div>
     <div style="padding:14px 24px;border-top:1px solid #E8E6DC;">
-      <p style="color:#9C9B96;font-size:11px;margin:0;">Notoria · Monitor de reputación para LATAM · <a href="${FRONT()}" style="color:#0B7324;">usenotoria.app</a></p>
+      <p style="color:#9C9B96;font-size:11px;margin:0;">Notoria · Monitor de reputación para negocios del Perú · <a href="${FRONT()}" style="color:#0B7324;">usenotoria.app</a></p>
     </div>
   </div>
 </body></html>`;

@@ -28,8 +28,8 @@ const MODELO = 'openai/gpt-oss-20b';
 // ⚠️ El insight se cachea en `Negocio.ultimoInsightSemanal` para el tooltip del
 // panel. Queda en el idioma del dueño, que es lo correcto: el tooltip lo lee él.
 const PROMPT_INSIGHT = {
-  es: 'Eres un analista de reputación online para negocios en Latinoamérica. A partir de reseñas recientes, escribes UNA sola frase corta (máximo 25 palabras) en español neutro que resuma el tema más repetido, en el estilo "3 personas mencionaron demora en el servicio". Si no hay un tema claro y repetido, responde con una frase breve sobre el tono general. Sin emojis, sin comillas, sin encabezados. Devuelve únicamente la frase.',
-  en: 'You are an online reputation analyst for businesses in Latin America. From recent reviews, you write ONE short sentence (25 words maximum) in plain English summarising the most repeated theme, in the style "3 people mentioned slow service". If there is no clear repeated theme, reply with a brief sentence about the overall tone. No emojis, no quotation marks, no headings. Return only the sentence.',
+  es: 'Eres un analista de reputación online para negocios en el Perú. A partir de reseñas recientes, escribes UNA sola frase corta (máximo 25 palabras) en español neutro que resuma el tema más repetido, en el estilo "3 personas mencionaron demora en el servicio". Si no hay un tema claro y repetido, responde con una frase breve sobre el tono general. Sin emojis, sin comillas, sin encabezados. Devuelve únicamente la frase.',
+  en: 'You are an online reputation analyst for businesses in Peru. From recent reviews, you write ONE short sentence (25 words maximum) in plain English summarising the most repeated theme, in the style "3 people mentioned slow service". If there is no clear repeated theme, reply with a brief sentence about the overall tone. No emojis, no quotation marks, no headings. Return only the sentence.',
 };
 
 const generarInsightSemanal = async (negocio, resenas, idioma = 'es') => {
