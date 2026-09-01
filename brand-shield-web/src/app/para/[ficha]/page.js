@@ -128,6 +128,11 @@ export default async function PaginaPara({ params }) {
 
   const sim = d.simulador;
   const brecha = d.competencia?.brecha ?? null;
+  // La brecha con el líder de la zona traducida a soles. Llega `null` cuando el
+  // estudio no aplica a este rubro, cuando no hubo vecinos que comparar o cuando
+  // el negocio ya está por encima del mejor: en los tres casos no se pinta nada.
+  // Se exige `mensual` para no reventar si algún día la forma cambia.
+  const imp = d.impacto?.mensual ? d.impacto : null;
 
   return (
     <main style={{ maxWidth: 620, margin: '0 auto', padding: '48px 22px 90px' }}>
@@ -200,6 +205,45 @@ export default async function PaginaPara({ params }) {
                 Te separan <strong style={{ color: 'var(--text)' }}>{brecha.toFixed(1)} puntos</strong> del mejor de tu zona.
                 Entre ustedes dos elige el cliente que busca en Google.
               </p>
+            )}
+
+            {/* Cuánto vale esa diferencia. «Te faltan 0.4 estrellas» no significa
+                nada para nadie; «entre S/300 y S/1,100 al mes» sí. Es la misma
+                traducción que hace el analizador gratuito, traída a la página que
+                de verdad se le manda a un prospecto.
+
+                ⚠️ Solo aparece cuando el backend la manda, y el backend la manda
+                solo si el estudio aplica a ESE rubro (restaurantes, bares y
+                cafeterías: lo que midió Luca). Un hotel no la ve, y es a
+                propósito — ver lib/impacto.js. */}
+            {imp && (
+              <div style={{
+                marginTop: 16, padding: '14px 16px', borderRadius: 10,
+                background: 'rgba(11,115,36,0.07)', border: '1px solid rgba(11,115,36,0.25)',
+              }}>
+                <p style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)', lineHeight: 1.3 }}>
+                  Entre S/{imp.mensual.min.toLocaleString('es-PE')} y S/{imp.mensual.max.toLocaleString('es-PE')} al mes
+                </p>
+                <p style={{ margin: '7px 0 0', fontSize: 13.5, color: 'var(--text-2)', lineHeight: 1.65 }}>
+                  Es lo que vale esa diferencia de {imp.brecha.toFixed(1)}★ para un local que factura entre
+                  S/{imp.rango.desde.toLocaleString('es-PE')} y S/{imp.rango.hasta.toLocaleString('es-PE')} al mes.
+                  {/* Decir que es un piso NO es humildad decorativa: la cifra se
+                      calcula sobre el tramo de facturación más bajo del catálogo
+                      porque acá no hay a quién preguntarle cuánto factura. Si el
+                      prospecto factura más —y quien tiene 400 reseñas factura
+                      más— el número real es mayor. Que lo descubra él es mejor
+                      argumento que inflarlo nosotros. */}
+                  {' '}Si facturas más, sube en proporción.
+                </p>
+                <p style={{ margin: '9px 0 0', fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.55 }}>
+                  Cada estrella mueve entre el {Math.round(imp.porcentajes.min * 100)}% y el {Math.round(imp.porcentajes.max * 100)}% de
+                  los ingresos de un restaurante independiente ·{' '}
+                  <a href={imp.fuente.url} target="_blank" rel="noopener noreferrer nofollow"
+                     style={{ color: 'var(--text-3)', textDecoration: 'underline' }}>
+                    M. Luca, Harvard Business School
+                  </a>
+                </p>
+              </div>
             )}
           </>
         )}

@@ -161,7 +161,7 @@ puestas en Railway. Resultado: **ninguna otra laguna**.
 El comando que reproduce el cruce:
 ```bash
 grep -rhoE "process\.env\.[A-Z0-9_]+" src/ | sed 's/process\.env\.//' | sort -u > /tmp/code.txt
-railway variables --service api --kv | grep -oE "^[A-Z0-9_]+" | sort -u > /tmp/rw.txt
+railway variables --service brand-shield --kv | grep -oE "^[A-Z0-9_]+" | sort -u > /tmp/rw.txt
 comm -23 /tmp/code.txt /tmp/rw.txt   # se leen pero no están
 comm -13 /tmp/code.txt /tmp/rw.txt   # están pero no se leen
 ```
@@ -194,10 +194,10 @@ en cinco minutos.
   pipe hacia un ejecutable nativo antepone un **BOM UTF-8 invisible**: una llave de Culqi
   quedó de 25 caracteres en vez de 24 y devolvía 401 exactamente igual que si estuviera
   revocada. `printf` además no agrega el salto de línea que sí agrega `echo`. Comprobar
-  después con `railway variables --service api --kv` y contar caracteres (Culqi mide 24).
+  después con `railway variables --service brand-shield --kv` y contar caracteres (Culqi mide 24).
 
   ```bash
-  printf '%s' 'sk_live_...' | railway variable set CULQI_SECRET_KEY --stdin --service api
+  printf '%s' 'sk_live_...' | railway variable set CULQI_SECRET_KEY --stdin --service brand-shield
   ```
 - `railway variable set` dispara redeploy salvo `--skip-deploys`; `variable delete` **no
   admite** esa bandera y siempre redespliega. `--skip-deploys` **no aplica la variable al
@@ -235,9 +235,38 @@ fuera de la rama principal — y **`main` llevaba dos días sin pushear** por su
   porque el auto-merge tocó `pago.routes.js` y `localesExtra.js`. Salieron 250+ en verde.
 
 ```bash
-cd brand-shield     && railway up --service api --detach   # → https://api.usenotoria.app
+cd brand-shield     && railway up --service brand-shield --detach   # → https://api.usenotoria.app
 cd brand-shield-web && vercel --prod --yes                 # → https://usenotoria.app
 ```
+
+### 🔴 El servicio de Railway se llama `brand-shield`, NO `api`
+
+Descubierto el 2026-08-31. Este archivo escribía `--service api` en **17 comandos** y **ninguno
+funciona**: el proyecto es `brand-shield` y su único servicio también.
+
+```bash
+railway variables --service api            # → Service 'api' not found
+railway run --service api node x.js        # → Service not found
+```
+
+🔴 **Y lo peor con diferencia: `railway up --service api` NO avisa.** Imprime el nombre del
+proyecto, un enlace al panel y termina con éxito aparente — **sin subir ni construir nada**. Se
+detectó porque el campo nuevo no aparecía en la respuesta de producción después de un deploy
+«correcto». El contraste es lo que lo delata:
+
+| | Salida |
+|---|---|
+| `--service api` (malo) | `✓ Project brand-shield` + enlace. Nada más |
+| `--service brand-shield` (bueno) | **`Indexing... Uploading...`** + *Build Logs* |
+
+⚠️ **La regla de §5 aplicada a los despliegues: no dar por bueno un `railway up` por su salida.**
+Lo que prueba que entró es un **cambio observable en la respuesta** — un campo nuevo en un JSON,
+o `railway ssh … grep -c <algo> <archivo>`. Acá la sonda fue pedir la ficha pública y comprobar
+que traía la clave `impacto`.
+
+⚠️ **No se sabe si el servicio se renombró o si el nombre estuvo mal desde siempre.** Da igual
+para operar: hoy es `brand-shield`. Pero explica por qué comandos que este archivo daba por
+probados podrían no haberse ejecutado nunca tal como están escritos.
 
 ### 🔴 Vercel bloquea el deploy por el AUTOR de git, no por quién lanza el comando
 
@@ -318,7 +347,7 @@ cd brand-shield
 npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --script
 npx prisma db push          # 1. la columna, ANTES (es aditiva: el código viejo sigue vivo)
 npx prisma generate         # 2. con el backend detenido, o EPERM
-railway up --service api    # 3. el código
+railway up --service brand-shield    # 3. el código
 cd ../brand-shield-web && vercel --prod --yes
 ```
 
@@ -332,16 +361,16 @@ asunto.
 
 ### 🔴 Orden obligatorio: DESPLEGAR primero, MIGRAR después
 
-`railway ssh --service api "npx prisma db push"` corre **dentro del contenedor**, así que lee
+`railway ssh --service brand-shield "npx prisma db push"` corre **dentro del contenedor**, así que lee
 el `schema.prisma` **desplegado**. Corrido antes de desplegar, Prisma compara el schema viejo
 contra la BD y responde *"The database is already in sync"* — la respuesta más engañosa
 posible: parece éxito y es un no-op.
 
 ```bash
 cd brand-shield
-railway up --service api                                               # 1. desplegar
-railway ssh --service api "grep -c ModeloNuevo prisma/schema.prisma"   # 2. si da 0, el deploy no entró
-railway ssh --service api "npx prisma db push --skip-generate"         # 3. recién ahora
+railway up --service brand-shield                                               # 1. desplegar
+railway ssh --service brand-shield "grep -c ModeloNuevo prisma/schema.prisma"   # 2. si da 0, el deploy no entró
+railway ssh --service brand-shield "npx prisma db push --skip-generate"         # 3. recién ahora
 ```
 
 Alternativa usada últimamente: `npx prisma db push` **desde local** (el `.env` local apunta a
@@ -356,7 +385,7 @@ cualquier consulta sobre esa tabla**, no solo la función nueva.
 1. Quitarla del `schema.prisma` y **desplegar** — el cliente de Prisma se regenera sin ella.
 2. Comprobar en el contenedor que el schema desplegado ya no la tiene *(la sonda sirve: da 1
    con la versión vieja y 0 con la nueva)* y que las consultas sobre esa tabla siguen vivas.
-3. Recién entonces `railway ssh --service api "npx prisma db push --accept-data-loss --skip-generate"`.
+3. Recién entonces `railway ssh --service brand-shield "npx prisma db push --accept-data-loss --skip-generate"`.
 
 🔴 Al revés se cae **cualquier** consulta sobre esa tabla —login incluido—, porque el cliente
 desplegado sigue pidiendo una columna que la BD ya no tiene.
@@ -402,7 +431,7 @@ los logs del servidor y en un cambio observable en la salida.
 | ⚠️ Excepción del truco | **No sirve en routers con `router.use(autenticar)` antes de las rutas** (`redes.routes.js`, `comentario.routes.js`, `pago.routes.js` y —comprobado el 2026-08-25— **`negocio.routes.js`**): el middleware corta antes de casar el path y **cualquier** path devuelve 401, exista o no. ⚠️ Ese día la sonda se dio por buena hasta que el **404 de control** devolvió exactamente lo mismo. Es el mismo patrón que `verificar-meta-secret.js`: ante un resultado, preguntar primero si el método distingue. Cuando no distingue, el veredicto correcto es «no concluyente», y la prueba buena pasa a ser `railway ssh … grep -c <ruta> <archivo>` |
 | Mejor sonda | Una ruta pública con **cuerpo propio**. Ej.: `GET /api/equipo/invitacion/<64 ceros>` → 404 con `tipo: INVITACION_INVALIDA` prueba que el código nuevo corre. Acompañar siempre de un **404 de control** sobre una ruta inventada, para distinguir "ruta viva que rechaza" de "ruta que no existe" |
 | Frontend | Para lo que vive en un **componente de cliente**: localizar la frase en `.next/static/chunks/` y **descargar ESE chunk desde producción**. `curl` a una página de cliente no muestra su contenido |
-| Variables en el contenedor | `railway ssh --service api "printenv X"`, o un `node -e` que ejercite el módulo y devuelva su veredicto |
+| Variables en el contenedor | `railway ssh --service brand-shield "printenv X"`, o un `node -e` que ejercite el módulo y devuelva su veredicto |
 
 ---
 
@@ -495,7 +524,7 @@ correo sin ensuciar buzones ni registros legales. `GET /emails?limit=100` pagina
 
 ```bash
 # la llave vive solo en Railway; así no hay que tocarla
-railway run --service api node <script-que-consulta-api.resend.com>
+railway run --service brand-shield node <script-que-consulta-api.resend.com>
 ```
 
 Foto del 2026-08-19: **66 correos** entre el 2026-07-26 y el 2026-08-17 — 64 `delivered`,
@@ -1504,7 +1533,7 @@ contraseña**. No tomarlo como prueba de que el certificado se puede abrir.
 - ⚠️ Es un **registro legal** (conservar 2 años). No dejar datos de prueba ahí.
 
 **Se gestiona POR TERMINAL, sin panel web.** `scripts/reclamaciones.js
-[todas|ver <n>|responder <n>]` vía `railway run --service api`. Guarda datos personales **de
+[todas|ver <n>|responder <n>]` vía `railway run --service brand-shield`. Guarda datos personales **de
 terceros** (DNI, domicilio, teléfono) protegidos por la Ley 29733: exponerlos tras el panel
 haría que robar una sesión también los comprometiera. **Se descartó un rol de administrador**
 (se escribió un `soloAdmin` con `ADMIN_EMAILS` y se revirtió; la nota de por qué no existe
@@ -2380,7 +2409,7 @@ textos por otros inventados. El procedimiento está en la cabecera del component
 | Script | Para qué |
 |--------|----------|
 | `dar-plan.js <email> <PLAN>` | Cambia el plan a mano. No crea `Pago` ni comprobante (la numeración es correlativa y no admite huecos). Con `GRATIS` limpia `suscripcionActiva`, `fechaVencimiento` y `periodoFacturacion`, pero **no toca `suscripcionId`**: la tarjeta guardada sigue ahí. ✅ **Su lista de planes sale de `ORDEN` desde el 2026-08-30** y ya no está escrita a mano: hasta ese día se había quedado sin `IMPULSO` y rechazaba como inválido un plan que el producto vendía desde el 24/08. Lo mismo le pasaba a `cuenta-revisor.js`. ⚠️ **NO llamarlo con `railway run`** — usa `dotenv.config()` a secas en vez de `lib-env-produccion()`, y como dotenv **no pisa** variables ya puestas, se quedaría con la `DATABASE_URL` **interna** y moriría sin alcanzar la base. Va en local |
-| `escanear.js` | Fuerza un ciclo sin cooldown (`railway run --service api`) |
+| `escanear.js` | Fuerza un ciclo sin cooldown (`railway run --service brand-shield`) |
 | `enlaces-venta.js "<búsqueda>" [--paginas N] [--csv]` | Prospección: genera enlaces `/para` ordenados por prioridad |
 | `forzar-resumen-sunat.js [--aplicar]` | Manda el resumen diario de las boletas de HOY sin esperar a que el día cierre. El cron solo agrupa días cerrados, y esa regla es correcta; esto usa la costura `agruparPendientes({ incluirHoy: true })`, que el cron **nunca** usa. ⚠️ Solo es seguro si no van a entrar más boletas ese día |
 | `anular-boleta.js <numero> [--aplicar]` | Anula una boleta aceptada, en un resumen con la línea en estado 3. Solo marca `ANULADO` si SUNAT aceptó. Plazo: 7 días. ⚠️ Anular no es corregir: si cambia el importe, toca nota de crédito |
@@ -3270,7 +3299,7 @@ flujo entero.
    y departamento `PROV. CONST. DEL CALLAO`—, que es lo que SUNAT contrasta al recibir un
    comprobante.
 3. ~~Rotar `META_APP_SECRET`.~~ **Hecho el 2026-08-22** y comprobado contra la Graph API
-   (`railway run --service api node scripts/verificar-meta-secret.js`). Se rotó con el App
+   (`railway run --service brand-shield node scripts/verificar-meta-secret.js`). Se rotó con el App
    Review en curso a sabiendas: la ventana en que el OAuth falla es solo la del redespliegue
    de Railway, 1-2 minutos. ⚠️ **`META_IG_APP_SECRET` NO se tocó, y no debe tocarse**: es con
    ese con el que Meta firma los webhooks de Instagram (§8.3), y hoy **no hay forma de
@@ -3898,8 +3927,8 @@ Ese bloque de tres líneas —entorno, endpoint, emisión activa— existe justo
 boleta que nunca recibió.
 
 ```bash
-railway ssh --service api "node scripts/forzar-resumen-sunat.js"            # simulacro
-railway ssh --service api "node scripts/forzar-resumen-sunat.js --aplicar"  # de verdad
+railway ssh --service brand-shield "node scripts/forzar-resumen-sunat.js"            # simulacro
+railway ssh --service brand-shield "node scripts/forzar-resumen-sunat.js --aplicar"  # de verdad
 ```
 
 🔴 **Y lo que no se puede olvidar: al reembolsar hay que ANULAR la boleta aparte**, dentro de

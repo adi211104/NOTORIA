@@ -387,6 +387,36 @@ router.get('/ficha', fichaLimiter, async (req, res, next) => {
       competencia,
       simulador: informeRating({ rating: r.rating, totalResenas: r.user_ratings_total }),
       estadoFicha: r.business_status && r.business_status !== 'OPERATIONAL' ? r.business_status : null,
+
+      // ── El gancho: la brecha con el líder de su zona, en soles ──────────────
+      //
+      // `/analizar` ya traducía estrellas a dinero, pero esta página —que es la
+      // que se le manda a UN prospecto por WhatsApp— se quedaba en «te faltan 0.4
+      // estrellas». Nadie sabe cuánto es eso. La comparación con los vecinos es
+      // lo que hace que abra el enlace; esto es lo que hace que conteste.
+      //
+      // 🔴 La referencia es `competencia.mejor`, el líder de la zona, NO el
+      // umbral genérico de 4.5: es la misma cifra contra la que esta página ya
+      // calcula `competencia.brecha`, y dos números distintos para la misma
+      // pregunta en la misma pantalla destruyen la confianza en los dos.
+      //
+      // 🔴 Y el rango de facturación es el MÁS BAJO a propósito. Acá no hay a
+      // quién preguntarle cuánto factura —es una landing, no un formulario—, así
+      // que se toma el suelo del catálogo (`r1`, S/5 000–15 000). La cifra que
+      // sale es por tanto un PISO y la página tiene que decirlo con esa palabra:
+      // quedarse corto es el único lado seguro del error cuando el número habla
+      // del dinero de otro. Es el mismo criterio con el que el propio módulo
+      // calcula el tramo abierto sobre su suelo.
+      //
+      // Devuelve `null` solo con eso: si el negocio no es de los que midió Luca,
+      // si no se pudieron leer vecinos, o si ya está por encima del mejor. En los
+      // tres casos la página simplemente no pinta la tarjeta.
+      impacto: impacto.estimar({
+        rating: r.rating,
+        referencia: competencia?.mejor,
+        rangoId: 'r1',
+        tipoNegocio: impacto.desdeTiposGoogle(r.types),
+      }),
     };
 
     if (cacheFicha.size >= CACHE_MAX) cacheFicha.delete(cacheFicha.keys().next().value);
