@@ -2509,11 +2509,51 @@ entorno. `npm install` antes de dar por mala una suite.
 
 > ### Lo que queda por programar (2026-08-30)
 >
-> **Uno, y es de navegador, no de código:** el repaso del **panel** en **móvil** y en **inglés**.
-> El barrido del 29/08 cubrió el landing y `/precios`, pero dejó el panel fuera a propósito
-> —el proxy sirve desde `localhost:3001`, otro origen, y ahí no hay sesión—, así que sigue sin
-> revisarse. No hay que darlo por bueno: es la cuarta vez que este proyecto encuentra fallos
-> abriendo pantallas que las pruebas daban por buenas (24/08, 25/08, 29/08).
+> ✅ **HECHO el 2026-08-31: el panel en MÓVIL y en INGLÉS está repasado.** El panel salió
+> **limpio**; los dos fallos que aparecieron estaban fuera de él y se cuentan abajo.
+>
+> **Cómo se resolvió el bloqueo que lo tenía parado.** El pendiente decía que en el proxy «no
+> hay sesión» porque `localhost:3001` es otro origen. Cierto, pero la salida era trivial y no
+> estaba escrita: **iniciar sesión DENTRO del iframe**, que es justo por lo que el proxy escucha
+> en el 3001 (ese origen está en `origensPermitidos` del CORS). Lo hace el dueño una vez y el
+> barrido corre entero.
+> ⚠️ **`resize_window` volvió a mentir**, como está documentado: responde «Successfully resized»
+> y `innerWidth` se queda en 1366 con la ventana maximizada. Probado en dos pasos por si
+> desmaximizaba: no. El iframe del proxy da **386 px de viewport real** y es la única vía.
+>
+> **Resultado — 0 desbordes y sin scroll horizontal en 21 pantallas** a 386 px: las 11 rutas del
+> panel, la ficha de negocio y sus 9 pestañas.
+> - ⚠️ **La primera pasada dio 19 falsos positivos** por contar el menú lateral off-canvas
+>   (`-translate-x-full`, izq −224 / der 0), que está fuera de pantalla A PROPÓSITO. **Un
+>   elemento con `right <= 0` está oculto, no desbordado**; lo que rompe el layout es lo que
+>   asoma por la derecha. La sonda del 29/08 tenía el mismo agujero por otro lado (miraba
+>   `overflow-x` auto/scroll y olvidaba `hidden`).
+> - 🔴 **Y la sonda de idioma daba un resultado FALSO por no comprobar dónde aterrizaba.**
+>   Reportaba la ruta *pedida*, no la *real*, y el panel rebota a `/login` mientras el
+>   AuthContext hidrata — así que estuvo midiendo la pantalla de login creyendo que medía seis
+>   pantallas del panel. **Al barrer varias rutas, verificar `location.pathname` después de
+>   cada salto**, no antes. Es el «404 de control» aplicado a la navegación.
+> - ⚠️ **El barrido rápido agota el rate-limit** (todas las peticiones salen de la misma IP), y
+>   eso destapó el bug del 429 que se cuenta abajo. Al repetirlo, espaciar los saltos.
+>
+> 🔴 **Lo que sí apareció, y NO es el panel: el circuito de ENTRADA no está traducido.**
+> `/login`, `/registro`, `/recuperar-password`, `/resetear-password`, `/onboarding` y
+> `/verificar-email` **no llaman a `useIdioma`** y llevan el texto en español a pelo (~60
+> cadenas). O sea que quien navega en inglés ve el landing en inglés, pulsa «Log in» y **cae en
+> una pantalla en español** — con `<html lang="en">` encima, que es lo que lo delata.
+> - **No se arregló, y es una decisión, no un olvido:** el mercado es Perú, hoy hay **1 cuenta
+>   en inglés de 10** (la del dueño), y son ~60 cadenas en las dos direcciones. No mueve ningún
+>   ingreso. Queda anotado con su prioridad real: **cosmético hasta que haya clientes fuera**.
+> - ⚠️ **Distinto de las que están en español A PROPÓSITO** y no hay que tocar: `/precios` (el
+>   catálogo que revisa Culqi, ya documentado como que nunca llama a `useIdioma`), `/terminos`,
+>   `/privacidad`, `/libro-reclamaciones` y `/devoluciones` — instrumentos legales peruanos,
+>   igual que los cinco correos de `SOLO_ESPANOL`.
+>
+> ✅ **El panel en sí está bien traducido**: sale «Overview / Reviews / Comments / Alerts /
+> Competitors / How they see you / Request reviews / Tips / Settings», no hay una sola cadena
+> española a pelo en el JSX de sus 12 rutas, y ningún campo del backend se pinta en crudo (las
+> únicas coincidencias de `{x.descripcion}` están en scripts de terminal, que van en español a
+> propósito). 207 comprobaciones de las suites de idioma y alertas en verde.
 >
 > ✅ **El hueco del cambio mensual→anual se cerró el 2026-08-30.** Era el último de producto.
 >
@@ -3926,7 +3966,35 @@ sino una zona **no mirada** — que es distinto y peor de dar por buena.
 
 ### 🔴 Bugs abiertos en producción
 
-**Ninguno conocido** (última revisión: **2026-08-30**).
+**Ninguno conocido** (última revisión: **2026-08-31**).
+
+**Corregido el 2026-08-31 — un 429 o un 500 echaban al cliente de su panel como si su sesión
+no valiera.** `AuthContext` trataba tres casos al cargar el perfil: `401` borraba el token,
+`NETWORK_ERROR` conservaba la sesión y marcaba `errorConexion`, y **todo lo demás caía en un
+`else` que hacía `setUsuario(null)` a secas**. Como `dashboard/layout.js:242` expulsa al login
+ante `!usuario && !errorConexion`, cualquier **429 o 5xx sacaba al cliente de su panel sin
+decirle por qué**.
+- 🔴 Es el patrón que §16 documenta como grave —«no hay alertas» y «no pude consultarlas» no
+  pueden verse igual— **por un sexto camino**: acá lo que se confunde es *«tu sesión no vale»*
+  con *«no he podido comprobar tu sesión»*. Ninguno de esos códigos dice nada del token.
+- **Cuándo muerde de verdad:** un pico de tráfico que dispare el rate-limit, un reinicio de
+  Railway (502) o un 500 pasajero. ⚠️ **Y el fallo se agrava solo**: el expulsado que intenta
+  volver a entrar puede rebotar también, porque el limitador de `auth` es **más** estricto
+  (10/15 min). La pantalla de «sin conexión» con su botón de reintentar **ya existía** en
+  `layout.js:256`; estos códigos simplemente no llegaban nunca a ella.
+- 🔴 **Se encontró sin querer, agotando el rate-limit durante el repaso del panel en móvil:** el
+  panel me echó al login teniendo sesión válida. **Quinta vez que este proyecto encuentra un
+  fallo abriendo pantallas** en vez de leyendo código (24/08, 25/08, 29/08, 31/08).
+- ⚠️ **`refrescarPerfil` NO tenía el fallo** —su `catch` devuelve `null` sin tocar la sesión—,
+  así que no hubo que tocarlo.
+
+⚠️ **Y algo que hay que saber antes del próximo cambio en el frontend: `next build` NO funciona
+en esta PC.** Falla en el prerender con *«InvariantError: Expected workStore to be initialized»*
+sobre `/_not-found` y `/dashboard` (Next 16.2.9 + Node 24). **Comprobado con el control que
+corresponde —falla IGUAL con el árbol limpio, sin ningún cambio propio—**, así que es
+preexistente y ajeno, no algo que introdujera un commit. La **compilación sí pasa**
+(`✓ Compiled successfully`), que es lo que valida la sintaxis; lo que se pierde es la
+verificación de prerender antes de desplegar. Vercel sí construye — el sitio está en pie.
 
 **Corregidos el 2026-08-30, y los tres fallaban sin producir ninguna señal:**
 - 🔴 **`dar-plan.js` y `cuenta-revisor.js` rechazaban `IMPULSO`** como plan inválido desde que ese
