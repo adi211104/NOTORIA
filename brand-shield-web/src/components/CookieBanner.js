@@ -6,6 +6,7 @@
 // preferencia real: permitir o no el script de Google.
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useIdioma } from '../context/IdiomaContext';
 
 const GEO = "Georgia,'Times New Roman',serif";
@@ -27,9 +28,35 @@ const TEXTOS = {
   },
 };
 
+// 🔴 Rutas que van FIJAS en español y no llaman a `useIdioma`: el circuito de
+// entrada y los documentos legales peruanos. Está decidido que se quedan así
+// (mercado Perú), pero este banner se monta en `layout.js` y por tanto sale
+// ENCIMA de ellas — y si mira el idioma del navegador, un visitante en inglés
+// ve «Your privacy, no fine print» sobre un formulario que dice «Crear cuenta
+// gratis». Dos idiomas en la misma pantalla.
+//
+// Es el mismo error que el cartel de la promo dentro de `/precios` (25/08): un
+// componente que decide su propio idioma dentro de una página que no lo hace
+// SIEMPRE va a discrepar con ella. Allá se resolvió con `idiomaForzado`; acá no
+// sirve, porque el banner no lo monta la página sino el layout raíz — así que
+// tiene que preguntar él dónde está.
+//
+// ⚠️ Al traducir alguna de estas páginas, quitarla de la lista. Y al añadir una
+// página nueva en español fijo, sumarla: si no, reaparece la discrepancia.
+const RUTAS_SOLO_ES = [
+  '/login', '/registro', '/recuperar-password', '/resetear-password',
+  '/onboarding', '/verificar-email', '/precios', '/terminos', '/privacidad',
+  '/libro-reclamaciones', '/devoluciones', '/eliminar-datos', '/contacto',
+];
+
 export default function CookieBanner() {
-  const { idioma } = useIdioma();
+  const { idioma: idiomaContexto } = useIdioma();
+  const ruta = usePathname();
   const [visible, setVisible] = useState(false);
+  // La página manda sobre el navegador: si ella está en español, el banner también.
+  const idioma = RUTAS_SOLO_ES.some((r) => ruta === r || ruta?.startsWith(r + '/'))
+    ? 'es'
+    : idiomaContexto;
   const t = TEXTOS[idioma] || TEXTOS.es;
 
   useEffect(() => {
