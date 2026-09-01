@@ -239,6 +239,45 @@ cd brand-shield     && railway up --service api --detach   # → https://api.use
 cd brand-shield-web && vercel --prod --yes                 # → https://usenotoria.app
 ```
 
+### 🔴 Vercel bloquea el deploy por el AUTOR de git, no por quién lanza el comando
+
+Descubierto el 2026-08-31, y es el cuarto coletazo de la mudanza. `vercel --prod` respondía:
+
+```
+{"status":"error","reason":"deploy_failed","message":"Not authorized"}
+```
+
+**Ese mensaje manda a mirar donde no es.** `vercel whoami` decía `adi211104`, `vercel api
+/v9/projects/notoria-web` leía el proyecto sin problema y el usuario es **OWNER** del team: la
+autenticación estaba perfecta. El motivo real solo aparece **consultando el deployment**, que
+queda registrado en estado **`BLOCKED`** con su `errorMessage`:
+
+> *Git author `padkar4@gmail.com` must have access to the team «adi211104's projects» on Vercel
+> to create deployments.*
+
+- 🔴 **La causa: en la PC del taller git quedó configurado al revés** — `user.name` era
+  `didierprincipe@gmail.com` (un correo en el campo del nombre) y `user.email` era
+  **`padkar4@gmail.com`**, que no es miembro del team. El único miembro es
+  `didierprincipe@gmail.com` (username `adi211104`).
+- ⚠️ **Vercel mira el autor del COMMIT, no quién ejecuta el comando.** Por eso no se arregla
+  volviendo a iniciar sesión, que es lo que sugiere «Not authorized». Y por eso **no bastaba con
+  cambiar la config**: los commits ya hechos conservan el autor viejo, así que hace falta **un
+  commit nuevo** con la identidad corregida para que el deploy pase.
+- **Arreglado con `git config --local`** (no `--global`, para no tocar nada fuera de este repo):
+  `user.name = Didier Principe`, `user.email = didierprincipe@gmail.com`.
+- ⚠️ **Se hereda al clonar en otra máquina**, así que va en la lista de la mudanza: comprobar
+  `git config user.email` **antes** del primer deploy, no después.
+
+🔎 **Cómo se lee el motivo real de un deploy fallido** (el CLI no lo dice):
+
+```bash
+MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' \
+  vercel api "/v6/deployments?projectId=<prj_...>&limit=1"   # → state y errorMessage
+```
+
+⚠️ **Un `BLOCKED` no rompe nada**: la versión anterior sigue sirviéndose. Pero tampoco avisa —
+si nadie mira, el arreglo simplemente nunca llega a producción y todo parece normal.
+
 **Leer o cambiar ajustes del proyecto de Vercel sin abrir el navegador:** `vercel api <ruta>`
 usa la autenticación del propio CLI, así que no hay que tocar el token ni iniciar sesión en el
 panel. Con esto se comprobó que Web Analytics ya estaba encendido:
