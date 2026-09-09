@@ -257,7 +257,14 @@ check('la sonda caza también la lista que empieza por GRATIS (el agujero de 202
 check('la sonda NO salta con texto inocente',
   !RE_LISTA_A_MANO.test("const x = ['uno', 'dos'];"));
 
-const sinComentarios = (t) => t.replace(/\/\/.*$/gm, '');
+// Los barridos que leen el fuente miran el CÓDIGO, no los comentarios: un
+// comentario que menciona el patrón prohibido —normalmente el que explica por qué
+// se quitó— no es una infracción. Se quitan también los bloques `/* */` desde el
+// 2026-09-09, cuando el barrido de tablas por plan empezó a acusar al comentario
+// que documentaba su propio arreglo.
+const sinComentarios = (t) => t
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/\/\/.*$/gm, '');
 const ES_FUENTE_UNICA = (ruta) => ruta === path.join('src', 'lib', 'planes.js');
 
 const conListaAMano = FUENTES.filter((f) =>
@@ -287,10 +294,25 @@ for (const nombre of ['dar-plan.js', 'cuenta-revisor.js']) {
 }
 
 // Las tablas por plan también estaban duplicadas: cinco copias de "GRATIS: n".
+//
+// ⚠️ Se barre el fuente SIN COMENTARIOS (ver `sinComentarios` arriba), y esto no
+// es un aflojamiento de la regla. El 2026-09-09 esta sonda cazó de verdad una
+// tabla `{ GRATIS: 5 }` recién escrita en `lib/prefsCorreo.js` —para eso existe—,
+// pero cuando esa tabla se movió a la tabla de planes siguió dando rojo: el
+// comentario que explicaba el arreglo mencionaba el patrón. Acusaba al comentario
+// que documenta la corrección, y la salida fácil habría sido borrar la
+// explicación. Un comentario no ejecuta nada; una tabla sí.
 const conTablaPropia = FUENTES.filter((f) =>
-  !ES_FUENTE_UNICA(f.ruta) && /GRATIS:\s*\d+/.test(f.texto));
+  !ES_FUENTE_UNICA(f.ruta) && /GRATIS:\s*\d+/.test(sinComentarios(f.texto)));
 check('ningún archivo mantiene su propia tabla de límites por plan',
   conTablaPropia.length === 0, conTablaPropia.map((f) => f.ruta).join(', '));
+// 🔴 Y el control que hace que ese verde valga: la sonda tiene que seguir
+// cazando una tabla de verdad, y seguir ignorando la misma cosa en un comentario.
+check('CONTROL: la sonda caza una tabla por plan escrita en código',
+  /GRATIS:\s*\d+/.test(sinComentarios('const TOPES = { GRATIS: 1, NEGOCIO: 5 };')));
+check('CONTROL: y NO caza la misma cosa dentro de un comentario',
+  !/GRATIS:\s*\d+/.test(sinComentarios('// antes había un { GRATIS: 5 } acá'))
+  && !/GRATIS:\s*\d+/.test(sinComentarios('/* tabla vieja: GRATIS: 5 */')));
 
 // ─────────────────────────────────────────────────────────────────────────────
 titulo('8. Los dos crons de dinero filtran por PLANES_DE_PAGO');

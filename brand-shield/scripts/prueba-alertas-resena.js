@@ -52,10 +52,19 @@ const prismaFalso = {
 };
 
 const notificadorFalso = {
+  // ⚠️ Devuelve `true` porque el `notificar()` de verdad devuelve **si salió un
+  // correo**, y el worker usa eso para decidir si marca la alerta como notificada
+  // (ver alerts/notificador.js: el plan gratuito agrupa las reseñas de a cinco y
+  // el contador son justo las alertas sin notificar). Un doble que devolviera
+  // `undefined` haría que el worker no marcara nunca — y esta suite se quedaría
+  // probando un comportamiento que producción no tiene.
   notificar: async ({ usuario, negocio, alerta }) => {
     db.notificaciones.push({ email: usuario?.email, negocio: negocio?.nombre, alerta });
     db.ordenDeLlamadas.push('notificar');
+    return notificadorFalso.respuesta;
   },
+  // La usan los casos que comprueban qué pasa cuando NO sale correo.
+  respuesta: true,
   enviarAlertaEmail: async () => true,
 };
 
@@ -180,6 +189,17 @@ const correr = async () => {
     r.ordenDeLlamadas.indexOf('notificar') < r.ordenDeLlamadas.indexOf('marcar-notificada'));
   check('  …y se marca sobre la alerta que se acaba de crear',
     r.actualizaciones[0]?.id === r.alertasCreadas[0]?.id && r.actualizaciones[0]?.notificada === true);
+
+  // 🔴 Y lo simétrico, que es lo que sostiene el agrupado del plan gratuito: si
+  // NO salió correo, la alerta NO se marca. Marcarla dejaría el contador del lote
+  // en cero en cada reseña, así que las cinco no se juntarían nunca y GRATIS
+  // volvería a recibir un correo por reseña — sin que nada fallara.
+  notificadorFalso.respuesta = false;
+  const sinCorreo = await correrCaso(resena());
+  notificadorFalso.respuesta = true;
+  check('si notificar() no mandó correo, la alerta NO se marca notificada',
+    sinCorreo.alertasCreadas.length === 1 && sinCorreo.actualizaciones.length === 0,
+    `${sinCorreo.actualizaciones.length} actualizaciones`);
   check('el aviso pasa por notificar() y no por el correo directo',
     r.notificaciones[0]?.email === 'dueno@ejemplo.test',
     'ir por enviarAlertaEmail se saltaría el umbral que el cliente eligió en Alertas');

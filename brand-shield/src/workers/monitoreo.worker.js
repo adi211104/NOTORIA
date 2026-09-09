@@ -324,9 +324,15 @@ const alertarResenaNegativa = async (negocio, resena, esPrimerBarrido) => {
     },
   });
 
-  await notificar({ usuario: negocio.usuario, negocio, alerta });
-  await prisma.alerta.update({ where: { id: alerta.id }, data: { notificada: true } });
-  console.log(`[Reseñas] ${negocio.nombre}: ${resena.rating}★ de ${autor} — alerta ${alerta.id}`);
+  // 🔴 `notificada` se marca SOLO si de verdad salió un correo, y este es el
+  // punto donde el agrupado de reseñas se rompe en silencio si alguien lo cambia.
+  // Marcarla a ciegas —que es lo que se hacía hasta el 2026-09-09— pone el
+  // contador del lote a cero en cada reseña, así que las cinco no se juntan nunca
+  // y el plan gratuito vuelve a recibir un correo por reseña sin que nada falle.
+  // Ver alerts/notificador.js.
+  const avisado = await notificar({ usuario: negocio.usuario, negocio, alerta });
+  if (avisado) await prisma.alerta.update({ where: { id: alerta.id }, data: { notificada: true } });
+  console.log(`[Reseñas] ${negocio.nombre}: ${resena.rating}★ de ${autor} — alerta ${alerta.id}${avisado ? '' : ' (en espera del lote)'}`);
 };
 
 /**
@@ -566,18 +572,19 @@ const procesarNegocio = async (negocio, ctx = {}) => {
       for (const alertaData of alertasDetectadas) {
         const alerta = await prisma.alerta.create({ data: alertaData });
 
-        // Notificar al usuario
-        await notificar({
+        // Notificar al usuario, y marcar la alerta SOLO si salió correo: la
+        // bandera significa «un correo cubre esta alerta», no «ya la procesamos».
+        // Ver alerts/notificador.js.
+        if (await notificar({
           usuario: negocio.usuario,
           negocio,
           alerta: { ...alerta, ...alertaData },
-        });
-
-        // Marcar alerta como notificada
-        await prisma.alerta.update({
-          where: { id: alerta.id },
-          data: { notificada: true },
-        });
+        })) {
+          await prisma.alerta.update({
+            where: { id: alerta.id },
+            data: { notificada: true },
+          });
+        }
       }
     }
   }
@@ -688,8 +695,9 @@ const procesarNegocio = async (negocio, ctx = {}) => {
       const alertasFB = await detectarAnomalias(negocio.id, 'FACEBOOK', rating);
       for (const alertaData of alertasFB) {
         const alerta = await prisma.alerta.create({ data: alertaData });
-        await notificar({ usuario: negocio.usuario, negocio, alerta: { ...alerta, ...alertaData } });
-        await prisma.alerta.update({ where: { id: alerta.id }, data: { notificada: true } });
+        if (await notificar({ usuario: negocio.usuario, negocio, alerta: { ...alerta, ...alertaData } })) {
+          await prisma.alerta.update({ where: { id: alerta.id }, data: { notificada: true } });
+        }
       }
     }
   }
@@ -1121,9 +1129,12 @@ const guardarComentarioSocial = async (negocio, fuente, crudo) => {
         negocioId: negocio.id,
       },
     });
-    await notificar({ usuario: negocio.usuario, negocio, alerta });
+    const avisadoComentario = await notificar({ usuario: negocio.usuario, negocio, alerta });
+    // ⚠️ `ComentarioSocial.notificada` SÍ se marca siempre, y es otra cosa: sin
+    // ella cada ciclo reprocesaría el mismo comentario. La de la ALERTA es la que
+    // ahora significa «salió correo».
     await prisma.comentarioSocial.update({ where: { id: comentario.id }, data: { notificada: true } });
-    await prisma.alerta.update({ where: { id: alerta.id }, data: { notificada: true } });
+    if (avisadoComentario) await prisma.alerta.update({ where: { id: alerta.id }, data: { notificada: true } });
   }
 
   return 'creado';
@@ -1226,9 +1237,11 @@ const procesarMenciones = async (negocio) => {
             negocioId: negocio.id,
           },
         });
-        await notificar({ usuario: negocio.usuario, negocio, alerta });
+        const avisadaMencion = await notificar({ usuario: negocio.usuario, negocio, alerta });
+        // ⚠️ `Mencion.notificada` SÍ se marca siempre, por lo mismo que el
+        // comentario: sin ella cada ciclo reenviaría la misma mención.
         await prisma.mencion.update({ where: { id: mencion.id }, data: { notificada: true } });
-        await prisma.alerta.update({ where: { id: alerta.id }, data: { notificada: true } });
+        if (avisadaMencion) await prisma.alerta.update({ where: { id: alerta.id }, data: { notificada: true } });
       }
     } catch (e) {
       console.error(`[Menciones] ${negocio.nombre}: ${e.message}`);

@@ -53,6 +53,14 @@ const PLANES = {
     iaSemanal: 5,
     competidores: 1,
     asientos: 1,
+    // Cuántas reseñas negativas se juntan antes de mandar UN correo. 1 = un
+    // aviso por reseña, al momento. Lo lee `lib/prefsCorreo.js`.
+    //
+    // 🔴 Vive en la tabla de planes y no en prefsCorreo porque es un límite POR
+    // PLAN, y una tabla por plan fuera de acá es exactamente lo que costó los
+    // tres fallos de IMPULSO (§8.6). Lo cazó `prueba-planes.js` el mismo día en
+    // que se escribió, que es para lo que existe ese barrido.
+    loteAvisoResenas: 5,
     // Capacidades
     localesAdicionales: false,
     vigilanciaFicha: false,
@@ -95,6 +103,14 @@ const PLANES = {
     // Un asiento: compartir el panel con el equipo es lo que define NEGOCIO.
     // Cuenta al dueño (ver lib/equipo.js), así que 1 = solo él.
     asientos: 1,
+    // Cuántas reseñas negativas se juntan antes de mandar UN correo. 1 = un
+    // aviso por reseña, al momento. Lo lee `lib/prefsCorreo.js`.
+    //
+    // 🔴 Vive en la tabla de planes y no en prefsCorreo porque es un límite POR
+    // PLAN, y una tabla por plan fuera de acá es exactamente lo que costó los
+    // tres fallos de IMPULSO (§8.6). Lo cazó `prueba-planes.js` el mismo día en
+    // que se escribió, que es para lo que existe ese barrido.
+    loteAvisoResenas: 1,
     localesAdicionales: false,
     vigilanciaFicha: true,
     reporteMensual: true,
@@ -130,6 +146,14 @@ const PLANES = {
     iaSemanal: 100,
     competidores: 5,
     asientos: 3,
+    // Cuántas reseñas negativas se juntan antes de mandar UN correo. 1 = un
+    // aviso por reseña, al momento. Lo lee `lib/prefsCorreo.js`.
+    //
+    // 🔴 Vive en la tabla de planes y no en prefsCorreo porque es un límite POR
+    // PLAN, y una tabla por plan fuera de acá es exactamente lo que costó los
+    // tres fallos de IMPULSO (§8.6). Lo cazó `prueba-planes.js` el mismo día en
+    // que se escribió, que es para lo que existe ese barrido.
+    loteAvisoResenas: 1,
     localesAdicionales: true,
     vigilanciaFicha: true,
     reporteMensual: true,
@@ -172,6 +196,14 @@ const PLANES = {
     iaSemanal: 300,
     competidores: 15,
     asientos: 10,
+    // Cuántas reseñas negativas se juntan antes de mandar UN correo. 1 = un
+    // aviso por reseña, al momento. Lo lee `lib/prefsCorreo.js`.
+    //
+    // 🔴 Vive en la tabla de planes y no en prefsCorreo porque es un límite POR
+    // PLAN, y una tabla por plan fuera de acá es exactamente lo que costó los
+    // tres fallos de IMPULSO (§8.6). Lo cazó `prueba-planes.js` el mismo día en
+    // que se escribió, que es para lo que existe ese barrido.
+    loteAvisoResenas: 1,
     vigilanciaFicha: true,
     reporteMensual: true,
     escalacionUrgencias: true,

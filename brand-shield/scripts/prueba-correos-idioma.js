@@ -148,9 +148,27 @@ const correr = async () => {
     selects.length > 0 && selects.every((v) => v.includes('idioma: true')),
     'sin idioma la alerta y su resumen salen siempre en español');
 
+  // ⚠️ La sonda mira el bloque `include: { usuario: ... }` completo y no una sola
+  // línea: la primera versión usaba `/usuario: \{ select: \{[^}]*idioma: true/`, que
+  // dependía de que el select cupiera en una línea. Al partirlo en varias —para
+  // añadir `prefsAlertas`— dio rojo sin que faltara nada. Una sonda que depende
+  // del formato acusa a quien reformatea.
+  const bloqueUsuarioResumen = (() => {
+    const i = workerResumen.indexOf('include: {');
+    return i === -1 ? '' : workerResumen.slice(i, i + 700);
+  })();
+  check('CONTROL: se localizó el include del usuario en el worker del resumen',
+    bloqueUsuarioResumen.includes('usuario:'));
   check('resumenSemanal.worker: el select del usuario pide idioma',
-    /usuario: \{ select: \{[^}]*idioma: true/.test(workerResumen),
+    /idioma:\s*true/.test(bloqueUsuarioResumen),
     'es el correo que más manda el producto');
+  // 🔴 Y desde el 2026-09-09 también `prefsAlertas`: es donde vive la cadencia del
+  // resumen. Sin él, `tocaResumen` recibe undefined, todos caen al default mensual
+  // y quien eligió semanal no lo recibe nunca. Mismo fallo que `idioma`, un año
+  // después y por otro campo.
+  check('resumenSemanal.worker: el select del usuario pide prefsAlertas',
+    /prefsAlertas:\s*true/.test(bloqueUsuarioResumen),
+    'sin él la cadencia del resumen no se puede leer y todos caen al default');
 
   check('drip.worker: el select del usuario pide idioma',
     /idioma: true/.test(workerDrip));

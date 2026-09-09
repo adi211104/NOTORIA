@@ -9,6 +9,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { z } = require('zod');
 const prisma = require('../../lib/prisma');
+const prefsCorreo = require('../../lib/prefsCorreo');
+const { borrarCuenta } = require('../../lib/borrarCuenta');
 
 const router = express.Router();
 const { autenticar } = require('../middlewares/auth.middleware');
@@ -278,6 +280,19 @@ router.get('/perfil', autenticar, async (req, res, next) => {
       // tiene por qué aparecerle a quien nunca compartió ni fue invitado.
       cuentas: cuentas.length > 1 ? cuentas : [],
       alcanceParcial: !!req.alcance,
+      // Las preferencias de correo YA RESUELTAS, con los defaults aplicados.
+      //
+      // 🔴 Viajan resueltas y no crudas a propósito. `prefsAlertas` es null en una
+      // cuenta nueva y el default del lote **depende del plan** (GRATIS agrupa de
+      // a 5, los de pago avisan al momento). Si el panel tuviera que deducirlo,
+      // habría dos respuestas a la misma pregunta y el día que cambie una solo se
+      // aplicaría la del backend: el cliente vería un ajuste y recibiría otro. Es
+      // exactamente el fallo que `lib/planes.js` existe para impedir.
+      prefsCorreo: {
+        cadenciaResumen: prefsCorreo.cadenciaResumen(datosCuenta.prefsAlertas),
+        diaResumen: prefsCorreo.diaResumen(datosCuenta.prefsAlertas),
+        lote: prefsCorreo.loteAlertas(req.cuenta.plan, datosCuenta.prefsAlertas),
+      },
     };
 
     // Bandera de disponibilidad, no una columna del usuario: depende de la
@@ -347,7 +362,7 @@ router.patch('/perfil', autenticar, async (req, res, next) => {
 // Guarda qué alertas quiere recibir el usuario y con qué frecuencia
 router.patch('/preferencias-alertas', autenticar, async (req, res, next) => {
   try {
-    const { tipos, umbralNegativas, frecuencia, diaSemana } = req.body || {};
+    const { tipos, umbralNegativas, frecuencia, diaSemana, resumen } = req.body || {};
 
     const TIPOS_VALIDOS = ['PICO_RESENAS_NEGATIVAS', 'CAIDA_RATING', 'CUENTAS_NUEVAS', 'RESENA_MUY_NEGATIVA', 'MENCION_NEGATIVA', 'COMENTARIO_NEGATIVO'];
     const tiposLimpios = {};
@@ -359,17 +374,44 @@ router.patch('/preferencias-alertas', autenticar, async (req, res, next) => {
 
     const prefs = {
       tipos: tiposLimpios,
-      umbralNegativas: umbralNegativas === 5 ? 5 : 1,
       frecuencia: ['INMEDIATA', 'SEMANAL', 'MENSUAL'].includes(frecuencia) ? frecuencia : 'INMEDIATA',
       diaSemana: Number.isInteger(diaSemana) && diaSemana >= 0 && diaSemana <= 6 ? diaSemana : 1,
+      // Cadencia del resumen por negocio. Se guarda solo lo que el cliente manda
+      // válido; el default vive en `lib/prefsCorreo.js` y NO se copia acá.
+      resumen: {
+        cadencia: prefsCorreo.CADENCIAS.includes(resumen?.cadencia)
+          ? resumen.cadencia : prefsCorreo.CADENCIA_POR_DEFECTO,
+        diaSemana: Number.isInteger(resumen?.diaSemana) && resumen.diaSemana >= 0 && resumen.diaSemana <= 6
+          ? resumen.diaSemana : prefsCorreo.DIA_POR_DEFECTO,
+      },
     };
+
+    // 🔴 `umbralNegativas` solo se guarda si el cliente lo manda válido, y NO cae
+    // a 1 como antes. Ese `? 5 : 1` era un fallo esperando: en cuanto una cuenta
+    // GRATIS guardara cualquier preferencia —el idioma de un tipo de alerta, el
+    // día del resumen— se le escribía un 1 encima y volvía a recibir un correo
+    // por reseña, deshaciendo el agrupado de a cinco sin que nada lo dijera.
+    // Ausente = «usa el default de mi plan» (ver prefsCorreo.loteAlertas).
+    if (prefsCorreo.LOTES_VALIDOS.includes(umbralNegativas)) {
+      prefs.umbralNegativas = umbralNegativas;
+    }
 
     await prisma.usuario.update({
       where: { id: req.usuario.id },
       data: { prefsAlertas: prefs },
     });
 
-    res.json({ mensaje: 'Preferencias de alertas guardadas', prefsAlertas: prefs });
+    // Se devuelven también RESUELTAS, con los defaults del plan aplicados, para
+    // que el panel no tenga que recargar el perfil ni deducirlas por su cuenta.
+    res.json({
+      mensaje: 'Preferencias de alertas guardadas',
+      prefsAlertas: prefs,
+      prefsCorreo: {
+        cadenciaResumen: prefsCorreo.cadenciaResumen(prefs),
+        diaResumen: prefsCorreo.diaResumen(prefs),
+        lote: prefsCorreo.loteAlertas(req.cuenta?.plan || req.usuario.plan, prefs),
+      },
+    });
   } catch (error) { next(error); }
 });
 
@@ -496,100 +538,16 @@ router.post('/confirmar-cambio-password', async (req, res, next) => {
 // Si el usuario nunca pagó no hay nada que conservar, así que se borra de verdad.
 router.delete('/cuenta', autenticar, async (req, res, next) => {
   try {
-    const usuarioId = req.usuario.id;
+    // 🔴 La secuencia vive en `lib/borrarCuenta.js` desde el 2026-09-09, no acá.
+    // El motivo: borrar una cuenta a mano desde la terminal (una de prueba, una
+    // dirección desechable) necesita EXACTAMENTE el mismo orden de borrados, y una
+    // segunda copia se desincroniza el día que alguien añada una tabla con FK
+    // RESTRICT — y eso se descubre contra producción, a mitad del borrado.
+    const { modo } = await borrarCuenta(req.usuario.id);
 
-    // ─── Equipo ───────────────────────────────────────────
-    // Va PRIMERO: `miembros`, `invitaciones` y `registro_actividad` tienen FK
-    // contra `usuarios`, así que sin esto el borrado falla con un error de
-    // restricción que no dice nada útil.
-    //
-    // Se van los dos lados: el equipo que esta persona había invitado a SU
-    // cuenta (nadie debe conservar acceso a una cuenta que ya no existe) y las
-    // membresías que tenía en cuentas ajenas (deja de tener acceso a ellas).
-    await prisma.miembro.deleteMany({ where: { OR: [{ cuentaId: usuarioId }, { usuarioId }] } }).catch(() => {});
-    await prisma.invitacion.deleteMany({ where: { cuentaId: usuarioId } }).catch(() => {});
-    await prisma.registroActividad.deleteMany({ where: { cuentaId: usuarioId } }).catch(() => {});
-
-    // Lo que hizo dentro de cuentas AJENAS no se borra: es el historial de esa
-    // otra empresa y no le pertenece a quien se va. Pero su nombre sí es un dato
-    // personal suyo, así que se disocia — el registro sigue sirviendo para saber
-    // que fueron acciones de una misma persona, sin identificarla.
-    await prisma.registroActividad.updateMany({
-      where: { usuarioId },
-      data: { autorNombre: 'Usuario eliminado' },
-    }).catch(() => {});
-
-    // Eliminar en orden por dependencias de FK
-    const negocios = await prisma.negocio.findMany({
-      where: { usuarioId },
-      select: { id: true },
-    });
-    const negocioIds = negocios.map(n => n.id);
-
-    if (negocioIds.length > 0) {
-      await prisma.alerta.deleteMany({ where: { negocioId: { in: negocioIds } } });
-      await prisma.resena.deleteMany({ where: { negocioId: { in: negocioIds } } });
-      await prisma.snapshot.deleteMany({ where: { negocioId: { in: negocioIds } } });
-      await prisma.mencion.deleteMany({ where: { negocioId: { in: negocioIds } } }).catch(() => {});
-      // Obligatorio, no opcional: la FK de comentarios_sociales es ON DELETE
-      // RESTRICT, así que sin este borrado la eliminación de cuenta falla.
-      await prisma.comentarioSocial.deleteMany({ where: { negocioId: { in: negocioIds } } }).catch(() => {});
-      const competidores = await prisma.competidor.findMany({
-        where: { negocioId: { in: negocioIds } }, select: { id: true },
-      }).catch(() => []);
-      if (competidores.length > 0) {
-        await prisma.snapshotCompetidor.deleteMany({
-          where: { competidorId: { in: competidores.map(c => c.id) } },
-        }).catch(() => {});
-        await prisma.competidor.deleteMany({ where: { negocioId: { in: negocioIds } } }).catch(() => {});
-      }
-      await prisma.negocio.deleteMany({ where: { usuarioId } });
-    }
-
-    // ¿Queda historial fiscal que la empresa está obligada a conservar?
-    const tieneHistorialFiscal =
-      (await prisma.pago.count({ where: { usuarioId } })) > 0 ||
-      (await prisma.comprobante.count({ where: { usuarioId } })) > 0;
-
-    if (!tieneHistorialFiscal) {
-      await prisma.usuario.delete({ where: { id: usuarioId } });
+    if (modo === 'BORRADA') {
       return res.json({ mensaje: 'Cuenta eliminada correctamente' });
     }
-
-    // Anonimización. El correo se reemplaza por uno irrepetible dentro de un
-    // dominio reservado (RFC 2606) para no chocar contra el @unique ni poder
-    // colisionar jamás con un correo real, y la contraseña por una cadena que
-    // bcrypt nunca va a validar — no es un hash, así que ningún `compare`
-    // puede darle verdadero.
-    await prisma.usuario.update({
-      where: { id: usuarioId },
-      data: {
-        email: `eliminado-${usuarioId}@cuenta-eliminada.invalid`,
-        nombre: 'Cuenta eliminada',
-        password: 'CUENTA_ELIMINADA',
-        telefono: null,
-        googleId: null,
-        tokenVerificacion: null,
-        tokenVerificaExpira: null,
-        tokenResetHash: null,
-        tokenResetExpira: null,
-        emailVerificado: false,
-        suscripcionActiva: false,
-        suscripcionId: null,
-        fechaVencimiento: null,
-        plan: 'GRATIS',
-        prefsAlertas: null,
-        // Datos fiscales del receptor: se van de la cuenta, pero siguen
-        // congelados dentro de cada Comprobante ya emitido, que es donde la
-        // norma obliga a conservarlos.
-        docTipo: null,
-        docNumero: null,
-        razonSocial: null,
-        direccionFiscal: null,
-        paisFiscal: null,
-      },
-    });
-
     res.json({
       mensaje: 'Cuenta eliminada correctamente. Por obligación tributaria conservamos solo los comprobantes ya emitidos, sin tus datos personales.',
     });

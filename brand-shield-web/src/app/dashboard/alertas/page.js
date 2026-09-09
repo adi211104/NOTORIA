@@ -30,7 +30,20 @@ const TEXTOS = {
       desc: 'Elige qué alertas quieres recibir por email y con qué frecuencia. Todas las alertas siguen apareciendo aquí en el dashboard aunque desactives su notificación.',
       umbralLabel: 'Notificarme de reseñas negativas:',
       umbralCada: 'Cada reseña negativa',
-      umbralPicos: 'Solo picos (5+ en 24h)',
+      // 🔴 Decía «Solo picos (5+ en 24h)» y era una promesa muerta: la señal de
+      // picos por conteo no puede dispararse nunca (Google Places entrega 5
+      // reseñas como máximo por consulta), así que quien marcaba esa opción se
+      // quedaba sin ningún aviso y sin saberlo. Ahora agrupa de verdad.
+      umbralPicos: 'Agrupadas: 1 correo por cada 5',
+      umbralAyuda: (n) => n === 5
+        ? 'Juntamos las reseñas y te mandamos un solo correo cada 5. Menos correo, nada que se pierda: el panel las muestra todas al momento.'
+        : 'Un correo por cada reseña negativa, en cuanto la detectamos.',
+      resumenLabel: 'Resumen de tus negocios:',
+      resumenMensual: 'Mensual (día 1)',
+      resumenSemanal: 'Semanal',
+      resumenAyuda: (cadencia, diaLabel) => cadencia === 'SEMANAL'
+        ? `Cada ${diaLabel} a las 8:00 recibirás el resumen de los últimos 7 días: rating, reseñas nuevas y score.`
+        : 'El día 1 de cada mes a las 8:00 recibirás el resumen de los últimos 30 días: rating, reseñas nuevas y score.',
       frecuenciaLabel: 'Frecuencia de los emails:',
       inmediata: 'Inmediata',
       semanal: 'Resumen semanal',
@@ -85,7 +98,16 @@ const TEXTOS = {
       desc: 'Choose which alerts you want to receive by email and how often. All alerts still appear here in the dashboard even if you turn off their notification.',
       umbralLabel: 'Notify me about negative reviews:',
       umbralCada: 'Every negative review',
-      umbralPicos: 'Only spikes (5+ in 24h)',
+      umbralPicos: 'Batched: 1 email per 5',
+      umbralAyuda: (n) => n === 5
+        ? 'We group reviews and send a single email every 5. Less email, nothing lost: the dashboard shows them all right away.'
+        : 'One email per negative review, as soon as we detect it.',
+      resumenLabel: 'Summary of your businesses:',
+      resumenMensual: 'Monthly (1st)',
+      resumenSemanal: 'Weekly',
+      resumenAyuda: (cadencia, diaLabel) => cadencia === 'SEMANAL'
+        ? `Every ${diaLabel} at 8:00 AM you will get the last 7 days: rating, new reviews and score.`
+        : 'On the 1st of each month at 8:00 AM you will get the last 30 days: rating, new reviews and score.',
       frecuenciaLabel: 'Email frequency:',
       inmediata: 'Immediate',
       semanal: 'Weekly summary',
@@ -118,7 +140,7 @@ const TEXTOS = {
 
 // Panel de configuración de notificaciones (vive fuera del componente de página
 // para no perder estado ni foco en re-renders)
-function ConfigNotificaciones({ prefsIniciales, onGuardado }) {
+function ConfigNotificaciones({ prefsIniciales, resueltas, onGuardado }) {
   const { idioma } = useIdioma();
   const t = TEXTOS[idioma] || TEXTOS.es;
   const base = prefsIniciales || {};
@@ -127,9 +149,21 @@ function ConfigNotificaciones({ prefsIniciales, onGuardado }) {
     for (const tc of TEXTOS.es.tipos) obj[tc.id] = base.tipos?.[tc.id] !== false;
     return obj;
   });
-  const [umbral, setUmbral] = useState(base.umbralNegativas === 5 ? 5 : 1);
+  // 🔴 El valor inicial sale de lo RESUELTO por el backend, no de `prefsAlertas`
+  // crudo. El default del lote depende del plan (GRATIS agrupa de a 5), así que
+  // leer el campo crudo —que en una cuenta nueva es `undefined`— pintaría «cada
+  // reseña negativa» a alguien que las recibe agrupadas: el panel diría una cosa
+  // y la bandeja otra. Ver lib/prefsCorreo.js en el backend.
+  const [umbral, setUmbral] = useState(resueltas?.lote === 5 ? 5 : 1);
   const [frecuencia, setFrecuencia] = useState(base.frecuencia || 'INMEDIATA');
   const [diaSemana, setDiaSemana] = useState(Number.isInteger(base.diaSemana) ? base.diaSemana : 1);
+  // Cadencia del resumen por negocio — el correo que más manda el producto. Por
+  // defecto MENSUAL desde el 2026-09-09; antes salía todos los domingos para todo
+  // el mundo y no había forma de bajarle el ritmo.
+  const [cadencia, setCadencia] = useState(resueltas?.cadenciaResumen || 'MENSUAL');
+  const [diaResumen, setDiaResumen] = useState(
+    Number.isInteger(resueltas?.diaResumen) ? resueltas.diaResumen : 0,
+  );
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState('');
 
@@ -139,7 +173,10 @@ function ConfigNotificaciones({ prefsIniciales, onGuardado }) {
       const res = await fetch(`${API_URL}/api/auth/preferencias-alertas`, {
         method:'PATCH',
         headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${localStorage.getItem('bs_token')}` },
-        body: JSON.stringify({ tipos, umbralNegativas: umbral, frecuencia, diaSemana }),
+        body: JSON.stringify({
+          tipos, umbralNegativas: umbral, frecuencia, diaSemana,
+          resumen: { cadencia, diaSemana: diaResumen },
+        }),
       });
       if (!res.ok) throw new Error();
       setMsg(t.config.msgGuardado);
@@ -185,8 +222,35 @@ function ConfigNotificaciones({ prefsIniciales, onGuardado }) {
             <button onClick={() => setUmbral(1)} style={chip(umbral === 1)}>{t.config.umbralCada}</button>
             <button onClick={() => setUmbral(5)} style={chip(umbral === 5)}>{t.config.umbralPicos}</button>
           </div>
+          {/* Se explica qué hace cada opción. La etiqueta sola daba a entender
+              algo distinto de lo que ocurría, que es cómo esta pantalla acabó
+              prometiendo «solo picos» y no mandando nada. */}
+          <p style={{ fontSize:11, color:'var(--text-3)', margin:'7px 0 0', lineHeight:1.5 }}>
+            {t.config.umbralAyuda(umbral)}
+          </p>
         </div>
       )}
+
+      {/* Cadencia del resumen por negocio.
+          Es un ajuste DISTINTO de la frecuencia de abajo, y conviene no
+          confundirlos: esto gobierna el correo con el rating y las reseñas nuevas
+          de cada negocio; lo de abajo, el digest de alertas. */}
+      <div style={{ marginBottom:16 }}>
+        <p style={{ fontSize:12, color:'var(--text-3)', margin:'0 0 7px' }}>{t.config.resumenLabel}</p>
+        <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center' }}>
+          <button onClick={() => setCadencia('MENSUAL')} style={chip(cadencia === 'MENSUAL')}>{t.config.resumenMensual}</button>
+          <button onClick={() => setCadencia('SEMANAL')} style={chip(cadencia === 'SEMANAL')}>{t.config.resumenSemanal}</button>
+          {cadencia === 'SEMANAL' && (
+            <select value={diaResumen} onChange={e => setDiaResumen(Number(e.target.value))}
+              style={{ background:'var(--surface2)', border:'1px solid var(--border-c)', color:'var(--text)', borderRadius:8, padding:'6px 10px', fontSize:12 }}>
+              {t.diasSemana.map((d,i) => <option key={i} value={i}>{t.config.cadaDia(d.toLowerCase())}</option>)}
+            </select>
+          )}
+        </div>
+        <p style={{ fontSize:11, color:'var(--text-3)', margin:'7px 0 0', lineHeight:1.5 }}>
+          {t.config.resumenAyuda(cadencia, t.diasSemana[diaResumen].toLowerCase())}
+        </p>
+      </div>
 
       {/* Frecuencia */}
       <div style={{ marginBottom:16 }}>
@@ -308,6 +372,11 @@ export default function AlertasPage() {
       {mostrarConfig && puede('equipo') && (
         <ConfigNotificaciones
           prefsIniciales={usuario?.prefsAlertas}
+          /* Las preferencias YA RESUELTAS que manda el backend, con los defaults
+             del plan aplicados. Sin esto el panel tendría que deducir el default
+             del lote —que depende del plan— y le enseñaría «cada reseña» a una
+             cuenta gratuita que en realidad las recibe agrupadas de a cinco. */
+          resueltas={usuario?.prefsCorreo}
           onGuardado={refrescarPerfil}
         />
       )}

@@ -14,6 +14,7 @@ const temas = require('../lib/temas');
 const parteLib = require('../lib/parteEquipo');
 const parteServicio = require('../services/parteEquipo.service');
 const { enviarResumenSemanal, enviarResumenSemanalConsolidado } = require('../utils/emails');
+const prefsCorreo = require('../lib/prefsCorreo');
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MODELO = 'openai/gpt-oss-20b';
@@ -62,9 +63,17 @@ const generarInsightSemanal = async (negocio, resenas, idioma = 'es') => {
 };
 
 // Calcula cifras crudas de la semana para un negocio a partir de sus snapshots/reseñas
-const calcularCifrasSemana = async (negocio, idioma = 'es') => {
-  const desde = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const desdeAnterior = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+// `dias` es la ventana del resumen, y sale de la cadencia que tenga el usuario
+// (`lib/prefsCorreo.js`): 7 en semanal, 30 en mensual.
+//
+// 🔴 No es cosmético. Un correo mensual que solo mirara los últimos 7 días le
+// diría «0 reseñas nuevas» a un negocio que tuvo cuatro, con la palabra «mensual»
+// en el asunto — y el cliente no tiene ninguna forma de saber que ese número está
+// mal. El periodo anterior (para la tendencia de temas) se corre con la misma
+// ventana, o compararía un mes contra una semana.
+const calcularCifrasSemana = async (negocio, idioma = 'es', dias = 7) => {
+  const desde = new Date(Date.now() - dias * 24 * 60 * 60 * 1000);
+  const desdeAnterior = new Date(Date.now() - dias * 2 * 24 * 60 * 60 * 1000);
 
   const [ultimoSnapshot, snapshotHaceUnaSemana, resenasNuevas, resenasPrevias, todas] = await Promise.all([
     prisma.snapshot.findFirst({ where: { negocioId: negocio.id }, orderBy: { tomadoEn: 'desc' } }),
@@ -138,12 +147,13 @@ const calcularCifrasSemana = async (negocio, idioma = 'es') => {
   };
 };
 
-const procesarUsuario = async (usuario, negocios) => {
+const procesarUsuario = async (usuario, negocios, periodo = 'semanal') => {
   const conInsight = usuario.plan !== 'GRATIS';
+  const dias = prefsCorreo.diasVentana(periodo === 'mensual' ? 'MENSUAL' : 'SEMANAL');
   const resultados = [];
 
   for (const negocio of negocios) {
-    const cifras = await calcularCifrasSemana(negocio, usuario?.idioma || 'es');
+    const cifras = await calcularCifrasSemana(negocio, usuario?.idioma || 'es', dias);
 
     // ── El parte para el equipo, dentro del correo ──────────────────────────
     //
@@ -189,27 +199,53 @@ const procesarUsuario = async (usuario, negocios) => {
       .filter(Boolean)
       .slice(0, 3)
       .join(' ');
-    await enviarResumenSemanalConsolidado(usuario, resultados, resumenGlobal || null);
-    console.log(`[ResumenSemanal] Consolidado enviado a ${usuario.email} (${resultados.length} negocios)`);
+    await enviarResumenSemanalConsolidado(usuario, resultados, resumenGlobal || null, periodo);
+    console.log(`[Resumen] Consolidado ${periodo} enviado a ${usuario.email} (${resultados.length} negocios)`);
     return;
   }
 
   for (const { negocio, datos } of resultados) {
-    await enviarResumenSemanal(usuario, negocio, datos);
-    console.log(`[ResumenSemanal] Enviado a ${usuario.email} — ${negocio.nombre}`);
+    // ⚠️ `periodo` viaja como VALOR ('semanal' | 'mensual'), nunca como texto ya
+    // redactado: la frase la compone la plantilla, que es la que sabe el idioma.
+    // Es la misma regla del digest de alertas y de las invitaciones de equipo.
+    await enviarResumenSemanal(usuario, negocio, datos, periodo);
+    console.log(`[Resumen] ${periodo} enviado a ${usuario.email} — ${negocio.nombre}`);
     await new Promise((r) => setTimeout(r, 1000));
   }
 };
 
-const ejecutarAhora = async () => {
-  console.log('[ResumenSemanal] Ejecución iniciada...');
+/**
+ * Manda los resúmenes que TOCAN hoy.
+ *
+ * 🔴 Antes esto salía todos los domingos para absolutamente todo el mundo, sin
+ * preferencia que lo gobernara — y es el correo que más manda el producto. Desde
+ * el 2026-09-09 la cadencia es del usuario y por defecto **mensual**: el semanal
+ * resultó invasivo para cuentas que apenas entraron a mirar, y una bandeja
+ * saturada acaba en «marcar como spam», que degrada la entrega de todo lo demás.
+ *
+ * `forzar: true` salta la comprobación del calendario y manda a todos, que es lo
+ * que necesita un script para probar sin esperar al día 1.
+ */
+const ejecutarAhora = async ({ forzar = false } = {}) => {
+  console.log(`[Resumen] Ejecución iniciada${forzar ? ' (forzada)' : ''}...`);
   const negocios = await prisma.negocio.findMany({
     where: { activo: true, resumenSemanalActivo: true },
     // `idioma` NO es opcional: el correo lo usa para elegir plantilla Y para
     // pedirle el insight a Groq en ese idioma. Sin él salía todo en español,
     // también para quien tiene el panel en inglés — ver la nota de RESUMEN en
     // utils/emails.js.
-    include: { usuario: { select: { id: true, email: true, nombre: true, plan: true, idioma: true } } },
+    // `idioma` NO es opcional (ver arriba), y `prefsAlertas` tampoco desde el
+    // 2026-09-09: es donde vive la cadencia del resumen. Sin él, `tocaResumen`
+    // recibiría `undefined`, caería al default mensual para todos y quien haya
+    // elegido semanal no lo recibiría nunca — sin un solo error. Es exactamente
+    // el fallo que ya tuvo `idioma` en el select de las alertas.
+    include: {
+      usuario: {
+        select: {
+          id: true, email: true, nombre: true, plan: true, idioma: true, prefsAlertas: true,
+        },
+      },
+    },
   });
 
   const porUsuario = {};
@@ -217,20 +253,28 @@ const ejecutarAhora = async () => {
     (porUsuario[n.usuarioId] = porUsuario[n.usuarioId] || { usuario: n.usuario, negocios: [] }).negocios.push(n);
   }
 
+  let enviados = 0;
   for (const { usuario, negocios: negociosUsuario } of Object.values(porUsuario)) {
+    const cadencia = prefsCorreo.cadenciaResumen(usuario.prefsAlertas);
+    if (!forzar && !prefsCorreo.tocaResumen(usuario.prefsAlertas)) continue;
     try {
-      await procesarUsuario(usuario, negociosUsuario);
+      await procesarUsuario(usuario, negociosUsuario, prefsCorreo.periodoDe(cadencia));
+      enviados++;
     } catch (error) {
-      console.error(`[ResumenSemanal] Error con usuario ${usuario.email}: ${error.message}`);
+      console.error(`[Resumen] Error con usuario ${usuario.email}: ${error.message}`);
     }
     await new Promise((r) => setTimeout(r, 1000));
   }
-  console.log('[ResumenSemanal] Ejecución completada.');
+  console.log(`[Resumen] Ejecución completada: ${enviados} de ${Object.keys(porUsuario).length} usuarios.`);
 };
 
+// 🔴 El cron corre TODOS LOS DÍAS y decide por usuario, igual que el digest de
+// alertas. Con un cron semanal fijo no habría forma de servir la cadencia mensual
+// ni el día que elija cada uno; y con crons separados (uno domingo, uno el día 1)
+// habría dos calendarios que mantener y un usuario podría caer en los dos.
 const iniciarResumenSemanal = () => {
-  cron.schedule('0 8 * * 0', ejecutarAhora, { timezone: 'America/Lima' });
-  console.log('[ResumenSemanal] Cron configurado: domingo 8:00 AM (hora Lima)');
+  cron.schedule('0 8 * * *', () => ejecutarAhora(), { timezone: 'America/Lima' });
+  console.log('[Resumen] Cron configurado: diario 8:00 AM (hora Lima), cadencia por usuario');
 };
 
-module.exports = { iniciarResumenSemanal, ejecutarAhora };
+module.exports = { iniciarResumenSemanal, ejecutarAhora, calcularCifrasSemana };
