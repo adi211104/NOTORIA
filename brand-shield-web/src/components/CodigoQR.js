@@ -66,12 +66,25 @@ export default function CodigoQR({
 }
 
 // Genera el PNG grande para imprimir y dispara la descarga. Se hace a demanda
-// (al hacer clic) y no al montar, para no tener un data URI de 600x600 en
+// (al hacer clic) y no al montar, para no tener un data URI de 900x900 en
 // memoria en cada carga de la página.
-export async function descargarQR(valor, nombreArchivo = 'codigo-qr.png') {
+//
+// 🔴 El lado NO es un número redondo: se ajusta para que cada módulo mida un
+// número ENTERO de píxeles. Es la única salida en mapa de bits del producto, y
+// por tanto la única que alguien puede acabar ampliando dentro de su propio
+// diseño —la carta, un banner, el vinilo de la puerta—. Con 900 px y una trama de
+// 45 módulos cada módulo mide 20 px justos, pero con 37 módulos mide 24,32: los
+// bordes salen a medio píxel, el reescalado del diseñador los ensucia y un borde
+// dudoso es exactamente lo que hace fallar la lectura con luz pobre. Misma regla
+// que `qrPng()` en la app Android.
+export async function descargarQR(valor, nombreArchivo = 'codigo-qr.png', ladoAproximado = 1200) {
+  const MARGEN = 4; // la zona de silencio que exige la norma, en módulos
+  const modulos = QRCode.create(valor, { errorCorrectionLevel: 'M' }).modules.size + MARGEN * 2;
+  const paso = Math.max(1, Math.round(ladoAproximado / modulos));
+
   const dataUrl = await QRCode.toDataURL(valor, {
-    width: 900,
-    margin: 4,
+    width: paso * modulos,
+    margin: MARGEN,
     errorCorrectionLevel: 'M',
     color: { dark: '#000000', light: '#FFFFFF' },
   });

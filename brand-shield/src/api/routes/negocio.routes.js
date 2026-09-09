@@ -6,6 +6,8 @@ const { buscarNegocioEnGoogle, obtenerUbicacionNegocio, buscarCompetidoresCercan
 const { informeRating } = require('../../lib/rating');
 const { compararMeses, ordenarPorCrecimiento, hayAlgoQueContar } = require('../../lib/progreso');
 const { generarAfiche } = require('../../utils/afiche.generator');
+const cartelLib = require('../../lib/cartel');
+const { generarCartel } = require('../../utils/cartel.generator');
 const { emitirCodigo, VIGENCIA_DIAS } = require('../../lib/constancia');
 const { generarConstancia } = require('../../utils/constancia.pdf');
 const { armar: armarExpediente, VENTANA_DIAS: VENTANA_EXPEDIENTE } = require('../../lib/expediente');
@@ -640,6 +642,65 @@ router.get('/:id/afiche.pdf', async (req, res, next) => {
     res.setHeader('Content-Type', 'application/pdf');
     const limpio = (negocio.nombre || 'negocio').replace(/[^\w-]+/g, '-').slice(0, 40);
     res.setHeader('Content-Disposition', `attachment; filename="Notoria-afiche-${limpio}.pdf"`);
+    res.send(pdf);
+  } catch (error) { next(error); }
+});
+
+// ── GET /api/negocios/:id/cartel.pdf?formato=MURAL ────────
+//
+// El cartel de «déjanos tu reseña»: la hoja A4 que el dueño imprime y pega en su
+// local para que el cliente escanee y opine en Google. Cuatro tamaños, del mural
+// de la puerta a las etiquetas de la cuenta. Ver `lib/cartel.js`.
+//
+// 🔴 **No lleva `verificarPlan`, y es a propósito.** Es la única herramienta de
+// Notoria que PRODUCE reseñas —todo lo demás mide las que ya hay—, así que
+// cerrarla al plan gratuito le quitaría al cliente nuevo justo lo que hace que
+// el producto le sirva la primera semana. El QR ya era visible para todos en el
+// panel desde siempre; esto solo le pone un papel alrededor.
+//
+// Sale entero de la base: **cero llamadas a Google** y cero a Groq, así que se
+// puede regenerar las veces que haga falta sin gastar cuota.
+router.get('/:id/cartel.pdf', async (req, res, next) => {
+  try {
+    // El formato viene de la query, o sea del cliente. Se valida contra la tabla
+    // en vez de confiar: `formato=../../etc` acabaría en el nombre del archivo
+    // que se manda en el Content-Disposition.
+    const formato = String(req.query.formato || 'MURAL').toUpperCase();
+    if (!cartelLib.esFormato(formato)) {
+      return res.status(400).json({
+        error: 'Formato de cartel no válido',
+        tipo: 'FORMATO_INVALIDO',
+        validos: cartelLib.ORDEN_FORMATOS,
+      });
+    }
+
+    const negocio = await prisma.negocio.findFirst({
+      where: dondeNegocio(req, { id: req.params.id }),
+      select: { id: true, nombre: true, googlePlaceId: true },
+    });
+    if (!negocio) return res.status(404).json({ error: 'Negocio no encontrado' });
+
+    // Sin ficha de Google no hay enlace de reseñas al que apuntar, así que no hay
+    // cartel. Se dice con su propio tipo y no con un 404 pelado: el panel esconde
+    // la sección en ese caso, pero un cliente que llegue por la URL merece saber
+    // que le falta conectar la ficha, no creer que la función no existe.
+    if (!negocio.googlePlaceId) {
+      return res.status(409).json({
+        error: 'Este negocio todavía no tiene ficha de Google',
+        tipo: 'SIN_FICHA_GOOGLE',
+      });
+    }
+
+    const pdf = await generarCartel({
+      formato,
+      nombre: negocio.nombre,
+      enlace: cartelLib.enlaceResenas(negocio.googlePlaceId),
+      idioma: req.usuario.idioma || 'es',
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    const limpio = (negocio.nombre || 'negocio').replace(/[^\w-]+/g, '-').slice(0, 40);
+    res.setHeader('Content-Disposition', `attachment; filename="Notoria-cartel-${formato.toLowerCase()}-${limpio}.pdf"`);
     res.send(pdf);
   } catch (error) { next(error); }
 });
