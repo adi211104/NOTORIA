@@ -12,6 +12,7 @@ import { useIdioma } from '../../../../context/IdiomaContext';
 import Icon, { ICONO_ALERTA } from '../../../../components/Icons';
 import BloqueoPlan from '../../../../components/BloqueoPlan';
 import CodigoQR, { descargarQR } from '../../../../components/CodigoQR';
+import CartelResenas from '../../../../components/CartelResenas';
 
 import { API_URL } from '../../../../lib/api';
 const getToken = () => localStorage.getItem('bs_token');
@@ -687,10 +688,17 @@ const TEXTOS = {
       enlaceDesc:'Este enlace abre directamente el formulario de reseña de tu negocio en Google. Compártelo con cada cliente satisfecho — más reseñas = mejor posición en Google Maps.',
       copiado:'Copiado ✓',
       copiarEnlace:'Copiar enlace',
-      qrTitulo:'Código QR para tu local',
+      qrTitulo:'Solo el código QR',
       qrAlt:(n) => `Código QR para dejar una reseña de ${n}`,
-      qrDesc:'Imprímelo y colócalo en mesas, recepción o la cuenta. El cliente escanea y deja su reseña en 30 segundos.',
-      altaResolucion:'Abrir en alta resolución',
+      qrDesc:'Si ya tienes tu propio diseño —la carta, un vinilo, un banner— bájate el código suelto y colócalo donde quieras.',
+      altaResolucion:'Descargar PNG grande',
+      cartelTitulo:'Carteles listos para imprimir',
+      cartelDesc:'Elige dónde lo vas a poner. Todos salen en una hoja A4, así que se imprimen en cualquier imprenta o en casa.',
+      cartelDescargar:'Descargar PDF',
+      cartelGenerando:'Generando…',
+      cartelPorHoja:(n) => `Salen ${n} en la misma hoja, con líneas punteadas por donde cortar.`,
+      cartelUnaHoja:'Una pieza por hoja, a tamaño completo.',
+      cartelError:'No pudimos generar el PDF. Reintenta en un momento.',
       whatsappTitulo:'Mensaje listo para WhatsApp',
       whatsappHint:'Edítalo a tu gusto — se comparte tal como lo dejes aquí:',
       restaurarMensaje:'Restaurar mensaje original',
@@ -1151,10 +1159,17 @@ const TEXTOS = {
       enlaceDesc:'This link opens your business’s review form on Google directly. Share it with every happy customer — more reviews mean a better spot on Google Maps.',
       copiado:'Copied ✓',
       copiarEnlace:'Copy link',
-      qrTitulo:'QR code for your venue',
+      qrTitulo:'Just the QR code',
       qrAlt:(n) => `QR code to leave a review for ${n}`,
-      qrDesc:'Print it and place it on tables, at reception, or with the bill. The customer scans it and leaves a review in 30 seconds.',
-      altaResolucion:'Open in high resolution',
+      qrDesc:'If you already have your own design — the menu, a sticker, a banner — download the bare code and place it wherever you want.',
+      altaResolucion:'Download large PNG',
+      cartelTitulo:'Print-ready posters',
+      cartelDesc:'Pick where you are going to put it. They all come on one A4 sheet, so any print shop — or your home printer — can handle them.',
+      cartelDescargar:'Download PDF',
+      cartelGenerando:'Generating…',
+      cartelPorHoja:(n) => `You get ${n} on the same sheet, with dotted lines showing where to cut.`,
+      cartelUnaHoja:'One piece per sheet, at full size.',
+      cartelError:'We could not generate the PDF. Try again in a moment.',
       whatsappTitulo:'Ready-to-send WhatsApp message',
       whatsappHint:'Edit it however you like — it’s shared exactly as you leave it here:',
       restaurarMensaje:'Restore original message',
@@ -1722,7 +1737,11 @@ export default function DetallePage() {
       const url = URL.createObjectURL(await r.blob());
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Notoria-constancia-${(negocio?.nombre || 'negocio').replace(/[^w-]+/g, '-').slice(0, 40)}.pdf`;
+      // ⚠️ `\w`, con su barra. Sin ella la clase es «cualquier cosa que no sea la
+      // letra w o un guion», así que el nombre del negocio se comía sus propias
+      // letras: «Salón de Belleza» salía como «-». No rompía la descarga, solo
+      // dejaba un archivo sin nombre reconocible.
+      a.download = `Notoria-constancia-${(negocio?.nombre || 'negocio').replace(/[^\w-]+/g, '-').slice(0, 40)}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
       setConstancia('');
@@ -3516,6 +3535,21 @@ export default function DetallePage() {
                     <Icon name="clipboard" size={14} /> {copiado==='link' ? t.crecer.copiado : t.crecer.copiarEnlace}
                   </button>
                 </div>
+              </Card>
+
+              {/* Los carteles van PRIMERO y a todo el ancho: es la única cosa de
+                  esta pantalla que produce reseñas nuevas, y lo que el dueño va a
+                  imprimir el mismo día. El QR suelto de abajo es para quien ya
+                  tiene su propio diseño. */}
+              <Card>
+                <ST>{t.crecer.cartelTitulo}</ST>
+                <CartelResenas
+                  negocioId={id}
+                  nombre={negocio.nombre}
+                  enlace={linkResena}
+                  idioma={idioma}
+                  t={t.crecer}
+                />
               </Card>
 
               <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:14 }}>

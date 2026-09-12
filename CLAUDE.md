@@ -459,7 +459,7 @@ los logs del servidor y en un cambio observable en la salida.
 | Integración | Estado |
 |---|---|
 | **Google Places** | ✅ Habilitada y en uso (búsqueda de negocios, escaneo de reseñas públicas) |
-| **Google Business Profile** | 🔴 **Bloqueado por Google, y desde el 2026-08-25 OCULTO tras interruptor** (`lib/gbpVisible.js`, gemelo de los de Instagram y Facebook; `GBP_ACTIVO` / `GBP_CUENTAS_PRUEBA`). Era el único de los tres que seguía a la vista.** Las GBP APIs quedan con cuota `Requests per minute = 0`, señal documentada de que no hay acceso concedido; `mybusiness.googleapis.com` (v4, la que lee y responde reseñas) ni aparece en la Biblioteca. Con cuota 0 el callback autoriza y revienta en `listarCuentas` → `?gbp_error=callback_failed`. Caso de asistencia **`3-5553000040900`** |
+| **Google Business Profile** | 🔴 **Bloqueado por Google hasta el 2026-10-16 como muy pronto, y desde el 2026-08-25 OCULTO tras interruptor** (`lib/gbpVisible.js`, gemelo de los de Instagram y Facebook; `GBP_ACTIVO` / `GBP_CUENTAS_PRUEBA`). Las GBP APIs quedan con cuota `Requests per minute = 0`, señal documentada de que no hay acceso concedido; `mybusiness.googleapis.com` (v4, la que lee y responde reseñas) ni aparece en la Biblioteca. Con cuota 0 el callback autoriza y revienta en `listarCuentas` → `?gbp_error=callback_failed`. ✅ **El motivo ya no es un misterio: las tres solicitudes se rechazaron por los 60 días de antigüedad del perfil** (correo del 2026-09-08, §19 A). Casos `3-5553000040900`, `0-4623000041642`, `6-5952000041022` |
 | **Culqi** | ✅ LIVE en producción. Webhook de reembolsos registrado |
 | **TikTok (Accounts API)** | ✅ Completo: perfil, videos, comentarios, responder, borrar respuesta, ocultar, fijar |
 | **TikTok Display API** | Conservada como respaldo, sin usarse |
@@ -623,7 +623,8 @@ auth, state OAuth firmado con HMAC) · CRUD de negocios con búsqueda en Google 
 scrapers · monitoreo por cron con cadencia por plan · detector de bots/picos/caídas ·
 notificador por email · preferencias de alertas · resúmenes periódicos · IA de respuestas
 (Groq, límites por plan 3/100/300) · análisis IA de competidores · reporte PDF mensual ·
-resumen semanal por negocio · auto-respuesta a reseñas positivas · escalación de urgencias ·
+resumen por negocio con cadencia configurable (mensual por defecto) · auto-respuesta a reseñas
+positivas · escalación de urgencias · carteles QR de reseñas en cuatro tamaños ·
 comparación automática con competencia (Franquicia) · pagos Culqi con renovación, reintentos
 y bajada de plan · comprobantes y facturación electrónica · Libro de Reclamaciones · equipo
 con roles · webhook de comentarios de Instagram.
@@ -1885,6 +1886,65 @@ resumen semanal igual quiere enterarse de una 1★ que lleva un día sin contest
 ✅ **La columna `Usuario.telegramChatId` se borró el 2026-08-22.** Estaba vacía en los 11
 usuarios y nadie la leía. No queda nada de Telegram en el producto.
 
+
+### Cuánto correo manda Notoria — `lib/prefsCorreo.js` (2026-09-09)
+
+🔴 **Decisión de producto del dueño, y el motivo es de entrega, no de estética.** Hasta hoy el
+producto mandaba **un correo por cada reseña negativa** y un **resumen todos los domingos a todo el
+mundo**. Para una cuenta gratuita recién creada que solo entró a curiosear, eso es una bandeja llena
+de avisos de un producto que todavía no le importa — la vía más corta a que nos marquen como spam. Y
+**con el dominio quemado se degrada la entrega de TODO lo demás**, incluidos los avisos que sí
+importan y los comprobantes fiscales. Así que el correo no se pierde: **se agrupa.**
+
+| | Antes | Ahora |
+|---|---|---|
+| Resumen por negocio | **domingo, para todos**, sin ajuste posible | **mensual (día 1) por defecto**, o semanal el día que el cliente elija |
+| Aviso por reseña negativa | uno por reseña, al momento | **GRATIS: 1 correo por cada 5**. Planes de pago: al momento |
+
+**Nada se deja de detectar**: el panel enseña todas las alertas desde el primer segundo. Lo único
+que cambia es cuánto correo sale.
+
+⚠️ **Los defaults viven en `lib/prefsCorreo.js` y SOLO ahí, en código, no como fila en la base.**
+`Usuario.prefsAlertas` es `Json?` y arranca **null**, así que una cuenta nueva no tiene preferencia
+guardada y quien decide es ese archivo. No hizo falta migración.
+🔴 **El valor por plan, en cambio, va en `lib/planes.js`** (`loteAvisoResenas`): es un límite por
+plan, y una tabla por plan fuera de ahí es lo que costó los tres fallos silenciosos de IMPULSO
+(§8.6). Escribirla en `prefsCorreo.js` fue lo primero que hice y `prueba-planes.js` la cazó el mismo
+día — para eso existe ese barrido.
+
+**Lo que hay que vigilar, porque nada de esto da señal al romperse:**
+
+| Regla | Si se rompe |
+|---|---|
+| 🔴 **`Alerta.notificada` significa «ya salió un correo que cubre esta alerta»**, y es el acumulador del lote | Hasta hoy se escribía y **nadie la leía**: el worker la marcaba justo después de llamar a `notificar()`, hubiera salido correo o no. Marcarla a ciegas pone el contador a cero en cada reseña, así que las cinco **no se juntan nunca** y GRATIS vuelve a un correo por reseña. Ni error, ni log |
+| **`notificar()` devuelve si mandó algo**, y el llamador marca solo entonces | Ver arriba. Es el punto exacto donde esto se rompe |
+| **La ventana del resumen acompaña a la cadencia** (7 días o 30) | Un correo mensual contando 7 días le dice «0 reseñas nuevas» a un negocio que tuvo cuatro, con la palabra «mensual» en el asunto. El cliente no tiene forma de saber que el número está mal |
+| **El `select` del worker pide `prefsAlertas`** | Sin él, `tocaResumen` recibe `undefined`, todos caen al default mensual y **quien eligió semanal no lo recibe nunca**. Mismo fallo que ya tuvo `idioma` en el select de las alertas, un campo después |
+| **El cron es DIARIO y decide por usuario** | Con uno semanal fijo no hay forma de servir la cadencia mensual ni el día que elija cada uno. Con dos crons separados habría dos calendarios y un usuario podría caer en los dos |
+| **El calendario es de LIMA, no del servidor** | El cron dispara a las 8:00 de Lima, hora a la que las dos fechas coinciden, así que hoy da igual — pero `ejecutarAhora` se llama también a mano desde un script, y a las 20:00 de Lima el servidor ya está en el día siguiente: el mensual saldría el día 2. Es el error de las fechas de SUNAT y del agrupado por día del score, por tercera vez |
+| **`periodo` viaja como VALOR** (`'semanal'`/`'mensual'`) | Interpolado ya redactado, un usuario en inglés lee «Tu resumen semanal». Misma regla que las invitaciones de equipo (§11) |
+| **La ruta guarda `umbralNegativas` solo si vino válido** | Antes era `umbralNegativas === 5 ? 5 : 1`: en cuanto una cuenta GRATIS guardara cualquier preferencia —el día del resumen, un tipo de alerta— se le escribía un 1 encima y volvía a recibir un correo por reseña. Ausente = «usa el default de mi plan» |
+| **El panel arranca de las preferencias YA RESUELTAS** que manda el perfil | El default del lote depende del plan, así que leer `prefsAlertas` crudo —`undefined` en una cuenta nueva— pintaría «cada reseña negativa» a quien las recibe agrupadas: el panel diría una cosa y la bandeja otra |
+
+🔴 **`umbralNegativas: 5` CAMBIÓ DE SIGNIFICADO, y a mejor.** Antes quería decir «solo avísame de
+picos de 5+ en 24 h», y esa promesa estaba **muerta**: la señal de picos por conteo no puede
+dispararse nunca porque Places entrega **5 reseñas como máximo** por consulta (ver la tabla del
+detector, arriba). O sea que quien marcaba esa opción en el panel **se quedaba sin ningún aviso y
+sin saberlo**. Ahora un 5 significa «júntalas de a cinco», que es lo que la etiqueta daba a entender
+y lo que además funciona. La etiqueta pasó de «Solo picos (5+ en 24h)» a «Agrupadas: 1 correo por
+cada 5», y las dos opciones llevan una línea que explica qué hace cada una.
+
+⚠️ **El correo agrupado tiene asunto y explicación PROPIOS** («5 reseñas nuevas necesitan tu
+atención»), no reutiliza los del digest: con `periodo: 'lote'` el asunto habría salido «Tu resumen
+lote de alertas», que no es una frase. Y el pie dice **por qué** llega junto, o el cliente cree que
+se perdió cuatro avisos.
+
+⚠️ **Solo se agrupa `RESENA_MUY_NEGATIVA`.** La ficha alterada y la escalación de 24 h no pasan por
+`notificar()` a propósito (van por `enviarAlertaEmail` directo: ninguna preferencia debería poder
+silenciar «tu local aparece cerrado en Google»), y las caídas de rating o las campañas coordinadas
+son de por sí infrecuentes — agruparlas retrasaría justo el aviso que hay que dar rápido.
+
+`node scripts/prueba-prefs-correo.js` — **74 comprobaciones**, casi todas sobre esos silencios.
 **Comentarios sociales:**
 - **`publicacionId` es lo que habilita responder.** Un comentario guardado sin él queda de
   solo lectura y la ruta devuelve 422 en vez de fingir que se puede.
@@ -2067,6 +2127,68 @@ listaba las reseñas como `- 5★: texto`. El modelo copiaba el formato de su en
   baste Ctrl+C. El portapapeles se niega por motivos que no dependen de nosotros.
 - `node scripts/prueba-parte-equipo.js` — **66 comprobaciones**.
 
+
+**Carteles QR de reseñas** (`lib/cartel.js` + `utils/cartel.generator.js` +
+`GET /api/negocios/:id/cartel.pdf?formato=X` + `components/CartelResenas.js`, 2026-09-09). El papel
+que el dueño imprime y pega en su local para que el cliente escanee y opine en Google. Cuatro
+tamaños sobre una hoja A4: **mural** (1 por hoja), **mostrador** (A5, 2), **de mesa** (A6, 4) y
+**etiquetas** (7×7 cm, 12 con líneas de corte).
+
+🔴 **Es la única herramienta del producto que PRODUCE reseñas.** Score, temas, alertas, progreso,
+espejo, parte — todo lo demás mide las que ya hay. Por eso vive en la pestaña «Pedir reseñas», va
+primera y a todo el ancho, y **no lleva `verificarPlan`**: cerrarla al plan gratuito le quitaría al
+cliente nuevo justo lo que hace que el producto le sirva la primera semana. Sale entero de datos ya
+guardados: **cero llamadas a Google y cero a Groq**.
+
+🔴 **La maqueta es PURA y está espejada, y eso es el diseño entero.** `lib/cartel.js` no dibuja:
+**compone**. Devuelve una lista de primitivas ya resueltas —posiciones, cuerpos de letra y hasta el
+corte de líneas del nombre— y cada lado solo las pinta: PDFKit en el backend, SVG en la previa del
+panel, que importa el **mismo archivo byte por byte** (`brand-shield-web/src/lib/cartel.js`). Así la
+vista previa no es un dibujo parecido al papel: son las mismas primitivas. Si cada lado calculara su
+maqueta, la previa y el papel se separarían y el cliente lo descubriría **al recoger el trabajo de la
+imprenta**. `prueba-cartel.js` compara los dos textos y falla si se separan.
+- Lo único que la maqueta no puede resolver sola es cuánto mide un texto, así que `medir` se recibe
+  como función. La previa se dibuja en **Times New Roman** y no en la Georgia de la marca, para que
+  el punto donde se corta un nombre largo sea el mismo que en el PDF.
+- Se descartó enseñar el PDF en un `<iframe>`: en móvil el visor incrustado falla en silencio.
+
+⚠️ **Los cuatro tamaños se imprimen en A4** y los chicos salen repetidos con guías de corte, en vez
+de mandar un PDF de 7×7 cm que media imprenta escala mal sin avisar — y un QR reescalado con los
+márgenes recortados es un QR que no lee.
+
+**Reglas del dibujo, portadas de la app Android (`qr/Cartel.kt`) y que no hay que deshacer:**
+- **Nada de logo encima del código.** Queda bonito y es el adorno que hace que una cámara de gama
+  baja no lea el cartel. El fallo sería mudo: el papel se ve perfecto y nadie escanea.
+- **Las estrellas son un camino de puntos, no la letra ★.** Ese error ya salió impreso una vez
+  («2 reseñas de 3& o menos»): las fuentes estándar del PDF no la tienen y PDFKit dibuja un `&`.
+  Todo el texto pasa por `seguro()` de `lib/winansi.js`.
+- **La maqueta se coloca DESDE ABAJO** y el QR ocupa lo que sobra en medio. Es lo que impide que un
+  nombre de dos líneas empuje el pie fuera del papel; el código es lo único que aguanta perder un
+  centímetro sin dejar de leerse.
+- **Nivel de corrección M**, el mismo del panel y de la app: los tres dibujan el mismo QR. Subir a Q
+  o H agranda la trama, y más módulos en el mismo papel son módulos más chicos.
+
+🔴 **El pie dice «Hecho con Notoria», NO «Reseñas verificadas con Notoria»**, que es lo que dice la
+app Android. Notoria no verifica reseñas —las vigila, y como mucho marca comportamiento anómalo—, así
+que imprimir eso en la pared de un cliente es prometerle a SU cliente algo que no hacemos. Es la
+misma regla que gobierna el detector («comportamiento anómalo», nunca «esta reseña es falsa») y el
+expediente. ⚠️ **La app todavía tiene la frase vieja: hay que corregirla ahí.**
+
+⚠️ **El umbral que decide si esto sirve: 0,4 mm por módulo.** Por debajo de eso la cámara de un
+celular de gama baja falla a distancia de brazo, y el fallo es el peor de todos porque **parece que
+el producto funciona**. Medido: mural 1,99 mm · mostrador 1,41 · de mesa 1,00 · etiqueta 0,87. El
+bloque 4 de la prueba lo vigila con el nombre más largo, que es el caso que encoge el código.
+
+⚠️ **Los módulos de cada fila se fusionan en tiradas** antes de dibujarlos. No es microoptimización:
+son ~700 por pieza y 12 piezas en la hoja de etiquetas. Con la fusión el PDF pesa **5-6 KB** y se
+manda por WhatsApp; sin ella serían miles de objetos. La prueba comprueba que la fusión **conserva el
+área exacta**, porque perder un módulo deja el código con agujeros.
+
+⚠️ El QR suelto sigue ahí para quien ya tiene su diseño, y ahora se descarga con **paso de módulo
+entero**: con 1200 px y 45 módulos cada módulo mide un número redondo de píxeles, y un módulo de
+24,32 px se amplía con los bordes sucios en el diseño de un tercero.
+
+`node scripts/prueba-cartel.js` — **100 comprobaciones**.
 **Afiche de la pared** (`src/utils/afiche.generator.js`, `GET /api/negocios/:id/afiche.pdf`).
 Un A4 para imprimir y colgar donde trabaja el equipo: la nota a 96 pt, las reseñas nuevas, las
 que faltan por responder y **una sola cosa** en la que enfocarse esta semana. Existe porque el
@@ -2436,6 +2558,9 @@ textos por otros inventados. El procedimiento está en la cabecera del component
 | `lib-env-produccion.js` | No es un script: lo requieren los demás. Arregla la trampa de `railway run`, que da los secretos de producción pero pisa `DATABASE_URL` con el host **interno** de Postgres, inalcanzable desde fuera. Costó tiempo dos veces antes de vivir en un solo sitio |
 | `prueba-anulacion-pendiente.js` | 31 comprobaciones del aviso por comprobante reembolsado y sin anular: los dos anclajes del plazo, el `floor` que no sobreestima, y sobre todo los silencios (VOUCHER, ya anulado, no aceptado) |
 | `prueba-costo-places.js` | 26 comprobaciones de los tres frenos de costo de Places (§8.7). Vigila lo que no da ninguna señal al romperse: si el competidor vuelve a releerse a la cadencia del dueño, o el caché deja de reutilizar, no falla nada — solo sube la factura de Google, que no distingue de quién fue cada consulta. El bloque 8 deja escrita la aritmética para no rederivarla |
+| `prueba-cartel.js` | **100** comprobaciones de los carteles QR (§13). Lo que vigila son cosas que no dan ninguna señal: que **el espejo del panel no se separe del backend** (si se separan, la vista previa deja de decir la verdad sobre lo que va a salir de la impresora), que ningún módulo del QR baje de **0,4 mm** en ninguno de los cuatro tamaños —por debajo de eso el papel se ve perfecto y **nadie escanea**—, que nada se salga del papel con el nombre más hostil que puede escribir un cliente, y que ningún texto pierda caracteres al pasar por WinAnsi. 🔴 El bloque 7 lee el TEXTO REAL del PDF, y llegar ahí costó dos trampas: los flujos van comprimidos y PDFKit parte cada palabra en trozos hex donde hay kerning — con las dos sin resolver, tres comprobaciones pasaban **por el motivo equivocado** |
+| `prueba-prefs-correo.js` | **74** comprobaciones de cuánto correo manda el producto (§12). Todo lo que cubre falla en silencio y en la dirección peor: el correo sale, se entrega, y lo único que está mal es cuánto o qué dice. Vigila el default mensual, que la ventana de días acompañe a la cadencia, que el calendario sea el de **Lima** y no el del servidor, que el `select` del worker traiga `prefsAlertas`, que la ruta no vuelva a escribir un `1` encima del default del plan, y —lo más importante— que **nadie marque `Alerta.notificada` a ciegas**, que es lo que pondría el contador del lote a cero en cada reseña |
+| `borrar-usuario.js <email> [--aplicar]` | Borra una cuenta desde la terminal. **No reimplementa nada**: llama a `lib/borrarCuenta.js`, el mismo código que corre cuando un cliente se da de baja — el orden lo exigen media docena de FK con ON DELETE RESTRICT y una segunda copia se desincroniza el día que alguien añada una tabla, contra producción y a mitad del borrado. Exige simulacro, avisa aparte de los **snapshots** (lo único irrecuperable) y al terminar **vuelve a preguntarle a la base** si la fila sigue ahí. Con historial fiscal anonimiza en vez de borrar. ⚠️ Va en local, no con `railway run` |
 | `prueba-gbp-visible.js` | **51** comprobaciones del interruptor de Google Business **y de que el producto dejó de prometerlo**. El bloque 6 lee `page.js` y `layout.js` buscando las frases retiradas; el último —añadido el 2026-08-26— lee **`onboarding/page.js` y `GBPBanner.js`**, que es donde la función seguía viva con las 44 anteriores en verde |
 | `prueba-cableado.js` | 33 comprobaciones de score/temas/impacto/parte enchufados al correo, al PDF y a la constancia. Vigila los dos fallos mudos: que el `select` del semanal traiga la FECHA de la reseña (sin ella el parte sale vacío siempre) y que el correo **no** llame a Groq |
 | `prueba-expediente.js` | 43 comprobaciones del expediente (I8). 15 son sobre **el límite**: lee el fuente del PDF y falla si alguna vez imprime «reseña falsa», «extorsionando» o cualquier afirmación que le corresponda a Google o a la autoridad, no a nosotros |
@@ -2516,7 +2641,72 @@ tenía. Está creada, y la solicitud salió con su ID dentro. Detalle en §19 A 
 | Organization account | **Notoria** · ID **`5269452463`** · cuenta `agencia@usenotoria.app` |
 | Solicitud | caso **`6-5952000041022`**, 7-10 días hábiles |
 
+
+### 🔴 RESUELTO el 2026-09-08 — Google CONTESTÓ, y el motivo son los 60 días
+
+Llegaron **dos correos** de `googlebusinessprofile-support@google.com` el 8 de septiembre, a las
+04:22 y 04:24, uno por cada una de las dos primeras solicitudes. Texto idéntico en los dos:
+
+> *«At this time, we are unable to proceed with your application for Basic API Access because the
+> eligibility criteria have not been fully met. Specifically, the email address used to submit the
+> application must belong to an Owner or Manager of a business listing that **has been verified for
+> at least 60 days**.»*
+
+| Caso | Enviada | Contestada | Buzón |
+|---|---|---|---|
+| `3-5553000040900` | 2026-08-16 | 2026-09-08 04:24 — **23 días** | `didierprincipe@` |
+| `0-4623000041642` | 2026-08-29 | 2026-09-08 04:22 — **10 días** | `usenotoria@` |
+| `6-5952000041022` | 2026-08-30 | **sin respuesta todavía** | — |
+
+🔴 **La frase accionable, y es literal: «please submit a new allowlist request on or after 16th
+October».** Es lo único con fecha que ha salido de este hilo en un mes.
+
+🔴 **Y de rebote FECHA la verificación del perfil, que este archivo daba por imposible de
+averiguar.** Si Google pide esperar al 16 de octubre y el requisito son 60 días, el perfil se
+verificó alrededor del **17 de agosto de 2026**. Encaja con todo lo observado: la primera
+solicitud salió el **16/08, el día antes** de que el perfil cumpliera un solo día como verificado,
+y la segunda doce días después. **Las tres eran prematuras**, y ninguna podía aprobarse.
+
+### Lo que este correo corrige de lo que estaba escrito acá
+
+| Lo que decía este archivo | Lo que dice el correo |
+|---|---|
+| «tres envíos y tres silencios»; se llegó a suponer que el asistente no manda acuse nunca | **Google sí contesta**, solo que tarda entre 10 y 23 días. No hay acuse automático ni panel de seguimiento: llega la resolución y ya. Mirar a los dos días no dice nada |
+| La **Organization account** era el prerrequisito que faltaba (30/08) | **El rechazo no la menciona.** No era el bloqueo. Se deja creada —sigue siendo requisito documentado para un 3P— pero no es lo que tumbaba las solicitudes |
+| Los 60 días eran «la única hipótesis viva, y no accionable porque no se puede fechar» | Era **la correcta**, y ahora está fechada |
+
+⚠️ **La lección de método, que es la de siempre por un camino nuevo:** de las dos hipótesis vivas,
+la cierta era la que **no se podía comprobar desde ninguna interfaz**, y la que se persiguió a
+fondo —la Organization account, con su cuenta nueva y su procedimiento escrito— era la que sí se
+dejaba mirar. Se trabajó sobre la observable, no sobre la más probable. **Que una causa no se
+pueda medir no la descarta: la deja sin medir.**
+
+### 🔴 El segundo requisito, que hoy está INCUMPLIDO y no estaba en ninguna lista
+
+El correo repite una condición que no aparece en ninguna de las comprobaciones del 27 ni del 30:
+
+> *«the website URL submitted in your application must be an **exact match** to the URL displayed
+> on your Google Business Profile»*
+
+- En la solicitud se puso **`https://usenotoria.app`** (§19 A, tabla de campos).
+- En la ficha figura **`https://usenotoria.app/`**, con barra final (comprobado el 27/08).
+
+**No son la misma cadena.** No hay forma de saber si Google compara así de literal, pero el correo
+dice «exact match» y corregirlo cuesta cero: al reenviar, **copiar la URL tal como la muestra el
+perfil**, con su barra. Es el mismo fallo mudo que persigue el resto del archivo — nada falla,
+simplemente no aprueban y el motivo no se ve.
+
+📅 **Qué hacer, y cuándo: nada hasta el 16 de octubre de 2026.** Ese día —y no antes— comprobar
+que el perfil sigue verificado, copiar la URL exacta de la ficha, y reenviar el formulario
+(`support.google.com/business/workflow/16726127`) desde `usenotoria@gmail.com`, que es Propietario
+principal. Reenviar antes es pedir el mismo rechazo por cuarta vez.
+⚠️ **Lo envía el dueño**: es una acción hacia fuera.
 ### 📅 Revisión del 2026-08-31 — sin acuse por TERCERA vez, y la cuota sigue en 0
+
+> ⚠️ **Superado por el correo del 2026-09-08** (arriba). Se conserva porque la conclusión que saca
+> —«tres silencios, así que algo va mal»— resultó **falsa**: Google contestó a los 10 y a los 23
+> días. La lección es que **el plazo real de este formulario no es el que declara la pantalla**, y
+> que mirar el buzón al día siguiente no distingue nada.
 
 Comprobadas las dos puntas el día siguiente al envío, que es cuando el acuse ya debería estar
 (la documentación promete uno automático «within the hour»):
@@ -2592,6 +2782,119 @@ bloque 13 con `Cannot find module 'express'` — un fallo que se lee como un bug
 entorno. `npm install` antes de dar por mala una suite.
 
 
+
+### 📌 2026-09-09 — Google contestó, y el producto estrena su primera herramienta de VENTA
+
+El día empezó preguntando por los pendientes y acabó con **tres cosas desplegadas** y una
+respuesta que llevaba un mes esperándose. Cada una está desarrollada en su sección; esto es el
+resumen.
+
+**Lo grande: Google contestó.** Las tres solicitudes de acceso a las GBP APIs están rechazadas y
+el motivo son **los 60 días de antigüedad del perfil**, con fecha para reintentar: **16 de octubre
+de 2026**. Detalle en §19 A → «RESUELTO el 2026-09-08». De rebote quedó fechada la verificación
+del perfil (~17/08/2026), que este archivo daba por imposible de averiguar, y apareció un segundo
+requisito incumplido: la URL de la solicitud tiene que ser **exactamente** la de la ficha, con su
+barra final.
+
+**Lo nuevo: los carteles QR** (§13). El QR de reseñas existía desde siempre en el panel, pero
+suelto — el dueño tenía que maquetarse el papel. Ahora hay cuatro tamaños listos para imprimir,
+del mural de la puerta a las etiquetas de la cuenta, con el nombre de su negocio dentro. Es la
+**única herramienta del producto que produce reseñas**; todo lo demás mide las que ya hay. Nació
+de una necesidad real: el dueño fue a instalarle Notoria al salón de un familiar y necesitaba el
+papel ese mismo día.
+
+**Lo que se apagó: el correo** (§12). El resumen por negocio salía **todos los domingos para todo
+el mundo**, sin preferencia que lo gobernara, y el aviso por reseña negativa salía uno por reseña.
+Ahora el resumen es **mensual por defecto** y configurable, y el plan gratuito recibe **un correo
+por cada cinco** reseñas. La razón no es estética: una bandeja saturada acaba en «marcar como
+spam», y con el dominio quemado se degrada la entrega de **todo** lo demás, avisos críticos
+incluidos.
+
+**Y una cuenta borrada:** `dhazzez15@gmail.com` (sin verificar desde el 17/08, 2 negocios, 26
+snapshots, sin historial fiscal). Con respaldo previo y comprobando contra la base que la fila ya
+no está — «se ejecutó sin error» y «ya no está» son cosas distintas.
+
+| | |
+|---|---|
+| Suites | **38 en verde**, 0 fallos. `prueba-cartel` **100**, `prueba-prefs-correo` **74**, `prueba-planes` **124**, `prueba-locales` **111** |
+| Respaldo | `respaldos/notoria-2026-09-09T13-11-14.json` — 2242 filas, 0.77 MB, verificado con 0 filas perdidas |
+| Backend | desplegado y **comprobado por un cambio observable en los logs**, no por el «SUCCESS» |
+| Frontend | desplegado y comprobado bajando **el chunk desde producción**, con su control |
+
+### 🔴 Tres regresiones que cazaron las suites el mismo día, y las tres dejan la misma lección
+
+Ninguna se habría visto abriendo el navegador: las tres van de código que sigue funcionando
+mientras deja de hacer lo que promete.
+
+| Quién la cazó | Qué |
+|---|---|
+| **`prueba-planes.js`** | Escribí una tabla `LOTE_POR_PLAN` con un valor por plan dentro de `lib/prefsCorreo.js`. Es exactamente lo que ese barrido existe para impedir (§8.6) y la cazó el mismo día en que se escribió. El valor se movió a `lib/planes.js` como `loteAvisoResenas` |
+| **`prueba-alertas-resena.js`** | Su doble de `notificar()` devolvía `undefined`, y el `notificar()` de verdad ahora devuelve **si salió correo**. O sea que la suite se habría quedado probando un comportamiento que producción no tiene |
+| **`prueba-correos-idioma.js`** | Su sonda del `select` exigía que todo cupiera en **una sola línea**. Al partirlo en varias —para añadir `prefsAlertas`— dio rojo sin que faltara nada |
+
+⚠️ **La lección de las dos últimas: una sonda que depende del formato acusa a quien reformatea, y
+un doble que no respeta el contrato real prueba otra cosa.** Las dos se arreglaron reforzando la
+sonda, no relajándola — la del idioma ahora exige además `prefsAlertas`, que es el campo nuevo del
+que depende la cadencia del resumen.
+
+🔴 **Y un patrón que apareció CUATRO veces en un día: la sonda que no distingue código de
+comentario.** Pasó con `prueba-planes.js` (acusaba al comentario que documentaba el arreglo de la
+tabla), con `prueba-prefs-correo.js` (buscaba la etiqueta vieja en todo el archivo y casaba con mi
+propio comentario) y dos veces al extraer texto de un PDF (ver más abajo). **Ante un rojo,
+preguntar de dónde viene antes de arreglar el código** — igual que ante un verde se pregunta si la
+sonda sabe fallar. Los dos barridos de fuente pasan ahora por `sinComentarios()`, que además
+aprendió a quitar bloques de comentario, y llevan control de que **siguen cazando el patrón de
+verdad**.
+
+### 🔴 Leer el texto de un PDF que emite este backend: dos capas de trampa
+
+Se cuenta porque volverá a hacer falta el día que alguien quiera comprobar qué dice un comprobante,
+un afiche o una constancia, y las dos capas hacen que una comprobación mal escrita **pase por el
+motivo equivocado**:
+
+1. **Los flujos van comprimidos** (Flate). Buscar el texto en el buffer crudo da cero. La primera
+   versión de `prueba-cartel.js` lo hacía y «el nombre del negocio aparece en el PDF» pasaba en
+   verde: lo encontraba en el **título del documento**, que va en claro en el diccionario de
+   información. O sea que la comprobación no podía fallar aunque el cartel saliera en blanco.
+2. **PDFKit escribe el texto como cadenas HEX con el operador `TJ`, y lo PARTE donde hay
+   kerning.** Un `[<54> 92 <6f6d61...> 0] TJ` es «Toma 30 segundos» con la T separada del resto.
+   Así que incluso descomprimido, buscar la frase da cero **con la frase perfectamente impresa** —
+   y por eso «el cartel en inglés no deja frases en español» también pasaba por el motivo
+   equivocado.
+
+La receta que funciona: inflar cada flujo, y por cada `TJ` juntar **solo** sus trozos hex y tirar
+los números del kerning. Está escrita en `prueba-cartel.js` con su control («el extractor
+reconstruye texto real»), que es lo único que hace que los verdes de ese bloque signifiquen algo.
+
+### Tres huecos de la mudanza de PC que aparecieron hoy
+
+Ninguno es un fallo del producto: son cosas que la máquina nueva no traía y que **no fallan hasta
+que se necesitan** (§2 y `docs/mudanza-de-pc.md`).
+
+| Qué faltaba | Cómo se notó | Estado |
+|---|---|---|
+| **`scripts/sunat-test.p12`** | `prueba-sunat-beta`, `prueba-xml-firma`, `prueba-cola-envio` y `prueba-resumen-cola` fallaban con ENOENT o con fallas de firma. **Cuatro suites en rojo por un archivo que se regenera en un segundo**, y las dos últimas ni mencionaban el certificado | ✅ `node scripts/generar-cert-prueba.js`. Sigue en `.gitignore`, que es correcto |
+| **Clave SSH para `railway ssh`** | *«No SSH keys found in your SSH agent or ~/.ssh/»*. Y `railway ssh` es **el método de verificación que este archivo recomienda** en media docena de sitios | ⚠️ Sin resolver. Hoy no hizo falta: el cambio se verificó por los **logs**, que es mejor sonda todavía (ver abajo) |
+| ~~`next build` no funciona en esta PC~~ | Lo afirmaba §19 desde el 31/08 | ✅ **Ya no se reproduce**: termina con exit 0, prerender incluido, 36 páginas. La nota se corrigió |
+
+🔎 **La sonda que sustituyó a `railway ssh`, y conviene tenerla escrita porque es más barata:** el
+cron del resumen **cambió su línea de arranque**, así que `railway logs` lo delata sin tocar la
+base y sin pedir sesión.
+
+```bash
+railway logs --service api | grep "Cron configurado"
+# → [Resumen] Cron configurado: diario 8:00 AM (hora Lima), cadencia por usuario
+```
+
+Antes decía `domingo 8:00 AM`. Es exactamente lo que §5 pide —**un cambio observable en la
+salida**— y no depende de tener clave SSH. ⚠️ Al cambiar un cron o cualquier cosa que se anuncie al
+arrancar, dejar que el log lo diga: sale gratis y se convierte en el comprobante del deploy.
+
+⚠️ **Vercel devolvió `{"status":"error","reason":"deploy_failed","message":"Not authorized"}` en el
+primer intento y funcionó en el segundo sin tocar nada.** NO era el bloqueo por autor de git del
+31/08, y la forma de saberlo es que **no se creó ningún deployment**: el de aquel día quedaba
+registrado en estado `BLOCKED` con su `errorMessage`. Si vuelve a pasar, mirar la lista de
+deployments antes de perseguir la identidad de git.
 ## 19. Pendientes, ordenados por quién los desbloquea
 
 > ### Lo que queda por programar (2026-08-30)
@@ -2730,7 +3033,7 @@ entorno. `npm install` antes de dar por mala una suite.
 | Qué | Desde | Qué bloquea |
 |---|---|---|
 | ~~Meta — App Review de Instagram~~ | ✅ **RESUELTO el 2026-08-26** | 4 de 5 aprobados; `pages_manage_metadata` rechazado. Instagram y Menciones **ya están abiertos** (§8.3) |
-| **Google — acceso a las GBP APIs** | 1.ª solicitud 2026-08-16 (caso `3-5553000040900`, sin acuse y sin respuesta). **2.ª solicitud enviada el 2026-08-29 — caso `0-4623000041642`**, plazo declarado 7-10 días hábiles. RPM sigue en 0 en las tres APIs. 📬 Buzón comprobado el 2026-08-30: TAMPOCO llegó acuse, y NO hay ni un correo de Google sobre el Perfil de Empresa en toda la historia del buzón. La documentación dice que el acuse llega solo, en menos de una hora, así que su ausencia SÍ es mala señal. Descartados propietario-vs-administrador, verificación, web y notificaciones (los cuatro cumplen); queda vivo el requisito de los 60 días, que no se puede fechar desde la interfaz | Conectar Google Business |
+| **Google — acceso a las GBP APIs** | 🔴 **RECHAZADAS las tres, y ya se sabe por qué: los 60 días.** Google contestó el **2026-09-08** a los casos `3-5553000040900` (16/08) y `0-4623000041642` (29/08) — el tercero, `6-5952000041022` (30/08), sin respuesta pero con el mismo destino. Motivo textual: el perfil debe estar **verificado desde hace 60 días o más**, y se verificó ~**17/08/2026**. El correo da fecha: **reenviar el 16 de octubre de 2026, no antes**. Y un segundo requisito que hoy se incumple: la URL de la solicitud debe ser **exactamente** la de la ficha (`https://usenotoria.app/`, con barra). Detalle arriba, en «RESUELTO el 2026-09-08» | Conectar Google Business |
 
 **Revisión del panel de Meta del 2026-08-22 — nada que hacer, solo esperar.** Estado
 `Review in progress` con los cinco permisos correctos, app en **modo Live**, y las dos
@@ -3512,7 +3815,44 @@ indefinida es justo el caso en que hay que buscar la segunda vía.
 `notoria-secrets` del taller y `keystore.properties` ya apunta ahí, comprobado. Falta la
 herramienta, no la clave — y de las dos, la herramienta es la que se arregla descargando algo.
 
-### Estado de la base de producción (última lectura, 2026-08-30)
+### Estado de la base de producción (última lectura, 2026-09-09)
+
+`11 usuarios (3 sin verificar, 0 con idioma 'en') · 12 negocios (8 activos, 10 place IDs
+distintos) · 1841 snapshots · 116 reseñas (13 de ≤2★) · **5 alertas, 0 sin notificar** ·
+5 competidores con 195 snapshots · 3 pagos (los tres REEMBOLSADO) · 3 comprobantes
+(B001-00000001/2/3, los tres ANULADO) · 6 resúmenes SUNAT · 1 promo_tarjeta · 0 miembros ·
+0 invitaciones · 0 reclamaciones · 0 menciones · 0 comentarios sociales ·
+**0 cuentas con locales extra**`.
+
+⚠️ **Los usuarios subieron de 10 a 11 aunque hoy se borró una cuenta**, o sea que entraron **dos
+altas nuevas** desde el 30/08 — y las dos verificaron, porque las sin verificar bajaron de 4 a 3
+(las mismas de antes menos la borrada). Es el primer crecimiento del padrón que no viene de una
+cuenta de prueba del dueño.
+
+⚠️ **`dhazzez15@gmail.com` se borró hoy** (sin verificar desde el 17/08): con ella se fueron 2
+negocios y 26 snapshots. El respaldo se tomó **antes**, a propósito. Es la misma explicación que
+la caída del 28/08, y se anota por lo mismo: la serie de snapshots es lo único irrecuperable que
+tiene Notoria, así que el día que encoja **sin** explicación hay que alarmarse — y para eso las
+caídas explicables no pueden quedar sin explicar.
+
+⚠️ **`0 con idioma 'en'`, y antes había 1.** Era la cuenta del dueño; cambió su panel a español.
+No es un fallo, pero significa que **hoy no queda ninguna cuenta que ejercite el lado inglés de
+los correos**: si algo se rompe ahí, ya no lo va a ver nadie por accidente. Las suites de idioma
+son la única red que queda.
+
+⚠️ **Las 5 alertas están todas `notificada: true`**, o sea que el acumulador del lote arranca
+limpio: la primera reseña negativa que entre en una cuenta gratuita empezará a contar desde 1.
+La quinta alerta es real, como las cuatro anteriores.
+
+⚠️ **0 comentarios sociales**, y el 24/08 había 2. Se fueron con el borrado de la cuenta de prueba
+del 28/08 (los de hoy no tenía ninguno: el simulacro lo dijo antes de borrar). La conexión de
+TikTok sigue viva en «Don Tito San Miguel» y no produce nada porque la cuenta no tiene videos
+públicos — que es lo esperado, no un fallo.
+
+✅ **Los tres comprobantes están ANULADOS y ninguno es de un cliente.** La serie B001 va por el
+correlativo 3, gastado entero en las tres pruebas de cobro. **Cargos reales de clientes: cero.**
+
+#### Lectura anterior (2026-08-30)
 
 `10 usuarios (4 sin verificar, 1 con idioma 'en') · 13 negocios (8 activos, 12 place IDs
 distintos) · 1612 snapshots · 96 reseñas (14 de ≤2★) · **4 alertas** · 2 competidores con 174
@@ -3522,16 +3862,11 @@ snapshots · 3 pagos (S/1 + S/14.50 + S/14.50, los tres REEMBOLSADO) · 3 compro
 
 🔴 **Los totales BAJARON respecto al 25/08 y no se ha perdido nada.** El 28 se borró la cuenta
 de prueba y con ella se fueron sus negocios, sus snapshots y un competidor; el respaldo se tomó
-justo antes, a propósito. Conviene dejarlo escrito porque la serie de snapshots es lo único
-irrecuperable que tiene Notoria (`scripts/respaldo.js`): el día que encoja de verdad el reflejo
-tiene que ser alarmarse, y para eso las caídas explicables no pueden quedar sin explicar.
+justo antes, a propósito.
 
 ⚠️ **Las alertas van por 4, y las dos nuevas también son REALES:** KFC el 26/08 y La Mar otra
 vez el 29/08, las dos `RESENA_MUY_NEGATIVA` y las cuatro con `notificada: true`. El circuito
 lleva una semana disparando solo, sin un ensayo de por medio.
-
-✅ **Los tres comprobantes están ANULADOS y ninguno es de un cliente.** La serie B001 va por el
-correlativo 3, gastado entero en las tres pruebas de cobro. **Cargos reales de clientes: cero.**
 
 #### Lectura anterior (2026-08-25)
 
@@ -4088,14 +4423,33 @@ preguntar primero si el método sabe fallar.
 ### 🟡 El único hueco conocido
 
 **Ninguno de producto.** El del cambio mensual→anual se cerró el **2026-08-30** y el de sumar un
-local en el plan que ya tienes, el 2026-08-26 (§8.8).
+local en el plan que ya tienes, el 2026-08-26 (§8.8). El panel en móvil y en inglés se repasó el
+2026-08-31 y salió limpio.
 
-⚠️ Lo que sí queda sin revisar es el **panel en móvil y en inglés**, que no es un hueco conocido
-sino una zona **no mirada** — que es distinto y peor de dar por buena.
+⚠️ **Lo que queda sin mirar del trabajo del 2026-09-09, y hay que decirlo en vez de darlo por
+bueno:**
+
+| Qué | Por qué no se pudo |
+|---|---|
+| **El bloque de carteles en el PANEL, con los ojos** | Está verificado por sus 100 comprobaciones, el PDF se generó y se miró, y las cadenas están vivas en el chunk de producción. Pero **nadie ha abierto la pestaña «Pedir reseñas»** para ver la previa SVG en pantalla, ni en móvil. Este proyecto lleva seis veces encontrando fallos justo ahí (24/08, 25/08, 29/08, 31/08 ×2), así que es lo primero que hay que mirar |
+| **Un correo de resumen MENSUAL de verdad** | El primero sale el **1 de octubre**. Hasta entonces la cadencia está probada en la lógica, no en un correo recibido. Para no esperar: `ejecutarAhora({ forzar: true })` |
+| **El correo AGRUPADO de cinco reseñas** | Hace falta que entren cinco reseñas negativas nuevas en una cuenta gratuita. Hoy las 5 alertas están todas notificadas, así que el contador arranca en 0 |
+| **Un cartel IMPRESO** | El QR está medido (0,87 mm por módulo en la etiqueta, el peor caso) pero nadie ha escaneado uno en papel. Es lo que el dueño va a hacer esta semana en el salón de su familiar, y es la única prueba que vale |
 
 ### 🔴 Bugs abiertos en producción
 
-**Ninguno conocido** (última revisión: **2026-08-31**).
+**Ninguno conocido** (última revisión: **2026-09-09**).
+
+**Corregidos el 2026-09-09, de camino a otra cosa:**
+- ⚠️ **El nombre del archivo de la constancia se comía sus propias letras.** El `replace` del
+  frontend era `/[^w-]+/g` — sin la barra del `\w`—, o sea «cualquier cosa que no sea la letra w o
+  un guion». «Salón de Belleza» salía como `-`. No rompía la descarga, solo dejaba un archivo sin
+  nombre reconocible, y por eso llevaba ahí desde que se escribió.
+- 🔴 **La ruta que guardaba las preferencias de alertas escribía `umbralNegativas: 1` cuando el
+  campo no venía** (`umbralNegativas === 5 ? 5 : 1`). Con el agrupado de reseñas nuevo eso es un
+  fallo caro: en cuanto una cuenta gratuita guardara cualquier otra preferencia se le escribía un 1
+  encima y volvía a recibir un correo por reseña, deshaciendo el agrupado **sin que nada lo dijera**.
+  Ahora ausente significa «usa el default de mi plan».
 
 ### ✅ 2026-08-31 — el ALTA COMPLETA, recorrida por primera vez de punta a punta
 
@@ -4179,13 +4533,16 @@ decirle por qué**.
 - ⚠️ **`refrescarPerfil` NO tenía el fallo** —su `catch` devuelve `null` sin tocar la sesión—,
   así que no hubo que tocarlo.
 
-⚠️ **Y algo que hay que saber antes del próximo cambio en el frontend: `next build` NO funciona
-en esta PC.** Falla en el prerender con *«InvariantError: Expected workStore to be initialized»*
-sobre `/_not-found` y `/dashboard` (Next 16.2.9 + Node 24). **Comprobado con el control que
-corresponde —falla IGUAL con el árbol limpio, sin ningún cambio propio—**, así que es
-preexistente y ajeno, no algo que introdujera un commit. La **compilación sí pasa**
-(`✓ Compiled successfully`), que es lo que valida la sintaxis; lo que se pierde es la
-verificación de prerender antes de desplegar. Vercel sí construye — el sitio está en pie.
+⚠️ ~~**`next build` NO funciona en esta PC.**~~ Se escribió el 31/08 así: falla en el prerender con
+*«InvariantError: Expected workStore to be initialized»* sobre `/_not-found` y `/dashboard`
+(Next 16.2.9 + Node 24), comprobado con el control de que fallaba igual con el árbol limpio.
+✅ **CORREGIDO el 2026-09-09: ya no se reproduce.** `next build` termina con **exit 0**, prerender
+incluido, las 36 páginas generadas, sin tocar nada del entorno. O sea que era transitorio y la nota
+se quedó afirmando como permanente algo que duró un día.
+⚠️ **La lección, y es incómoda: un fallo de entorno que se comprueba UNA vez y se documenta como
+estado del sistema envejece mal.** Durante nueve días este archivo dijo que no se podía verificar
+el prerender antes de desplegar, y se podía. Al anotar un fallo de la máquina conviene volver a
+probarlo antes de darlo por vigente.
 
 **Corregidos el 2026-08-30, y los tres fallaban sin producir ninguna señal:**
 - 🔴 **`dar-plan.js` y `cuenta-revisor.js` rechazaban `IMPULSO`** como plan inválido desde que ese
