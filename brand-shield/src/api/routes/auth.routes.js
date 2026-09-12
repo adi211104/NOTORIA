@@ -359,42 +359,101 @@ router.patch('/perfil', autenticar, async (req, res, next) => {
 });
 
 // ── PATCH /api/auth/preferencias-alertas ─────────────────
-// Guarda qué alertas quiere recibir el usuario y con qué frecuencia
+//
+// Guarda qué alertas quiere recibir el usuario y con qué frecuencia.
+//
+// 🔴 Es un PATCH y desde el 2026-09-11 se comporta como tal: **un campo que el
+// cliente no manda NO se toca**. Hasta hoy reconstruía el objeto entero en cada
+// llamada, así que cualquier cliente que no conociera un campo lo pisaba con su
+// valor por defecto. El fallo es del peor tipo que hay acá: la petición responde
+// 200, la pantalla dice «Preferencias guardadas», y lo único que cambió es un
+// ajuste que el usuario no tocó.
+//
+// No era teórico y ya estaba mordiendo. La app Android manda `tipos`,
+// `umbralNegativas`, `frecuencia` y `diaSemana` —los cuatro campos que existían
+// cuando se escribió esa pantalla— pero no `resumen`, que nació el 2026-09-09
+// con el cambio de cadencia del correo. Ejercitando esta ruta con ese cuerpo
+// exacto: quien había elegido en el panel «resumen semanal, los viernes» volvía
+// a MENSUAL y al domingo en cuanto tocaba un interruptor desde el teléfono. Y el
+// `umbralNegativas: 1` que la app manda siempre le borraba además a una cuenta
+// GRATIS el agrupado de a cinco — que es el mismo fallo que el 2026-09-09 se
+// corrigió aquí abajo, entrando otra vez por la puerta de al lado.
+//
+// ⚠️ Y lo que lo hace instructivo: `Alertas.kt` YA documentaba el filo y mandaba
+// el `diaSemana` «aunque la pantalla no lo enseñe» justo para esquivarlo. O sea
+// que el cliente llevaba un parche para un defecto del servidor, y bastó añadir
+// un campo acá para que el defecto reapareciera por el hueco que ese parche no
+// cubría. Por eso la defensa va en el backend: un parche en el cliente solo tapa
+// los campos que existían el día que se escribió, y no alcanza a las versiones
+// de la app ya instaladas, que no se actualizan a voluntad.
 router.patch('/preferencias-alertas', autenticar, async (req, res, next) => {
   try {
     const { tipos, umbralNegativas, frecuencia, diaSemana, resumen } = req.body || {};
 
+    // Lo que ya estaba guardado es la BASE, no el punto de partida en blanco.
+    // Cuesta una lectura en un endpoint que se llama a mano y muy de vez en
+    // cuando.
+    const guardadas = await prisma.usuario.findUnique({
+      where: { id: req.usuario.id },
+      select: { prefsAlertas: true },
+    });
+    const previas = (guardadas?.prefsAlertas && typeof guardadas.prefsAlertas === 'object')
+      ? guardadas.prefsAlertas : {};
+
     const TIPOS_VALIDOS = ['PICO_RESENAS_NEGATIVAS', 'CAIDA_RATING', 'CUENTAS_NUEVAS', 'RESENA_MUY_NEGATIVA', 'MENCION_NEGATIVA', 'COMENTARIO_NEGATIVO'];
-    const tiposLimpios = {};
+    // Los tipos se mezclan uno a uno: un cliente que mande solo el interruptor
+    // que acaba de tocar no puede reactivar los otros cinco que el usuario tenía
+    // apagados.
+    const tiposLimpios = { ...(previas.tipos && typeof previas.tipos === 'object' ? previas.tipos : {}) };
     if (tipos && typeof tipos === 'object') {
       for (const t of TIPOS_VALIDOS) {
         if (typeof tipos[t] === 'boolean') tiposLimpios[t] = tipos[t];
       }
     }
 
+    // El orden de preferencia, escrito una vez para que los cinco campos lo
+    // sigan igual: gana lo que viene válido en el cuerpo; si no, lo guardado; y
+    // solo si nunca hubo nada, el valor por defecto. Es lo único que impide que
+    // un campo nuevo se cuele cayendo al default por encima de lo guardado, que
+    // es exactamente cómo entró este bug.
+    const conservar = (recibido, esValido, previo, porDefecto) => {
+      if (esValido(recibido)) return recibido;
+      if (esValido(previo)) return previo;
+      return porDefecto;
+    };
+    const esFrecuencia = (v) => ['INMEDIATA', 'SEMANAL', 'MENSUAL'].includes(v);
+    const esDia = (v) => Number.isInteger(v) && v >= 0 && v <= 6;
+
     const prefs = {
       tipos: tiposLimpios,
-      frecuencia: ['INMEDIATA', 'SEMANAL', 'MENSUAL'].includes(frecuencia) ? frecuencia : 'INMEDIATA',
-      diaSemana: Number.isInteger(diaSemana) && diaSemana >= 0 && diaSemana <= 6 ? diaSemana : 1,
-      // Cadencia del resumen por negocio. Se guarda solo lo que el cliente manda
-      // válido; el default vive en `lib/prefsCorreo.js` y NO se copia acá.
+      frecuencia: conservar(frecuencia, esFrecuencia, previas.frecuencia, 'INMEDIATA'),
+      diaSemana: conservar(diaSemana, esDia, previas.diaSemana, 1),
+      // Cadencia del resumen por negocio. El default vive en `lib/prefsCorreo.js`
+      // y NO se copia acá.
       resumen: {
-        cadencia: prefsCorreo.CADENCIAS.includes(resumen?.cadencia)
-          ? resumen.cadencia : prefsCorreo.CADENCIA_POR_DEFECTO,
-        diaSemana: Number.isInteger(resumen?.diaSemana) && resumen.diaSemana >= 0 && resumen.diaSemana <= 6
-          ? resumen.diaSemana : prefsCorreo.DIA_POR_DEFECTO,
+        cadencia: conservar(
+          resumen?.cadencia, (v) => prefsCorreo.CADENCIAS.includes(v),
+          previas.resumen?.cadencia, prefsCorreo.CADENCIA_POR_DEFECTO,
+        ),
+        diaSemana: conservar(
+          resumen?.diaSemana, esDia,
+          previas.resumen?.diaSemana, prefsCorreo.DIA_POR_DEFECTO,
+        ),
       },
     };
 
-    // 🔴 `umbralNegativas` solo se guarda si el cliente lo manda válido, y NO cae
+    // 🔴 `umbralNegativas` solo se guarda si hay una elección explícita, y NO cae
     // a 1 como antes. Ese `? 5 : 1` era un fallo esperando: en cuanto una cuenta
     // GRATIS guardara cualquier preferencia —el idioma de un tipo de alerta, el
     // día del resumen— se le escribía un 1 encima y volvía a recibir un correo
     // por reseña, deshaciendo el agrupado de a cinco sin que nada lo dijera.
-    // Ausente = «usa el default de mi plan» (ver prefsCorreo.loteAlertas).
-    if (prefsCorreo.LOTES_VALIDOS.includes(umbralNegativas)) {
-      prefs.umbralNegativas = umbralNegativas;
-    }
+    // Ausente y sin nada guardado = «usa el default de mi plan»
+    // (ver prefsCorreo.loteAlertas); ausente con algo guardado = no lo toques.
+    const umbral = conservar(
+      umbralNegativas, (v) => prefsCorreo.LOTES_VALIDOS.includes(v),
+      previas.umbralNegativas, null,
+    );
+    if (umbral !== null) prefs.umbralNegativas = umbral;
 
     await prisma.usuario.update({
       where: { id: req.usuario.id },

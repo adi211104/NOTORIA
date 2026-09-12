@@ -1944,7 +1944,55 @@ se perdió cuatro avisos.
 silenciar «tu local aparece cerrado en Google»), y las caídas de rating o las campañas coordinadas
 son de por sí infrecuentes — agruparlas retrasaría justo el aviso que hay que dar rápido.
 
-`node scripts/prueba-prefs-correo.js` — **74 comprobaciones**, casi todas sobre esos silencios.
+### 🔴 El PATCH de preferencias es un MERGE desde el 2026-09-11, y antes no
+
+**`PATCH /api/auth/preferencias-alertas` reconstruía el objeto entero en cada llamada**, así que
+**un campo que el cliente no mandaba se pisaba con su valor por defecto**. El fallo es del peor
+tipo que tiene este proyecto: la petición responde 200, la pantalla dice «Preferencias guardadas»,
+y lo único que cambió es un ajuste que el usuario no tocó.
+
+🔴 **Ya estaba mordiendo, y lo destapó el cambio de correo del 09/09.** La app Android manda
+`tipos`, `umbralNegativas`, `frecuencia` y `diaSemana` —los cuatro campos que existían cuando se
+escribió su pantalla— y **no `resumen`**, que nació con el agrupado. Ejercitando la ruta de verdad
+con el cuerpo literal de `Alertas.kt`:
+
+| Lo que el cliente había elegido en el panel | Qué quedaba tras tocar un interruptor en la app |
+|---|---|
+| resumen **SEMANAL**, los **viernes** | MENSUAL, domingo |
+| cinco tipos de alerta encendidos | solo el que la app mandó |
+| lote **5** del plan GRATIS | 1 — un correo por reseña |
+
+⚠️ **Lo que lo hace instructivo: `Alertas.kt` YA documentaba el filo** y mandaba el `diaSemana`
+«aunque la pantalla no lo enseñe» justo para esquivarlo. O sea que el cliente llevaba un parche
+para un defecto del servidor — y bastó **añadir un campo** en el servidor para que el defecto
+reapareciera por el hueco que ese parche no cubría. Un parche en el cliente solo tapa los campos
+que existían el día que se escribió.
+
+- **Por eso la defensa va en el BACKEND.** Arregla de una vez a todos los clientes, incluidas las
+  versiones de la app ya instaladas, que no se actualizan a voluntad.
+- **El orden es siempre el mismo y está escrito una vez** (`conservar()`): gana lo que viene válido
+  en el cuerpo; si no, lo guardado; y solo si nunca hubo nada, el default. Es lo único que impide
+  que el **próximo** campo se cuele cayendo al default por encima de lo guardado, que es
+  exactamente cómo entró este.
+- **Los `tipos` se mezclan uno a uno**, no en bloque: un cliente que mande solo el interruptor que
+  acaba de tocar no puede reactivar los cinco que el usuario tenía apagados.
+- ⚠️ **Lo que el backend NO puede arreglar, y hay que saberlo:** la app manda `umbralNegativas`
+  **siempre** (`if (umbral5) 5 else 1`), y un valor explícito es indistinguible de una elección del
+  usuario. Así que una cuenta GRATIS que guarde desde el teléfono **sigue perdiendo el agrupado**.
+  Y la app lo enseña mal de entrada: lee `prefsAlertas` **crudo** —donde el campo no existe— en vez
+  de las preferencias **resueltas** que manda el perfil, así que muestra «cada reseña» a quien las
+  recibe de a cinco. **Eso solo se arregla en la app**, y va con la etiqueta «Solo avisarme de
+  picos», que desde el 09/09 ya no describe lo que hace.
+
+`node scripts/prueba-prefs-correo.js` — **93 comprobaciones** (eran 74), casi todas sobre esos
+silencios. El bloque final **levanta la ruta de verdad** con Prisma simulado, porque lo que vigila
+no se ve con una regex: es qué queda **guardado** después de una petición. Usa el cuerpo **literal**
+de `Alertas.kt` — si la app cambia lo que manda, esa prueba deja de representar al cliente real y
+hay que actualizarla ahí.
+⚠️ Y una comprobación vieja **dio rojo sin que faltara nada**: buscaba la cadena
+`LOTES_VALIDOS.includes(umbralNegativas)` y el merge la escribe de otra forma. Es la trampa del
+09/09 otra vez — **una sonda atada al formato acusa a quien reformatea**. Se reforzó, no se relajó.
+
 **Comentarios sociales:**
 - **`publicacionId` es lo que habilita responder.** Un comentario guardado sin él queda de
   solo lectura y la ruta devuelve 422 en vez de fingir que se puede.
@@ -2559,7 +2607,7 @@ textos por otros inventados. El procedimiento está en la cabecera del component
 | `prueba-anulacion-pendiente.js` | 31 comprobaciones del aviso por comprobante reembolsado y sin anular: los dos anclajes del plazo, el `floor` que no sobreestima, y sobre todo los silencios (VOUCHER, ya anulado, no aceptado) |
 | `prueba-costo-places.js` | 26 comprobaciones de los tres frenos de costo de Places (§8.7). Vigila lo que no da ninguna señal al romperse: si el competidor vuelve a releerse a la cadencia del dueño, o el caché deja de reutilizar, no falla nada — solo sube la factura de Google, que no distingue de quién fue cada consulta. El bloque 8 deja escrita la aritmética para no rederivarla |
 | `prueba-cartel.js` | **100** comprobaciones de los carteles QR (§13). Lo que vigila son cosas que no dan ninguna señal: que **el espejo del panel no se separe del backend** (si se separan, la vista previa deja de decir la verdad sobre lo que va a salir de la impresora), que ningún módulo del QR baje de **0,4 mm** en ninguno de los cuatro tamaños —por debajo de eso el papel se ve perfecto y **nadie escanea**—, que nada se salga del papel con el nombre más hostil que puede escribir un cliente, y que ningún texto pierda caracteres al pasar por WinAnsi. 🔴 El bloque 7 lee el TEXTO REAL del PDF, y llegar ahí costó dos trampas: los flujos van comprimidos y PDFKit parte cada palabra en trozos hex donde hay kerning — con las dos sin resolver, tres comprobaciones pasaban **por el motivo equivocado** |
-| `prueba-prefs-correo.js` | **74** comprobaciones de cuánto correo manda el producto (§12). Todo lo que cubre falla en silencio y en la dirección peor: el correo sale, se entrega, y lo único que está mal es cuánto o qué dice. Vigila el default mensual, que la ventana de días acompañe a la cadencia, que el calendario sea el de **Lima** y no el del servidor, que el `select` del worker traiga `prefsAlertas`, que la ruta no vuelva a escribir un `1` encima del default del plan, y —lo más importante— que **nadie marque `Alerta.notificada` a ciegas**, que es lo que pondría el contador del lote a cero en cada reseña |
+| `prueba-prefs-correo.js` | **93** comprobaciones de cuánto correo manda el producto (§12). Todo lo que cubre falla en silencio y en la dirección peor: el correo sale, se entrega, y lo único que está mal es cuánto o qué dice. Vigila el default mensual, que la ventana de días acompañe a la cadencia, que el calendario sea el de **Lima** y no el del servidor, que el `select` del worker traiga `prefsAlertas`, que la ruta no vuelva a escribir un `1` encima del default del plan, y —lo más importante— que **nadie marque `Alerta.notificada` a ciegas**, que es lo que pondría el contador del lote a cero en cada reseña |
 | `borrar-usuario.js <email> [--aplicar]` | Borra una cuenta desde la terminal. **No reimplementa nada**: llama a `lib/borrarCuenta.js`, el mismo código que corre cuando un cliente se da de baja — el orden lo exigen media docena de FK con ON DELETE RESTRICT y una segunda copia se desincroniza el día que alguien añada una tabla, contra producción y a mitad del borrado. Exige simulacro, avisa aparte de los **snapshots** (lo único irrecuperable) y al terminar **vuelve a preguntarle a la base** si la fila sigue ahí. Con historial fiscal anonimiza en vez de borrar. ⚠️ Va en local, no con `railway run` |
 | `prueba-gbp-visible.js` | **51** comprobaciones del interruptor de Google Business **y de que el producto dejó de prometerlo**. El bloque 6 lee `page.js` y `layout.js` buscando las frases retiradas; el último —añadido el 2026-08-26— lee **`onboarding/page.js` y `GBPBanner.js`**, que es donde la función seguía viva con las 44 anteriores en verde |
 | `prueba-cableado.js` | 33 comprobaciones de score/temas/impacto/parte enchufados al correo, al PDF y a la constancia. Vigila los dos fallos mudos: que el `select` del semanal traiga la FECHA de la reseña (sin ella el parte sale vacío siempre) y que el correo **no** llame a Groq |
@@ -4438,7 +4486,39 @@ bueno:**
 
 ### 🔴 Bugs abiertos en producción
 
-**Ninguno conocido** (última revisión: **2026-09-09**).
+**Uno, y vive en la app Android** (última revisión: **2026-09-11**).
+
+🟡 **La pantalla de Alertas de la app enseña mal el lote de reseñas, y al guardarlo lo hace
+verdad.** Lee `prefsAlertas` **crudo** —donde una cuenta que nunca tocó el ajuste no tiene el
+campo— en vez de las preferencias **resueltas** que el perfil manda al lado, así que a una cuenta
+GRATIS le muestra «cada reseña negativa» cuando las recibe **agrupadas de a cinco**; y como el
+botón manda siempre `umbralNegativas` (`if (umbral5) 5 else 1`), guardar cualquier cosa desde el
+teléfono le escribe ese 1 y deshace el agrupado de verdad.
+- 🔴 **El backend NO puede arreglar esto** y por eso queda abierto: un valor explícito es
+  indistinguible de una elección del usuario. El merge del PATCH (§12) tapó los otros tres campos
+  que se perdían; este necesita tocar la app.
+- **Qué hay que cambiar ahí, y son tres líneas:** leer el lote de `prefsCorreo.lote` del perfil en
+  vez de `prefsAlertas` crudo, no mandar `umbralNegativas` si el usuario no tocó ese interruptor, y
+  cambiar la etiqueta **«Solo avisarme de picos»**, que desde el 09/09 ya no describe lo que hace
+  —ahora significa «júntalas de a cinco»— igual que se cambió en el panel web.
+- ⚠️ **Impacto real hoy: bajo.** La app no está publicada (Play Console aplazado, §19 E), así que
+  el único usuario es el dueño. Pero va **antes** de publicarla, porque el día que haya clientes el
+  fallo es mudo: el correo sale, se entrega, y lo único que está mal es cuánto.
+
+⚠️ **Y un pendiente escrito que sigue abierto en el mismo repo:** `qr/Cartel.kt:282` imprime
+**«Reseñas verificadas con Notoria»** en el pie del cartel. Notoria **no verifica reseñas** —las
+vigila, y como mucho marca comportamiento anómalo—, así que eso es prometerle al cliente de nuestro
+cliente algo que no hacemos, impreso en su pared. El panel ya dice «Hecho con Notoria» (§13).
+
+**Corregidos el 2026-09-11:**
+- 🔴 **El PATCH de preferencias pisaba los campos que el cliente no mandaba.** Detalle completo en
+  §12. Lo encontró cruzar el cambio de correo del 09/09 con lo que la app Android manda de verdad —
+  no leyendo la ruta, sino preguntándose qué objeto exacto recibe.
+- ⚠️ **El montaje del bloque de carteles nunca se commiteó**, aunque producción sí lo tenía: Vercel
+  despliega el árbol de trabajo, no el commit. O sea que **git iba por detrás de producción** y un
+  `vercel --prod` desde un clon limpio habría revertido el cartel sin que nada avisara. La regla
+  que deja: al cerrar un bloque de trabajo, `git status` **antes** de dar el día por cerrado — el
+  commit del 09/09 hasta prometía en su mensaje un arreglo que no llevaba dentro.
 
 **Corregidos el 2026-09-09, de camino a otra cosa:**
 - ⚠️ **El nombre del archivo de la constancia se comía sus propias letras.** El `replace` del

@@ -37,6 +37,13 @@ const check = (que, cond, detalle = '') => {
 };
 const leer = (...p) => fs.readFileSync(path.join(RAIZ, ...p), 'utf8');
 
+// Los barridos que leen el fuente miran el CÓDIGO, no los comentarios: el
+// comentario que explica por qué se quitó un patrón no es una infracción. Mismo
+// criterio —y misma implementación— que `prueba-planes.js`.
+const sinComentarios = (t) => t
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/\/\/.*$/gm, '');
+
 // ── 1. El default del resumen ─────────────────────────────
 
 titulo('1. El resumen por negocio arranca en MENSUAL');
@@ -213,10 +220,18 @@ const auth = leer('src', 'api', 'routes', 'auth.routes.js');
 // 🔴 Antes era `umbralNegativas: umbralNegativas === 5 ? 5 : 1`, así que guardar
 // cualquier preferencia escribía un 1 y una cuenta GRATIS volvía a recibir un
 // correo por reseña.
-check('umbralNegativas se guarda SOLO si vino válido',
-  /LOTES_VALIDOS\.includes\(umbralNegativas\)/.test(auth));
+// ⚠️ Esto se comprobaba con la cadena literal `LOTES_VALIDOS.includes(umbralNegativas)`
+// y dio rojo el 2026-09-11 al pasar la ruta a merge, sin que faltara nada: la
+// comprobación es la misma escrita de otra forma. Es la trampa de siempre —una
+// sonda atada al FORMATO acusa a quien reformatea—, así que ahora se mira la
+// propiedad, no la forma. La forma fuerte de probar esto es el bloque del final,
+// que ejercita la ruta de verdad y mira qué queda guardado.
+check('umbralNegativas se decide contra LOTES_VALIDOS, no a mano',
+  /LOTES_VALIDOS/.test(auth) && /prefs\.umbralNegativas\s*=/.test(auth));
+check('y solo se escribe bajo condición, nunca en el objeto a pelo',
+  !/^\s*umbralNegativas:/m.test(auth), 'aparece como clave directa del objeto prefs');
 check('ya no hay un `? 5 : 1` que lo fuerce',
-  !/umbralNegativas:\s*umbralNegativas === 5 \? 5 : 1/.test(auth));
+  !/umbralNegativas.{0,40}===\s*5\s*\?\s*5\s*:\s*1/.test(sinComentarios(auth)));
 check('la ruta acepta el bloque resumen', /resumen:\s*\{[\s\S]{0,300}cadencia:/.test(auth));
 check('valida la cadencia contra la tabla, no contra una lista a mano',
   /prefsCorreo\.CADENCIAS\.includes\(/.test(auth));
@@ -295,5 +310,125 @@ check('los textos nuevos están en los DOS idiomas',
   && (panel.match(/umbralAyuda:/g) || []).length === 2
   && (panel.match(/resumenAyuda:/g) || []).length === 2);
 
-console.log(`\n${fallos === 0 ? '✅' : '❌'} ${ok} comprobaciones correctas, ${fallos} fallos`);
-process.exit(fallos === 0 ? 0 : 1);
+// ── El PATCH conserva lo que no le mandan ─────────────────
+//
+// 🔴 Este bloque levanta la RUTA DE VERDAD, con Prisma simulado, porque lo que
+// vigila no se ve con una regex: es qué queda GUARDADO después de una petición.
+//
+// El fallo que cierra (2026-09-11): la ruta reconstruía el objeto entero en cada
+// llamada, así que un cliente que no mandara un campo lo pisaba con su default.
+// La app Android manda los cuatro campos que existían cuando se escribió su
+// pantalla y no `resumen`, que nació el 2026-09-09 — o sea que quien eligió
+// «resumen semanal, los viernes» en el panel volvía a mensual y al domingo en
+// cuanto tocaba un interruptor desde el teléfono. Ni error, ni log: la petición
+// responde 200 y la pantalla dice «Preferencias guardadas».
+//
+// ⚠️ La prueba usa el cuerpo LITERAL de `Alertas.kt`, no uno inventado: si
+// mañana la app manda otra cosa, esta prueba deja de representar al cliente real
+// y hay que actualizarla aquí.
+const pruebaPatch = async () => {
+  titulo('El PATCH conserva los campos que el cliente no manda');
+
+  const Module = require('module');
+  const origReq = Module.prototype.require;
+  let fila = null;
+  Module.prototype.require = function (id) {
+    if (id.includes('prisma')) {
+      return {
+        usuario: {
+          findUnique: async () => ({ prefsAlertas: fila }),
+          update: async ({ data }) => { fila = data.prefsAlertas; return {}; },
+        },
+      };
+    }
+    if (id.includes('auth.middleware')) {
+      return {
+        autenticar: (req, _res, next) => {
+          req.usuario = { id: 'u1', plan: 'GRATIS' };
+          req.cuenta = { id: 'u1', plan: 'GRATIS' };
+          next();
+        },
+        permitir: () => (_q, _r, n) => n(),
+      };
+    }
+    return origReq.apply(this, arguments);
+  };
+
+  let express;
+  let rutas;
+  try {
+    // ⚠️ `require`, no `origReq(...)` a secas: llamado suelto pierde el `this`
+    // del módulo y Node no sabe desde dónde resolver — devuelve «Cannot find
+    // module 'express'» con express perfectamente instalado, que se lee como un
+    // entorno roto cuando el roto es el llamador.
+    express = require('express');
+    rutas = require('../src/api/routes/auth.routes');
+  } catch (e) {
+    Module.prototype.require = origReq;
+    check('CONTROL: se pudo cargar la ruta real', false, `${e.message} — ¿falta npm install?`);
+    return;
+  }
+  Module.prototype.require = origReq;
+
+  const app = express();
+  app.use(express.json());
+  app.use('/api/auth', rutas);
+  app.use((err, _q, res, _n) => res.status(500).json({ error: String(err && err.message) }));
+
+  const srv = await new Promise((r) => { const s = app.listen(0, () => r(s)); });
+  const patch = (cuerpo) => fetch(`http://127.0.0.1:${srv.address().port}/api/auth/preferencias-alertas`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo),
+  }).then((r) => r.json());
+
+  try {
+    // 1. El panel web guarda «semanal, los viernes» y dos tipos encendidos.
+    await patch({
+      tipos: { CAIDA_RATING: true, RESENA_MUY_NEGATIVA: true },
+      frecuencia: 'INMEDIATA', diaSemana: 1,
+      resumen: { cadencia: 'SEMANAL', diaSemana: 5 },
+    });
+    check('CONTROL: el panel guarda la cadencia semanal', fila?.resumen?.cadencia === 'SEMANAL', JSON.stringify(fila));
+    check('CONTROL: y el día que eligió (viernes)', fila?.resumen?.diaSemana === 5);
+    check('sin elección explícita, umbralNegativas NO se escribe', fila.umbralNegativas === undefined);
+    check('así que el lote lo decide el plan (GRATIS agrupa de a 5)', prefs.loteAlertas('GRATIS', fila) === 5);
+
+    // 2. El mismo usuario apaga un tipo desde la APP ANDROID. Cuerpo literal de
+    //    `Alertas.kt` — sin `resumen`, y con `umbralNegativas` siempre presente.
+    await patch({ tipos: { CAIDA_RATING: false }, umbralNegativas: 1, frecuencia: 'INMEDIATA', diaSemana: 1 });
+    check('la app NO le borra la cadencia semanal', fila?.resumen?.cadencia === 'SEMANAL', JSON.stringify(fila?.resumen));
+    check('la app NO le borra el día elegido', fila?.resumen?.diaSemana === 5, JSON.stringify(fila?.resumen));
+    check('lo que sí mandó se aplica: el tipo queda apagado', fila.tipos.CAIDA_RATING === false);
+    check('y los tipos que no mandó se conservan encendidos', fila.tipos.RESENA_MUY_NEGATIVA === true, JSON.stringify(fila.tipos));
+
+    // 3. Una elección explícita manda, y no se pierde con el cliente siguiente.
+    await patch({ tipos: {}, umbralNegativas: 5, frecuencia: 'SEMANAL', diaSemana: 3, resumen: { cadencia: 'MENSUAL', diaSemana: 0 } });
+    check('elegir explícitamente el lote lo guarda', fila.umbralNegativas === 5);
+    check('y la frecuencia elegida también', fila.frecuencia === 'SEMANAL');
+    await patch({ tipos: {} });
+    check('un cuerpo mínimo no borra el lote elegido', fila.umbralNegativas === 5);
+    check('ni la frecuencia elegida', fila.frecuencia === 'SEMANAL', fila.frecuencia);
+    check('ni el día del digest', fila.diaSemana === 3, String(fila.diaSemana));
+
+    // 4. Una cuenta nueva, sin nada guardado, cae a los defaults.
+    fila = null;
+    await patch({ tipos: {} });
+    check('una cuenta sin preferencias cae al default de resumen',
+      fila.resumen.cadencia === prefs.CADENCIA_POR_DEFECTO && fila.resumen.diaSemana === prefs.DIA_POR_DEFECTO);
+    check('y sigue sin escribir umbralNegativas', fila.umbralNegativas === undefined);
+
+    // 5. Un valor inválido no pisa lo guardado ni escribe basura.
+    await patch({ resumen: { cadencia: 'TRIMESTRAL', diaSemana: 99 }, frecuencia: 'CUANDO_SEA', umbralNegativas: 3 });
+    check('una cadencia inventada no se guarda', prefs.CADENCIAS.includes(fila.resumen.cadencia), fila.resumen.cadencia);
+    check('un día fuera de rango tampoco', fila.resumen.diaSemana === prefs.DIA_POR_DEFECTO);
+    check('ni un tamaño de lote fuera de los válidos', fila.umbralNegativas === undefined, String(fila.umbralNegativas));
+  } finally {
+    srv.close();
+  }
+};
+
+pruebaPatch()
+  .catch((e) => { fallos++; console.log(`  ✗ el bloque del PATCH reventó — ${e.message}`); })
+  .then(() => {
+    console.log(`\n${fallos === 0 ? '✅' : '❌'} ${ok} comprobaciones correctas, ${fallos} fallos`);
+    process.exitCode = fallos === 0 ? 0 : 1;
+  });
