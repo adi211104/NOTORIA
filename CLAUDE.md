@@ -2922,8 +2922,33 @@ que se necesitan** (§2 y `docs/mudanza-de-pc.md`).
 | Qué faltaba | Cómo se notó | Estado |
 |---|---|---|
 | **`scripts/sunat-test.p12`** | `prueba-sunat-beta`, `prueba-xml-firma`, `prueba-cola-envio` y `prueba-resumen-cola` fallaban con ENOENT o con fallas de firma. **Cuatro suites en rojo por un archivo que se regenera en un segundo**, y las dos últimas ni mencionaban el certificado | ✅ `node scripts/generar-cert-prueba.js`. Sigue en `.gitignore`, que es correcto |
-| **Clave SSH para `railway ssh`** | *«No SSH keys found in your SSH agent or ~/.ssh/»*. Y `railway ssh` es **el método de verificación que este archivo recomienda** en media docena de sitios | ⚠️ Sin resolver. Hoy no hizo falta: el cambio se verificó por los **logs**, que es mejor sonda todavía (ver abajo) |
+| **Clave SSH para `railway ssh`** | *«No SSH keys found in your SSH agent or ~/.ssh/»*. Y `railway ssh` es **el método de verificación que este archivo recomienda** en media docena de sitios | ⚠️ **A medias, y conviene saber hasta dónde llega** — ver abajo |
 | ~~`next build` no funciona en esta PC~~ | Lo afirmaba §19 desde el 31/08 | ✅ **Ya no se reproduce**: termina con exit 0, prerender incluido, 36 páginas. La nota se corrigió |
+
+### `railway ssh` en la PC del taller: la clave ya está, y aun así NO funciona (2026-09-11)
+
+Se resolvió la mitad que el hueco de arriba describía y apareció la otra. Queda escrito para que
+nadie repita los tres intentos:
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N "" -C "notoria-taller"
+railway ssh keys add     # → «SSH key 'notoria-taller' registered successfully!»
+```
+
+🔴 **Y aun así `railway ssh` responde `Host key verification failed`.** El `known_hosts` está vacío
+y no hay forma de aceptar la huella sin sesión interactiva; `ssh-keyscan ssh.railway.app` **no
+devuelve nada**, así que ese host no habla SSH plano — Railway tunela por su propio proxy. O sea
+que el problema **ya no es la clave**: es la verificación del host, y desde una sesión no
+interactiva no se resuelve por ahí.
+
+⚠️ **Lo que significa en la práctica: la sonda `railway ssh … grep -c <algo> <archivo>` que este
+archivo recomienda en media docena de sitios NO está disponible en esta máquina.** Al verificar un
+deploy hay que usar las otras dos, que además son más baratas:
+
+| Sonda | Qué prueba |
+|---|---|
+| **Arranque fresco en los logs** (`railway logs --json \| tail`) | El timestamp del último arranque. Si es de hace dos minutos, el contenedor se reemplazó con lo que acabas de subir. Es lo que se usó el 2026-09-11 |
+| **`/health` + un 401 en `/api/auth/login`** con credenciales falsas | Que el servicio levantó Y que la base se consulta bien. Un 500 diría lo contrario |
 
 🔎 **La sonda que sustituyó a `railway ssh`, y conviene tenerla escrita porque es más barata:** el
 cron del resumen **cambió su línea de arranque**, así que `railway logs` lo delata sin tocar la
