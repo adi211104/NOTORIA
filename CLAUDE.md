@@ -15,7 +15,7 @@ Detecta reseñas falsas, ataques de bots y caídas de rating.
   Qué incluye cada uno vive en
   **`src/lib/planes.js`**, que es fuente única de CAPACIDADES igual que `precios.js` lo es del
   precio. **No volver a escribir `['NEGOCIO','FRANQUICIA']` a mano en ninguna ruta** — §8.6.
-- Dominio: **usenotoria.app** · correo `hola@usenotoria.app` · teléfono público **+51 955 599 041**.
+- Dominio: **usenotoria.app** · correo `hola@usenotoria.app` · teléfono público **+51 916 383 038**.
 - **Servicio solo nacional**: todo negocio se crea con `pais: 'pe'` y la facturación va fija
   en `PE`. Las columnas siguen en el modelo para poder reabrir sin migrar, y
   `lib/tributario.js` conserva la lógica de exportación de servicios.
@@ -141,7 +141,9 @@ SUNAT_EMISION_ACTIVA=true                   # ENCENDIDO en producción desde el 
 NEXT_PUBLIC_API_URL
 NEXT_PUBLIC_GOOGLE_CLIENT_ID
 NEXT_PUBLIC_CULQI_PUBLIC_KEY     # Vercel: pk_live_. Se incrusta EN EL BUILD → exige `vercel --prod`
-NEXT_PUBLIC_WHATSAPP_VENTAS=51955599041   # sin ella el botón flotante no se renderiza
+NEXT_PUBLIC_WHATSAPP_VENTAS       # 🔴 YA NO SE LEE desde el 2026-09-16. Queda huérfana en
+                                  # Vercel con el número VIEJO. El del botón flotante sale
+                                  # ahora de `src/lib/contacto.js`, la misma fuente que el pie
 ```
 
 **Auditoría de variables (2026-08-19).** Se cruzaron las 49 que lee `src/` contra las 49

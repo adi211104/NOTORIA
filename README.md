@@ -508,7 +508,7 @@ la función, no anunciarla como "próximamente".
 - [x] Repo en GitHub (`adi211104/NOTORIA`) con push funcionando
 - [x] Widget "analiza tu negocio gratis" en el hero — funcionando en producción
 - [x] Drip de emails de onboarding activo (día 2 / 5 / 7, cron 10:00 Lima)
-- [x] Botón de WhatsApp de ventas (51 955 599 041)
+- [x] Botón de WhatsApp de ventas (51 916 383 038)
 - [x] Tabla comparativa rediseñada, sin "Próximamente" en páginas públicas
 - [x] `@vercel/analytics` instalado
 - [x] **Facebook Reviews retirado** de comparativa/tarjetas/planes: verificado en

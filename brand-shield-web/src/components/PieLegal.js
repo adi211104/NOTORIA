@@ -8,44 +8,14 @@
 // que el visitante llegue al landing.
 
 import Link from 'next/link';
+import { CONTACTO } from '../lib/contacto';
 
 const G = '#0B7324';
 
-// Único lugar donde viven los datos de contacto públicos. Si cambian, cambian acá.
-//
-// ⚠️ DÓNDE PUEDE Y DÓNDE NO PUEDE APARECER EL RUC.
-//
-// El RUC abre la ficha pública de SUNAT, y ahí está el domicilio fiscal del
-// titular — que en una E.I.R.L. suele ser su casa. No es un dato decorativo para
-// rellenar pies de página.
-//
-// La **Ley 32080** (2 de julio de 2024) eliminó la obligación —que existía desde
-// 2023— de consignar el RUC y la denominación social en los medios digitales
-// donde se ofertan bienes o servicios. O sea que en el landing ya no pinta nada,
-// y de ahí se quitó el 2026-08-17.
-//
-// Dónde SÍ se queda, porque ahí identifica al proveedor y es lo que miran Culqi
-// e INDECOPI: Términos, Privacidad, Contacto, Devoluciones y el Libro de
-// Reclamaciones. Y en los comprobantes, donde sigue siendo obligatorio de verdad
-// — pero esos van al cliente que compró, no a la pantalla de todos.
-//
-// ⚠️ Lo que el código NO puede arreglar, y es una DECISIÓN TOMADA, no una tarea
-// pendiente: la ficha RUC de SUNAT es pública y el domicilio fiscal es una casa
-// particular, así que quien tenga el RUC llega a esa dirección aunque la web no
-// la muestre. Quitar el RUC del pie solo tapa el atajo. La única salida real era
-// mover el domicilio fiscal a una oficina virtual, y el dueño decidió el
-// 2026-08-22 no hacerlo. No hay nada que arreglar acá: si alguien lo reabre, la
-// discusión está en CLAUDE.md §15.
-export const CONTACTO = {
-  razonSocial: 'NOTORIA E.I.R.L.',
-  ruc: '20616239466',
-  direccion: 'Cal. Isla Filipinas Mza. G9 Lote 8, La Perla, Provincia Constitucional del Callao, Perú',
-  email: 'hola@usenotoria.app',
-  telefono: '+51 955 599 041',
-  telefonoLink: '+51955599041',
-  whatsapp: '51955599041',
-  horario: 'Lunes a viernes de 9:00 a 18:00 h (hora de Perú)',
-};
+// Los datos de contacto viven en `lib/contacto.js`, no acá: el botón flotante de
+// WhatsApp también los necesita y es un componente de cliente. Se re-exportan
+// para no tocar las siete pantallas que ya importan `CONTACTO` desde este pie.
+export { CONTACTO };
 
 const enlaces = [
   { l: 'Precios y contratación', h: '/precios' },

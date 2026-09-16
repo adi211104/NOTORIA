@@ -1,14 +1,28 @@
 'use client';
 
 // Botón flotante de ventas por WhatsApp — en Perú los dueños de restaurantes
-// escriben por WhatsApp, no llenan formularios. Gated por entorno igual que
-// las integraciones del backend: sin NEXT_PUBLIC_WHATSAPP_VENTAS no se
-// renderiza nada, así el deploy es seguro antes de decidir el número.
-// Formato del número: solo dígitos con código de país, ej. 51987654321.
+// escriben por WhatsApp, no llenan formularios.
+//
+// 🔴 El número sale de `lib/contacto.js`, NO de una variable de entorno.
+// Hasta el 2026-09-16 lo leía de `NEXT_PUBLIC_WHATSAPP_VENTAS`, que nació como
+// interruptor mientras no se había decidido el número — y cuando el número ya
+// estaba decidido y escrito en `CONTACTO`, esa variable dejó de ser un
+// interruptor y pasó a ser una SEGUNDA COPIA del dato. Cambiar el número exigía
+// entonces tocar dos sitios, y olvidar uno no produce ningún error: el pie de la
+// web anuncia el número nuevo y este botón —el que de verdad usa el cliente para
+// escribir— sigue mandando al viejo. Mudo y en la pantalla que más vende.
+//
+// ⚠️ La variable queda huérfana en Vercel; nadie la lee. Borrarla es limpieza,
+// no urgencia.
+//
+// El mensaje va predeterminado a propósito: dice de dónde viene el prospecto, y
+// eso sobrevive al saludo automático de WhatsApp Business, que se dispara DESPUÉS
+// de que el cliente pulse enviar: primero llega su mensaje, después el saludo.
 
 import { useIdioma } from '../context/IdiomaContext';
+import { CONTACTO } from '../lib/contacto';
 
-const NUMERO = process.env.NEXT_PUBLIC_WHATSAPP_VENTAS;
+const NUMERO = CONTACTO.whatsapp;
 
 const MENSAJES = {
   es: 'Hola, vi usenotoria.app y quiero saber más sobre el monitoreo de reputación para mi negocio.',
