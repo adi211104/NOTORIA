@@ -393,12 +393,30 @@ const pruebaPatch = async () => {
     check('así que el lote lo decide el plan (GRATIS agrupa de a 5)', prefs.loteAlertas('GRATIS', fila) === 5);
 
     // 2. El mismo usuario apaga un tipo desde la APP ANDROID. Cuerpo literal de
-    //    `Alertas.kt` — sin `resumen`, y con `umbralNegativas` siempre presente.
-    await patch({ tipos: { CAIDA_RATING: false }, umbralNegativas: 1, frecuencia: 'INMEDIATA', diaSemana: 1 });
+    //    `Alertas.kt` **desde el 2026-09-16**: sigue sin mandar `resumen`, y ya
+    //    NO manda `umbralNegativas` salvo que el usuario toque ese interruptor.
+    await patch({ tipos: { CAIDA_RATING: false }, frecuencia: 'INMEDIATA', diaSemana: 1 });
     check('la app NO le borra la cadencia semanal', fila?.resumen?.cadencia === 'SEMANAL', JSON.stringify(fila?.resumen));
     check('la app NO le borra el día elegido', fila?.resumen?.diaSemana === 5, JSON.stringify(fila?.resumen));
     check('lo que sí mandó se aplica: el tipo queda apagado', fila.tipos.CAIDA_RATING === false);
     check('y los tipos que no mandó se conservan encendidos', fila.tipos.RESENA_MUY_NEGATIVA === true, JSON.stringify(fila.tipos));
+    // 🔴 Lo que el arreglo de la app compró, y es lo único que el backend no
+    // podía arreglar solo: guardar desde el teléfono ya NO deshace el agrupado.
+    check('la app ya no le escribe un lote encima', fila.umbralNegativas === undefined, JSON.stringify(fila.umbralNegativas));
+    check('así que la cuenta GRATIS sigue agrupando de a 5', prefs.loteAlertas('GRATIS', fila) === 5);
+
+    // 2-bis. ⚠️ La app VIEJA sigue instalada en los teléfonos y no se actualiza
+    //    sola, así que este cuerpo va a seguir llegando un tiempo. Mandaba
+    //    `umbralNegativas` SIEMPRE (`if (umbral5) 5 else 1`), y un valor
+    //    explícito es indistinguible de una elección del usuario: el backend
+    //    tiene que respetarlo. Se deja escrito para que nadie lo lea como un
+    //    fallo del servidor ni «arregle» la ruta ignorando el campo — eso
+    //    rompería al usuario que sí eligió.
+    await patch({ tipos: {}, umbralNegativas: 1, frecuencia: 'INMEDIATA', diaSemana: 1 });
+    check('CONTROL: la app VIEJA sí pisa el lote, y no se puede evitar desde el backend',
+      fila.umbralNegativas === 1 && prefs.loteAlertas('GRATIS', fila) === 1);
+    // Se deshace para que los pasos siguientes partan de donde estaban.
+    fila = { ...fila }; delete fila.umbralNegativas;
 
     // 3. Una elección explícita manda, y no se pierde con el cliente siguiente.
     await patch({ tipos: {}, umbralNegativas: 5, frecuencia: 'SEMANAL', diaSemana: 3, resumen: { cadencia: 'MENSUAL', diaSemana: 0 } });

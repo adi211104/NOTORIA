@@ -3909,7 +3909,31 @@ indefinida es justo el caso en que hay que buscar la segunda vía.
 `notoria-secrets` del taller y `keystore.properties` ya apunta ahí, comprobado. Falta la
 herramienta, no la clave — y de las dos, la herramienta es la que se arregla descargando algo.
 
-### Estado de la base de producción (última lectura, 2026-09-09)
+### Estado de la base de producción (última lectura, 2026-09-16)
+
+`11 usuarios · 12 negocios · **2043 snapshots** · 135 reseñas · 5 alertas · 5 competidores con
+220 snapshots · **2 comentarios sociales** · 3 pagos · 3 comprobantes · 6 resúmenes SUNAT ·
+1 promo_tarjeta · 0 miembros · 0 invitaciones · 0 reclamaciones · 0 menciones`.
+
+✅ **Respaldo del 2026-09-16 verificado**: 2453 filas, 0.83 MB, **0 filas que se perderían**
+(`respaldos/notoria-2026-09-16T20-06-01.json`). El anterior fue el 09/09.
+
+⚠️ **Reaparecieron 2 comentarios sociales, y el 09/09 había 0.** Son de la conexión de TikTok que
+vive en «Don Tito San Miguel»; §19 daba por hecho que esa cuenta no produciría nada porque no
+tiene videos **públicos**, así que o publicó alguno o la lectura vieja se hizo con la conexión
+dormida. No es un fallo — es la rama del worker haciendo su trabajo— pero conviene saber que ese
+0 ya no describe el sistema.
+
+⚠️ **19 reseñas nuevas desde el 09/09 y las alertas siguen en 5.** No es necesariamente un
+problema —solo las de ≤2★ *nuevas* generan alerta, y el silencio por antigüedad y por primer
+barrido es el diseñado— pero es justo el par de números cuya divergencia destapó el agujero del
+2026-08-22, cuando había 1783 escaneos y CERO alertas. Si en la próxima lectura siguen en 5 con
+más reseñas negativas encima, vale la pena mirar.
+
+⚠️ **Cargos reales de clientes: sigue siendo cero.** Los 3 pagos y los 3 comprobantes son las
+pruebas del dueño, los tres REEMBOLSADO y los tres ANULADO.
+
+#### Lectura anterior (2026-09-09)
 
 `11 usuarios (3 sin verificar, 0 con idioma 'en') · 12 negocios (8 activos, 10 place IDs
 distintos) · 1841 snapshots · 116 reseñas (13 de ≤2★) · **5 alertas, 0 sin notificar** ·
@@ -4532,29 +4556,27 @@ bueno:**
 
 ### 🔴 Bugs abiertos en producción
 
-**Uno, y vive en la app Android** (última revisión: **2026-09-11**).
+**Ninguno** (última revisión: **2026-09-16**). Los dos que quedaban, los dos en la app, se
+arreglaron ese día — detalle en `NotoriaApp/PENDIENTES.md`:
 
-🟡 **La pantalla de Alertas de la app enseña mal el lote de reseñas, y al guardarlo lo hace
-verdad.** Lee `prefsAlertas` **crudo** —donde una cuenta que nunca tocó el ajuste no tiene el
-campo— en vez de las preferencias **resueltas** que el perfil manda al lado, así que a una cuenta
-GRATIS le muestra «cada reseña negativa» cuando las recibe **agrupadas de a cinco**; y como el
-botón manda siempre `umbralNegativas` (`if (umbral5) 5 else 1`), guardar cualquier cosa desde el
-teléfono le escribe ese 1 y deshace el agrupado de verdad.
-- 🔴 **El backend NO puede arreglar esto** y por eso queda abierto: un valor explícito es
-  indistinguible de una elección del usuario. El merge del PATCH (§12) tapó los otros tres campos
-  que se perdían; este necesita tocar la app.
-- **Qué hay que cambiar ahí, y son tres líneas:** leer el lote de `prefsCorreo.lote` del perfil en
-  vez de `prefsAlertas` crudo, no mandar `umbralNegativas` si el usuario no tocó ese interruptor, y
-  cambiar la etiqueta **«Solo avisarme de picos»**, que desde el 09/09 ya no describe lo que hace
-  —ahora significa «júntalas de a cinco»— igual que se cambió en el panel web.
-- ⚠️ **Impacto real hoy: bajo.** La app no está publicada (Play Console aplazado, §19 E), así que
-  el único usuario es el dueño. Pero va **antes** de publicarla, porque el día que haya clientes el
-  fallo es mudo: el correo sale, se entrega, y lo único que está mal es cuánto.
+- ✅ **La pantalla de Alertas enseñaba mal el lote y al guardar lo deshacía.** Leía `prefsAlertas`
+  crudo en vez de `prefsCorreo` resuelto, y mandaba `umbralNegativas` siempre. Ahora `Modelos.kt`
+  parsea `PrefsCorreo` y el campo **solo viaja si el interruptor se tocó**.
+- ✅ **`qr/Cartel.kt` ya dice «Hecho con Notoria»**, no «Reseñas verificadas con Notoria».
+- ✅ De paso, la etiqueta «Solo avisarme de picos» —una promesa muerta— pasó a «Agrupadas: 1 correo
+  por cada 5», los mismos textos del panel.
 
-⚠️ **Y un pendiente escrito que sigue abierto en el mismo repo:** `qr/Cartel.kt:282` imprime
-**«Reseñas verificadas con Notoria»** en el pie del cartel. Notoria **no verifica reseñas** —las
-vigila, y como mucho marca comportamiento anómalo—, así que eso es prometerle al cliente de nuestro
-cliente algo que no hacemos, impreso en su pared. El panel ya dice «Hecho con Notoria» (§13).
+🔴 **Lo que NO se arregla y hay que recordar: la app VIEJA sigue instalada y no se actualiza sola**,
+así que su cuerpo —con `umbralNegativas` siempre presente— va a seguir llegando y va a seguir
+pisando el lote de una cuenta GRATIS. **El backend no puede evitarlo**: ignorar el campo rompería a
+quien sí eligió. Está fijado como **control** en `prueba-prefs-correo.js` (96 comprobaciones, eran
+93) para que nadie lo lea como un fallo del servidor y «arregle» la ruta.
+⚠️ Esa prueba usa el cuerpo **literal** de `Alertas.kt`: al tocar esa pantalla hay que actualizarla.
+
+⏳ **Sin ver en el teléfono todavía.** El APK compila (`assembleDebug` → BUILD SUCCESSFUL, 15,2 MB)
+pero no se instaló: falta abrir Alertas con una cuenta GRATIS y comprobar que el interruptor
+arranca encendido y que guardar no lo apaga.
+
 
 **Corregidos el 2026-09-11:**
 - 🔴 **El PATCH de preferencias pisaba los campos que el cliente no mandaba.** Detalle completo en
