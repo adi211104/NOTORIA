@@ -2229,7 +2229,7 @@ márgenes recortados es un QR que no lee.
 app Android. Notoria no verifica reseñas —las vigila, y como mucho marca comportamiento anómalo—, así
 que imprimir eso en la pared de un cliente es prometerle a SU cliente algo que no hacemos. Es la
 misma regla que gobierna el detector («comportamiento anómalo», nunca «esta reseña es falsa») y el
-expediente. ⚠️ **La app todavía tiene la frase vieja: hay que corregirla ahí.**
+expediente. ✅ **La app ya dice lo mismo desde el 2026-09-16** (`qr/Cartel.kt`).
 
 ⚠️ **El umbral que decide si esto sirve: 0,4 mm por módulo.** Por debajo de eso la cámara de un
 celular de gama baja falla a distancia de brazo, y el fallo es el peor de todos porque **parece que
@@ -2616,7 +2616,7 @@ textos por otros inventados. El procedimiento está en la cabecera del component
 | `prueba-anulacion-pendiente.js` | 31 comprobaciones del aviso por comprobante reembolsado y sin anular: los dos anclajes del plazo, el `floor` que no sobreestima, y sobre todo los silencios (VOUCHER, ya anulado, no aceptado) |
 | `prueba-costo-places.js` | 26 comprobaciones de los tres frenos de costo de Places (§8.7). Vigila lo que no da ninguna señal al romperse: si el competidor vuelve a releerse a la cadencia del dueño, o el caché deja de reutilizar, no falla nada — solo sube la factura de Google, que no distingue de quién fue cada consulta. El bloque 8 deja escrita la aritmética para no rederivarla |
 | `prueba-cartel.js` | **100** comprobaciones de los carteles QR (§13). Lo que vigila son cosas que no dan ninguna señal: que **el espejo del panel no se separe del backend** (si se separan, la vista previa deja de decir la verdad sobre lo que va a salir de la impresora), que ningún módulo del QR baje de **0,4 mm** en ninguno de los cuatro tamaños —por debajo de eso el papel se ve perfecto y **nadie escanea**—, que nada se salga del papel con el nombre más hostil que puede escribir un cliente, y que ningún texto pierda caracteres al pasar por WinAnsi. 🔴 El bloque 7 lee el TEXTO REAL del PDF, y llegar ahí costó dos trampas: los flujos van comprimidos y PDFKit parte cada palabra en trozos hex donde hay kerning — con las dos sin resolver, tres comprobaciones pasaban **por el motivo equivocado** |
-| `prueba-prefs-correo.js` | **93** comprobaciones de cuánto correo manda el producto (§12). Todo lo que cubre falla en silencio y en la dirección peor: el correo sale, se entrega, y lo único que está mal es cuánto o qué dice. Vigila el default mensual, que la ventana de días acompañe a la cadencia, que el calendario sea el de **Lima** y no el del servidor, que el `select` del worker traiga `prefsAlertas`, que la ruta no vuelva a escribir un `1` encima del default del plan, y —lo más importante— que **nadie marque `Alerta.notificada` a ciegas**, que es lo que pondría el contador del lote a cero en cada reseña |
+| `prueba-prefs-correo.js` | **96** comprobaciones (93 hasta el 2026-09-16, cuando se le sumó el cuerpo NUEVO de `Alertas.kt` y el de la app vieja como control) de cuánto correo manda el producto (§12). Todo lo que cubre falla en silencio y en la dirección peor: el correo sale, se entrega, y lo único que está mal es cuánto o qué dice. Vigila el default mensual, que la ventana de días acompañe a la cadencia, que el calendario sea el de **Lima** y no el del servidor, que el `select` del worker traiga `prefsAlertas`, que la ruta no vuelva a escribir un `1` encima del default del plan, y —lo más importante— que **nadie marque `Alerta.notificada` a ciegas**, que es lo que pondría el contador del lote a cero en cada reseña |
 | `borrar-usuario.js <email> [--aplicar]` | Borra una cuenta desde la terminal. **No reimplementa nada**: llama a `lib/borrarCuenta.js`, el mismo código que corre cuando un cliente se da de baja — el orden lo exigen media docena de FK con ON DELETE RESTRICT y una segunda copia se desincroniza el día que alguien añada una tabla, contra producción y a mitad del borrado. Exige simulacro, avisa aparte de los **snapshots** (lo único irrecuperable) y al terminar **vuelve a preguntarle a la base** si la fila sigue ahí. Con historial fiscal anonimiza en vez de borrar. ⚠️ Va en local, no con `railway run` |
 | `prueba-gbp-visible.js` | **51** comprobaciones del interruptor de Google Business **y de que el producto dejó de prometerlo**. El bloque 6 lee `page.js` y `layout.js` buscando las frases retiradas; el último —añadido el 2026-08-26— lee **`onboarding/page.js` y `GBPBanner.js`**, que es donde la función seguía viva con las 44 anteriores en verde |
 | `prueba-cableado.js` | 33 comprobaciones de score/temas/impacto/parte enchufados al correo, al PDF y a la constancia. Vigila los dos fallos mudos: que el `select` del semanal traiga la FECHA de la reseña (sin ella el parte sale vacío siempre) y que el correo **no** llame a Groq |
@@ -3924,11 +3924,12 @@ tiene videos **públicos**, así que o publicó alguno o la lectura vieja se hiz
 dormida. No es un fallo — es la rama del worker haciendo su trabajo— pero conviene saber que ese
 0 ya no describe el sistema.
 
-⚠️ **19 reseñas nuevas desde el 09/09 y las alertas siguen en 5.** No es necesariamente un
-problema —solo las de ≤2★ *nuevas* generan alerta, y el silencio por antigüedad y por primer
-barrido es el diseñado— pero es justo el par de números cuya divergencia destapó el agujero del
-2026-08-22, cuando había 1783 escaneos y CERO alertas. Si en la próxima lectura siguen en 5 con
-más reseñas negativas encima, vale la pena mirar.
+✅ **Reseñas nuevas desde el 09/09 y alertas quietas en 5: comprobado, y es lo correcto.** Entraron
+**21 reseñas y NINGUNA de ≤2★** (15 de 5★, 5 de 4★, una de 3★), así que no había nada que alertar.
+Se miró porque es justo el par de números cuya divergencia destapó el agujero del 2026-08-22
+(1783 escaneos y CERO alertas). ⚠️ **La consulta que lo zanja** agrupa por `rating` las reseñas
+con `detectadaEn` en el periodo — `detectadaEn`, no `fechaResena`: una reseña vieja detectada hoy
+es nueva para nosotros, y el silencio por antigüedad es el que decide si avisa.
 
 ⚠️ **Cargos reales de clientes: sigue siendo cero.** Los 3 pagos y los 3 comprobantes son las
 pruebas del dueño, los tres REEMBOLSADO y los tres ANULADO.
