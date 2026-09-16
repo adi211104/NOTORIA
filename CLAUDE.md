@@ -38,8 +38,9 @@ Detecta reseñas falsas, ataques de bots y caídas de rating.
 >
 > ⚠️ **Lo que cambia de verdad no es la ruta, son tres cosas que la máquina nueva no traía** y
 > que ninguna prueba detecta porque no fallan, simplemente faltan — están en
-> `docs/mudanza-de-pc.md` §9: **JDK/Android SDK** (sin `keytool` no hay AAB ni comprobación del
-> keystore), **la extensión de navegador** —✅ **instalada y funcionando el 2026-08-30**; ojo, no
+> `docs/mudanza-de-pc.md` §9: **JDK/Android SDK** —✅ **instalados y comprobados el 2026-09-16**
+> en `dev-tools/`; §19 lo dio por ausente 17 días de más—, **la extensión de navegador** —✅
+> **instalada el 2026-08-30**; ojo, no
 > basta con instalarla: la sesión tiene que arrancar con `--chrome` o las herramientas no se
 > cargan— y **`respaldos/`**, que llegó vacía y ya se regeneró.
 >
@@ -317,6 +318,12 @@ queda registrado en estado **`BLOCKED`** con su `errorMessage`:
   `user.name = Didier Principe`, `user.email = didierprincipe@gmail.com`.
 - ⚠️ **Se hereda al clonar en otra máquina**, así que va en la lista de la mudanza: comprobar
   `git config user.email` **antes** del primer deploy, no después.
+- 🔴 **Y `--local` arregla UN repo, no la máquina. `NotoriaApp` se quedó fuera hasta el
+  2026-09-16**, con `user.name = adi211104` y `user.email = padkar4@gmail.com` — o sea que todos
+  los commits de la app de las últimas semanas están firmados con el correo que no es. Ahí no
+  rompe ningún deploy (a APKNotoria no lo despliega Vercel), por eso nadie lo notó: **el mismo
+  defecto, y mudo, porque el síntoma que lo delató en Vigilio no existe en ese repo.** Ya
+  corregido. Al clonar cualquier repo nuevo, `git config user.email` antes del primer commit.
 
 🔎 **Cómo se lee el motivo real de un deploy fallido** (el CLI no lo dice):
 
@@ -3863,11 +3870,23 @@ por el paso 1 de esta lista, no por el principio:
 esa clave se perdiera durante la espera, no hay app que publicar. Y releer los requisitos de
 alta en la consola, que Google los cambia.
 
-🔴 **Y desde el 2026-08-30 eso exige un paso previo que antes no existía: la PC del taller no
-tiene JDK ni Android SDK.** `keytool` no está, así que **el AAB no se puede reconstruir** — que
-es justo lo que `NotoriaApp/PENDIENTES.md` exige desde que el backend estrenó Impulso. Instalar
-un JDK (o Android Studio) deja de ser un detalle de entorno y pasa a ser el **paso 0** de
-publicar.
+🔴 ~~**Desde el 2026-08-30 eso exige un paso previo: la PC del taller no tiene JDK ni Android
+SDK.**~~ ✅ **FALSO desde el 2026-09-16: los dos ESTÁN instalados**, en
+`C:\Users\Taller\dev-tools\` (`jdk-17.0.20.1+1` y `android-sdk`). Se pusieron para la prueba en
+el teléfono del 05/09 y esta sección no se enteró. O sea que **el AAB sí se puede reconstruir** y
+publicar en Play ya no tiene paso 0 de entorno.
+- Comprobado ejecutándolos, no mirando el archivo: `keytool` responde y `adb` da **1.0.41**.
+- ✅ **Y el keystore quedó verificado con el `keytool` de verdad**, no ya con el apaño de
+  node-forge: alias `notoria-upload`, `CN=NOTORIA E.I.R.L.`, RSA 4096, válido hasta 2054-01-02,
+  SHA-1 `B5:74:06:…:56:BF` — **idéntico** a lo que registró el 31/08 por la otra vía, y la huella
+  del archivo sigue siendo `d3480fa3…`. Dos métodos independientes y el mismo resultado.
+- La receta, que vive en `NotoriaApp/PENDIENTES.md` y por eso no se encontró desde acá:
+  `JAVA_HOME="/c/Users/Taller/dev-tools/jdk-17.0.20.1+1" ./gradlew.bat assembleDebug`.
+- ⚠️ **La lección es la que este archivo ya se había hecho el 09/09 con `next build`, otra vez:**
+  un fallo de entorno comprobado UNA vez y escrito como estado del sistema envejece mal. Este
+  llevaba **17 días** declarando bloqueado un camino que estaba abierto, y encima el dato correcto
+  estaba escrito en el OTRO repo. Antes de dar por vigente una carencia de la máquina, ejecutar la
+  herramienta.
 
 ✅ **Pero COMPROBAR el keystore sí se puede sin JDK, y el 2026-08-31 se hizo.** Esta nota decía
 que la comprobación «hoy no se puede hacer», y era falso: un `.jks` moderno es **PKCS#12** (los
