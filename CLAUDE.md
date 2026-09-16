@@ -2193,7 +2193,7 @@ tamaños sobre una hoja A4: **mural** (1 por hoja), **mostrador** (A5, 2), **de 
 
 🔴 **Es la única herramienta del producto que PRODUCE reseñas.** Score, temas, alertas, progreso,
 espejo, parte — todo lo demás mide las que ya hay. Por eso vive en la pestaña «Pedir reseñas», va
-primera y a todo el ancho, y **no lleva `verificarPlan`**: cerrarla al plan gratuito le quitaría al
+justo debajo del enlace —antes que el QR suelto y el mensaje de WhatsApp— y a todo el ancho de la columna, y **no lleva `verificarPlan`**: cerrarla al plan gratuito le quitaría al
 cliente nuevo justo lo que hace que el producto le sirva la primera semana. Sale entero de datos ya
 guardados: **cero llamadas a Google y cero a Groq**.
 
@@ -3682,9 +3682,12 @@ flujo entero.
 > de bloque de JS**: el `*/` lo cierra y el archivo deja de compilar. Lo cazó la prueba, no la
 > lectura.
 >
-> 🔴 **Lo único verdaderamente irreversible que sigue abierto: respaldar
-> `notoria-upload.jks` y su contraseña fuera de esta PC.** Si esa clave se pierde antes de la
-> primera subida a Play, no hay app que publicar — hay que crear otra identidad. Ver
+> ✅ **CERRADO el 2026-09-16: `notoria-upload.jks` tiene DOS copias.** La del taller
+> (`C:\Users\Taller\notoria-secrets\`, verificada con `keytool`) y la original de la PC de casa,
+> de donde se copió en la mudanza junto con `keystore.properties` — confirmado por el dueño.
+> ⚠️ **El riesgo que queda es uno solo, y hay que tenerlo presente el día que pase:** si la PC de
+> casa se formatea, se vende o se jubila, la segunda copia se va con ella y se vuelve a tener
+> una sola. Ese día, antes de soltarla, sacar el `.jks` y su contraseña a otro sitio. Ver
 > `docs/secretos.md`, que ordena todos los secretos por «¿qué haría falta para recuperarlo?».
 
 1. ✅ **HECHO el 2026-08-23: cobro real de S/1, emisión a SUNAT producción, reembolso,
@@ -3855,9 +3858,9 @@ por el paso 1 de esta lista, no por el principio:
    paquete comprobado —el keystore **abre con su contraseña** (RSA 4096, válido hasta 2054),
    el AAB pasa `jarsigner -verify`, `targetSdk 36`, tres permisos y **cero SDKs de
    terceros**—. Lo que falta necesita a una persona:
-   - 🔴 **Respaldar `notoria-upload.jks` y su contraseña fuera de esta PC.** Es lo único
-     irreversible. (Tras la primera subida, Play App Signing vuelve recuperable la clave de
-     subida; hoy todavía no.)
+   - ✅ ~~Respaldar `notoria-upload.jks` y su contraseña fuera de esta PC.~~ **Cerrado el
+     2026-09-16**: hay copia en la PC del taller y en la de casa. (Tras la primera subida, Play
+     App Signing vuelve recuperable la clave de subida; hasta entonces, esas dos copias son todo.)
    - Decidir **personal vs organización** (organización pide D-U-N-S, gratis pero lento) y
      pagar los **US$25**.
    - Icono 512×512, gráfico destacado 1024×500 y capturas — ⚠️ **con datos anonimizados**,
@@ -4550,7 +4553,7 @@ bueno:**
 
 | Qué | Por qué no se pudo |
 |---|---|
-| **El bloque de carteles en el PANEL, con los ojos** | Está verificado por sus 100 comprobaciones, el PDF se generó y se miró, y las cadenas están vivas en el chunk de producción. Pero **nadie ha abierto la pestaña «Pedir reseñas»** para ver la previa SVG en pantalla, ni en móvil. Este proyecto lleva seis veces encontrando fallos justo ahí (24/08, 25/08, 29/08, 31/08 ×2), así que es lo primero que hay que mirar |
+| ~~**El bloque de carteles en el PANEL, con los ojos**~~ | ✅ **Mirado el 2026-09-16, en escritorio (1366 px) y en móvil (390 px reales, con el proxy): sin fallos.** Los cuatro tamaños se dibujan, ningún texto se sale del papel (medido con `getBBox` contra el `viewBox`), la consola está limpia y a 390 px hay **0 desbordes** con los cuatro formatos, con el control del div de 900 px pasando de 0 a 1. Los cuatro PDF devuelven `%PDF-` de 4,6–6,5 KB, y un formato inventado da 400 `FORMATO_INVALIDO` — la sonda distingue. La etiqueta no lleva pie **a propósito** (`compacta = ancho < 220`). ⚠️ Dos trampas del método: en el proxy, `scrollTo` por código se queda clavado y hay que usar la **rueda** sobre el iframe; y el `innerHeight` del padre (~557) es menor que 780, así que el iframe hay que achicarlo o la captura corta la mitad |
 | **Un correo de resumen MENSUAL de verdad** | El primero sale el **1 de octubre**. Hasta entonces la cadencia está probada en la lógica, no en un correo recibido. Para no esperar: `ejecutarAhora({ forzar: true })` |
 | **El correo AGRUPADO de cinco reseñas** | Hace falta que entren cinco reseñas negativas nuevas en una cuenta gratuita. Hoy las 5 alertas están todas notificadas, así que el contador arranca en 0 |
 | **Un cartel IMPRESO** | El QR está medido (0,87 mm por módulo en la etiqueta, el peor caso) pero nadie ha escaneado uno en papel. Es lo que el dueño va a hacer esta semana en el salón de su familiar, y es la única prueba que vale |

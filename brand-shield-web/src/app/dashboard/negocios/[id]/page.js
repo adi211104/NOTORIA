@@ -3537,10 +3537,12 @@ export default function DetallePage() {
                 </div>
               </Card>
 
-              {/* Los carteles van PRIMERO y a todo el ancho: es la única cosa de
-                  esta pantalla que produce reseñas nuevas, y lo que el dueño va a
-                  imprimir el mismo día. El QR suelto de abajo es para quien ya
-                  tiene su propio diseño. */}
+              {/* Los carteles van ANTES que el QR suelto y el mensaje de WhatsApp,
+                  y a todo el ancho de la columna en vez de en la rejilla de dos:
+                  es la única cosa de esta pantalla que produce reseñas nuevas, y
+                  lo que el dueño va a imprimir el mismo día. Encima solo queda el
+                  enlace, que es una línea y es lo que el QR lleva dentro. El QR
+                  suelto de abajo es para quien ya tiene su propio diseño. */}
               <Card>
                 <ST>{t.crecer.cartelTitulo}</ST>
                 <CartelResenas
