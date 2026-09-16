@@ -262,6 +262,9 @@ legal de conservación, y lo correcto es conservar lo justo y disociar el resto.
       **en los dos sitios**.
 - [ ] **Declaración de agosto 2026 — vence el 21/09/2026.** Aquí entra la factura
       de compra del 04/08/2026 en el RCE y su base imponible en la casilla 107.
+      🔴 **En el RVIE hay TRES boletas, no una** (B001-1, -2 y -3, las tres anuladas en
+      agosto): lo esperable es que la propuesta las traiga en 0.00, y si alguna sale con
+      importe **no se acepta**. Detalle en la guía, §8 «Actualización del 16/09».
       ⚠️ **Al abrir la propuesta del RCE, revisar si BCP facturó mantenimiento de
       cuenta, portes o comisiones**: son gasto deducible y normalmente llevan IGV,
       así que dan crédito fiscal, y aparecen solos en la propuesta. Es lo que

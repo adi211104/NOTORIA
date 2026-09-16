@@ -25,9 +25,11 @@ perder el sueño.
 | **`notoria-upload.jks`** + su contraseña | **Dos copias** (2026-09-16): PC del taller (`C:\Users\Taller\notoria-secrets\`, verificada con `keytool`) y PC de casa, con su `keystore.properties`. ⚠️ Si la de casa se jubila, se vuelve a tener una sola | **No hay app que publicar.** La clave de subida de Android no se puede regenerar: habría que crear otra identidad de app. ⚠️ Tras la primera subida a Play, Google App Signing la vuelve recuperable — hoy todavía no |
 | **`SUNAT_CERT_PASSWORD`** | Solo en Railway | El `.p12` se convierte en un archivo inútil: **sin la contraseña no se puede abrir**, y sin abrirlo no se firma ningún comprobante. Habría que tramitar otro Certificado Digital Tributario con SUNAT |
 
-⚠️ **El archivo `certificado.p12` sí tiene dos copias** (`Downloads\certificado.p12` y el
-base64 en Railway), pero *Downloads* es una carpeta que se limpia sola y que vive en una sola
-máquina. Cópialo a donde guardes lo importante.
+✅ **El archivo `certificado.p12` ya NO está en *Downloads*** (comprobado el 2026-09-16: no queda
+ningún `.p12` ahí). Vive en `C:\Users\Taller\notoria-secrets\` y en base64 en Railway.
+⚠️ **Lo que sigue abierto es su CONTRASEÑA**: `SUNAT_CERT_PASSWORD` figura como «solo en Railway»,
+y un certificado sin su contraseña es un archivo inútil. De los dos secretos de nivel 1, es el
+que **no** tiene segunda copia confirmada.
 
 🔴 **Un certificado sin su contraseña no vale nada.** Los dos van juntos o no van.
 
@@ -104,7 +106,9 @@ quedó de 25 caracteres en vez de 24 y devolvía 401 exactamente igual que si es
 ## Lo que hay que hacer, por orden
 
 - [x] Copiar `notoria-upload.jks` y su contraseña fuera de esta PC — hay copia en la PC de casa (2026-09-16)
-- [ ] Copiar `certificado.p12` fuera de *Downloads*, junto con `SUNAT_CERT_PASSWORD`
+- [~] Copiar `certificado.p12` fuera de *Downloads*, junto con `SUNAT_CERT_PASSWORD` — el archivo
+      ya está en `notoria-secrets` (2026-09-16). 🔴 **Falta la contraseña**: guardarla en el gestor
+      de contraseñas, que hoy solo vive en Railway
 - [ ] Guardar `JWT_SECRET` y `PROMO_HASH_SECRET` — no por si se pierden, sino para no tener
       que rotarlos
 - [ ] Guardar `SUNAT_SOL_CLAVE` con la nota de los permisos

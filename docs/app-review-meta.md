@@ -699,6 +699,7 @@ endpoint inexistente y pasaba todas las pruebas.
 - [ ] La cuenta de prueba de §3 sigue funcionando (contraseña y correo de
       `revisormeta@usenotoria.app`, cuya regla de Email Routing existe desde el
       2026-08-20 — sin ella el correo se descarta en silencio)
-- [ ] 📅 **Antes del 5 de octubre de 2026**: vence la renovación anual de acceso a
-      datos de Meta. Si se pasa, se pierde el acceso a las APIs, y eso NO depende
-      del App Review
+- [x] 📅 ~~**Antes del 5 de octubre de 2026**: vence la renovación anual de acceso a
+      datos de Meta.~~ **Hecha el 2026-08-06**: *Data access renewal* y *Submit Data Use
+      Checkup* figuran en **Completed** (CLAUDE.md §19 A). El 5 de octubre era la fecha
+      límite, ya cumplida. La próxima vence dentro de un año: mirar el panel en julio de 2027

@@ -66,7 +66,7 @@ quince minutos.
 
 | | **Julio 2026** (vence 24/08) | **Agosto 2026** (vence 21/09) |
 |---|---|---|
-| RVIE | Sin operaciones | **Boleta B001-1, anulada** — la propuesta ya la trae en 0.00 |
+| RVIE | Sin operaciones | **Tres boletas (B001-1, -2 y -3), las tres anuladas** — ver §8, «Actualización del 16/09» |
 | RCE | **Sin operaciones** | **Factura de compra del 04/08/2026** |
 | 621 casilla 100 | 0 | 0 |
 | 621 casilla 107 | 0 | Base imponible de la factura |
@@ -321,6 +321,35 @@ anulado no puede desaparecer del registro— y suma cero, que es lo correcto.
 **Lo que sí habrá que revisar en septiembre es el RCE**, donde debe aparecer la factura
 de compra del 04/08/2026 (y los gastos bancarios, §4.2-bis). Ese es el motivo por el que
 agosto es de presentación obligatoria: hay adquisición anotada (§2).
+
+### 🔴 Actualización del 16/09/2026 — agosto NO tiene una boleta, tiene TRES
+
+La foto de arriba es del **24/08**, y después de esa fecha se emitieron **dos boletas más en
+agosto** (las pruebas de cobro del plan Impulso). Leído en la base de producción el 16/09:
+
+| Boleta | Emitida (hora de Lima) | Importe | Informada en | Anulada en | Estado |
+|---|---|---|---|---|---|
+| B001-00000001 | 23/08/2026 | S/1.00 | `RC-20260823-1` | `RC-20260823-2` | **ANULADO** |
+| B001-00000002 | 28/08/2026 | S/14.50 | `RC-20260828-1` | `RC-20260828-2` | **ANULADO** |
+| B001-00000003 | 29/08/2026 | S/14.50 | `RC-20260830-1` | `RC-20260830-2` | **ANULADO** |
+
+Los seis resúmenes están **aceptados con código 0**, y se comprobó leyendo su XML firmado que
+cada par es exactamente lo que dice: el primero lleva la boleta en **estado 1** (adición) y el
+segundo en **estado 3** (anulación). Las tres anulaciones se hicieron **dentro de agosto**.
+
+**Qué esperar, entonces, en la propuesta del RVIE de agosto:** **tres** boletas de la serie
+B001, las tres con **BI Gravada 0.00 e IGV 0.00**. La primera ya se vio así el 24/08; las otras
+dos se anularon por el mismo camino, así que lo esperable es que salgan igual — pero **eso no
+está visto todavía**, porque mirar el portal exige la sesión SOL.
+
+- ✅ **Si salen las tres en 0.00:** se acepta la propuesta tal cual, igual que se previó para la
+  primera. Las ventas de agosto suman cero y la casilla 100 del 621 va en 0.
+- 🔴 **Si alguna sale con importe:** **no aceptar la propuesta.** Significa que esa anulación no
+  se propagó al SIRE, y declararla con importe sería declarar una venta que se devolvió. Es
+  pregunta para el contador antes del 21/09, con los identificadores de la tabla a mano.
+
+⏰ **La propuesta de agosto se puede aceptar desde el 08/09** (octavo día calendario, §4) y
+**vence el lunes 21/09**. No esperar al último día.
 
 ### ⚠️ Un resultado que vi y no puedo explicar del todo
 

@@ -142,9 +142,9 @@ SUNAT_EMISION_ACTIVA=true                   # ENCENDIDO en producción desde el 
 NEXT_PUBLIC_API_URL
 NEXT_PUBLIC_GOOGLE_CLIENT_ID
 NEXT_PUBLIC_CULQI_PUBLIC_KEY     # Vercel: pk_live_. Se incrusta EN EL BUILD → exige `vercel --prod`
-NEXT_PUBLIC_WHATSAPP_VENTAS       # 🔴 YA NO SE LEE desde el 2026-09-16. Queda huérfana en
-                                  # Vercel con el número VIEJO. El del botón flotante sale
-                                  # ahora de `src/lib/contacto.js`, la misma fuente que el pie
+# NEXT_PUBLIC_WHATSAPP_VENTAS     ← RETIRADA el 2026-09-16: ya no se lee y se borró de Vercel.
+                                  # El número del botón flotante sale de `src/lib/contacto.js`,
+                                  # la misma fuente que el pie. Si reaparece, es una 2.ª copia
 ```
 
 **Auditoría de variables (2026-08-19).** Se cruzaron las 49 que lee `src/` contra las 49
@@ -477,7 +477,7 @@ los logs del servidor y en un cambio observable en la salida.
 | **Facebook Reviews** | ✅ **Terminado el 2026-08-23 y OCULTO tras interruptor** (`lib/facebookVisible.js`, gemelo del de Instagram): scraper con `recommendation_type`, ruta de conexión, callback propio, desconexión, aviso por reseña negativa y fila en el panel. Sigue invisible hasta que Meta conceda **`pages_read_user_content`** (segunda solicitud, §19 A). ⚠️ Antes de encenderlo: **una llamada real contra una página con reseñas** |
 | **TripAdvisor** | Solo base preparada a propósito (scraper + campos en schema + enum `TRIPADVISOR`). Sin ruta de conexión, sin cableado en el worker, sin UI. Decisión de negocio: activar cuando haya masa de hoteles |
 | **SUNAT** | ✅ Emisión **ENCENDIDA** en producción |
-| **WhatsApp / Telegram** | ❌ Eliminados como canal de alerta. WhatsApp sigue vivo solo como contacto comercial (botón de ventas, `/contacto`) |
+| **WhatsApp / Telegram** | ❌ Eliminados como canal de alerta. WhatsApp sigue vivo solo como contacto comercial (botón de ventas, `/contacto`): **+51 916 383 038** desde el 2026-09-16, un WhatsApp Business con **saludo automático**. El número sale de `src/lib/contacto.js` — ver «📌 2026-09-16» |
 
 **Infraestructura:** Railway (`notoria-api`, servicio `api` + Postgres), Vercel
 (`notoria-web`), DNS en Cloudflare en "DNS only". Dominio verificado en Resend. Search
@@ -776,8 +776,10 @@ general y de contacto, información legal, **Libro de Reclamaciones integrado en
 enlaces externos), mínimo 5 productos con foto + descripción + precio visible, botón de
 comprar, y **SSL en todas las URLs**. De ahí salieron `/precios` (5 ítems: Gratuito, y
 Negocio y Franquicia en sus dos modalidades de cobro), `/libro-reclamaciones`,
-`/devoluciones`, `/contacto` y `components/PieLegal.js` — que es la **fuente única de los
-datos de contacto públicos** (`CONTACTO`).
+`/devoluciones`, `/contacto` y `components/PieLegal.js`. La **fuente única de los datos de
+contacto públicos** (`CONTACTO`) es **`src/lib/contacto.js`** desde el 2026-09-16 —antes vivía
+dentro de `PieLegal.js`, que la sigue re-exportando— porque también la lee el botón flotante de
+WhatsApp, que es componente de cliente.
 
 ### 8.2 TikTok — Accounts API (completo)
 
@@ -1415,8 +1417,9 @@ tienen disparador — no hay ninguna acción en el producto que anule un comprob
 **Cambiar el domicilio fiscal — los DOS sitios que hay que tocar, y en qué orden.**
 Desde el 2026-08-22 el domicilio vive en dos únicos lugares: `DOMICILIO_FICHA_RUC` en
 `lib/tributario.js` (los cinco campos que van al XML) y `CONTACTO` en
-`components/PieLegal.js` (del que ahora tiran también Términos y Privacidad, que antes lo
-tenían copiado). El README y este archivo son documentación y van detrás.
+`brand-shield-web/src/lib/contacto.js` (del que tiran el pie, Términos, Privacidad y el botón de
+WhatsApp; hasta el 2026-09-16 vivía dentro de `PieLegal.js`). El README y este archivo son
+documentación y van detrás.
 
 🔴 **Los cinco campos del domicilio son todo o nada.** `ublInvoice.js` manda calle, ubigeo,
 distrito, provincia y departamento al mismo bloque y SUNAT los contrasta contra la ficha RUC.
@@ -2434,7 +2437,7 @@ domicilio fiscal — en una E.I.R.L., normalmente una casa.
 | Comprobantes | **Se queda** (obligatorio, y van al cliente que compró) |
 
 ⚠️ La **dirección** se dejó en el pie a propósito: es justo lo que Culqi exigió ver al
-observar la web. La regla está anotada en `components/PieLegal.js`.
+observar la web. La regla está anotada en `src/lib/contacto.js` (hasta el 2026-09-16, en `PieLegal.js`).
 ✅ **Decidido el 2026-08-22: el domicilio fiscal se queda como está, y esto NO es un
 pendiente.** La ficha RUC de SUNAT es pública y hoy es una casa particular, así que quien
 busque el RUC —que sigue en Términos, Privacidad, Libro de Reclamaciones y comprobantes,
@@ -2977,7 +2980,138 @@ primer intento y funcionó en el segundo sin tocar nada.** NO era el bloqueo por
 31/08, y la forma de saberlo es que **no se creó ningún deployment**: el de aquel día quedaba
 registrado en estado `BLOCKED` con su `errorMessage`. Si vuelve a pasar, mirar la lista de
 deployments antes de perseguir la identidad de git.
+### 📌 2026-09-16 — número nuevo de WhatsApp, los dos bugs de la app, y la sincronía de todo
+
+Se empezó cambiando un número y se acabó repasando todos los pendientes. Cada cosa está
+desarrollada en su sección; esto es el resumen.
+
+**El número de la empresa pasa a +51 916 383 038**, y se aprovechó para quitarle una **segunda
+copia**. Vivía en `CONTACTO` (el pie, contacto, devoluciones) **y** en la variable
+`NEXT_PUBLIC_WHATSAPP_VENTAS` de Vercel (el botón flotante, que es el que de verdad usa el
+cliente). Esa variable nació como interruptor mientras no había número; decidido el número, pasó
+a ser una copia del dato, y cambiar uno sin el otro **no falla**: el pie anuncia el nuevo y el
+botón sigue mandando al viejo. Ahora los dos leen **`brand-shield-web/src/lib/contacto.js`** y la
+variable se borró de Vercel.
+- ✅ **Verificado en producción, no por el «SUCCESS»:** el `href` del botón en el HTML servido es
+  `wa.me/51916383038?text=…`, el número viejo tiene **cero** apariciones en los chunks del landing,
+  y en el navegador el botón se ve y apunta ahí.
+- ⚠️ **Tres menciones del número viejo se dejaron a propósito** (la ficha de Google el 27/08, la
+  sonda de Places y los datos de la Organization account el 30/08): son actas de lo que se observó
+  o envió en esa fecha, y reescribirlas haría que el documento afirme cosas falsas.
+- ✅ **El dueño cambió el número en la ficha de Google el mismo día.** ⚠️ Editar una ficha
+  verificada puede mandarla a revisión: **antes de reenviar la solicitud de GBP el 16/10,
+  comprobar que sigue «Verificada»**.
+
+**El saludo automático de WhatsApp Business NO se cruza con el mensaje predeterminado de la web.**
+El `?text=` de `wa.me` solo **escribe** el mensaje en la caja; el saludo se dispara cuando el
+cliente **envía** su primer mensaje. El orden es siempre: su mensaje, luego el saludo — el
+predeterminado nunca se pierde, y sigue diciendo de dónde viene el prospecto.
+- ⚠️ **Lo que sí roza es la redacción.** Un saludo de apertura en frío («¿en qué podemos
+  ayudarte?») llega justo después de que el cliente explicó lo que quiere, y parece que nadie lo
+  leyó. Conviene que **acuse recibo y fije el tiempo de respuesta**, con el **mismo horario que la
+  web** (lunes a viernes, 9:00–18:00).
+- El saludo solo sale **una vez cada 14 días** por contacto: no poner ahí nada esencial. Y hace
+  falta el **mensaje de ausencia** para quien escribe fuera de horario.
+- La única prueba que vale es **desde otro teléfono**, pulsando el botón real.
+
+**Los dos bugs de la app, arreglados y compilados** (detalle en §19 «Bugs abiertos» y en
+`NotoriaApp/PENDIENTES.md`): la pantalla de Alertas leía el lote en crudo y al guardar lo
+deshacía, y el cartel prometía «Reseñas verificadas». `assembleDebug` → **BUILD SUCCESSFUL**.
+⏳ Falta verlo en el teléfono, y **el dueño lo dejó para el final**.
+
+**Tres afirmaciones de este archivo eran falsas, y ahora dicen lo que es:**
+
+| Decía | Es |
+|---|---|
+| La PC del taller no tiene JDK ni Android SDK (desde el 30/08) | Están en `dev-tools/` desde el 05/09. `keytool` y `adb` responden, y el keystore se verificó con el `keytool` real |
+| `RC-20260828-2` es un resumen vacío | Es la **anulación** de B001-00000002, leído en su XML firmado |
+| Agosto tiene una sola boleta (guía tributaria, 24/08) | Tiene **tres**, las tres anuladas en agosto. La declaración vence el **lunes 21/09** — ver `docs/obligaciones-tributarias-mensuales.md` §8 |
+
+⚠️ **La primera repite la lección del 09/09 con `next build`, y la tercera es la más cara:** un
+estado escrito un día y no revisado después se sigue leyendo con la misma confianza. La del JDK
+duró **17 días**, y el dato correcto estaba escrito **en el otro repo**.
+
+**Sincronía de los dos repos.**
+- 🔴 **`NotoriaApp` tenía 37 KB de código sin commitear** —los carteles QR de Android, terminados
+  y probados en el teléfono el 06/09— más un commit sin subir. Existían **solo en el disco de
+  esta PC**. Subidos.
+- 🔴 **Y firmaba los commits con `padkar4@gmail.com`**: el `git config --local` del 31/08 solo
+  había arreglado Vigilio (§4). Corregido.
+- Los dos worktrees de Claude Code (ya fusionados y sin cambios) se borraron, igual que sus tres
+  ramas locales y las dos de GitHub. Los dos repos quedan con **solo `main`**, en sync y limpios.
+  ⚠️ **No era limpieza cosmética:** un `vercel --prod` lanzado desde uno de esos worktrees habría
+  desplegado su árbol viejo —con el número anterior— sin avisar.
+
+**Lo que se verificó con el navegador** (sesión arrancada con `--chrome`):
+- ✅ **El bloque de carteles del panel**, en escritorio y en móvil: el primer pendiente de la lista
+  «sin mirar» del 09/09. Sin fallos (§19).
+- ✅ **21 reseñas nuevas desde el 09/09 y alertas quietas en 5: es lo correcto**, porque ninguna
+  era de ≤2★.
+
+**Respaldo del día** verificado: 2453 filas, 0 que se perderían.
+**`notoria-upload.jks`: dos copias** (taller y casa) — cerrado.
+🔴 **Queda abierto su gemelo de nivel 1: `SUNAT_CERT_PASSWORD` solo vive en Railway**
+(`docs/secretos.md`).
+
+| Suites | `prueba-prefs-correo` **96** · `prueba-planes` 124 · `prueba-alertas-resena` 35 · `prueba-correos-idioma` 53 · `prueba-cartel` 100 — todas en verde |
+|---|---|
+| Frontend | desplegado y comprobado por el `href` real del botón en producción |
+| App | `assembleDebug` BUILD SUCCESSFUL, APK de 15,2 MB, **sin instalar** |
+
 ## 19. Pendientes, ordenados por quién los desbloquea
+
+> ### 📋 VIGENTES al 2026-09-16 — empezar por acá
+>
+> Todo lo de abajo de esta caja es historia con su detalle. **Esto es lo que sigue abierto**,
+> consolidado a mano cruzando este archivo, `README.md`, `docs/secretos.md`,
+> `docs/obligaciones-tributarias-mensuales.md`, `docs/app-review-meta.md`,
+> `docs/acceso-gbp-organization.md` y `NotoriaApp/PENDIENTES.md`. ⚠️ **Al cerrar algo, tacharlo
+> AQUÍ y en su documento**: un pendiente cerrado en un solo sitio es lo que dio por pendiente un
+> RVIE ya presentado el 24/08.
+>
+> **Con fecha**
+> | Cuándo | Qué | Quién |
+> |---|---|---|
+> | 🔴 **lun 21/09** | **Declaración de agosto**: RVIE (**3 boletas, deben salir en 0.00** — si alguna trae importe, no aceptar), RCE (factura del 04/08 + gastos del BCP) y 621. Ya se puede presentar | Dueño |
+> | jue 01/10 | Sale solo el **primer resumen mensual**: comprobar que llega y que cuenta 30 días | Mirar |
+> | vie 16/10 | **Reenviar la solicitud de GBP** desde `usenotoria@`, con `https://usenotoria.app/` exacto. Antes: la ficha sigue «Verificada» | Dueño |
+> | jue 22/10 | Declaración de setiembre (RVIE → RCE → 621) | Dueño |
+> | 2027 | Declaración Anual de Renta 2026 | Dueño + contador |
+>
+> **Solo el dueño**
+> - 🔴 **Guardar `SUNAT_CERT_PASSWORD` fuera de Railway.** Nivel 1: sin ella el `.p12` no sirve.
+> - Guardar `JWT_SECRET`, `PROMO_HASH_SECRET` y `SUNAT_SOL_CLAVE` (con la nota de sus permisos).
+> - Guardar el **PDF de la Constancia de Presentación de julio**.
+> - **WhatsApp Business**: redactar el saludo para que acuse recibo y dé el horario de la web,
+>   activar el mensaje de ausencia, y probar el botón **desde otro teléfono**.
+> - **Imprimir un cartel y escanearlo** — sobre todo la etiqueta de 7 cm.
+> - **Screencasts de Meta** (Toma A grabable; la B necesita una página con reseñas) y enviar la
+>   2.ª solicitud (`docs/app-review-meta.md` §8.5).
+> - **Contador**: IGV por servicios de no domiciliados (Railway, Vercel, Groq), criterio de IGV y
+>   exportación. **PLE + Libro Diario simplificado** (aún sin afiliar; atraso máximo 3 meses).
+> - **Google Cloud al correo de la empresa**: agregarlo como propietario ANTES de quitar el personal.
+>
+> **Cobros que nunca se han ejercitado con dinero real**
+> - Alta **con locales adicionales** y, sobre todo, **su renovación** del mes siguiente.
+> - **Sumar un local a mitad de periodo** (§8.8) — exige una suscripción NEGOCIO o FRANQUICIA con
+>   tarjeta guardada, que hoy no existe.
+>
+> **Esperando a terceros** — Google (16/10) · Meta `pages_read_user_content` → `FACEBOOK_ACTIVO` ·
+> la forma de un `Recommendation` real de Facebook (falta una página con reseñas).
+>
+> **Decisiones de negocio** — proveedor de menciones de TikTok (~US$100/mes) · TripAdvisor ·
+> **publicar en Play** (aplazado: cuenta personal u organización, US$25, ficha, formulario, y 12
+> testers × 14 días si es personal).
+>
+> **App — al final, por decisión del dueño (2026-09-16)**
+> - Instalar el APK por USB y ver Alertas con una cuenta GRATIS: el agrupado arranca encendido y
+>   guardar no lo apaga.
+> - El **parte semanal para el equipo** en la app (el endpoint ya está en producción).
+> - Sin ejercitar: la notificación con una alerta real, el PDF del comprobante, cancelar la
+>   renovación y aplicar locales desde la app.
+>
+> **Programable sin nadie: nada pendiente.** Lo único sería forzar el resumen mensual antes del
+> 01/10, y manda correo de verdad, así que espera al OK del dueño.
 
 > ### Lo que queda por programar (2026-08-30)
 >
@@ -3543,8 +3677,13 @@ flujo entero.
 > ⚠️ El webhook de Culqi ya había puesto `suscripcionActiva: false` por su cuenta — se vio en el
 > «antes» que imprime `dar-plan.js`, que salió de comprobación gratuita del webhook.
 >
-> ⚠️ Quedó un **resumen vacío** —`RC-20260828-2`, 0 boletas, enviado y aceptado— como poso de
-> haber forzado dos veces el 28. No rompe nada; es un argumento más para dejar correr el cron.
+> 🔴 ~~Quedó un **resumen vacío** —`RC-20260828-2`, 0 boletas— como poso de haber forzado dos
+> veces el 28.~~ **FALSO, corregido el 2026-09-16 leyendo el XML firmado:** `RC-20260828-2` lleva
+> **B001-00000002 en estado 3**, o sea que es su **anulación**, y está bien. Los seis resúmenes
+> forman tres pares exactos (informa en estado 1, anula en estado 3). El error venía de contar las
+> boletas **enlazadas** al resumen: un resumen de anulación no enlaza comprobantes, así que «0» es
+> lo que da siempre y no significa «vacío». **Para saber qué lleva un resumen, leer su
+> `xmlFirmado`**, no contar relaciones.
 >
 > **Cargos reales de clientes: sigue siendo cero.**
 >

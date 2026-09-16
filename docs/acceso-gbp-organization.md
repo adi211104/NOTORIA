@@ -295,7 +295,15 @@ lo único que quedaría es esperar a cumplir la antigüedad y reenviar.
 - [~] Fase 4 — **no conseguida**: el botón «Request access» de la organización no abre ningún
       diálogo (probado por tres vías). No bloquea: el requisito es *tener* la organización.
 - [x] Fase 5 — solicitud enviada ✅ 2026-08-30 · **caso n.º `6-5952000041022`**
-- [ ] Fase 6 — **acuse recibido (< 1 h), mirando TAMBIÉN en Spam** · cuota revisada a los 7-10 días hábiles
+- [x] Fase 6 — ~~acuse recibido (< 1 h)~~ **Resuelta el 2026-09-08, y no como se esperaba:** no hubo
+      acuse automático; Google contestó directamente con el **rechazo** de los dos casos anteriores, a
+      los 10 y a los 23 días. Motivo: el perfil debe llevar **60 días verificado** (se verificó
+      ~17/08/2026). La Organization account **no** era el bloqueo — sigue creada porque es requisito
+      documentado para un 3P. Detalle en CLAUDE.md §19 A
+- [ ] **Fase 7 — reenviar el 16 de octubre de 2026, no antes**, desde `usenotoria@gmail.com`, con la
+      URL **exacta** de la ficha (`https://usenotoria.app/`, con barra final). Antes, comprobar que el
+      perfil sigue **Verificado**: el 2026-09-16 se le cambió el teléfono, y editar una ficha
+      verificada puede mandarla a revisión unos días
 
 **Casos anteriores, para no confundirlos:** `3-5553000040900` (16/08) y `0-4623000041642` (29/08).
 Ninguno de los dos produjo acuse.
