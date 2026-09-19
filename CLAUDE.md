@@ -3132,6 +3132,106 @@ lleva al negocio correcto y a la pantalla equivocada, que es la forma que nadie 
 ⚠️ **Aviso nuevo de Railway, sin urgencia:** `railway.json` queda deprecado el **2026-12-01** a
 favor de `.railway/railway.ts` (`railway config migrate`). Sigue funcionando hasta entonces.
 
+### 🔴 2026-09-19 — LA ECONOMÍA DEL PLAN GRATUITO, medida por primera vez
+
+El dueño preguntó lo que nadie había calculado: **¿cuánto cuesta una cuenta gratuita y aguanta
+el negocio regalarlas?** §8.7 medía el costo de Places por **local de Franquicia**, nunca por
+cuenta gratuita. Esto lo cierra con datos de producción.
+
+**El modelo de costo, y cómo se validó.** Places legacy por millar: Basic $17 · Atmosphere
+(reseñas) $5 · Contact $3. Un escaneo de negocio pide `reviews,rating,user_ratings_total,
+business_status,name` = **$0.022**; con Contact Data (solo planes de pago, y `tocaLeerContacto`
+lo limita a **una vez al día**) = $0.025. Un competidor es Basic solo = **$0.017**.
+🔑 **El modelo escupe $23.58/mes para un local de Franquicia, que es EXACTAMENTE la cifra que
+§8.7 midió por otra vía.** Esa coincidencia es lo que hace creíble el resto de la tabla.
+
+| Plan | Escaneos/mes | Places S//mes | Neto s/IGV | Margen bruto | % |
+|---|---|---|---|---|---|
+| **GRATIS** | 30 | **S/4.39** | S/0 | **−S/4.39** | — |
+| IMPULSO | 60 | S/11.03 | S/24.58 | S/13.55 | 55% |
+| NEGOCIO | 180 | S/24.75 | S/50.00 | S/25.25 | 50% |
+| FRANQUICIA | 720 | S/88.43 | S/151.69 | S/63.27 | **42%** |
+
+🔴 **Primer hallazgo: el margen BAJA según sube el precio** (55% → 50% → 42%). La cadencia
+escala linealmente con el precio y el valor no: nadie mira su rating cada hora, y el propio
+§8.7 ya lo dice de los competidores. **El plan más caro es el menos rentable en porcentaje.**
+
+🔴 **Segundo hallazgo, y es el que decide: con el plan Gratuito de hoy, el negocio no cierra a
+ninguna conversión realista.**
+
+| Si el que paga es… | Conversión necesaria solo para no perder dinero | A 3% (típico en SaaS freemium) |
+|---|---|---|
+| IMPULSO | **24,5%** | **−S/385 por cada 100 altas** |
+| NEGOCIO | 14,8% | −S/350 |
+| FRANQUICIA | 6,5% | −S/236 |
+
+Y eso es **antes** de la comisión de Culqi, de Railway/Vercel y de cualquier gasto de campaña.
+
+🔴 **Tercer hallazgo, medido: las 4 cuentas gratuitas con negocio activo son ZOMBIS.** Ninguna
+tocó el botón en 33 días, ninguna leyó una alerta, dos ni verificaron el correo, y tres tienen
+76-77 días de antigüedad. **Siguen costando S/4.39 al mes cada una, para siempre, y no hay
+ningún mecanismo que las pare.** Hoy son S/10 al mes; con mil altas son S/4 400 al mes sin un
+sol de ingreso. **El problema no es el importe, es que la estructura no tiene freno.**
+
+⚠️ **Y no se puede ni detectar: `Usuario` NO tiene campo de último acceso.** No hay forma de
+saber si una cuenta gratuita sigue viva. Los únicos indicios son `Negocio.ultimoEscaneo` (que es
+el reloj del botón manual) y `Alerta.leida`.
+
+### Las tres palancas, ordenadas por lo que cuestan y lo que devuelven
+
+**1. Competidores cada 7 días en vez de cada 24 h.** La más barata y la única invisible:
+
+| | Hoy | Con comp. semanal |
+|---|---|---|
+| IMPULSO | 55% | **75%** |
+| NEGOCIO | 50% | **67%** |
+| FRANQUICIA | 42% | **58%** |
+| GRATIS | S/4.39 | **S/2.73** |
+
+🔑 **No rompe ninguna promesa publicada: el catálogo promete CUÁNTOS competidores, nunca con qué
+frecuencia se releen** (comprobado en `lib/catalogo.js` y `web/src/lib/planes.js`). Y §13 ya
+midió que un rating de competidor **no se mueve en un mes** (4.8→4.8, 3.9→3.9, 4.0→4.0). Releer
+cada día algo que cambia cada trimestre es 30× más de lo que el dato justifica.
+
+**2. Dormir las cuentas gratuitas abandonadas.** Exige una columna nueva
+(`Usuario.ultimoAcceso DateTime?`, aditiva y con default, o sea la vía corta de §4) y un corte
+en `negociosVigilables` — el gemelo exacto del corte por antigüedad que ya existe para los
+asientos del equipo y para los locales.
+
+| Costo de una alta gratuita | |
+|---|---|
+| Mes 1 (24 h, competidor semanal) | S/2.73 |
+| Activa mes 2+ (72 h) | S/1.08 |
+| **Dormida** | **S/0.00** |
+| **12 meses, hoy** | **S/52.65** |
+| **12 meses, propuesto** (70% duerme) | **S/6.29 → −88%** |
+
+⚠️ **Si se hace, HAY QUE DECIRLO en `/precios`.** «El plan gratuito se pausa a los 30 días sin
+entrar y se reanuda al volver» es la regla de §15 aplicada al revés: lo que el worker **deja**
+de ejecutar tampoco puede seguir prometiéndose. Bien contado además **vende**: es un motivo para
+pagar, no una letra chica.
+⚠️ Y el correo de aviso antes de dormir es, de paso, un correo de reactivación — o sea que la
+palanca de costo y la de conversión son la misma.
+
+**3. FRANQUICIA de 1 h a 2 h.** Sigue siendo 12× el plan gratuito. Con las tres juntas el margen
+pasa de **42% a 78%** (costo S/88.43 → S/33.86).
+🔴 **Esta es la única que cambia una promesa publicada**, así que **solo es gratis hacerla
+AHORA**: con cero clientes de pago no se le quita nada a nadie. Después del primer suscriptor es
+degradar algo que compró.
+
+**Lo que compran las tres juntas:**
+
+| Si el que paga es… | Conversión de equilibrio, antes → después | A 3%, por 100 altas |
+|---|---|---|
+| IMPULSO | 24,5% → **2,8%** | −S/385 → **+S/5** |
+| NEGOCIO | 14,8% → **1,5%** | −S/350 → **+S/50** |
+| FRANQUICIA | 6,5% → **0,4%** | −S/236 → **+S/303** |
+
+⚠️ **Lo que este análisis NO cubre, y hace falta para decir «rentable» de verdad:** la comisión
+de Culqi por transacción, el costo real de Railway y Vercel (fijos, hoy los únicos que se pagan)
+y el de Groq. Los tres salen de facturas que tiene el dueño, no del código. Lo de arriba es
+**margen bruto sobre el único costo variable**, que es lo que escala con cada cliente.
+
 ### 🔴 Lo que este día corrige de `propuesta.md`, que se verificó contra el código
 
 El documento es sólido, pero **cinco afirmaciones no resisten la comprobación**, y dos cambian la
