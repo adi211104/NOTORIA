@@ -82,7 +82,7 @@ export const PLANES = {
     id: 'FRANQUICIA',
     es: 'Franquicia', en: 'Franchise',
     esDePago: true,
-    negocios: 1, horasEscaneo: 1, iaSemanal: 300, competidores: 15, asientos: 10,
+    negocios: 1, horasEscaneo: 2, iaSemanal: 300, competidores: 15, asientos: 10,
     localesAdicionales: true,
     vigilanciaFicha: true,
     reporteMensual: true,

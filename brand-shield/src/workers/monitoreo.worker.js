@@ -397,7 +397,31 @@ const obtenerFichaGoogleCompartida = async (placeId, conContacto, cache) => {
 //
 // El reloj es la fecha del ÚLTIMO `SnapshotCompetidor`, no una columna nueva —
 // el mismo criterio con el que el cron dejó de depender de `ultimoEscaneo`.
-const HORAS_COMPETIDOR = 24;
+//
+// ── 2026-09-19: de 24 h a 7 DÍAS, y el argumento de arriba llevado hasta el final
+//
+// Todo lo que dice el párrafo anterior sobre las 24 h vale igual —y más— para la
+// semana: lo que se hace con estos datos es comparar MES contra mes. Y ya no es
+// una intuición, está medido: §13 leyó los cinco negocios más antiguos con 49
+// días de datos reales y sus ratings daban **4.8→4.8, 3.9→3.9, 4.0→4.0, 4.5→4.5**.
+// Un rating de competidor no se mueve en un mes. Releerlo cada día era pedir 30
+// veces un número que cambia cada trimestre.
+//
+// 🔑 Y no rompe ninguna promesa publicada: el catálogo promete CUÁNTOS
+// competidores se vigilan, nunca con qué frecuencia se releen (comprobado en
+// `web/src/lib/catalogo.js` y `web/src/lib/planes.js`). Es la única palanca de
+// costo del producto que es literalmente invisible para el cliente.
+//
+// Lo que cambia en la factura, medido: el margen bruto pasa de 55→75% en
+// IMPULSO, 50→67% en NEGOCIO y 42→58% en FRANQUICIA, porque con la cadencia
+// alta el competidor era el costo DOMINANTE: 15 rivales × 30 lecturas al mes
+// eran más consultas que el propio negocio vigilado.
+//
+// ⚠️ El efecto secundario vuelve a ser una mejora, por el mismo motivo que en el
+// párrafo de arriba: el delta que enseña la ficha del rival pasa de un día a una
+// semana, y una semana es un intervalo en el que un rating puede moverse de
+// verdad. Un delta que casi siempre da cero es ruido que ocupa sitio.
+const HORAS_COMPETIDOR = 24 * 7;
 
 // Un competidor NO paga su propia consulta si esa ficha ya se pidió en el ciclo.
 //

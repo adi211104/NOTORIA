@@ -132,8 +132,12 @@ const correr = async () => {
   // ══ 5. La cadencia del competidor ═══════════════════════
   bloque('5. La cadencia propia del competidor');
 
-  check(`HORAS_COMPETIDOR es 24 y no la del plan del dueño`,
-    HORAS_COMPETIDOR === 24, `es ${HORAS_COMPETIDOR}`);
+  // 2026-09-19: pasó de 24 h a 7 días. Lo que esta comprobación protege no es el
+  // número sino que NO sea la del plan del dueño: si alguien la ata a
+  // `horasEscaneo`, FRANQUICIA vuelve a releer 15 rivales cada hora y la factura
+  // se dispara sin que falle absolutamente nada.
+  check(`HORAS_COMPETIDOR es 168 (7 días) y no la del plan del dueño`,
+    HORAS_COMPETIDOR === 168, `es ${HORAS_COMPETIDOR}`);
 
   // La decisión que toma el worker, replicada acá: se relee si la última lectura
   // es más vieja que el corte, o si nunca hubo ninguna.
@@ -148,8 +152,15 @@ const correr = async () => {
     !tocaCompetidor(new Date(ahora - 1 * HORA), ahora));
   check('leído hace 23 h → todavía no',
     !tocaCompetidor(new Date(ahora - 23 * HORA), ahora));
-  check('leído hace 25 h → toca',
-    tocaCompetidor(new Date(ahora - 25 * HORA), ahora));
+  // 🔴 El control del cambio del 19/09: con la cadencia vieja esta comprobación
+  // decía lo contrario («hace 25 h → toca»). Si alguien vuelve a poner 24, ésta
+  // se pone en rojo — que es exactamente lo que tiene que pasar.
+  check('leído hace 25 h → TODAVÍA NO (antes del 2026-09-19 sí tocaba)',
+    !tocaCompetidor(new Date(ahora - 25 * HORA), ahora));
+  check('leído hace 6 días → todavía no',
+    !tocaCompetidor(new Date(ahora - 6 * 24 * HORA), ahora));
+  check('leído hace 8 días → toca',
+    tocaCompetidor(new Date(ahora - 8 * 24 * HORA), ahora));
 
   // ══ 6. El acelerador de Contact Data ════════════════════
   bloque('6. Contact Data se pide una vez al día, no en cada escaneo');
@@ -206,15 +217,47 @@ const correr = async () => {
   const USD_RIVAL = 0.017;              // Basic 17
   const escaneosMes = 720;              // cada hora
 
-  const antesUSD = escaneosMes * USD_FICHA_CON_CONTACTO + 15 * escaneosMes * USD_RIVAL;
-  const ahoraUSD = (escaneosMes - 30) * USD_FICHA + 30 * USD_FICHA_CON_CONTACTO + 15 * 30 * USD_RIVAL;
+  const ficha = (esc) => (esc - 30) * USD_FICHA + 30 * USD_FICHA_CON_CONTACTO;
+  const rivales = (lecturasMes) => 15 * lecturasMes * USD_RIVAL;
 
-  console.log(`     antes: $${antesUSD.toFixed(2)}/mes   ahora: $${ahoraUSD.toFixed(2)}/mes   ` +
-              `(ingreso del plan ≈ $47.7)`);
-  check('el costo por local baja al menos 7 veces',
-    antesUSD / ahoraUSD >= 7, `bajó ${(antesUSD / ahoraUSD).toFixed(1)}×`);
+  // Julio 2026: sin ningún freno — cada rival a la cadencia del dueño.
+  const v0 = escaneosMes * USD_FICHA_CON_CONTACTO + 15 * escaneosMes * USD_RIVAL;
+  // 2026-08-25: los tres frenos de §8.7 — rival una vez al día, contacto una vez al día.
+  const v1 = ficha(escaneosMes) + rivales(30);
+  // 2026-09-19 (palanca 1): el rival pasa a una vez por SEMANA.
+  const v2 = ficha(escaneosMes) + rivales(30 / 7);
+  // 2026-09-19 (palanca 3): y la cadencia de FRANQUICIA baja de 1 h a 2 h.
+  const v3 = ficha(360) + rivales(30 / 7);
+
+  console.log(`     sin frenos (jul):        $${v0.toFixed(2)}/mes`);
+  console.log(`     tres frenos (25/08):     $${v1.toFixed(2)}/mes`);
+  console.log(`     rival semanal (19/09):   $${v2.toFixed(2)}/mes`);
+  console.log(`     + cadencia 2 h (19/09):  $${v3.toFixed(2)}/mes   (ingreso del plan ≈ $47.7)`);
+
+  check('el costo por local baja al menos 7 veces respecto a julio',
+    v0 / v1 >= 7, `bajó ${(v0 / v1).toFixed(1)}×`);
   check('y UN local de Franquicia deja margen',
-    ahoraUSD < 47.7, `cuesta $${ahoraUSD.toFixed(2)}`);
+    v1 < 47.7, `cuesta $${v1.toFixed(2)}`);
+  // 🔴 Dónde MUERDE de verdad la lectura diaria del rival: NO en FRANQUICIA
+  // —ahí manda la ficha, 720 escaneos contra 15 rivales— sino en los planes de
+  // cadencia baja, que son los que se van a vender por volumen. En IMPULSO los
+  // rivales costaban MÁS que el propio negocio vigilado: se pagaba más por mirar
+  // al vecino que al cliente que paga.
+  //
+  // ⚠️ La primera versión de esta comprobación afirmaba eso de FRANQUICIA y salió
+  // en ROJO con razón ($7.65 de rivales contra $15.93 de ficha). Queda escrito
+  // porque es la trampa de siempre: un rojo hay que leerlo antes de "arreglar" el
+  // código — acá lo que estaba mal era la afirmación, no la cadencia.
+  const fichaImpulso = 30 * USD_FICHA + 30 * USD_FICHA_CON_CONTACTO; // 60 escaneos, contacto 1/día
+  const rivalesImpulso = (lect) => 3 * lect * USD_RIVAL;
+  check('en IMPULSO los rivales costaban MÁS que el negocio vigilado',
+    rivalesImpulso(30) > fichaImpulso,
+    `rivales $${rivalesImpulso(30).toFixed(2)} vs ficha $${fichaImpulso.toFixed(2)}`);
+  check('con lectura semanal pasan a ser calderilla',
+    rivalesImpulso(30 / 7) < fichaImpulso / 5,
+    `rivales $${rivalesImpulso(30 / 7).toFixed(2)}`);
+  check('las dos palancas juntas dejan el plan por debajo de un tercio del ingreso',
+    v3 < 47.7 / 3, `cuesta $${v3.toFixed(2)}`);
 
   // ── Resumen ─────────────────────────────────────────────
   console.log(`\n${'─'.repeat(56)}`);

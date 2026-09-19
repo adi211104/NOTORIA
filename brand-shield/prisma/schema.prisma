@@ -16,6 +16,25 @@ model Usuario {
   idioma               String        @default("es") // "es" | "en" — preferencia de idioma (dashboard, PDF, emails)
   googleId             String?       @unique
   emailVerificado      Boolean       @default(false)
+  // La última vez que esta persona ENTRÓ de verdad (login o carga del panel).
+  //
+  // 🔴 Nació el 2026-09-19 y hasta entonces NO HABÍA FORMA de saber si una cuenta
+  // gratuita seguía viva. Medido ese día: las 4 cuentas gratuitas con negocio
+  // activo llevaban 33 días sin tocar nada, 0 alertas leídas y dos de ellas ni
+  // habían verificado el correo — y las 4 seguían costando S/4.39 al mes en
+  // consultas a Places, para siempre, sin ningún mecanismo que las parara. Con
+  // mil altas eso son S/4 400 al mes sin un sol de ingreso.
+  //
+  // Lo lee `lib/dormancia.js`, que decide a quién deja de escanear el worker.
+  //
+  // ⚠️ `null` significa «nunca se registró una entrada», NO «nunca entró»: las
+  // cuentas anteriores a esta columna lo tienen vacío. Por eso `dormancia.js` cae
+  // a `creadoEn` y no las da por dormidas de golpe — si no, el día del despliegue
+  // se habría apagado la vigilancia de TODAS las cuentas gratuitas a la vez.
+  //
+  // ⚠️ Se escribe con throttle (ver `lib/dormancia.js`): sin él, cada carga del
+  // panel sería un UPDATE, y el panel pide el perfil en cada navegación.
+  ultimoAcceso         DateTime?
   tokenVerificacion    String?       @unique
   tokenVerificaExpira  DateTime?
   // Recuperación de contraseña ("olvidé mi contraseña"): token de un solo uso con

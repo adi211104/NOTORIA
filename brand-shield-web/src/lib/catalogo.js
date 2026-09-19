@@ -165,8 +165,8 @@ export const CATALOGO = [
     unidad: 'por mes',
     imagen: 'franquicia',
     descripcion:
-      `Para cadenas y grupos hoteleros: escaneo cada hora y hasta ${MAX_LOCALES_TOTALES} locales en la misma cuenta — se suman de a uno por S/99 al mes cada uno. Incluye 300 usos de IA a la semana, 15 competidores por negocio con descubrimiento automático de rivales cercanos, conexión de TikTok, alertas por email y notificaciones en la app de Android, reporte PDF mensual, todos tus locales en un solo panel, panel compartido con hasta 9 personas más —cada encargado con acceso solo a su sede— y soporte prioritario por correo. Cobro mensual.`,
-    incluye: ['1 local incluido (+S/99 por local extra)', 'Escaneo cada hora', 'Panel para 10 personas', 'Alertas por email y app', 'Todos tus locales en un panel', 'Soporte prioritario'],
+      `Para cadenas y grupos hoteleros: escaneo cada 2 horas y hasta ${MAX_LOCALES_TOTALES} locales en la misma cuenta — se suman de a uno por S/99 al mes cada uno. Incluye 300 usos de IA a la semana, 15 competidores por negocio con descubrimiento automático de rivales cercanos, conexión de TikTok, alertas por email y notificaciones en la app de Android, reporte PDF mensual, todos tus locales en un solo panel, panel compartido con hasta 9 personas más —cada encargado con acceso solo a su sede— y soporte prioritario por correo. Cobro mensual.`,
+    incluye: ['1 local incluido (+S/99 por local extra)', 'Escaneo cada 2 horas', 'Panel para 10 personas', 'Alertas por email y app', 'Todos tus locales en un panel', 'Soporte prioritario'],
     comprable: true,
   },
   {
@@ -178,7 +178,7 @@ export const CATALOGO = [
     unidad: 'por año (equivale a S/143 por mes)',
     imagen: 'franquicia-anual',
     descripcion:
-      `Las mismas prestaciones del Plan Franquicia con pago anual adelantado: escaneo cada hora y hasta ${MAX_LOCALES_TOTALES - 1} locales más (S/948 al año por cada local adicional), 300 usos de IA a la semana, 15 competidores por negocio, panel compartido con hasta 9 personas más y todos tus locales en un solo panel. Un solo cargo al año, con 20% de descuento frente al pago mensual.`,
+      `Las mismas prestaciones del Plan Franquicia con pago anual adelantado: escaneo cada 2 horas y hasta ${MAX_LOCALES_TOTALES - 1} locales más (S/948 al año por cada local adicional), 300 usos de IA a la semana, 15 competidores por negocio, panel compartido con hasta 9 personas más y todos tus locales en un solo panel. Un solo cargo al año, con 20% de descuento frente al pago mensual.`,
     incluye: ['Todo el Plan Franquicia', 'Un solo cargo al año', '20% de ahorro', 'Soporte prioritario'],
     comprable: true,
   },

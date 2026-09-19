@@ -50,6 +50,26 @@ const PLANES = {
     // Límites numéricos
     negocios: 1,
     horasEscaneo: 24,
+    // ── El plan gratuito es un motor de prueba, no un servicio perpetuo ───────
+    //
+    // Los primeros `diasPruebaCompleta` días corre a 24 h —la cadencia entera,
+    // que es la ventana en la que la persona decide si esto le sirve— y después
+    // pasa a `horasEscaneoTrasPrueba`. Sigue vigilando y sigue avisando; lo único
+    // que cambia es cada cuánto mira.
+    //
+    // 🔴 Los dos números viven ACÁ y no en `lib/dormancia.js`, que es quien los
+    // aplica: son límites POR PLAN, y una tabla por plan fuera de este archivo es
+    // exactamente lo que costó los tres fallos silenciosos de IMPULSO (§8.6). Ya
+    // pasó una vez con `loteAvisoResenas`, y lo cazó `prueba-planes.js` el mismo
+    // día en que se escribió.
+    //
+    // ⚠️ Los planes de pago NO los declaran, y `horasEscaneo(usuario)` cae a su
+    // cadencia fija cuando faltan. Quien paga no tiene periodo de prueba.
+    //
+    // ⚠️ Y esto HAY QUE DECIRLO en el catálogo: lo que el worker deja de ejecutar
+    // tampoco se puede seguir prometiendo. Es §15 aplicada al revés.
+    diasPruebaCompleta: 30,
+    horasEscaneoTrasPrueba: 72,
     iaSemanal: 5,
     competidores: 1,
     asientos: 1,
@@ -192,7 +212,27 @@ const PLANES = {
     // el cobro pregunte a la tabla en vez de comprobar `plan === 'FRANQUICIA'`,
     // que es exactamente el patrón que este archivo existe para eliminar.
     localesAdicionales: true,
-    horasEscaneo: 1,
+    // ── 2026-09-19: de 1 h a 2 h ──────────────────────────────────────────────
+    //
+    // Sigue siendo 12× el plan gratuito y 2× el de NEGOCIO, o sea que la escalera
+    // se conserva entera. Lo que cambia es el margen: la cadencia de 1 h era, con
+    // diferencia, el costo variable más grande del producto —720 consultas a
+    // Places al mes por local— y el margen bruto de FRANQUICIA era **el peor de
+    // los tres planes** (42%, contra 55% de IMPULSO), porque la cadencia escala
+    // linealmente con el precio y el valor no. Con 2 h pasa a ~58%, y con la
+    // lectura semanal de competidores del mismo día, a ~78%.
+    //
+    // 🔴 Es la ÚNICA de las tres palancas de costo que toca una promesa
+    // publicada, y por eso se hizo AHORA: con cero clientes de pago no se le
+    // quita nada a nadie. Después del primer suscriptor sería degradarle algo que
+    // compró, y eso no se hace.
+    //
+    // ⚠️ Cambiarla obliga a tocar los textos, que están en cinco sitios más:
+    // el espejo de `web/src/lib/planes.js`, `web/src/lib/catalogo.js` (las dos
+    // descripciones y el array `incluye`), el landing en los DOS idiomas (la
+    // tarjeta, la comparativa y el FAQ) y `Planes.kt` de la app Android, que
+    // tiene su propia copia. `prueba-planes.js` falla si se separan.
+    horasEscaneo: 2,
     iaSemanal: 300,
     competidores: 15,
     asientos: 10,

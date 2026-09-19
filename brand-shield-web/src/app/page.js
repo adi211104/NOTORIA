@@ -206,7 +206,7 @@ const TEXTOS = {
       scoreTitulo:'Y un solo número que lo resume todo',
       scoreDesc:'El score de reputación combina tu rating, el ritmo de reseñas nuevas, cuántas son negativas y cuántas huelen a bot. Lo miras una vez al día y sabes si hay algo que atender.',
       masTitulo:'También incluido en todos los planes',
-      mas:['Historial de rating por escaneo', 'Escaneo programado cada 1, 4, 12 o 24 horas', 'La matemática de tu rating: cuántas reseñas te faltan y cuántas aguantas'],
+      mas:['Historial de rating por escaneo', 'Escaneo programado cada 2, 4, 12 o 24 horas', 'La matemática de tu rating: cuántas reseñas te faltan y cuántas aguantas'],
     },
     precios: {
       tag:'Precios', titulo:'Precios sin sorpresas',
@@ -228,7 +228,7 @@ const TEXTOS = {
           si:['1 local incluido · S/39 por local adicional','Escaneo cada 4 horas','100 usos de IA a la semana (respuestas y análisis)','5 competidores por negocio','Aviso si te cambian el teléfono, el horario o la dirección en Google','Constancia de reputación verificable','Conexión de TikTok (perfil y videos)','Reporte PDF mensual','Boleta o factura electrónica a tu RUC','Comparte el panel con 2 personas más','Alertas por email','Todo lo del plan Gratuito'],
           no:[] },
         { n:'Franquicia', p:179,
-          si:['1 local incluido · S/99 por local adicional','Escaneo cada hora','300 usos de IA a la semana','15 competidores por negocio','Conexión de TikTok (perfil y videos)','Reporte PDF mensual','Comparte el panel con 9 personas más, cada uno solo con su sede','Alertas por email','Soporte prioritario por correo','Todo lo del plan Negocio'],
+          si:['1 local incluido · S/99 por local adicional','Escaneo cada 2 horas','300 usos de IA a la semana','15 competidores por negocio','Conexión de TikTok (perfil y videos)','Reporte PDF mensual','Comparte el panel con 9 personas más, cada uno solo con su sede','Alertas por email','Soporte prioritario por correo','Todo lo del plan Negocio'],
           no:[] },
       ],
     },
@@ -246,7 +246,7 @@ const TEXTOS = {
         { grupo:'Alcance y velocidad de reacción' },
         { label:'Locales incluidos', valores:['1','1','1','1'] },
         { label:'Locales adicionales', valores:['—','—','S/39 c/u','S/99 c/u'] },
-        { label:'Un ataque se detecta en máximo', valores:['24 horas','12 horas','4 horas','1 hora'] },
+        { label:'Un ataque se detecta en máximo', valores:['24 horas','12 horas','4 horas','2 horas'] },
         { label:'Aviso si tu ficha aparece cerrada en Google', valores:[true,true,true,true] },
         { label:'Aviso si te cambian el teléfono, el horario o la dirección en Google', valores:[false,true,true,true] },
         { label:'Constancia de reputación con código verificable', valores:[false,false,true,true] },
@@ -288,7 +288,7 @@ const TEXTOS = {
         // directa». Google no ha concedido acceso a esas APIs, así que las tres
         // eran falsas y la de en medio explicaba cómo hacer algo imposible.
         // Reescritas el 2026-08-25 diciendo lo que el producto sí hace.
-        { q:'¿Por qué solo veo 5 reseñas si mi negocio tiene cientos?', a:'La API pública de Google entrega como máximo las 5 reseñas más recientes por consulta; es un límite de Google, no de Notoria. Por eso Notoria no funciona leyendo tu pasado sino vigilando lo que entra: escanea tu ficha cada 24, 12, 4 o 1 hora según tu plan y guarda cada reseña nueva que aparece. A las pocas semanas tienes muy por encima de cinco, y desde el día que te registras no se te escapa ninguna. Lo que no hacemos es importar hacia atrás las que ya estaban.' },
+        { q:'¿Por qué solo veo 5 reseñas si mi negocio tiene cientos?', a:'La API pública de Google entrega como máximo las 5 reseñas más recientes por consulta; es un límite de Google, no de Notoria. Por eso Notoria no funciona leyendo tu pasado sino vigilando lo que entra: escanea tu ficha cada 24, 12, 4 o 2 horas según tu plan y guarda cada reseña nueva que aparece. A las pocas semanas tienes muy por encima de cinco, y desde el día que te registras no se te escapa ninguna. Lo que no hacemos es importar hacia atrás las que ya estaban.' },
         { q:'¿Qué pasa si alguien cambia los datos de mi ficha en Google?', a:'Google Maps permite que cualquier persona sugiera cambios sobre la ficha de un negocio ajeno —el horario, el teléfono, la dirección, incluso marcarla como cerrada permanentemente— y los aplica sin avisarle al dueño. Notoria compara esos datos en cada escaneo y te avisa el mismo día si algo cambió. El aviso de ficha cerrada está en todos los planes, incluido el Gratuito; el de teléfono, horario, nombre y dirección desde el plan Impulso.' },
         // ⚠️ Esta respuesta empezaba con «Sí» a secas, y la pregunta que hace el
         // cliente es si puede responder SIN SALIR de Notoria. Redactar aquí y
@@ -427,7 +427,7 @@ const TEXTOS = {
       scoreTitulo:'And one number that sums it all up',
       scoreDesc:'The reputation score combines your rating, the pace of new reviews, how many are negative and how many look like bots. Check it once a day and you know whether something needs attention.',
       masTitulo:'Also included in every plan',
-      mas:['Rating history per scan', 'Scheduled scanning every 1, 4, 12 or 24 hours', 'The reason spelled out on every flagged review'],
+      mas:['Rating history per scan', 'Scheduled scanning every 2, 4, 12 or 24 hours', 'The reason spelled out on every flagged review'],
     },
     precios: {
       tag:'Pricing', titulo:'Pricing with no surprises',
@@ -446,7 +446,7 @@ const TEXTOS = {
           si:['1 location included · S/39 per extra location','Scan every 4 hours','100 AI uses per week (replies and analysis)','5 competitors per business','Alert if your phone, hours or address change on Google','Reputation certificate with a verifiable code','TikTok connection (profile and videos)','Monthly PDF report','Automatic electronic invoice (SUNAT)','Share the dashboard with 2 more people','Email alerts','Everything in Free'],
           no:[] },
         { n:'Franchise', p:179,
-          si:['1 location included · S/99 per extra location','Scan every hour','300 AI uses per week','15 competitors per business','TikTok connection (profile and videos)','Monthly PDF report','Share the dashboard with 9 more people, each limited to their location','Email alerts','Priority email support','Everything in Business'],
+          si:['1 location included · S/99 per extra location','Scan every 2 hours','300 AI uses per week','15 competitors per business','TikTok connection (profile and videos)','Monthly PDF report','Share the dashboard with 9 more people, each limited to their location','Email alerts','Priority email support','Everything in Business'],
           no:[] },
       ],
     },
@@ -460,7 +460,7 @@ const TEXTOS = {
         { grupo:'Coverage and reaction speed' },
         { label:'Locations included', valores:['1','1','1','1'] },
         { label:'Extra locations', valores:['—','—','S/39 each','S/99 each'] },
-        { label:'An attack is detected within', valores:['24 hours','12 hours','4 hours','1 hour'] },
+        { label:'An attack is detected within', valores:['24 hours','12 hours','4 hours','2 hours'] },
         { label:'Alert if your listing shows as closed on Google', valores:[true,true,true,true] },
         { label:'Alert if your phone, hours or address change on Google', valores:[false,true,true,true] },
         { label:'Reputation certificate with a verifiable code', valores:[false,false,true,true] },
@@ -497,7 +497,7 @@ const TEXTOS = {
       items: [
         { q:'Do I need a credit card to start?', a:'No. The Free plan is free forever and includes 1 monitored business, reputation score, QR to request reviews and email alerts. You only add a card if you upgrade to a paid plan.' },
         { q:'How does Notoria detect fake reviews?', a:'We analyze typical attack patterns: newly created accounts, authors with a single review, repetitive or duplicated text and unusual spikes of negative reviews within hours. Each suspicious review is flagged with the reason so you can report it to Google.' },
-        { q:'Why do I only see 5 reviews if my business has hundreds?', a:'Google’s public API returns at most the 5 most recent reviews per query — that is Google’s limit, not Notoria’s. So Notoria doesn’t work by reading your past, it works by watching what comes in: it scans your listing every 24, 12, 4 or 1 hour depending on your plan and stores every new review that appears. Within a few weeks you have well over five, and from the day you sign up none gets past us. What we don’t do is import the ones that were already there.' },
+        { q:'Why do I only see 5 reviews if my business has hundreds?', a:'Google’s public API returns at most the 5 most recent reviews per query — that is Google’s limit, not Notoria’s. So Notoria doesn’t work by reading your past, it works by watching what comes in: it scans your listing every 24, 12, 4 or 2 hours depending on your plan and stores every new review that appears. Within a few weeks you have well over five, and from the day you sign up none gets past us. What we don’t do is import the ones that were already there.' },
         { q:'What if someone changes my listing details on Google?', a:'Google Maps lets anyone suggest edits to someone else’s business listing — the hours, the phone number, the address, even marking it permanently closed — and applies them without telling the owner. Notoria compares those details on every scan and warns you the same day if something changed. The permanently-closed alert is in every plan, including Free; phone, hours, name and address from the Impulso plan up.' },
         { q:'Can I reply to reviews from Notoria?', a:'You write the reply in Notoria and publish it yourself on Google, in one click. You get 30 professional templates based on the review’s stars and an AI assistant that drafts it for you: we save your reply, copy it to your clipboard and open your listing on Google Maps so you can paste it. Publishing without leaving Notoria isn’t possible yet — it needs a permission Google grants separately — and we’re working on bringing it all into one place.' },
         { q:'What happens if my rating suddenly drops?', a:'Notoria detects it on the next scan and sends you an immediate alert by email detailing what happened: how many negative reviews, from which accounts and whether they show bot patterns. You decide which alerts to receive and how often.' },
