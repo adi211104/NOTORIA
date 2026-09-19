@@ -281,12 +281,18 @@ const agrupadosPorPublicacion = (comentarios) => {
   return [...grupos.entries()];
 };
 
-const Card = ({ children, style }) => <div style={{ background:'var(--surface)', border:'1px solid var(--border-c)', borderRadius:14, padding:20, ...style }}>{children}</div>;
+// ⚠️ `id` se acepta explícitamente: sin él, un `id=` puesto en un <Card> se
+// descarta en silencio y el ancla del enlace profundo (`?resena=`) nunca existe
+// en el DOM — la página no falla, simplemente no salta a ninguna parte.
+const Card = ({ children, style, id }) => <div id={id} style={{ background:'var(--surface)', border:'1px solid var(--border-c)', borderRadius:14, padding:20, ...style }}>{children}</div>;
 const ST = ({ children }) => <p style={{ fontSize:11, fontWeight:600, textTransform:'uppercase', letterSpacing:0.5, color:'var(--text-3)', margin:'0 0 10px' }}>{children}</p>;
 
 // ── Plantillas de respuesta profesionales ─────────────────
-// 6 tonos distintos por cada nivel de estrellas (30 en total). El panel
-// siempre muestra las 6 variantes que corresponden al rating de la reseña.
+// 6 tonos por nivel de estrellas, más una séptima en 1★ y 2★ para el caso del
+// chantaje (32 en total). El panel muestra las que corresponden al rating.
+//
+// ⚠️ El contador que se enseña sale de `.length`, no escrito a mano: decía «6
+// plantillas» y al añadir la séptima habría seguido diciendo 6 sin fallar nada.
 const PLANTILLAS = {
   es: {
     1: [
@@ -296,6 +302,18 @@ const PLANTILLAS = {
       { id:'1-breve',     l:'Breve y directa',    t:'Hola {cliente}, lamentamos tu mala experiencia. Tomamos nota y lo corregiremos. Gracias por el aviso, nos ayuda a mejorar.' },
       { id:'1-invita',    l:'Invitación a volver', t:'Hola {cliente}, sentimos mucho haberte fallado en esta visita. Nos gustaría demostrarte que fue una excepción y no la regla: te invitamos a darnos una segunda oportunidad, contáctanos y nos encargaremos personalmente de que tu experiencia sea la que mereces.' },
       { id:'1-firme',     l:'Firme y profesional', t:'Hola {cliente}, gracias por tu comentario. Nos tomamos muy en serio cada opinión y hemos revisado lo que describes con el equipo. Trabajamos con estándares altos y cuando algo falla lo corregimos de inmediato. Esperamos poder atenderte mejor en una próxima ocasión.' },
+      // 🔴 La plantilla del chantaje. Existe porque el artículo del blog redacta
+      // la respuesta correcta y hasta hoy NO estaba donde el cliente escribe:
+      // sabíamos cuál era y no la poníamos a mano.
+      //
+      // 🔴 NO acusa de nada, y eso es el diseño entero, no prudencia. Responder
+      // en público acusando de extorsión hunde la ficha: el que lee no sabe quién
+      // dice la verdad y ve a un negocio peleando con un cliente. Esto dice un
+      // hecho comprobable —no hay registro de esa visita—, deja la puerta abierta
+      // por si es un error de buena fe, y mueve la conversación fuera de la ficha.
+      // Es la misma regla que gobierna al detector y al expediente: el producto
+      // nunca afirma que una reseña sea falsa.
+      { id:'1-sinregistro', l:'Sin registro de la visita', t:'Hola, gracias por escribirnos. Revisamos nuestros registros de esa fecha y no encontramos una visita ni un pedido que coincida con lo que describes. Puede tratarse de una confusión, así que lo estamos verificando. Si tuviste un problema real con nosotros, escríbenos directamente y lo resolvemos.' },
     ],
     2: [
       { id:'2-disculpa',  l:'Disculpa formal',    t:'Estimado {cliente}, gracias por tomarse el tiempo de escribirnos. Lamentamos que su visita no cumpliera sus expectativas. Sus observaciones ya fueron trasladadas al equipo responsable y estamos tomando acciones para mejorar. Esperamos tener la oportunidad de ofrecerle un mejor servicio.' },
@@ -304,6 +322,9 @@ const PLANTILLAS = {
       { id:'2-breve',     l:'Breve y directa',    t:'Hola {cliente}, gracias por tu opinión. Tomamos nota de lo que no funcionó y lo estamos corrigiendo. Esperamos verte de nuevo pronto.' },
       { id:'2-invita',    l:'Invitación a volver', t:'Hola {cliente}, lamentamos no haber alcanzado tus expectativas esta vez. Valoramos mucho que nos lo digas — así mejoramos. Te esperamos pronto: queremos que tu próxima visita cuente una historia diferente.' },
       { id:'2-empatica',  l:'Empática',           t:'Hola {cliente}, entendemos tu molestia y tienes razón en señalarlo. Nadie viene a pasar un mal rato, y sentimos no haber estado a la altura ese día. Tu comentario ya está en manos del equipo. Gracias por ayudarnos a ser mejores.' },
+      // Misma plantilla que en 1★: el chantaje llega casi siempre como 1★, pero
+      // no siempre — una de 2★ compra la misma apariencia de reseña legítima.
+      { id:'2-sinregistro', l:'Sin registro de la visita', t:'Hola, gracias por escribirnos. Revisamos nuestros registros de esa fecha y no encontramos una visita ni un pedido que coincida con lo que describes. Puede tratarse de una confusión, así que lo estamos verificando. Si tuviste un problema real con nosotros, escríbenos directamente y lo resolvemos.' },
     ],
     3: [
       { id:'3-agradece',  l:'Agradecida',         t:'Hola {cliente}, gracias por tu visita y por una opinión tan equilibrada. Nos alegra lo que disfrutaste y tomamos nota puntual de lo que podemos mejorar. Esperamos verte pronto y ganarnos esas estrellas que faltaron.' },
@@ -338,6 +359,7 @@ const PLANTILLAS = {
       { id:'1-breve',     l:'Short & direct',      t:"Hi {cliente}, we're sorry about your experience. We've taken note and will fix it. Thanks for letting us know — it helps us improve." },
       { id:'1-invita',    l:'Invite them back',    t:"Hi {cliente}, we're sorry we let you down on this visit. We'd like to show you this was the exception, not the rule — please give us a second chance. Reach out and we'll personally make sure you get the experience you deserve." },
       { id:'1-firme',     l:'Firm & professional', t:'Hi {cliente}, thank you for your feedback. We take every review seriously and have reviewed what you described with the team. We hold ourselves to high standards, and when something falls short we act on it right away. We hope to serve you better next time.' },
+      { id:'1-sinregistro', l:'No record of the visit', t:'Hello, thank you for writing. We checked our records for that date and could not find a visit or an order matching what you describe. It may be a mix-up, so we are looking into it. If you did have a real problem with us, please contact us directly and we will sort it out.' },
     ],
     2: [
       { id:'2-disculpa',  l:'Formal apology',   t:"Dear {cliente}, thank you for taking the time to write to us. We're sorry your visit didn't meet your expectations. Your feedback has been passed on to the team responsible, and we're taking steps to improve. We hope to have the chance to serve you better." },
@@ -346,6 +368,7 @@ const PLANTILLAS = {
       { id:'2-breve',     l:'Short & direct',   t:"Hi {cliente}, thanks for your feedback. We've noted what didn't work and are fixing it. We hope to see you again soon." },
       { id:'2-invita',    l:'Invite them back', t:"Hi {cliente}, we're sorry we didn't meet your expectations this time. We really appreciate you telling us — that's how we improve. We hope to see you again soon and tell a different story." },
       { id:'2-empatica',  l:'Empathetic',       t:"Hi {cliente}, we understand your frustration and you're right to point it out. Nobody comes in looking for a bad time, and we're sorry we weren't at our best that day. Your comment is already with the team. Thanks for helping us do better." },
+      { id:'2-sinregistro', l:'No record of the visit', t:'Hello, thank you for writing. We checked our records for that date and could not find a visit or an order matching what you describe. It may be a mix-up, so we are looking into it. If you did have a real problem with us, please contact us directly and we will sort it out.' },
     ],
     3: [
       { id:'3-agradece',  l:'Thankful',            t:'Hi {cliente}, thanks for visiting and for such a balanced review. We\'re glad you enjoyed part of it, and we\'ve taken note of what we can improve. We hope to see you again soon and earn those extra stars.' },
@@ -435,7 +458,8 @@ const TEXTOS = {
       // responden a «cómo nos ven» y las dos salen de la pantalla.
       parteTitulo:'El parte para tu equipo',
       parteDesc:'Tres o cuatro líneas listas para pegar en el grupo de WhatsApp de tu personal: cómo fue la semana, qué hay que mejorar y una sola cosa en la que enfocarse. Las cifras las cuenta Notoria; la IA solo las redacta.',
-      parteCopiar:'Copiar para WhatsApp',
+      parteCompartir:'Enviar por WhatsApp',
+      parteCopiar:'Copiar',
       parteCopiado:'¡Copiado!',
       parteRegenerar:'Escribirlo de otra forma',
       parteGenerando:'Escribiendo…',
@@ -872,7 +896,7 @@ const TEXTOS = {
       respuestaGuardada:'Tu respuesta guardada',
       asistente:'Asistente de respuesta',
       iaUsoMes:(r,l) => `IA: ${r} de ${l} esta semana`,
-      plantillasHint:(r) => `6 plantillas para reseñas de ${r}★ — elige el tono y edítala a tu gusto:`,
+      plantillasHint:(r, n) => `${n} plantillas para reseñas de ${r}★ — elige el tono y edítala a tu gusto:`,
       masIA:'Más IA con Plan Negocio →',
       redactando:'Redactando...',
       generarIA:'Generar con IA',
@@ -943,7 +967,8 @@ const TEXTOS = {
       simFuente:'The 4.5★ cut-off is from BrightLocal, Local Consumer Review Survey 2026: 31% of consumers rule out businesses below it.',
       parteTitulo:'The note for your team',
       parteDesc:'Three or four lines ready to paste into your staff WhatsApp group: how the week went, what to improve and one single thing to focus on. Notoria counts the figures; the AI only words them.',
-      parteCopiar:'Copy for WhatsApp',
+      parteCompartir:'Send on WhatsApp',
+      parteCopiar:'Copy',
       parteCopiado:'Copied!',
       parteRegenerar:'Word it differently',
       parteGenerando:'Writing…',
@@ -1324,7 +1349,7 @@ const TEXTOS = {
       respuestaGuardada:'Your saved reply',
       asistente:'Reply assistant',
       iaUsoMes:(r,l) => `AI: ${r} of ${l} this week`,
-      plantillasHint:(r) => `6 templates for ${r}★ reviews — pick a tone and edit it as you like:`,
+      plantillasHint:(r, n) => `${n} templates for ${r}★ reviews — pick a tone and edit it as you like:`,
       masIA:'More AI with the Business plan →',
       redactando:'Drafting...',
       generarIA:'Generate with AI',
@@ -1342,6 +1367,23 @@ const TEXTOS = {
     },
   },
 };
+
+// Los ids de pestaña que se pueden abrir desde fuera con `?tab=`.
+//
+// 🔴 Hasta el 2026-09-19 esta página NO leía `?tab=` de ninguna forma: `tab`
+// arrancaba en 'resumen' y ahí se quedaba. O sea que TODOS los correos del
+// producto que enlazan a una pestaña —la alerta de reseña apunta a `?tab=resenas`,
+// el digest a `?tab=alertas`— aterrizaban en Resumen desde que se escribieron.
+// El enlace no fallaba: llevaba al negocio correcto y a la pantalla equivocada,
+// que es la forma de fallar que nadie reporta.
+//
+// ⚠️ Esta lista DUPLICA los ids de `TABS`, que vive dentro del componente porque
+// sus etiquetas llevan idioma y una de ellas depende del plan. Al agregar o
+// renombrar una pestaña hay que tocar las dos, o el enlace profundo a esa
+// pestaña se cae en silencio otra vez. No se puede derivar de TABS al revés: el
+// efecto que la usa tiene que declararse ANTES de los `return` tempranos de
+// carga, y TABS se construye después de ellos.
+const TAB_IDS = ['resumen', 'resenas', 'comentarios', 'alertas', 'competencia', 'competenciaAuto', 'espejo', 'crecer', 'consejos', 'config'];
 
 export default function DetallePage() {
   const { id } = useParams();
@@ -1789,6 +1831,51 @@ export default function DetallePage() {
     router.replace(`/dashboard/negocios/${id}`);
   }, [id]);
 
+  // ── Enlaces profundos desde los correos: `?tab=` y `?resena=` ──────────────
+  //
+  // Ver el comentario de TAB_IDS: esto no existía, así que todo correo que
+  // prometía llevar a una pestaña dejaba al cliente en Resumen.
+  //
+  // `resena` marca UNA reseña y la lleva a la vista. Es lo que hace que el botón
+  // del correo de alerta sirva de verdad: un negocio con 82 reseñas dejaba al
+  // dueño buscando a mano la que el correo le acababa de citar.
+  const [resenaDestacada, setResenaDestacada] = useState(null);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const p = new URLSearchParams(window.location.search);
+    const destino = p.get('tab');
+    const resena = p.get('resena');
+    if (!destino && !resena) return;
+    // Un `tab` inventado se ignora en vez de dejar la ficha en blanco.
+    if (destino && TAB_IDS.includes(destino)) setTab(destino);
+    // Con `?resena=` la pestaña es Reseñas aunque no venga `tab`.
+    else if (resena) setTab('resenas');
+    if (resena) setResenaDestacada(resena);
+    // Se limpia la URL por lo mismo que el callback de OAuth de arriba: si el
+    // dueño recarga o comparte el enlace, no vuelve a arrastrar el estado.
+    router.replace(`/dashboard/negocios/${id}`);
+  }, [id]);
+
+  // Llevar la reseña marcada a la vista. Va en su propio efecto porque depende
+  // de que la lista ya esté pintada, no de leer la URL.
+  //
+  // ⚠️ `scrollIntoView` va dentro del `if`: una reseña que ya no está —borrada,
+  // o filtrada fuera— no debe mover la página a ninguna parte. Y el resaltado se
+  // apaga solo: dejarlo fijo haría que el dueño creyera que esa reseña tiene algo
+  // distinto de las demás cada vez que vuelva a la pestaña.
+  useEffect(() => {
+    if (!resenaDestacada) return;
+    const el = document.getElementById(`resena-${resenaDestacada}`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const t = setTimeout(() => setResenaDestacada(null), 4000);
+    return () => clearTimeout(t);
+    // ⚠️ Las dependencias son `tab` y `negocio` —los dos declarados arriba— y NO
+    // `resenasFiltradas`, que es lo natural y NO se puede: se declara ~340 líneas
+    // más abajo, y el array de dependencias se evalúa DURANTE el render, así que
+    // nombrarlo acá revienta la ficha entera con un ReferenceError de TDZ. Sirven
+    // igual: la lista está pintada cuando `negocio` cargó y `tab` es 'resenas'.
+  }, [resenaDestacada, tab, negocio]);
+
   // Los textos del resultado, según la red que volvió. Se agrupa acá y no en el
   // JSX para no repetir tres ternarios en cada sitio donde se pinta.
   const oauthT = redOAuth === 'fb'
@@ -2107,6 +2194,16 @@ export default function DetallePage() {
     { id:'consejos', label:t.tabs.consejos },
     { id:'config', label:t.tabs.config },
   ];
+
+  // Las plantillas que tocan a la reseña abierta. Se saca acá y no dentro del
+  // JSX porque el contador que se enseña tiene que salir de ESTA lista: escrito
+  // a mano diría «6» para siempre, y 1★ y 2★ ya tienen siete.
+  //
+  // ⚠️ No es un hook, así que puede vivir después de los `return` tempranos de
+  // carga — al revés que los efectos de más arriba.
+  const plantillasDeEsta = respModal
+    ? (PLANTILLAS[idioma]?.[respModal.rating] || PLANTILLAS.es[respModal.rating] || PLANTILLAS.es[3])
+    : [];
 
   // 🔴 El score ya NO se calcula acá: lo manda el backend (lib/score.js). Vivía
   // dentro de este componente, así que el número que el catálogo anuncia en los
@@ -2511,7 +2608,9 @@ export default function DetallePage() {
             ) : resenasFiltradas.map(r => (
               // Borde rojo en las sospechosas: al fusionarse la pestaña dentro de
               // Reseñas, es lo que las hace distinguibles de un vistazo en la lista.
-              <Card key={r.id} style={{ marginBottom:8, ...(r.esSospechosa ? { border:'1px solid rgba(239,68,68,0.25)' } : {}) }}>
+              // El `id` es el ancla del enlace profundo del correo de alerta
+              // (`?resena=`). El resaltado verde se apaga solo a los 4 s.
+              <Card key={r.id} id={`resena-${r.id}`} style={{ marginBottom:8, scrollMarginTop:80, ...(r.esSospechosa ? { border:'1px solid rgba(239,68,68,0.25)' } : {}), ...(resenaDestacada === r.id ? { border:'2px solid #0B7324', boxShadow:'0 0 0 4px rgba(11,115,36,0.12)' } : {}) }}>
                 <div style={{ display:'flex', justifyContent:'space-between', gap:12 }}>
                   <div style={{ flex:1, display:'flex', gap:10, alignItems:'flex-start' }}>
                     {r.autorFoto ? (
@@ -3447,9 +3546,26 @@ export default function DetallePage() {
                     </p>
                   )}
 
+                  {/* 🔴 Enviar va PRIMERO y copiar queda de respaldo: el parte
+                      existe para llegar al equipo, y copiar es el camino largo
+                      (copiar → abrir WhatsApp → elegir grupo → pegar). `wa.me`
+                      abre el chat con el texto escrito y el dueño solo elige a
+                      quién. Es una URL, no una integración con Meta.
+
+                      ⚠️ Va como <a> y no como <button> con `window.open`: un
+                      bloqueador de ventanas emergentes mata el segundo sin decir
+                      nada, y el fallo sería mudo — el dueño pulsa y no pasa nada.
+
+                      ⚠️ Apilados en móvil por `flexWrap`, que es la lección del
+                      2026-08-26: a 196px de contenido dos botones no caben. */}
                   <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+                    <a href={`https://wa.me/?text=${encodeURIComponent(parte.texto || '')}`}
+                      target="_blank" rel="noopener noreferrer"
+                      style={{ display:'inline-flex', alignItems:'center', gap:8, background:'#0B7324', color:'#fff', border:'none', borderRadius:8, padding:'10px 18px', fontSize:13, fontWeight:600, cursor:'pointer', textDecoration:'none' }}>
+                      <Icon name="chat" size={13} /> {t.espejo.parteCompartir}
+                    </a>
                     <button onClick={copiarParte}
-                      style={{ display:'inline-flex', alignItems:'center', gap:8, background: parteEstado === 'copiado' ? '#166534' : '#0B7324', color:'#fff', border:'none', borderRadius:8, padding:'10px 18px', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                      style={{ display:'inline-flex', alignItems:'center', gap:8, background:'transparent', color: parteEstado === 'copiado' ? '#166534' : 'var(--text-2)', border:`1px solid ${parteEstado === 'copiado' ? '#166534' : 'var(--border-c)'}`, borderRadius:8, padding:'10px 16px', fontSize:13, fontWeight:600, cursor:'pointer' }}>
                       {parteEstado === 'copiado' ? t.espejo.parteCopiado : t.espejo.parteCopiar}
                     </button>
                     <button onClick={() => pedirParte(true)} disabled={parteEstado === 'cargando'}
@@ -3914,10 +4030,10 @@ export default function DetallePage() {
                   )}
                 </div>
                 <p style={{ fontSize:10.5, color:'var(--text-3)', margin:'0 0 8px' }}>
-                  {t.modal.plantillasHint(respModal.rating)}
+                  {t.modal.plantillasHint(respModal.rating, plantillasDeEsta.length)}
                 </p>
                 <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-                  {(PLANTILLAS[idioma]?.[respModal.rating] || PLANTILLAS.es[respModal.rating] || PLANTILLAS.es[3]).map(p => (
+                  {plantillasDeEsta.map(p => (
                     <button key={p.id} onClick={() => setTextoResp(p.t.replace(/\{cliente\}/g, respModal.autorNombre?.split(' ')[0] || t.modal.clienteDefault.toLowerCase()))}
                       style={{ background:'rgba(11,115,36,0.1)', border:'1px solid rgba(11,115,36,0.3)', color:'#4CAF66', borderRadius:12, padding:'5px 12px', fontSize:11.5, cursor:'pointer' }}>
                       {p.l}

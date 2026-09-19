@@ -3058,9 +3058,131 @@ duró **17 días**, y el dato correcto estaba escrito **en el otro repo**.
 | Frontend | desplegado y comprobado por el `href` real del botón en producción |
 | App | `assembleDebug` BUILD SUCCESSFUL, APK de 15,2 MB, **sin instalar** |
 
+### 📌 2026-09-19 — la tarjeta que se compartía era de OTRA MARCA, y tres enlaces que mentían
+
+Salió de analizar `propuesta.md`, un documento de propuestas para la campaña. Se implementaron
+y desplegaron **los cuatro primeros**; el resto queda para evaluar con el costo delante. Lo que
+sigue es el resumen y las lecciones; el detalle de cada cosa está en su sección.
+
+🔴 **Lo más grave no estaba en la propuesta: el `og-image.png` era el de ANTES DEL REBRAND.**
+La propuesta lo daba por un caso más de «restaurantes y hoteles». Al abrirlo con los ojos decía
+**«Vigilio»**, **«vigilio.app»**, **«30% reseñas con bots»** y **«18 países de LATAM»**. O sea
+que **cada enlace compartido de usenotoria.app por WhatsApp, Facebook o Slack** mostraba otra
+marca, otro dominio, una cifra inventada de las que §15 mandó retirar del landing, y una
+cobertura que el producto no tiene —el servicio es solo Perú—. Confirmado servido en producción
+(`HTTP 200`, 49168 bytes, el mismo archivo del repo).
+- ⚠️ **Nadie lo vio porque el texto sí estaba corregido.** `layout.js` dice «negocios del Perú»
+  desde hace tiempo y el landing también. Lo único desfasado era **el píxel**, y un PNG no
+  aparece en ningún `grep`. La regla que deja: **al renombrar una marca, la lista de sitios
+  incluye las IMÁGENES, y se comprueban abriéndolas.** Un barrido de texto no las ve.
+- La imagen nueva **no lleva cifras**, y es deliberado: §15 exige URL pública visible para toda
+  cifra, y una tarjeta OG no puede mostrar un enlace. Las tres cajas dicen lo que el producto
+  hace, que se comprueba abriendo el panel.
+- 🔴 **Trampa al regenerar el PNG:** sharp olfatea los primeros bytes para reconocer el formato,
+  así que con un bloque de comentario delante el `<svg>` queda fuera de esa ventana y devuelve
+  **«Input file contains unsupported image format»** — que suena a SVG corrupto con el SVG
+  perfecto. El comentario va **dentro** del `<svg>`. Está escrito en el propio archivo.
+
+🔴 **Y tres enlaces que llevaban meses aterrizando en la pantalla equivocada.** La ficha
+(`dashboard/negocios/[id]`) **nunca leyó `?tab=`**: `tab` arrancaba en `'resumen'` y ahí se
+quedaba. Así que el botón «Responder ahora» del correo de alerta, y el del digest que apunta a
+`?tab=alertas`, dejaban al cliente en Resumen desde que se escribieron. **El enlace no falla**:
+lleva al negocio correcto y a la pantalla equivocada, que es la forma que nadie reporta.
+- Ahora la ficha honra `?tab=` y `?resena=`, y el correo de alerta enlaza a **esa** reseña, que
+  se resalta y se trae a la vista. `detalle.resenaId` **ya se guardaba** desde que existe la
+  alerta: estaba ahí sin que nadie lo usara.
+- ⚠️ **`Card` no reenviaba `id` al DOM** (solo aceptaba `children` y `style`), así que el ancla
+  se habría descartado en silencio y el salto no habría ocurrido nunca. Es el mismo patrón que
+  el `id` de un `<Card>`: un prop que no se declara no falla, se ignora.
+- 🔴 **Dos trampas de React que habrían roto la ficha entera, no solo el enlace:**
+  1. El efecto tiene que declararse **antes** de los `return` tempranos de carga (líneas 2016-17),
+     o se viola el orden de hooks. Por eso `TAB_IDS` vive **a nivel de módulo** y no se deriva de
+     `TABS`, que se construye después de esos returns.
+  2. Poner `resenasFiltradas` en el array de dependencias **revienta con un ReferenceError de
+     TDZ**: se declara ~340 líneas más abajo y el array de dependencias se evalúa **durante** el
+     render. Las dependencias son `tab` y `negocio`, declarados arriba y equivalentes.
+
+**Lo demás que entró, con su porqué:**
+
+| Qué | Dónde | Por qué |
+|---|---|---|
+| **El expediente, en el correo de alerta** | `utils/emails.js` | `expediente` daba **cero** coincidencias en `emails.js`, `alerts/` y `workers/`. La función existía desde el 25/08 para quien ya estaba adentro buscándola; el dueño que acababa de recibir la 1★ no se enteraba de que la tenía — y es el único momento en que la prueba existe, porque el reflejo del chantajeado es bloquear a esa persona y con eso borra el rastro |
+| **Plantilla «Sin registro de la visita»** | `PLANTILLAS` 1★ y 2★, es/en | El artículo del blog ya redactaba la respuesta correcta y no estaba donde el cliente escribe. **No acusa de nada**: dice un hecho comprobable, deja la puerta abierta a una confusión y mueve la conversación fuera de la ficha. Responder en público acusando de extorsión hunde la ficha |
+| **Enviar el parte por WhatsApp** | correo semanal + panel | El parte ya llegaba al dueño; lo que faltaba era el tramo **del dueño al equipo**, que eran cuatro pasos cada lunes. `wa.me/?text=` es una URL: ni integración con Meta, ni permisos, ni aprobación |
+
+- ⚠️ **En el panel, «Enviar» va primero y «Copiar» queda de respaldo**, y va como `<a>` y no como
+  un `<button>` con `window.open`: un bloqueador de emergentes mata el segundo **sin decir nada**.
+- ⚠️ **El contador de plantillas sale de `.length`**, no escrito a mano: decía «6 plantillas» y al
+  añadir la séptima habría seguido diciendo 6 sin que nada fallara.
+
+**Lo que se comprobó, y cómo** — ninguna de las dos por el «SUCCESS»:
+
+| | |
+|---|---|
+| Correo de alerta | Renderizado **interceptando Resend**, o sea el mismo código de producción sin mandar nada: los dos idiomas llevan el enlace con `resena=`, la guía responde 200, y el **control** (alerta sin `detalle`, que es la escalación de 24 h y el token de Facebook) cae al genérico **sin** el bloque |
+| Parte por WhatsApp | El `wa.me` **decodifica al parte exacto**, saltos de línea incluidos; control sin parte = 0 enlaces |
+| Frontend | Chunk **bajado desde producción** con las tres cadenas nuevas y el ancla, más una frase inventada que da 0 — sin ese control el verde no significaría nada |
+| OG | `52293 bytes` en producción (el viejo medía 49168) y el PNG **mirado con los ojos** |
+| Backend | Arranque del contenedor a las **21:36:17Z** con la subida a las 21:36 — o sea el contenedor nuevo, no un arranque viejo. `/health` 200 y **401** en `/api/auth/login` con credenciales falsas |
+
+| Suites | `prueba-escape-emails` 24 · `prueba-correos-idioma` 53 · `prueba-alertas-resena` 35 · `prueba-cableado` 33 · `prueba-parte-equipo` 66 · `prueba-planes` 124 — todas en verde |
+|---|---|
+| Build | `next build` exit 0, 36 páginas |
+
+⚠️ **Aviso nuevo de Railway, sin urgencia:** `railway.json` queda deprecado el **2026-12-01** a
+favor de `.railway/railway.ts` (`railway config migrate`). Sigue funcionando hasta entonces.
+
+### 🔴 Lo que este día corrige de `propuesta.md`, que se verificó contra el código
+
+El documento es sólido, pero **cinco afirmaciones no resisten la comprobación**, y dos cambian la
+decisión. Queda escrito porque las propuestas 5-10 siguen abiertas y se van a releer:
+
+| Lo que dice la propuesta | Lo que dice el código |
+|---|---|
+| «Los tipos de alerta son exactamente seis» | Son **siete**: le faltó `COMENTARIO_NEGATIVO` |
+| II-1: «la pieza que decide ya existe: `desdeTiposGoogle()`» | Esa función conoce **6 tipos de comida**, devuelve `null` para todo lo demás y solo se usa en `publico.routes.js` — **nunca sobre un negocio guardado**. El mecanismo correcto ya existe y es mejor: **`Negocio.tipo`**, enum de 12 valores que el dueño **elige a mano** en el alta (`lib/tiposNegocio.js`), y que ya incluye `Bar / Discoteca` y `Peluquería / Salón de belleza`. **No hace falta clasificador: falta vocabulario** |
+| II-7: «el backend está bien protegido» | **`TIPOS_APLICABLES = ['RESTAURANTE','BAR','CAFETERIA']`** — el bar ya está dentro **a propósito**, con su justificación escrita. O sea que el código ya estira a Luca más allá de lo que midió, y la regla que la propuesta sugiere **contradiría el código actual**. Hay una decisión que tomar, no una regla que escribir. (La discoteca es `night_club` y el salón `beauty_salon`: los dos caen a `null`, o sea protegidos) |
+| II-6: la lista de sitios | Le faltan `brand-shield/package.json`, `brand-shield/README.md` y **el og-image**; las 7 apariciones que llama «la solicitud a Google» están en `docs/app-review-meta.md`, que es de **Meta**; y **el landing ya estaba corregido** |
+| «ya disparó solo en cuatro casos reales» | Son **cinco**, el último el 2026-08-31 |
+
+🔴 **Y II-3 está mal costeado, lo que lo hacía parecer más caro de lo que es.** La propuesta dice
+que vigilar el Espejo «duplicaría las consultas a Places». Eso solo sería cierto haciéndolo en
+cada ciclo; con la cadencia semanal que ella misma propone:
+
+| Plan | Escaneos/mes | +Espejo semanal | Incremento |
+|---|---|---|---|
+| IMPULSO (12 h) | 60 | +4,3 | **+7%** |
+| NEGOCIO (4 h) | 180 | +4,3 | **+2,4%** |
+| FRANQUICIA (1 h) | 720 | +4,3 | **+0,6%** |
+
+A $0,022 la llamada (Basic+Atmosphere) son **$0,095 al mes por local**, un 0,4% de los $23,58 que
+mide §8.7. El costo no es el problema.
+
+🔴 **Medido contra producción, que es lo que la propuesta no hizo:** de las **8 fichas activas,
+2 son PELUQUERIA**, y el diccionario de `temas.js` les devuelve **cero temas** mientras cada
+restaurante devuelve al menos uno. **Pero** sus reseñas son casi todas 5★ sin una sola queja, así
+que hoy «cero temas» es la respuesta **correcta**, no una falla. El hueco es real y se rompe el
+día que a un salón le entre la primera queja de verdad — o sea que es «arreglar antes de que
+importe», no «está roto ahora». Eso lo **baja** de urgencia y lo **abarata**.
+
 ## 19. Pendientes, ordenados por quién los desbloquea
 
-> ### 📋 VIGENTES al 2026-09-16 — empezar por acá
+> ### 📋 VIGENTES al 2026-09-19 — empezar por acá
+>
+> 🟡 **Abierto desde el 19/09: las propuestas 5-10 de `propuesta.md`.** Los cuatro primeros
+> —og-image, expediente en el correo, plantilla del chantaje y parte por WhatsApp— **están
+> desplegados**. Lo que queda, con las correcciones de arriba (§«Lo que este día corrige»):
+> decidir si **BAR se queda en `impacto.js`**, terminar la pasada de «restaurantes y hoteles»
+> (falta `package.json`, `brand-shield/README.md`), el **vocabulario por rubro** de `temas.js`
+> —que es más barato de lo que decía la propuesta porque `Negocio.tipo` ya existe—, la **alerta
+> del Espejo** (+0,6-7% de Places, no el doble) y el **expediente como caso**. La alerta de
+> competencia se propone **mover al resumen mensual** en vez de un `TipoAlerta` nuevo.
+> ⚠️ **Nada de esto se toca hasta revisar la economía del plan Gratuito** (abajo).
+>
+> 🔴 **Y una pregunta de negocio abierta, que es la que manda: ¿cuánto cuesta una cuenta
+> gratuita?** Hoy no hay clientes de pago, así que todo el costo de Places que genera el plan
+> Gratuito es pérdida seca. Está medido en §8.7 por local de Franquicia, **no por cuenta
+> gratuita**, y ninguna de las propuestas pendientes se debería aprobar sin ese número delante.
 >
 > Todo lo de abajo de esta caja es historia con su detalle. **Esto es lo que sigue abierto**,
 > consolidado a mano cruzando este archivo, `README.md`, `docs/secretos.md`,

@@ -409,6 +409,15 @@ const ALERTA = {
     ctaResena: 'Responder ahora →',
     notaResena: 'Responder el mismo día cambia lo que ven los siguientes clientes.',
     sospecha: 'Además, esta reseña tiene señales de no ser auténtica.',
+    // ── La evidencia, y por qué va en ESTE correo ────────────────────────────
+    // Si detrás de la 1★ hay alguien pidiendo plata, la ventana en que la prueba
+    // existe se mide en horas: el dueño bloquea a esa persona y borra el único
+    // rastro de que hubo una exigencia. Este correo llega justo en esa ventana,
+    // así que es el único sitio donde decirlo sirve de algo.
+    evidenciaTitulo: '¿Te escribieron pidiendo algo a cambio de quitarla?',
+    evidenciaTexto: 'No bloquees a esa persona todavía: al hacerlo borras la prueba. Notoria ya guardó el texto de la reseña y la fecha en que la capturó, aunque después la editen o la borren.',
+    evidenciaCtaExpediente: 'Armar el expediente',
+    evidenciaCtaGuia: 'Qué hacer paso a paso',
     // El diagnóstico. Llega del worker como NÚMEROS y un id de tema; la frase se
     // arma acá, en el idioma del usuario. Nunca al revés.
     diagTemas: { demora:'demora', trato:'el trato del personal', temperatura:'comida fría o mal cocida', limpieza:'limpieza', precio:'precio', porcion:'el tamaño de la porción' },
@@ -427,6 +436,10 @@ const ALERTA = {
     ctaResena: 'Reply now →',
     notaResena: 'Replying the same day changes what your next customers see.',
     sospecha: 'It also shows signs of not being genuine.',
+    evidenciaTitulo: 'Did someone message you asking for something to take it down?',
+    evidenciaTexto: 'Do not block them yet — blocking deletes the evidence. Notoria already saved the review text and the date it captured it, even if it is later edited or removed.',
+    evidenciaCtaExpediente: 'Build the case file',
+    evidenciaCtaGuia: 'Step-by-step guide',
     diagTemas: { demora:'delays', trato:'staff attitude', temperatura:'cold or undercooked food', limpieza:'cleanliness', precio:'price', porcion:'portion size' },
     diagPatron: (v, de, tema) => `<strong>${v} of the last ${de}</strong> negative reviews mention ${tema}.`,
     diagPendientes: (n) => n === 1 ? 'There is 1 more critical review awaiting a reply.' : `There are ${n} more critical reviews awaiting a reply.`,
@@ -445,6 +458,13 @@ const enviarAlertaCritica = async (usuario, negocio, alerta) => {
   // de las 24h y el aviso de token de Facebook expirado, y ninguno trae `detalle`
   // — a los dos les corresponde el genérico, con la descripción que ya traen.
   const esResena = alerta.tipo === 'RESENA_MUY_NEGATIVA' && d && d.rating;
+
+  // El enlace a ESA reseña, no a la pestaña. `detalle.resenaId` ya se guardaba
+  // desde que existe la alerta (monitoreo.worker.js), solo que nadie lo usaba.
+  // Sin él se cae a la pestaña, que es lo que había antes.
+  const enlaceResena = esResena && d.resenaId
+    ? `${enlace('resenas')}&resena=${encodeURIComponent(d.resenaId)}`
+    : enlace('resenas');
 
   // El contexto que convierte «llegó una reseña de 1★» en algo accionable: si
   // esa queja ya se venía repitiendo, y cuántas críticas quedan sin contestar.
@@ -468,6 +488,40 @@ const enviarAlertaCritica = async (usuario, negocio, alerta) => {
       </div>`
     : '';
 
+  // ── El expediente, ofrecido donde la evidencia todavía existe ──────────────
+  //
+  // 🔴 Notoria sabía armar el expediente desde el 2026-08-25 y NO lo mencionaba
+  // en ninguna parte fuera del panel: `expediente` daba cero coincidencias en
+  // emails.js, alerts/ y workers/. O sea que la función existía para quien ya
+  // estaba adentro buscándola, y el dueño que acababa de recibir la 1★ no se
+  // enteraba de que la tenía.
+  //
+  // Va en ESTE correo y no en otro porque la ventana en que la prueba existe se
+  // mide en horas: el reflejo del dueño chantajeado es bloquear a esa persona, y
+  // al bloquearla borra el único rastro de que hubo una exigencia de dinero.
+  //
+  // ⚠️ Se muestra en TODA reseña de ≤2★, no solo en las que el detector marcó.
+  // Una extorsión típica es una sola 1★ desde una cuenta que parece normal: no
+  // levanta ninguna señal, así que condicionarlo a `motivoSospecha` lo apagaría
+  // justo en el caso para el que existe.
+  //
+  // ⚠️ Por eso mismo va como bloque SECUNDARIO y redactado como pregunta: al
+  // dueño al que no lo extorsionaron no le afirma nada. Un aviso que da por hecho
+  // algo que no pasó, repetido, es lo que enseña a ignorar los correos.
+  //
+  // ⚠️ El enlace del expediente NO puede ir al PDF: esa ruta va tras `autenticar`
+  // y un correo no lleva token. Lleva a la reseña dentro del panel, donde está el
+  // botón — y por eso hizo falta que la ficha honre `?tab=` y `?resena=`.
+  const bloqueEvidencia = esResena
+    ? `<div style="border:1px solid #E8E6DC;border-radius:6px;padding:14px 18px;margin:18px 0 0;">
+        <p style="color:#141413;font-size:13.5px;font-weight:700;margin:0 0 6px;">${t.evidenciaTitulo}</p>
+        <p style="color:#5C5B57;font-size:13px;line-height:1.65;margin:0 0 10px;">${t.evidenciaTexto}</p>
+        <a href="${enlaceResena}" style="color:#0B7324;font-size:13px;font-weight:700;text-decoration:none;">${t.evidenciaCtaExpediente} →</a>
+        <span style="color:#C9C7BF;font-size:13px;padding:0 8px;">·</span>
+        <a href="${FRONT()}/blog/extorsion-con-resenas-que-hacer" style="color:#0B7324;font-size:13px;font-weight:700;text-decoration:none;">${t.evidenciaCtaGuia} →</a>
+      </div>`
+    : '';
+
   const { subject, html } = esResena
     ? {
       subject: t.asuntoResena(d.rating, negocio.nombre),
@@ -481,8 +535,9 @@ const enviarAlertaCritica = async (usuario, negocio, alerta) => {
       </div>` : ''}
       ${d.motivoSospecha ? p(`<span style="color:#B74040;">${t.sospecha}</span>`) : ''}
       ${bloqueDiag}
-      ${btn(t.ctaResena, enlace('resenas'))}
+      ${btn(t.ctaResena, enlaceResena)}
       <p style="color:#9C9B96;font-size:12px;margin:10px 0 0;">${t.notaResena}</p>
+      ${bloqueEvidencia}
     `),
     }
     : {
@@ -582,7 +637,14 @@ const RESUMEN = {
       `Lo que más mencionaron: <strong>${etiqueta}</strong> — ${veces} de las reseñas con texto de ${per === 'mensual' ? 'este mes' : 'esta semana'} (${pct}%).`,
     temaSube: (etiqueta, per) => `Y va en aumento respecto ${per === 'mensual' ? 'al mes pasado' : 'a la semana pasada'}: <strong>${etiqueta}</strong>.`,
     parteTitulo: 'Para el grupo de tu equipo',
-    parteAyuda: 'Cópialo y pégalo en el WhatsApp del personal. Son ellos los que pueden cambiar lo que dicen las reseñas.',
+    parteAyuda: 'Son ellos los que pueden cambiar lo que dicen las reseñas. Repásalo antes de enviarlo: lo va a leer tu gente.',
+    // 🔴 El último tramo, que faltaba: del dueño AL EQUIPO. El parte ya viajaba
+    // en este correo, pero reenviarlo era copiar, abrir WhatsApp, elegir el grupo
+    // y pegar — cuatro pasos, cada lunes, y el abandono del dueño está medido a
+    // los veinte días. `wa.me/?text=` abre WhatsApp con el texto ya escrito y el
+    // dueño solo elige el grupo. Es una URL: ni integración con Meta, ni permisos,
+    // ni aprobación.
+    parteCompartir: 'Enviarlo por WhatsApp →',
     promoIa: (url) => `El plan Negocio incluye un análisis con IA de qué mencionan tus clientes cada semana. <a href="${url}" style="color:#0B7324;">Conoce más →</a>`,
     verPanel: 'Ver panel de control →',
     asuntoConsolidado: (n, per) => `Tu resumen ${per} consolidado (${n} locales) — Notoria`,
@@ -618,7 +680,8 @@ const RESUMEN = {
       `Most mentioned: <strong>${etiqueta}</strong> — ${veces} of this ${per === 'mensual' ? 'month' : 'week'}'s reviews with text (${pct}%).`,
     temaSube: (etiqueta, per) => `And it is growing compared to last ${per === 'mensual' ? 'month' : 'week'}: <strong>${etiqueta}</strong>.`,
     parteTitulo: 'For your team group chat',
-    parteAyuda: 'Copy it into your staff WhatsApp. They are the ones who can change what the reviews say.',
+    parteAyuda: 'They are the ones who can change what the reviews say. Read it over before sending: your staff will read it.',
+    parteCompartir: 'Send it on WhatsApp →',
     promoIa: (url) => `The Business plan includes a weekly AI analysis of what your customers mention. <a href="${url}" style="color:#0B7324;">Learn more →</a>`,
     verPanel: 'Open dashboard →',
     asuntoConsolidado: (n, per) => `Your ${per} summary across ${n} locations — Notoria`,
@@ -674,7 +737,8 @@ const bloqueCifrasNegocio = (negocio, d, t = RESUMEN.es, periodo = 'semanal') =>
   <div style="background:#FAF9F5;border:1px solid #E8E6DC;border-radius:6px;padding:12px 14px;margin-top:10px;">
     <p style="color:#9C9B96;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 6px;">${t.parteTitulo}</p>
     <p style="color:#141413;font-size:13px;margin:0 0 8px;line-height:1.7;white-space:pre-line;">${esc(d.parte)}</p>
-    <p style="color:#9C9B96;font-size:11px;margin:0;line-height:1.5;">${t.parteAyuda}</p>
+    <p style="color:#9C9B96;font-size:11px;margin:0 0 10px;line-height:1.5;">${t.parteAyuda}</p>
+    <a href="https://wa.me/?text=${encodeURIComponent(d.parte)}" style="display:inline-block;background:#0B7324;color:#fff;text-decoration:none;padding:9px 16px;border-radius:5px;font-weight:700;font-size:13px;">${t.parteCompartir}</a>
   </div>` : ''}
 `;
 

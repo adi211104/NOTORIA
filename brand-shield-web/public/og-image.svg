@@ -1,27 +1,57 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+<!--
+  La tarjeta que se ve al compartir usenotoria.app por WhatsApp, Facebook o Slack.
+
+  🔴 Hasta el 2026-09-19 esta imagen era la de ANTES DEL REBRAND: decía "Vigilio",
+  "vigilio.app", "30% reseñas con bots" y "18 países de LATAM". O sea que cada
+  enlace compartido mostraba otra marca, otro dominio, una cifra inventada y una
+  cobertura que no existe — el servicio es solo Perú. Nadie lo vio porque el HTML
+  y la metadata sí estaban corregidos: lo único desfasado era el píxel.
+
+  ⚠️ NO lleva cifras, y es deliberado. La regla de CLAUDE.md §15 es que ninguna
+  cifra entra sin una URL pública visible que la sostenga, y una tarjeta OG no
+  puede mostrar un enlace. Las tres cajas dicen lo que el producto HACE, que es
+  comprobable abriendo el panel.
+
+  🔴 El comentario va DENTRO del <svg> y no antes, y no es estética: sharp olfatea
+  los primeros bytes para reconocer el formato, y con un bloque largo delante el
+  `<svg` queda fuera de esa ventana. El error que devuelve es «Input file contains
+  unsupported image format», que suena a SVG corrupto cuando el SVG está perfecto.
+
+  ⚠️ El og:image que se publica es el PNG (WhatsApp y Facebook no renderizan SVG).
+  Al tocar este archivo hay que regenerarlo:
+      node -e "require('sharp')('public/og-image.svg').png().toFile('public/og-image.png')"
+  y comprobar el PNG con los ojos: el texto se rasteriza con las fuentes de la
+  máquina que lo genera, así que un cambio de fuente no falla, sale distinto.
+-->
   <rect width="1200" height="630" fill="#141413"/>
   <rect x="0" y="0" width="1200" height="3" fill="#0B7324"/>
-  <!-- Shield icon -->
-  <g transform="translate(96, 220)">
-    <path d="M40 0L0 14v26c0 22 16.5 37.5 36 42 19.5-4.5 36-20 36-42V14L40 0z" fill="rgba(11,115,36,0.2)" stroke="#0B7324" stroke-width="3"/>
-    <path d="M26 37l11 11 19-21" stroke="#0B7324" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <!-- La N asimétrica de la marca. Misma geometría que components/LogoNotoria.js
+       (viewBox de 24), escalada x2.4 -> 58px. El asta derecha sube más y se corta
+       en bisel al revés de la diagonal: ese bisel es la identidad. -->
+  <g transform="translate(96, 212) scale(2.4)" fill="#0B7324">
+    <path d="M4.09 6.56H7.97V21H4.09Z M4.09 6.56H7.97L19.91 21H16.03Z M16.03 21V6.96L19.91 3V21Z"/>
   </g>
-  <!-- Title -->
-  <text x="180" y="272" font-family="Georgia, serif" font-size="52" font-weight="700" fill="#FFFFFF" letter-spacing="-2">Vigilio</text>
-  <!-- Tagline -->
-  <text x="96" y="340" font-family="Georgia, serif" font-size="28" fill="#B0AEA5">Tu reputación puede hundirse en una sola noche.</text>
-  <!-- Description -->
-  <text x="96" y="390" font-family="Georgia, serif" font-size="20" fill="#6B6A65">Monitor de reputación para restaurantes y hoteles de LATAM</text>
-  <!-- Stats -->
-  <rect x="96" y="440" width="220" height="80" rx="8" fill="#1A1A18" stroke="#2C2C2A" stroke-width="1"/>
-  <text x="116" y="470" font-family="Georgia, serif" font-size="32" font-weight="900" fill="#0B7324">30%</text>
-  <text x="116" y="498" font-family="Georgia, serif" font-size="13" fill="#6B6A65">reseñas con bots</text>
-  <rect x="336" y="440" width="220" height="80" rx="8" fill="#1A1A18" stroke="#2C2C2A" stroke-width="1"/>
-  <text x="356" y="470" font-family="Georgia, serif" font-size="32" font-weight="900" fill="#0B7324">24/7</text>
-  <text x="356" y="498" font-family="Georgia, serif" font-size="13" fill="#6B6A65">monitoreo activo</text>
-  <rect x="576" y="440" width="220" height="80" rx="8" fill="#1A1A18" stroke="#2C2C2A" stroke-width="1"/>
-  <text x="596" y="470" font-family="Georgia, serif" font-size="32" font-weight="900" fill="#0B7324">18</text>
-  <text x="596" y="498" font-family="Georgia, serif" font-size="13" fill="#6B6A65">países de LATAM</text>
-  <!-- URL -->
-  <text x="96" y="580" font-family="Georgia, serif" font-size="18" fill="#3A3A38">vigilio.app</text>
+
+  <text x="164" y="268" font-family="Georgia, 'Times New Roman', serif" font-size="54" font-weight="700" fill="#FFFFFF" letter-spacing="-2">Notoria</text>
+
+  <text x="96" y="344" font-family="Georgia, 'Times New Roman', serif" font-size="28" fill="#B0AEA5">Tu reputación puede hundirse en una sola noche.</text>
+
+  <text x="96" y="392" font-family="Georgia, 'Times New Roman', serif" font-size="20" fill="#6B6A65">Monitor de reputación para negocios locales del Perú</text>
+
+  <!-- Tres cosas que el producto hace, no tres cifras que habría que sostener. -->
+  <rect x="96" y="440" width="288" height="78" rx="8" fill="#1A1A18" stroke="#2C2C2A" stroke-width="1"/>
+  <text x="118" y="471" font-family="Georgia, 'Times New Roman', serif" font-size="19" font-weight="700" fill="#0B7324">Alertas el mismo día</text>
+  <text x="118" y="497" font-family="Georgia, 'Times New Roman', serif" font-size="13" fill="#6B6A65">cuando entra una reseña crítica</text>
+
+  <rect x="404" y="440" width="288" height="78" rx="8" fill="#1A1A18" stroke="#2C2C2A" stroke-width="1"/>
+  <text x="426" y="471" font-family="Georgia, 'Times New Roman', serif" font-size="19" font-weight="700" fill="#0B7324">Tu ficha vigilada</text>
+  <text x="426" y="497" font-family="Georgia, 'Times New Roman', serif" font-size="13" fill="#6B6A65">si alguien la edita, te enteras</text>
+
+  <rect x="712" y="440" width="288" height="78" rx="8" fill="#1A1A18" stroke="#2C2C2A" stroke-width="1"/>
+  <text x="734" y="471" font-family="Georgia, 'Times New Roman', serif" font-size="19" font-weight="700" fill="#0B7324">Google y redes</text>
+  <text x="734" y="497" font-family="Georgia, 'Times New Roman', serif" font-size="13" fill="#6B6A65">reseñas, comentarios y menciones</text>
+
+  <text x="96" y="582" font-family="Georgia, 'Times New Roman', serif" font-size="18" fill="#4A4A47">usenotoria.app</text>
 </svg>
