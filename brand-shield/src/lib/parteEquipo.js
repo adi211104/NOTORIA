@@ -58,7 +58,7 @@ const UMBRAL_NEGATIVA = 3;
  * Los hechos de la semana. Todo deterministas, todo comprobable contra la lista
  * de reseñas que ve el dueño en su panel.
  */
-const hechos = (resenas = [], idioma = 'es', ahora = new Date()) => {
+const hechos = (resenas = [], idioma = 'es', ahora = new Date(), tipo = null) => {
   const desde = new Date(ahora.getTime() - DIAS_SEMANA * 24 * 3600 * 1000);
   const semana = resenas.filter((r) => {
     const t = new Date(r.fechaResena || r.detectadaEn).getTime();
@@ -71,7 +71,7 @@ const hechos = (resenas = [], idioma = 'es', ahora = new Date()) => {
   // Los temas salen del mismo diccionario que el afiche y el panel. Que las tres
   // cosas digan lo mismo no es cosmético: si el afiche de la pared dice «demora»
   // y el parte del WhatsApp dice otra cosa, el equipo deja de creerse las dos.
-  const distribucion = temasLib.distribucion(negativas, idioma);
+  const distribucion = temasLib.distribucion(negativas, idioma, tipo);
 
   return {
     desde,

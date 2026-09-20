@@ -254,10 +254,10 @@ const diagnosticarResena = async (negocio, resena) => {
     const sinResponder = recientes.filter((r) => !r.respondida && r.id !== resena.id).length;
 
     // ¿Esta reseña repite una queja que ya se venía repitiendo?
-    const temasDeEsta = temasLib.temasDe(resena.texto);
+    const temasDeEsta = temasLib.temasDe(resena.texto, negocio.tipo);
     let patron = null;
     if (temasDeEsta.length) {
-      const dist = temasLib.distribucion(recientes, 'es');
+      const dist = temasLib.distribucion(recientes, 'es', negocio.tipo);
       // Se busca el tema de ESTA reseña que más se repite en las demás, no el
       // tema más frecuente en general: lo que aporta es la conexión con lo que
       // el cliente acaba de leer.

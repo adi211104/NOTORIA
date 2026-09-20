@@ -1,6 +1,6 @@
 # Brand-Shield API
 
-Monitor de reputación en tiempo real para restaurantes y hoteles.
+Monitor de reputación en tiempo real para negocios locales del Perú.
 
 ## Stack
 - **Runtime:** Node.js 20 LTS

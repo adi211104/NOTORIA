@@ -11,6 +11,7 @@ const prisma = require('../lib/prisma');
 const { puede } = require('../lib/planes');
 const score = require('../lib/score');
 const temas = require('../lib/temas');
+const competenciaLib = require('../lib/competencia');
 const parteLib = require('../lib/parteEquipo');
 const parteServicio = require('../services/parteEquipo.service');
 const { enviarResumenSemanal, enviarResumenSemanalConsolidado } = require('../utils/emails');
@@ -75,7 +76,7 @@ const calcularCifrasSemana = async (negocio, idioma = 'es', dias = 7) => {
   const desde = new Date(Date.now() - dias * 24 * 60 * 60 * 1000);
   const desdeAnterior = new Date(Date.now() - dias * 2 * 24 * 60 * 60 * 1000);
 
-  const [ultimoSnapshot, snapshotHaceUnaSemana, resenasNuevas, resenasPrevias, todas] = await Promise.all([
+  const [ultimoSnapshot, snapshotHaceUnaSemana, resenasNuevas, resenasPrevias, todas, competidores, snapsPropios] = await Promise.all([
     prisma.snapshot.findFirst({ where: { negocioId: negocio.id }, orderBy: { tomadoEn: 'desc' } }),
     prisma.snapshot.findFirst({ where: { negocioId: negocio.id, tomadoEn: { lte: desde } }, orderBy: { tomadoEn: 'desc' } }),
     // 🔴 `fechaResena` y `detectadaEn` NO son opcionales acá, aunque el filtro
@@ -103,6 +104,25 @@ const calcularCifrasSemana = async (negocio, idioma = 'es', dias = 7) => {
       where: { negocioId: negocio.id },
       select: { rating: true, esSospechosa: true, respondida: true },
     }),
+    // ── La competencia ──────────────────────────────────────────────────────
+    //
+    // 🔴 CERO llamadas a Google: sale de los snapshots que el worker ya guarda.
+    // El dato existía desde siempre y el cliente solo se enteraba si entraba al
+    // panel — y el abandono del dueño está medido a los veinte días. Ver
+    // `lib/competencia.js` para por qué va acá y no como alerta propia.
+    prisma.competidor.findMany({
+      where: { negocioId: negocio.id },
+      select: {
+        nombre: true,
+        snapshots: { select: { tomadoEn: true, ratingActual: true, totalResenas: true } },
+      },
+    }),
+    // Los snapshots del negocio propio, para poder compararse con ellos. Los de
+    // arriba solo traen el último y el de hace una semana.
+    prisma.snapshot.findMany({
+      where: { negocioId: negocio.id, plataforma: 'GOOGLE' },
+      select: { tomadoEn: true, ratingActual: true, totalResenas: true },
+    }),
   ]);
 
   const ratingActual = ultimoSnapshot?.ratingActual ?? negocio.googleRatingBase ?? 0;
@@ -117,7 +137,7 @@ const calcularCifrasSemana = async (negocio, idioma = 'es', dias = 7) => {
   // anterior. Sale de un diccionario, no de la IA: cuesta cero, es explicable
   // («salió porque cuatro reseñas dicen demora») y dice bastante más que el
   // insight genérico que hoy escribe Groq.
-  const dist = temas.distribucion(resenasNuevas, idioma);
+  const dist = temas.distribucion(resenasNuevas, idioma, negocio.tipo);
   const temaTop = dist.temas.find((t) => t.veces >= 2) || null;
   // ⚠️ `tendencia` devuelve un ARRAY de temas (o null), no un tema suelto. Acá se
   // reduce al que MÁS creció, porque un correo no puede listar seis tendencias:
@@ -130,7 +150,7 @@ const calcularCifrasSemana = async (negocio, idioma = 'es', dias = 7) => {
   // inventar una tendencia, y basta que el dueño lo compruebe una vez para que
   // deje de creerse el resto del correo.
   const SUBIDA_MINIMA_PUNTOS = 10;
-  const listaTendencia = temas.tendencia(resenasNuevas, resenasPrevias, idioma);
+  const listaTendencia = temas.tendencia(resenasNuevas, resenasPrevias, idioma, negocio.tipo);
   const tendenciaTema = (listaTendencia || [])
     .filter((t) => t.deltaPuntos >= SUBIDA_MINIMA_PUNTOS)
     .sort((a, b) => b.deltaPuntos - a.deltaPuntos)[0] || null;
@@ -143,6 +163,10 @@ const calcularCifrasSemana = async (negocio, idioma = 'es', dias = 7) => {
     nivelScore: puntuacion ? puntuacion.nivel : null,
     tema: temaTop ? { etiqueta: temaTop.etiqueta, veces: temaTop.veces, porcentaje: temaTop.porcentaje } : null,
     tendenciaTema,
+    // `null` cuando no hay nada que contar: sin competidores cargados, sin
+    // medición propia, o con nadie que haya sacado ventaja de verdad. El correo
+    // esconde el bloque en vez de escribir «nadie te superó», que es ruido.
+    competencia: competenciaLib.destacadoDelMes({ nombre: negocio.nombre, snapshots: snapsPropios }, competidores),
     _resenas: resenasNuevas,
   };
 };
@@ -172,7 +196,7 @@ const procesarUsuario = async (usuario, negocios, periodo = 'semanal') => {
     // quién redacta la frase.
     let parte = null;
     if (puede(usuario.plan, 'parteEquipo')) {
-      const hechosParte = parteLib.hechos(cifras._resenas, usuario?.idioma || 'es');
+      const hechosParte = parteLib.hechos(cifras._resenas, usuario?.idioma || 'es', new Date(), negocio.tipo);
       if (parteLib.hayAlgoQueContar(hechosParte)) {
         parte = parteServicio.estaFresco(negocio.parteEquipoFecha) && negocio.parteEquipo
           ? negocio.parteEquipo

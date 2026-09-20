@@ -192,6 +192,117 @@ const correr = async () => {
   check('la ruta llama a score.calcular', /score\.calcular\(snap/.test(rutaNegocio));
   check('y se lo pasa al código firmado', /score:\s*puntuacion\s*\?\s*puntuacion\.score/.test(rutaNegocio));
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  titulo('7. La competencia, dentro del resumen (2026-09-20)');
+
+  // 🔴 El quinto caso del mismo patrón: la función existía entera —panel de
+  // competidores, análisis con IA, comparación mensual— y el cliente solo se
+  // enteraba si entraba a mirar. El abandono del dueño está medido a los veinte
+  // días, que es el mismo motivo por el que existe el afiche de pared.
+  const comp = require('../src/lib/competencia');
+
+  // Snapshots dentro del MES EN CURSO, que es lo que compara `progreso.js`.
+  const ahoraComp = new Date();
+  const diasDelMes = Math.max(ahoraComp.getDate() - 1, 1);
+  const serie = (porDia) => {
+    const a = [];
+    for (let i = diasDelMes; i >= 0; i--) {
+      a.push({
+        tomadoEn: new Date(ahoraComp.getFullYear(), ahoraComp.getMonth(), ahoraComp.getDate() - i),
+        ratingActual: 4.3,
+        totalResenas: 100 + Math.round(porDia * (diasDelMes - i)),
+      });
+    }
+    return a;
+  };
+
+  const propio = { nombre: 'Mi local', snapshots: serie(0.2) };
+  const rivalFuerte = { nombre: 'El vecino', snapshots: serie(1.0) };
+  const rivalParejo = { nombre: 'El parejo', snapshots: serie(0.2) };
+
+  const destacado = comp.destacadoDelMes(propio, [rivalFuerte]);
+  check('avisa del competidor que sacó ventaja de verdad',
+    destacado && destacado.motivo === 'RESENAS' && destacado.nombre === 'El vecino');
+  check('y manda los NÚMEROS, no la frase ya escrita',
+    destacado && Number.isFinite(destacado.suyas) && Number.isFinite(destacado.mias),
+    'la frase se compone en el correo: misma regla que las invitaciones de equipo y el digest');
+
+  // Los silencios, que son lo que hace que el bloque se pueda leer cuando sale.
+  check('CONTROL — sin competidores cargados, no avisa',
+    comp.destacadoDelMes(propio, []) === null);
+  check('sin medición PROPIA no compara',
+    comp.destacadoDelMes({ nombre: 'X', snapshots: [] }, [rivalFuerte]) === null,
+    'leer el mes de otro sin tener el propio le haría creer al dueño que ese número es suyo');
+  check(`un empate no es noticia (hacen falta ${comp.VENTAJA_MINIMA_RESENAS} de ventaja)`,
+    comp.destacadoDelMes(propio, [rivalParejo]) === null,
+    'decir «te están ganando» por una reseña enseña a ignorar el dato');
+
+  // El umbral del rating NO se inventa: sale de progreso.js.
+  const progreso = require('../src/lib/progreso');
+  check('el umbral de rating es el de progreso.js, no uno nuevo',
+    comp.RATING_MINIMO_SIGNIFICATIVO === progreso.RATING_MINIMO_SIGNIFICATIVO
+    && comp.RATING_MINIMO_SIGNIFICATIVO === 0.2,
+    'Google redondea a un decimal: un movimiento de 0.1 cabe entero dentro del redondeo');
+
+  // ⚠️ Solo se informa de rivales que SUBEN. Que a un competidor le baje la nota
+  // no es accionable, y celebrarlo sería un tono que Notoria no tiene.
+  const fuenteComp = leer('src/lib/competencia.js');
+  check('solo informa de un rival que SUBIÓ de rating',
+    /deltaRating > 0/.test(fuenteComp));
+
+  titulo('7-bis. Está enchufado al correo, y sin gastar Places');
+
+  const worker = leer('src/workers/resumenSemanal.worker.js');
+  check('el worker calcula la competencia', worker.includes('competenciaLib.destacadoDelMes('));
+  check('y la manda en las cifras del correo', /competencia: competenciaLib\.destacadoDelMes/.test(worker));
+  check('🔴 CERO llamadas a Google: sale de los snapshots guardados',
+    worker.includes('prisma.competidor.findMany(') && !/competidor[\s\S]{0,200}?obtenerResenasGoogle/.test(worker),
+    'el dato ya estaba: lo que faltaba no era recolectarlo, era avisar');
+
+  const fuenteEmails = leer('src/utils/emails.js');
+  check('el correo pinta el bloque de competencia', fuenteEmails.includes('d.competencia ?'));
+  check('en los DOS idiomas', fuenteEmails.includes('compTitulo:') && fuenteEmails.includes("compTitulo: 'Your competition this month'"));
+  check('la frase se compone en el correo, con los números que llegan',
+    fuenteEmails.includes('t.compResenas(esc(d.competencia.nombre)'),
+    'el backend manda `suyas` y `mias`, nunca «te ganó por 6 reseñas» ya escrito');
+  check('el nombre del rival se ESCAPA antes de entrar al HTML',
+    /t\.comp(Resenas|Rating)\(esc\(d\.competencia\.nombre\)/.test(fuenteEmails),
+    'el nombre sale de Google Maps, o sea de fuera: es texto ajeno (§14)');
+
+  titulo('7-ter. Y el correo lo RENDERIZA de verdad');
+
+  const baseComp = { ratingActual: 4.3, variacion: 0, resenasNuevas: 4 };
+  await emails.enviarResumenSemanal(
+    { email: 'a@b.c', nombre: 'D', idioma: 'es' }, { id: 'n1', nombre: 'Mi local' },
+    { ...baseComp, competencia: { motivo: 'RESENAS', nombre: 'El vecino', suyas: 17, mias: 4, ventaja: 13 } },
+  );
+  let h = capturado.html;
+  check('el bloque sale con el nombre y las dos cifras',
+    h.includes('El vecino') && h.includes('17') && /Tu competencia este mes/.test(h));
+  check('y dice «este mes», no «esta semana»',
+    /este mes/.test(h), 'la comparación es mes contra mes aunque el resumen sea semanal');
+
+  await emails.enviarResumenSemanal(
+    { email: 'a@b.c', nombre: 'D', idioma: 'en' }, { id: 'n1', nombre: 'Mi local' },
+    { ...baseComp, competencia: { motivo: 'RATING', nombre: 'The neighbour', deltaRating: 0.4, ratingFinal: 4.6, suyas: 3, mias: 4 } },
+  );
+  check('en inglés también, y por el motivo RATING',
+    capturado.html.includes('Your competition this month') && capturado.html.includes('rating points'));
+
+  await emails.enviarResumenSemanal(
+    { email: 'a@b.c', nombre: 'D', idioma: 'es' }, { id: 'n1', nombre: 'Mi local' }, baseComp,
+  );
+  check('CONTROL — sin competencia el bloque NO se pinta',
+    !capturado.html.includes('Tu competencia'),
+    'escribir «nadie te superó» cada mes es ruido, y el ruido se deja de leer');
+
+  await emails.enviarResumenSemanal(
+    { email: 'a@b.c', nombre: 'D', idioma: 'es' }, { id: 'n1', nombre: 'Mi local' },
+    { ...baseComp, competencia: { motivo: 'RESENAS', nombre: '<script>alert(1)</script>', suyas: 9, mias: 4 } },
+  );
+  check('un nombre de rival con HTML se escapa en el correo real',
+    !capturado.html.includes('<script>alert(1)</script>') && capturado.html.includes('&lt;script&gt;'));
+
   console.log(`\n${'─'.repeat(56)}`);
   console.log(`${ok} pasadas · ${fallos} fallidas`);
   if (fallos) process.exitCode = 1;

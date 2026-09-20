@@ -29,12 +29,16 @@ const verificar = async (codigo) => {
 export async function generateMetadata({ params }) {
   const { codigo } = await params;
   const d = await verificar(codigo);
+  // Desde el 2026-09-20 por esta misma puerta entran DOS documentos: la
+  // constancia y el expediente de una reseña. El backend dice cuál es; quien
+  // escanea un QR no tiene por qué saberlo de antemano.
+  const esExp = d?.documento === 'EXPEDIENTE';
   const titulo = d?.valida
-    ? `Constancia válida — ${d.nombre}`
-    : 'Verificación de constancia — Notoria';
+    ? (esExp ? `Expediente válido — ${d.negocio}` : `Constancia válida — ${d.nombre}`)
+    : 'Verificación de documento — Notoria';
   return {
     title: titulo,
-    description: 'Comprueba la autenticidad de una Constancia de Reputación Online emitida por Notoria.',
+    description: 'Comprueba la autenticidad de un documento emitido por Notoria.',
     // No tiene sentido indexar la verificación de un documento concreto
     robots: { index: false, follow: false },
     openGraph: { title: titulo, type: 'website' },
@@ -63,11 +67,19 @@ export default async function PaginaVerificar({ params }) {
   // sugerirlo: quien la tiene delante solo tiene un papel viejo.
   const vencida = d?.motivo === 'VENCIDA';
 
+  // Qué documento tiene delante quien verifica. El backend lo dice; por defecto
+  // se asume constancia, que es lo que existía antes y lo que llevan los códigos
+  // emitidos hasta el 2026-09-20.
+  const esExpediente = d?.documento === 'EXPEDIENTE';
+  const N = esExpediente
+    ? { valido: 'Expediente válido', vencido: 'Expediente vencido', invalido: 'Expediente no válido' }
+    : { valido: 'Constancia válida', vencido: 'Constancia vencida', invalido: 'Constancia no válida' };
+
   const color = valida ? '#0B7324' : vencida ? '#B45309' : '#B91C1C';
-  const titulo = caida ? 'No pudimos verificarla ahora'
-    : valida ? 'Constancia válida'
-      : vencida ? 'Constancia vencida'
-        : 'Constancia no válida';
+  const titulo = caida ? (esExpediente ? 'No pudimos verificarlo ahora' : 'No pudimos verificarla ahora')
+    : valida ? N.valido
+      : vencida ? N.vencido
+        : N.invalido;
 
   return (
     <main style={{ maxWidth: 560, margin: '0 auto', padding: '56px 22px 90px' }}>
@@ -92,12 +104,49 @@ export default async function PaginaVerificar({ params }) {
           {caida
             ? 'No pudimos conectar con el servicio de verificación. Vuelve a intentarlo en unos minutos.'
             : valida
-              ? 'Este documento fue emitido por Notoria y sus datos no han sido alterados.'
+              ? (esExpediente
+                ? 'Este expediente fue emitido por Notoria y los hechos que recoge no han sido alterados.'
+                : 'Este documento fue emitido por Notoria y sus datos no han sido alterados.')
               : d.mensaje}
         </p>
       </div>
 
-      {(valida || vencida) && d.nombre && (
+      {/* ── Expediente de una reseña ──────────────────────────────────────
+          🔴 Lo que acredita es acotado y la página lo dice igual que el PDF:
+          que Notoria REGISTRÓ ese texto, de ese autor, ese día. No que la
+          reseña sea falsa ni que haya habido extorsión — eso lo determina la
+          plataforma o la autoridad. */}
+      {(valida || vencida) && esExpediente && d.negocio && (
+        <section style={{
+          background: 'var(--surface)', border: '1px solid var(--border-c)',
+          borderRadius: 12, padding: '8px 22px 18px', marginBottom: 20,
+        }}>
+          <Dato etiqueta="Establecimiento" valor={d.negocio} />
+          {valida && (
+            <>
+              {d.rating != null && <Dato etiqueta="Calificación de la reseña" valor={`${d.rating} de 5`} />}
+              {d.autor && <Dato etiqueta="Autor según la plataforma" valor={d.autor} />}
+              {d.fechaResena && <Dato etiqueta="Fecha de la reseña" valor={fecha(d.fechaResena)} />}
+              {/* La mitad del valor del documento: acredita que el texto estaba
+                  publicado ese día, aunque después se haya editado o borrado. */}
+              {d.capturadaEn && <Dato etiqueta="Registrada por Notoria el" valor={fecha(d.capturadaEn)} />}
+              {d.huellaTexto && <Dato etiqueta="Huella del texto" valor={d.huellaTexto} />}
+            </>
+          )}
+          <Dato etiqueta="Emitido el" valor={fecha(d.emitido)} />
+          <Dato etiqueta={vencida ? 'Venció el' : 'Verificable hasta'} valor={fecha(d.vence)} />
+        </section>
+      )}
+
+      {valida && esExpediente && d.huellaTexto && (
+        <p style={{ fontSize: 12, color: 'var(--text-3)', lineHeight: 1.7, margin: '-6px 0 22px' }}>
+          La <strong>huella del texto</strong> corresponde al contenido de la reseña tal como Notoria lo
+          registró. Si la que aparece impresa en el documento es distinta a esta, el texto fue
+          modificado después de emitirlo.
+        </p>
+      )}
+
+      {(valida || vencida) && !esExpediente && d.nombre && (
         <section style={{
           background: 'var(--surface)', border: '1px solid var(--border-c)',
           borderRadius: 12, padding: '8px 22px 18px', marginBottom: 20,
@@ -130,10 +179,23 @@ export default async function PaginaVerificar({ params }) {
       {/* El alcance va en la página, no solo en el PDF: quien verifica puede
           llegar aquí sin haber leído el documento entero. */}
       <p style={{ fontSize: 12, color: 'var(--text-3)', lineHeight: 1.7, margin: '0 0 26px' }}>
-        Esta constancia acredita únicamente información pública de Google Maps, recogida y fechada por
-        Notoria (NOTORIA E.I.R.L., RUC 20616239466). No certifica la calidad del servicio del
-        establecimiento, ni opina sobre su solvencia, ni tiene valor tributario. Los datos viajan
-        firmados dentro del propio código: por eso se pueden comprobar sin consultar ningún registro.
+        {esExpediente ? (
+          <>
+            Este expediente acredita únicamente que Notoria (NOTORIA E.I.R.L., RUC 20616239466)
+            registró esa reseña, con ese texto y en esa fecha, a partir de información pública de la
+            plataforma. <strong>No determina que la reseña sea falsa ni que haya habido un delito</strong>:
+            eso lo decide la plataforma o la autoridad competente. No constituye asesoría legal ni
+            peritaje. Los datos viajan firmados dentro del propio código: por eso se pueden comprobar
+            sin consultar ningún registro.
+          </>
+        ) : (
+          <>
+            Esta constancia acredita únicamente información pública de Google Maps, recogida y fechada por
+            Notoria (NOTORIA E.I.R.L., RUC 20616239466). No certifica la calidad del servicio del
+            establecimiento, ni opina sobre su solvencia, ni tiene valor tributario. Los datos viajan
+            firmados dentro del propio código: por eso se pueden comprobar sin consultar ningún registro.
+          </>
+        )}
       </p>
 
       <div style={{ textAlign: 'center' }}>

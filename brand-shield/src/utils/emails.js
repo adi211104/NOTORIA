@@ -636,6 +636,21 @@ const RESUMEN = {
     temaSemana: (etiqueta, veces, pct, per) =>
       `Lo que más mencionaron: <strong>${etiqueta}</strong> — ${veces} de las reseñas con texto de ${per === 'mensual' ? 'este mes' : 'esta semana'} (${pct}%).`,
     temaSube: (etiqueta, per) => `Y va en aumento respecto ${per === 'mensual' ? 'al mes pasado' : 'a la semana pasada'}: <strong>${etiqueta}</strong>.`,
+    // ── Competencia ─────────────────────────────────────────────────────────
+    // 🔴 Los DATOS viajan como números y la frase se compone acá, igual que el
+    // tema. Y siempre en SEGUNDA persona sobre hechos, nunca «te están ganando»:
+    // el dato es cuántas reseñas ganó cada uno este mes, no un veredicto.
+    //
+    // ⚠️ Dice «este mes» aunque el resumen sea semanal, y es deliberado: la
+    // comparación es mes contra mes (`lib/progreso.js`) porque un rating de
+    // competidor no se mueve en siete días — está medido. Escribir «esta semana»
+    // sobre una cifra mensual sería el bug de la palabra «semanal» otra vez.
+    compTitulo: 'Tu competencia este mes',
+    compResenas: (rival, suyas, mias) =>
+      `<strong>${rival}</strong> sumó <strong>${suyas}</strong> reseñas este mes; tú ${mias}.`,
+    compRating: (rival, delta, final) =>
+      `<strong>${rival}</strong> subió <strong>${delta.toFixed(1)}</strong> puntos de rating este mes (va en ${final.toFixed(1)}★).`,
+    compAyuda: 'Sale del historial que Notoria ya guarda de los competidores que tú elegiste.',
     parteTitulo: 'Para el grupo de tu equipo',
     parteAyuda: 'Son ellos los que pueden cambiar lo que dicen las reseñas. Repásalo antes de enviarlo: lo va a leer tu gente.',
     // 🔴 El último tramo, que faltaba: del dueño AL EQUIPO. El parte ya viajaba
@@ -679,6 +694,12 @@ const RESUMEN = {
     temaSemana: (etiqueta, veces, pct, per) =>
       `Most mentioned: <strong>${etiqueta}</strong> — ${veces} of this ${per === 'mensual' ? 'month' : 'week'}'s reviews with text (${pct}%).`,
     temaSube: (etiqueta, per) => `And it is growing compared to last ${per === 'mensual' ? 'month' : 'week'}: <strong>${etiqueta}</strong>.`,
+    compTitulo: 'Your competition this month',
+    compResenas: (rival, suyas, mias) =>
+      `<strong>${rival}</strong> gained <strong>${suyas}</strong> reviews this month; you gained ${mias}.`,
+    compRating: (rival, delta, final) =>
+      `<strong>${rival}</strong> gained <strong>${delta.toFixed(1)}</strong> rating points this month (now at ${final.toFixed(1)}★).`,
+    compAyuda: 'It comes from the history Notoria already keeps on the competitors you chose.',
     parteTitulo: 'For your team group chat',
     parteAyuda: 'They are the ones who can change what the reviews say. Read it over before sending: your staff will read it.',
     parteCompartir: 'Send it on WhatsApp →',
@@ -729,6 +750,16 @@ const bloqueCifrasNegocio = (negocio, d, t = RESUMEN.es, periodo = 'semanal') =>
     ${d.tendenciaTema && d.tendenciaTema.etiqueta && d.tendenciaTema.etiqueta !== d.tema.etiqueta
       ? t.temaSube(esc(d.tendenciaTema.etiqueta), periodo) : ''}
   </p>` : ''}
+  ${d.competencia ? `
+  <div style="background:#FAF9F5;border:1px solid #E8E6DC;border-radius:6px;padding:12px 14px;margin:0 0 10px;">
+    <p style="color:#9C9B96;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 6px;">${t.compTitulo}</p>
+    <p style="color:#141413;font-size:13px;margin:0 0 6px;line-height:1.6;">
+      ${d.competencia.motivo === 'RATING'
+        ? t.compRating(esc(d.competencia.nombre), d.competencia.deltaRating, d.competencia.ratingFinal)
+        : t.compResenas(esc(d.competencia.nombre), d.competencia.suyas, d.competencia.mias)}
+    </p>
+    <p style="color:#9C9B96;font-size:11px;margin:0;line-height:1.5;">${t.compAyuda}</p>
+  </div>` : ''}
   ${d.insight ? `
   <div style="background:${'rgba(11,115,36,0.08)'};border-left:3px solid #0B7324;padding:10px 14px;margin-bottom:4px;">
     <p style="color:#141413;font-size:13px;margin:0;line-height:1.6;">${esc(d.insight)}</p>

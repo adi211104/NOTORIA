@@ -14,6 +14,7 @@ const rateLimit = require('express-rate-limit');
 const { analizarResena } = require('../../nlp/detector');
 const { informeRating } = require('../../lib/rating');
 const { verificarCodigo } = require('../../lib/constancia');
+const { verificarCodigo: verificarExpediente } = require('../../lib/expedienteCodigo');
 const impacto = require('../../lib/impacto');
 
 const router = express.Router();
@@ -438,24 +439,52 @@ router.get('/ficha', fichaLimiter, async (req, res, next) => {
 //
 // Lleva el limitador estricto: es el único endpoint público donde tendría sentido
 // que alguien probara códigos a lo bruto.
+// 🔴 Desde el 2026-09-20 verifica DOS documentos por la misma puerta: la
+// constancia y el expediente. Es deliberado que sea una sola URL — quien escanea
+// un QR no sabe ni tiene por qué saber qué clase de papel tiene en la mano.
+//
+// El orden importa poco porque cada verificador comprueba SU tipo y rechaza el
+// del otro (`motivo: 'TIPO'`); sin esa guarda, un expediente se verificaría como
+// constancia —la firma es válida, el secreto es el mismo— y saldría un sello de
+// «verificado» sobre campos vacíos.
 router.get('/verificar/:codigo', publicoLimiter, (req, res) => {
-  const { valida, motivo, datos } = verificarCodigo(req.params.codigo);
+  const comoConstancia = verificarCodigo(req.params.codigo);
+  if (comoConstancia.valida) {
+    return res.json({ valida: true, documento: 'CONSTANCIA', ...comoConstancia.datos });
+  }
 
-  if (valida) return res.json({ valida: true, ...datos });
+  const comoExpediente = verificarExpediente(req.params.codigo);
+  if (comoExpediente.valida) {
+    return res.json({ valida: true, documento: 'EXPEDIENTE', ...comoExpediente.datos });
+  }
+
+  // Cuál de los dos manda el veredicto: el que reconoció el código como suyo.
+  // Si la constancia dice TIPO, es que el código era de expediente y venció o
+  // está alterado — y al revés. Quedarse siempre con el primero daría el mensaje
+  // del documento equivocado.
+  const r = comoConstancia.motivo === 'TIPO' ? comoExpediente : comoConstancia;
+  const esExpediente = r === comoExpediente;
 
   // El motivo se distingue a propósito: «venció» y «está falsificada» son cosas
   // muy distintas para quien tiene el papel delante, y confundirlas sería
   // acusar de fraude a alguien que solo tiene un documento viejo.
-  const mensajes = {
+  const mensajes = esExpediente ? {
+    VENCIDA: 'Este expediente venció. Los hechos que recoge siguen siendo los que Notoria registró, pero el código ya no se puede comprobar en línea.',
+    FIRMA: 'No pudimos verificar este expediente: el código no corresponde a ningún documento emitido por Notoria, o fue alterado.',
+    TIPO: 'El código no tiene un formato válido. Revisa que se haya copiado completo.',
+    FORMATO: 'El código no tiene un formato válido. Revisa que se haya copiado completo.',
+  } : {
     VENCIDA: 'Esta constancia venció. Los datos que muestra eran correctos al emitirla, pero ya no acreditan el estado actual.',
     FIRMA: 'No pudimos verificar esta constancia: el código no corresponde a ningún documento emitido por Notoria, o fue alterado.',
+    TIPO: 'El código no tiene un formato válido. Revisa que se haya copiado completo.',
     FORMATO: 'El código no tiene un formato válido. Revisa que se haya copiado completo.',
   };
-  res.status(motivo === 'VENCIDA' ? 200 : 404).json({
+  res.status(r.motivo === 'VENCIDA' ? 200 : 404).json({
     valida: false,
-    motivo,
-    mensaje: mensajes[motivo] || mensajes.FORMATO,
-    ...(datos || {}),
+    documento: esExpediente ? 'EXPEDIENTE' : 'CONSTANCIA',
+    motivo: r.motivo,
+    mensaje: mensajes[r.motivo] || mensajes.FORMATO,
+    ...(r.datos || {}),
   });
 });
 

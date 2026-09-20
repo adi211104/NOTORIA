@@ -202,6 +202,119 @@ const correr = async () => {
     /findFirst\(\{\s*where:\s*\{\s*id:\s*req\.params\.resenaId,\s*negocioId:\s*negocio\.id/.test(ruta),
     'filtrar solo por id dejaría pedir la reseña de una ficha ajena pasando el negocio propio');
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  titulo('8. El código verificable (2026-09-20)');
+
+  // 🔴 Lo que convierte el PDF en un documento contrastable. Sin esto es un
+  // archivo que cualquiera edita: se le cambia el texto de la reseña o la fecha
+  // y no hay forma de notarlo.
+  process.env.JWT_SECRET = process.env.JWT_SECRET || 'secreto-de-prueba-expediente';
+  const ec = require('../src/lib/expedienteCodigo');
+  const constancia = require('../src/lib/constancia');
+
+  const negocioX = { nombre: 'Cevicheria El Muelle', googlePlaceId: 'ChIJprueba' };
+  const resenaX = {
+    rating: 1, autor: 'Juan P.',
+    texto: '  Pesimo   servicio,\n no vuelvo  ',
+    fechaResena: new Date('2026-08-15'),
+    capturadaEn: new Date('2026-08-15T22:00:00Z'),
+  };
+  const codigo = ec.emitirCodigo({ negocio: negocioX, resena: resenaX });
+  const v = ec.verificarCodigo(codigo);
+
+  check('el código emitido se verifica', v.valida === true, v.motivo);
+  check('y devuelve lo que se firmó',
+    v.datos.negocio === 'Cevicheria El Muelle' && v.datos.rating === 1 && v.datos.autor === 'Juan P.');
+  check('conserva la fecha en que NOSOTROS la vimos',
+    v.datos.capturadaEn.getTime() === resenaX.capturadaEn.getTime(),
+    'acredita que el texto estaba publicado ese día aunque después lo borren');
+
+  // La huella es lo que ata el documento a SU contenido.
+  check('la huella del texto sobrevive al reflow del PDF',
+    ec.huellaTexto('Pesimo servicio, no vuelvo') === v.datos.huellaTexto,
+    'el PDF recompone los saltos de línea: un salto de más no puede cambiar la huella');
+  check('pero cambia si cambia UNA palabra',
+    ec.huellaTexto('Pesimo servicio, si vuelvo') !== v.datos.huellaTexto);
+  check('y distingue mayúsculas y tildes, que sí son contenido',
+    ec.huellaTexto('Pesimo servicio, no vuelvo') !== ec.huellaTexto('Pésimo servicio, no vuelvo'));
+
+  check('un código alterado se rechaza por FIRMA',
+    ec.verificarCodigo(`${codigo.slice(0, -3)}aaa`).motivo === 'FIRMA');
+  check('basura se rechaza por FORMATO',
+    ec.verificarCodigo('hola').motivo === 'FORMATO' && ec.verificarCodigo(null).motivo === 'FORMATO',
+    'la ruta es pública: le puede llegar cualquier cosa, incluido un código copiado a medias');
+
+  // 🔴 La guarda cruzada. Los dos documentos se firman con el MISMO secreto, así
+  // que sin el discriminador de tipo un expediente se verificaría como
+  // constancia —firma válida— y la página pondría un sello de «verificado»
+  // sobre campos vacíos.
+  const codConstancia = constancia.emitirCodigo({
+    nombre: 'X', rating: 4.5, totalResenas: 10, diasVigilado: 30, incidentes: 0, placeId: 'p',
+  });
+  check('🔴 la constancia RECHAZA un código de expediente',
+    constancia.verificarCodigo(codigo).motivo === 'TIPO');
+  check('🔴 y el expediente RECHAZA una constancia',
+    ec.verificarCodigo(codConstancia).motivo === 'TIPO');
+  check('CONTROL — la constancia sigue verificando las suyas',
+    constancia.verificarCodigo(codConstancia).valida === true,
+    'la guarda de tipo no puede romper los códigos que ya están en circulación');
+
+  // ⚠️ Las constancias emitidas antes del discriminador no llevan `k`. Siguen
+  // siendo válidas: la comprobación es «si trae tipo, que sea el mío».
+  const fuenteConst = leer('src/lib/constancia.js');
+  check('la guarda acepta los códigos viejos, sin `k`',
+    /p\.k !== undefined && p\.k !== 'c'/.test(fuenteConst),
+    'exigir el campo invalidaría todas las constancias ya emitidas');
+
+  // La vigencia es distinta a propósito.
+  check(`el expediente dura ${ec.VIGENCIA_DIAS} días, no los ${constancia.VIGENCIA_DIAS} de la constancia`,
+    ec.VIGENCIA_DIAS === 365 && ec.VIGENCIA_DIAS > constancia.VIGENCIA_DIAS,
+    'la constancia dice «hoy tiene 4.6★» y caduca; el expediente dice «el 15 de agosto existía esto», que es un hecho pasado — y una denuncia dura más de 90 días');
+
+  const vencido = ec.verificarCodigo(ec.emitirCodigo({
+    negocio: negocioX, resena: resenaX,
+    emitidoEn: new Date(Date.now() - (ec.VIGENCIA_DIAS + 1) * 86400000),
+  }));
+  check('uno vencido se distingue de uno falsificado',
+    vencido.motivo === 'VENCIDA' && !!vencido.datos?.negocio,
+    'confundirlas sería acusar de fraude a quien solo tiene un documento viejo');
+
+  // Sin estrella (Facebook) no se inventa un 0.
+  const sinEstrella = ec.verificarCodigo(ec.emitirCodigo({
+    negocio: negocioX, resena: { ...resenaX, rating: null },
+  }));
+  check('una reseña sin estrella viaja como null, no como 0',
+    sinEstrella.datos.rating === null,
+    'un «0★» impreso en una denuncia es una afirmación que la plataforma nunca hizo');
+
+  titulo('8-bis. Está enchufado, y no bloquea el documento si falla');
+
+  const rutaSrc = leer('src/api/routes/negocio.routes.js');
+  check('la ruta emite el código y se lo pasa al PDF',
+    rutaSrc.includes('emitirCodigoExpediente(') && /generarExpediente\(exp, verificacion\)/.test(rutaSrc));
+  check('lo firma sobre los datos YA ARMADOS, no sobre la fila cruda',
+    /emitirCodigoExpediente\(\{ negocio, resena: exp\.resena/.test(rutaSrc),
+    'lo firmado tiene que ser exactamente lo que el PDF imprime');
+  check('⚠️ si la firma falla, el expediente se entrega igual',
+    /try \{[\s\S]{0,700}?emitirCodigoExpediente[\s\S]{0,700}?\} catch/.test(rutaSrc),
+    'negarle el documento entero a quien tiene una denuncia en curso, por no poder ponerle un sello, sería el peor de los dos resultados');
+  check('el PDF imprime el recuadro de verificación',
+    leer('src/utils/expediente.pdf.js').includes('COMO COMPROBAR ESTE DOCUMENTO'));
+  check('y la huella del texto, para poder cotejarla',
+    leer('src/utils/expediente.pdf.js').includes('Huella del texto'));
+
+  const publico = leer('src/api/routes/publico.routes.js');
+  check('la ruta pública verifica los DOS documentos por la misma puerta',
+    publico.includes('verificarExpediente(') && publico.includes("documento: 'EXPEDIENTE'"),
+    'quien escanea un QR no sabe qué clase de papel tiene en la mano');
+
+  const pagina = leer('../brand-shield-web/src/app/verificar/[codigo]/page.js');
+  check('la página distingue el expediente de la constancia',
+    pagina.includes("d?.documento === 'EXPEDIENTE'"));
+  check('🔴 y repite EL LÍMITE: no determina que la reseña sea falsa',
+    /No determina que la rese/.test(pagina) && /autoridad competente/.test(pagina),
+    'quien verifica puede llegar ahí sin haber leído el PDF entero');
+
   console.log(`\n${'─'.repeat(56)}`);
   console.log(`${ok} pasadas · ${fallos} fallidas`);
   if (fallos) process.exitCode = 1;

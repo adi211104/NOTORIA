@@ -97,7 +97,7 @@ const TEXTOS = {
 // devolvía SIEMPRE la etiqueta en español, así que un afiche en inglés decía
 // "The most repeated complaint: la demora en la atención". Es el mismo error que
 // ya había pasado con las invitaciones de equipo y con los correos de alerta.
-const quejaMasRepetida = (resenas, idioma = 'es') => masRepetido(resenas, idioma);
+const quejaMasRepetida = (resenas, idioma = 'es', tipo = null) => masRepetido(resenas, idioma, tipo);
 
 /**
  * Elige LA cosa de la semana. El orden es la parte importante: primero lo que
@@ -105,11 +105,11 @@ const quejaMasRepetida = (resenas, idioma = 'es') => masRepetido(resenas, idioma
  * Devolver varias cosas sería devolver ninguna.
  */
 const elegirFoco = (t, datos, idioma = 'es') => {
-  const { fichaCerrada, criticasSinResponder, caidaRating, negativas, totalResenas } = datos;
+  const { fichaCerrada, criticasSinResponder, caidaRating, negativas, totalResenas, tipo } = datos;
   if (fichaCerrada) return { texto: t.focos.fichaCerrada, color: ROJO };
   if (criticasSinResponder > 0) return { texto: t.focos.criticasSinResponder(criticasSinResponder), color: ROJO };
   if (caidaRating >= 0.1) return { texto: t.focos.ratingBajando(caidaRating.toFixed(1)), color: AMBAR };
-  const queja = quejaMasRepetida(negativas, idioma);
+  const queja = quejaMasRepetida(negativas, idioma, tipo);
   if (queja) return { texto: t.focos.quejaRepetida(queja), color: AMBAR };
   if (totalResenas < 50) return { texto: t.focos.pocasResenas, color: VERDE };
   return { texto: t.focos.todoBien, color: VERDE };
@@ -180,6 +180,11 @@ const generarAfiche = (negocio, datos, idioma = 'es') => new Promise((resolve, r
     caidaRating: datos.caidaRating ?? 0,
     negativas: datos.negativas || [],
     totalResenas: datos.totalResenas ?? 0,
+    // El rubro decide qué diccionario de quejas se aplica (`lib/temas.js`). Sin
+    // esto, el afiche de una peluquería busca palabras de restaurante, no
+    // encuentra ninguna y cae al genérico «vamos bien» con quejas reales
+    // delante — que es peor que no imprimir el afiche.
+    tipo: negocio?.tipo || null,
   }, idioma);
 
   const yFoco = 462;

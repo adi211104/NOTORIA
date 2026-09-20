@@ -91,7 +91,7 @@ const redactarConIA = async (hechos, negocio, idioma) => {
  * @returns {null|{texto, generadoEn, conIA, hechos}}
  */
 const obtener = async (negocio, resenas, idioma = 'es', { forzar = false } = {}) => {
-  const h = parte.hechos(resenas, idioma);
+  const h = parte.hechos(resenas, idioma, new Date(), negocio.tipo);
 
   // Semana sin material: el producto se calla en vez de rellenar. Un parte que
   // dice "no pasó nada" cada lunes enseña al equipo a ignorarlo.

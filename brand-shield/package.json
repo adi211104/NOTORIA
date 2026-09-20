@@ -1,7 +1,7 @@
 {
   "name": "notoria-api",
   "version": "1.0.0",
-  "description": "Notoria: Monitor de reputación para restaurantes y hoteles",
+  "description": "Notoria: Monitor de reputación para negocios locales del Perú",
   "main": "src/index.js",
   "engines": {
     "node": ">=18.18.0"

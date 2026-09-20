@@ -98,6 +98,15 @@ const verificarCodigo = (codigo) => {
     }
 
     const p = JSON.parse(Buffer.from(body, 'base64url').toString());
+    // 🔴 Guarda de TIPO, añadida el 2026-09-20 al aparecer un segundo documento
+    // firmado (el expediente, `lib/expedienteCodigo.js`). Los dos usan el mismo
+    // secreto, así que la firma de un expediente es perfectamente válida acá: sin
+    // esta línea se verificaría como constancia y la página mostraría un sello de
+    // «verificado» sobre campos vacíos — un documento acreditando algo que no dice.
+    //
+    // ⚠️ Las constancias emitidas ANTES no llevan `k` y siguen siendo válidas:
+    // la comprobación es «si trae tipo, que sea el mío», no «tiene que traerlo».
+    if (p.k !== undefined && p.k !== 'c') return { valida: false, motivo: 'TIPO' };
     const emitida = new Date(p.e);
     const vence = new Date(p.e + VIGENCIA_DIAS * 86400000);
     if (Date.now() > vence.getTime()) {

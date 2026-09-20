@@ -17,6 +17,7 @@
 // sanitizador que la constancia y el afiche.
 
 const PDFDocument = require('pdfkit');
+const QRCode = require('qrcode');
 const { seguro } = require('../lib/winansi');
 
 const INK = '#141413';
@@ -31,7 +32,15 @@ const EMISOR = { razon: 'NOTORIA E.I.R.L.', ruc: '20616239466', web: 'usenotoria
 const fechaLarga = (d) => new Date(d).toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' });
 const fechaHora = (d) => `${fechaLarga(d)}, ${new Date(d).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Lima' })}`;
 
-const generarExpediente = async (exp) => new Promise((resolve, reject) => {
+const generarExpediente = async (exp, verificacion = null) => {
+  // El QR se genera ANTES de abrir el documento: si falla, mejor fallar la
+  // generación entera que entregar un expediente con un hueco donde debía ir la
+  // prueba de que es auténtico. Mismo criterio que la constancia.
+  const qr = verificacion?.url
+    ? await QRCode.toBuffer(verificacion.url, { width: 300, margin: 1, errorCorrectionLevel: 'M', color: { dark: '#141413', light: '#FFFFFF' } })
+    : null;
+
+  return new Promise((resolve, reject) => {
   const doc = new PDFDocument({ margin: 50, size: 'A4' });
   const trozos = [];
   doc.on('data', (c) => trozos.push(c));
@@ -166,6 +175,45 @@ const generarExpediente = async (exp) => new Promise((resolve, reject) => {
   parrafo('Si un particular exige dinero: es materia penal, no de consumo. La figura que suele invocarse es la extorsion, prevista en el articulo 200 del Codigo Penal. La denuncia se presenta ante la Policia Nacional o el Ministerio Publico.', { size: 10.5, gap: 8 });
   parrafo('Si detras hay un competidor: la via es la Ley de Represion de la Competencia Desleal (Decreto Legislativo 1044), que sanciona los actos de denigracion, y se tramita ante INDECOPI.', { size: 10.5, gap: 10 });
 
+  // ── Verificación ──────────────────────────────────────────
+  //
+  // 🔴 Lo que convierte este PDF en un documento contrastable. Sin esto es un
+  // archivo que cualquiera puede editar: se le cambia el texto de la reseña o la
+  // fecha y no hay forma de notarlo. Con el código, quien lo recibe —un abogado,
+  // el efectivo que toma la denuncia— comprueba contra Notoria que esos datos
+  // salieron de acá y nadie los tocó.
+  //
+  // ⚠️ El recuadro va ANTES del pie y en su propia página si no cabe: partir el
+  // código entre dos páginas lo vuelve intranscribible, y es lo único del
+  // documento que hay que poder copiar entero.
+  if (verificacion?.codigo) {
+    const alto = qr ? 132 : 92;
+    if (y > doc.page.height - (alto + 90)) { doc.addPage(); y = 60; }
+    doc.roundedRect(M, y, ancho, alto, 10).lineWidth(1).stroke(BORDE);
+
+    const xTexto = qr ? M + 128 : M + 16;
+    const anchoTexto = ancho - (qr ? 144 : 32);
+    if (qr) doc.image(qr, M + 14, y + 14, { width: 100, height: 100 });
+
+    doc.fillColor(VERDE).font('Times-Bold').fontSize(9)
+      .text(seguro('COMO COMPROBAR ESTE DOCUMENTO'), xTexto, y + 14, { width: anchoTexto, characterSpacing: 0.8 });
+    doc.fillColor(GRIS).font('Times-Roman').fontSize(9)
+      .text(seguro('Escanee el codigo o visite la direccion de abajo. Notoria confirmara que estos datos salieron de su registro y no fueron alterados.'),
+        xTexto, y + 28, { width: anchoTexto, lineGap: 1.5 });
+    doc.fillColor(INK).font('Times-Roman').fontSize(7.5)
+      .text(seguro(verificacion.url || ''), xTexto, y + (qr ? 64 : 58), { width: anchoTexto });
+
+    // La huella del texto: es lo que ata el documento a SU contenido. Si alguien
+    // edita una palabra de la reseña impresa arriba, esta huella deja de
+    // corresponder con la que devuelve la verificación.
+    if (verificacion.huellaTexto) {
+      doc.fillColor(GRIS_CLARO).font('Times-Roman').fontSize(7.5)
+        .text(seguro(`Huella del texto de la resena: ${verificacion.huellaTexto}`),
+          xTexto, y + (qr ? 88 : 74), { width: anchoTexto });
+    }
+    y += alto + 14;
+  }
+
   // ── Pie ───────────────────────────────────────────────────
   const pieY = doc.page.height - 62;
   doc.moveTo(M, pieY).lineTo(doc.page.width - M, pieY).lineWidth(1).stroke(BORDE);
@@ -173,7 +221,8 @@ const generarExpediente = async (exp) => new Promise((resolve, reject) => {
     .text(seguro(`${EMISOR.razon} - RUC ${EMISOR.ruc} - ${EMISOR.web}. Documento generado automaticamente a partir del registro de Notoria. No constituye asesoria legal ni peritaje.`),
       M, pieY + 10, { width: ancho, align: 'center' });
 
-  doc.end();
-});
+    doc.end();
+  });
+};
 
 module.exports = { generarExpediente };

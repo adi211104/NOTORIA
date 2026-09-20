@@ -6,8 +6,16 @@
 
 ## 1. Qué es Notoria
 
-Plataforma SaaS de monitoreo de reputación para restaurantes y hoteles **del Perú**.
-Detecta reseñas falsas, ataques de bots y caídas de rating.
+Plataforma SaaS de monitoreo de reputación para **negocios locales del Perú** —restaurantes,
+hoteles, bares, salones, tiendas, clínicas y más—. Detecta reseñas falsas, ataques de bots y
+caídas de rating.
+
+> ⚠️ **Decía «restaurantes y hoteles» hasta el 2026-09-20**, y eso ya no era cierto: el producto
+> deja elegir **doce rubros** (`TIPOS_NEGOCIO` en `api/routes/negocio.routes.js`, espejado en
+> `web/src/lib/tiposNegocio.js`) y la campaña se dirige también a bares, discotecas y salones.
+> Importaba porque esta línea es lo primero que lee cada sesión y **se copia**: al escribir los
+> guiones de la campaña se puso «restaurantes y hoteles» *porque el documento lo decía*, y hubo
+> que corregirlo después. Estaba igual en los dos README y en el `package.json` del backend.
 
 - Planes: **Gratuito** · **Impulso S/29/mes** (anual S/23/mes) · **Negocio S/59/mes** (anual S/47/mes) ·
   **Franquicia S/179/mes** (anual S/143/mes). 🔴 **Desde el 2026-08-25 todo plan de pago incluye UN
@@ -2339,6 +2347,45 @@ entero**: con 1200 px y 45 módulos cada módulo mide un número redondo de píx
 24,32 px se amplía con los bordes sucios en el diseño de un tercero.
 
 `node scripts/prueba-cartel.js` — **100 comprobaciones**.
+**Las quejas se leen POR RUBRO desde el 2026-09-20** (`lib/temas.js`). Hasta ese día los seis
+temas eran vocabulario de comida y se le aplicaban igual a todos los negocios.
+
+🔴 **El fallo era mudo y del peor tipo.** Un tema exige 2 menciones, así que a una peluquería no
+le salía ninguno: `masRepetido` devolvía `null`, el afiche perdía su línea de foco y la tarjeta
+del panel no se renderizaba. **El cliente no ve un error: ve una sección vacía y concluye que en
+su negocio no pasa nada.** Paga por una función que, para su rubro, está apagada sin decirlo.
+Medido ese día en producción: de **8 fichas activas, 2 son PELUQUERIA y devolvían cero temas**
+mientras cada restaurante devolvía al menos uno.
+
+| | Temas |
+|---|---|
+| **Universales** (todos los rubros) | demora · trato · limpieza · precio |
+| RESTAURANTE · CAFETERIA · BAR | + temperatura · porción |
+| PELUQUERIA · SPA | + resultado · daño · cita |
+| BAR | + música · ingreso · seguridad · tragos |
+| HOTEL | + ruido · habitación · servicios · reserva |
+| Los demás (gimnasio, tienda, taller…) | **solo los universales** — 4 honestos es mejor que 6 inútiles |
+
+🔑 **Las palabras salieron de LEER reseñas reales de cada rubro en Google, no de inventarlas**, y
+esa es la parte cara. Un diccionario escrito de memoria acierta lo obvio y pierde lo que la gente
+dice de verdad: en salones la queja dominante no es «mal servicio» sino **«no quedó como pedí»**,
+y en discotecas el ingreso —la cola, el cover, la lista, «no me dejaron entrar»— pesa tanto como
+lo de adentro. **Al añadir un rubro, repetir el método**: leer reseñas de ≤3★ de ese rubro.
+
+⚠️ **`temasDeRubro(null)` devuelve TODOS los temas**, que es el comportamiento anterior. Es
+deliberado: un call-site que olvide pasar el rubro añade ruido en vez de producir silencio, y el
+silencio es el que nadie detecta. Los **seis** call-sites lo pasan (panel, parte, servicio del
+parte, afiche, diagnóstico de la alerta y correo del resumen) y lo vigila `prueba-temas.js`
+leyendo el fuente — es el mismo agujero que ya tuvieron `idioma`, `prefsAlertas` y `localesExtra`.
+
+🔴 **Y apareció un bug preexistente que llevaba ahí desde siempre: faltaba la palabra `'fría'`.**
+El tema se llama «Comida fría» y su lista tenía `'frio'`, `'frío'`, `'fria'` y `'frías'` — todas
+menos el singular con tilde. «La comida llegó fría» no levantaba el tema. A ojo las cuatro
+variantes parecen cubrirlo todo; lo cazó **probar el diccionario contra frases reales** en vez de
+leerlo.
+
+`node scripts/prueba-temas.js` — **96 comprobaciones**.
+
 **Afiche de la pared** (`src/utils/afiche.generator.js`, `GET /api/negocios/:id/afiche.pdf`).
 Un A4 para imprimir y colgar donde trabaja el equipo: la nota a 96 pt, las reseñas nuevas, las
 que faltan por responder y **una sola cosa** en la que enfocarse esta semana. Existe porque el
@@ -2501,6 +2548,43 @@ en una fila nueva de la comparativa y en el FAQ — en los dos idiomas **y en el
 `layout.js`**, que es la copia que se olvida. ⚠️ No es letra chica ni una concesión: contado
 claro **vende**, porque «vigila sin pausas aunque no entres» es un motivo concreto para pagar.
 Lo vigila el bloque 12 de `prueba-dormancia.js`, que es su única comprobación sobre el frontend.
+
+### 🔴 Tercera regla de contenido: la cifra en soles NO sale de donde el estudio midió
+
+**Decidido por el dueño el 2026-09-20.** `lib/impacto.js` traduce estrellas a soles con el
+estudio de Michael Luca (Harvard, HBS 12-016), que midió **restaurantes independientes**. Hoy
+`TIPOS_APLICABLES = ['RESTAURANTE', 'BAR', 'CAFETERIA']`, y **el bar se queda dentro**: es una
+decisión consciente, con su justificación escrita en el propio archivo, no un descuido.
+
+| Dónde | |
+|---|---|
+| Restaurante, bar y cafetería | **Sí** — el código ya lo hace y así queda |
+| Hotel | **No.** Su demanda pasa por Booking, no por Maps. `tipo=HOTEL` responde 404 `SIN_ESTIMACION` |
+| Discoteca (`night_club`), salón (`beauty_salon`), gimnasio, tienda, taller… | **No.** `desdeTiposGoogle()` cae a `null` ante la duda |
+
+⚠️ **Lo que esta regla protege es el MARKETING, no el backend** —que ya está acotado—: ahora que
+la marca dice «negocios locales», nada impide que una pieza use esa cifra para un salón o una
+discoteca, rubros donde ese estudio no midió nada. **Ninguna pieza de campaña puede poner la
+estimación en soles fuera de restaurantes, bares y cafeterías.** Es la clase de cifra que un
+cliente comprueba, y basta que la encuentre falsa una vez para que deje de creerse todo lo demás
+que diga Notoria — que es exactamente el motivo por el que se retiraron las cifras inventadas.
+
+### 🔴 La detección por perfil del autor NO se hace, y es una decisión, no un pendiente
+
+**Decidido por el dueño el 2026-09-20.** La señal más elocuente de una reseña falsa es una cuenta
+recién creada con pocas reseñas, y hoy es **imposible**: las cinco fuentes escriben
+`autorResenasTotal: null` porque Places no devuelve el perfil del autor. Los dos caminos eran
+contratar un proveedor de datos (~US$100/mes, el primer costo variable por cliente) o declarar
+que no se hace. **Se declara que no se hace.**
+
+⚠️ **La consecuencia es de contenido y hay que respetarla:** ninguna pieza de marketing puede
+prometer «detectamos cuentas falsas» ni detección por perfil del autor. Lo que Notoria sí hace
+—y puede decir— es **texto duplicado entre cuentas distintas, 1★ sin comentario, palabras
+críticas y ráfagas por volumen**. ✅ Comprobado el mismo día: el landing y el FAQ no lo prometen
+en ninguno de los dos idiomas.
+⚠️ Y el enum **`CUENTAS_NUEVAS` significa otra cosa**: hoy lo levanta el texto duplicado, y por
+eso su etiqueta visible es «Campañas coordinadas». El id no se toca (está en la BD, el worker y
+la app), pero nadie debe leer ese nombre como una función que existe.
 
 🔴 **Una cifra sin URL pública que la sostenga no entra al landing.** Las que había estaban
 inventadas y una era falsa por un orden de magnitud. Las vigentes, cada una con enlace visible
@@ -2721,8 +2805,9 @@ textos por otros inventados. El procedimiento está en la cabecera del component
 | `prueba-prefs-correo.js` | **96** comprobaciones (93 hasta el 2026-09-16, cuando se le sumó el cuerpo NUEVO de `Alertas.kt` y el de la app vieja como control) de cuánto correo manda el producto (§12). Todo lo que cubre falla en silencio y en la dirección peor: el correo sale, se entrega, y lo único que está mal es cuánto o qué dice. Vigila el default mensual, que la ventana de días acompañe a la cadencia, que el calendario sea el de **Lima** y no el del servidor, que el `select` del worker traiga `prefsAlertas`, que la ruta no vuelva a escribir un `1` encima del default del plan, y —lo más importante— que **nadie marque `Alerta.notificada` a ciegas**, que es lo que pondría el contador del lote a cero en cada reseña |
 | `borrar-usuario.js <email> [--aplicar]` | Borra una cuenta desde la terminal. **No reimplementa nada**: llama a `lib/borrarCuenta.js`, el mismo código que corre cuando un cliente se da de baja — el orden lo exigen media docena de FK con ON DELETE RESTRICT y una segunda copia se desincroniza el día que alguien añada una tabla, contra producción y a mitad del borrado. Exige simulacro, avisa aparte de los **snapshots** (lo único irrecuperable) y al terminar **vuelve a preguntarle a la base** si la fila sigue ahí. Con historial fiscal anonimiza en vez de borrar. ⚠️ Va en local, no con `railway run` |
 | `prueba-gbp-visible.js` | **51** comprobaciones del interruptor de Google Business **y de que el producto dejó de prometerlo**. El bloque 6 lee `page.js` y `layout.js` buscando las frases retiradas; el último —añadido el 2026-08-26— lee **`onboarding/page.js` y `GBPBanner.js`**, que es donde la función seguía viva con las 44 anteriores en verde |
-| `prueba-cableado.js` | 33 comprobaciones de score/temas/impacto/parte enchufados al correo, al PDF y a la constancia. Vigila los dos fallos mudos: que el `select` del semanal traiga la FECHA de la reseña (sin ella el parte sale vacío siempre) y que el correo **no** llame a Groq |
-| `prueba-expediente.js` | 43 comprobaciones del expediente (I8). 15 son sobre **el límite**: lee el fuente del PDF y falla si alguna vez imprime «reseña falsa», «extorsionando» o cualquier afirmación que le corresponda a Google o a la autoridad, no a nosotros |
+| `prueba-cableado.js` | **52** comprobaciones de score/temas/impacto/parte/competencia enchufados al correo, al PDF y a la constancia. Vigila los dos fallos mudos: que el `select` del semanal traiga la FECHA de la reseña (sin ella el parte sale vacío siempre) y que el correo **no** llame a Groq |
+| `prueba-temas.js` | **96** comprobaciones del diccionario de quejas POR RUBRO (§13). Lo que vigila es un silencio: hasta el 2026-09-20 el vocabulario era solo de comida, así que a una peluquería no le salía ningún tema y el cliente veía una seccion vacia en vez de un error. Comprueba que cada rubro reciba lo suyo y **nadie lo ajeno** —«comida fría» en un gimnasio es una queja que no puede existir—, que los SEIS call-sites pasen el rubro, y que los workers lo traigan en su consulta. El bloque 3 usa frases REALES de salones de Lima, que es de donde salió el vocabulario. 🔴 Dos sondas suyas dieron rojo con razón al escribirlas: el «control» usaba `null`, que hoy devuelve todos los temas y no reproduce nada, y la de los `select` casaba con el select ANIDADO del usuario |
+| `prueba-expediente.js` | **66** comprobaciones del expediente (I8). 15 son sobre **el límite**: lee el fuente del PDF y falla si alguna vez imprime «reseña falsa», «extorsionando» o cualquier afirmación que le corresponda a Google o a la autoridad, no a nosotros. El bloque 8, del 2026-09-20, cubre el **código verificable**: que la huella del texto sobreviva al reflow del PDF pero cambie si cambia una palabra, y sobre todo las **guardas cruzadas** — los dos documentos se firman con el mismo secreto, así que sin discriminador de tipo un expediente se verificaría como constancia y saldría un sello de «verificado» sobre campos vacíos |
 | `prueba-locales.js` | **103** comprobaciones de sumar y quitar locales sobre el plan que ya se tiene (§8.8). Los bloques 1-12 son aritmética y lectura del fuente; el **13 levanta la ruta de verdad** con Prisma y Culqi simulados, que es lo único que comprueba sobre la LLAMADA REAL —y no sobre una regex— que el `update` no escribe `fechaVencimiento` y que a Culqi le llega exactamente el importe que se le anunció al cliente |
 | `armar-renovacion.js <email> [--aplicar]` | Deja una cuenta lista para que el cron de renovación la cobre en su próxima pasada: pone `suscripcionActiva` y adelanta `fechaVencimiento`. 🔴 **No cobra nada** — quien cobra es el cron, solo y desatendido, que es justo lo que hay que probar: llamar al cobro a mano probaría otra cosa. Calcula el importe con `montoSuscripcion`, el MISMO de producción, para que el script y el worker no puedan discrepar. Se niega sobre cuentas que no sean del dueño y sobre una sin tarjeta guardada. ✅ Se corre EN LOCAL, al revés que `forzar-resumen-sunat.js`: solo escribe en la base, no llama a Culqi ni a SUNAT |
 | `prueba-planes.js` | **109** comprobaciones de la tabla de capacidades (eran 64 cuando se escribió esta fila: la cifra envejece sola, contrastar con la salida real). Vigila lo que no da señal: que todo plan con precio se COBRE y se BAJE (olvidarlo regala el plan de por vida), que la escalera no pierda capacidades al subir, que un plan desconocido falle CERRADO, y **lee el fuente** para fallar si alguien vuelve a escribir `['NEGOCIO','FRANQUICIA']` a mano. 🔴 Desde el 2026-08-30 ese barrido incluye **`scripts/`**, y su regex reconoce las listas que empiezan por `GRATIS`: por esos dos agujeros se le habían escapado `dar-plan.js` y `cuenta-revisor.js` con 109 comprobaciones en verde. Lleva controles que la ponen en rojo a propósito, y uno que comprueba que el barrido **encuentra** los scripts — sin él, un barrido vacío daría verde sin haber leído nada |
@@ -3231,6 +3316,65 @@ lleva al negocio correcto y a la pantalla equivocada, que es la forma que nadie 
 ⚠️ **Aviso nuevo de Railway, sin urgencia:** `railway.json` queda deprecado el **2026-12-01** a
 favor de `.railway/railway.ts` (`railway config migrate`). Sigue funcionando hasta entonces.
 
+### 📌 2026-09-20 — cuatro propuestas más, y un diccionario que le hablaba a un solo rubro
+
+El dueño aprobó cuatro de las siete propuestas pendientes de `propuesta.md` (está en
+`Downloads/`, **no en el repo**) y dos decisiones. Las dos que quedan abiertas están en la caja
+de §19. Cada cosa está desarrollada en su sección; esto es el resumen y las lecciones.
+
+| # | Qué | Dónde |
+|---|---|---|
+| 5 | Quitar «restaurantes y hoteles» | §1, los dos README y `package.json` |
+| 6 | **Código verificable en el expediente** | `lib/expedienteCodigo.js` |
+| 7 | **Diccionario de quejas por rubro** | `lib/temas.js` — §13 |
+| 8 | **La competencia, dentro del resumen** | `lib/competencia.js` |
+| — | La cifra en soles: **el bar se queda** | decisión, §15 |
+| — | Detección por perfil: **no se hace** | decisión, §15 |
+
+🔴 **Lo más caro era el vocabulario, no el código.** El diccionario de temas solo sabía de
+comida, así que a las **2 peluquerías de las 8 fichas activas** les devolvía cero temas — y el
+cliente no ve un error, ve una sección vacía. Las palabras nuevas salieron de **leer reseñas
+reales** de salones, barberías, discotecas y hoteles de Lima con la API de Places (~50 consultas,
+$1 aprox.), no de inventarlas. Sirvió: en salones la queja dominante resultó ser **«no quedó como
+pedí»**, que ningún diccionario escrito de memoria habría incluido. Detalle en §13.
+
+🔴 **Y ahí apareció un bug preexistente: faltaba la palabra `'fría'`.** El tema se llama «Comida
+fría» y la lista tenía `'frio'`, `'frío'`, `'fria'` y `'frías'` — todas menos el singular con
+tilde, o sea que «la comida llegó fría» no lo levantaba. **A ojo las cuatro variantes parecen
+cubrirlo todo**; lo cazó probar el diccionario contra frases reales en vez de leerlo.
+
+**El expediente ya no es un PDF editable.** Lleva código firmado, QR y la **huella del texto** de
+la reseña: si alguien edita una palabra del documento, la huella impresa deja de corresponder con
+la que devuelve la verificación. Se verifica por la misma URL que la constancia.
+🔴 **Eso obligó a una guarda que no existía:** los dos documentos se firman con el **mismo**
+secreto, así que la firma de un expediente es válida para el verificador de la constancia. Sin un
+discriminador de tipo, un expediente se habría mostrado como constancia —con sello de
+«verificado»— sobre campos vacíos. Ahora cada verificador comprueba el suyo, y **las constancias
+ya emitidas siguen valiendo** porque la regla es «si trae tipo, que sea el mío», no «tiene que
+traerlo».
+⚠️ Vigencia **365 días** y no los 90 de la constancia, y no es un número copiado: la constancia
+dice «hoy tiene 4.6★» y eso caduca; el expediente dice «el 15 de agosto existía esta reseña», que
+es un hecho pasado — y una denuncia penal dura bastante más de 90 días.
+
+**La competencia entra por el resumen, no por una alerta nueva.** La función existía entera y el
+dato estaba guardado; lo que faltaba no era recolectar nada sino **avisar**, porque el cliente
+solo se enteraba si entraba al panel y el abandono del dueño está medido a los veinte días.
+🔴 **Se descartó el `TipoAlerta` que pedía la propuesta**, por dos motivos: obliga a tocar SIETE
+sitios y olvidar uno deja al usuario sin poder activarla en silencio (§12); y sobre todo **no es
+una urgencia** — que el vecino haya ganado seis reseñas este mes no exige hacer nada hoy, y
+meterlo en el canal de las alertas críticas le restaría filo al canal donde sí avisamos de una
+reseña de 1★. Cero llamadas a Google: sale de los snapshots que el worker ya guarda.
+
+⚠️ **Tres colisiones de nombres al ampliar suites existentes** (`hoy`, `base`, `emails` ya
+declarados arriba). Ninguna es interesante salvo por lo que enseña: al **añadir un bloque a una
+prueba larga**, las variables del bloque nuevo comparten ámbito con todo lo anterior. Las tres
+salieron como `SyntaxError` al primer intento, o sea barato — pero un `const` que sí hubiera
+compilado pisando otro habría sido un rojo incomprensible.
+
+| Suites | 40 en verde. `prueba-temas` **96** (nueva) · `prueba-expediente` **66** (eran 43) · `prueba-cableado` **52** (eran 33) |
+|---|---|
+| Build | `next build` exit 0 |
+
 ### 🔴 2026-09-19 — LA ECONOMÍA DEL PLAN GRATUITO, medida por primera vez
 
 El dueño preguntó lo que nadie había calculado: **¿cuánto cuesta una cuenta gratuita y aguanta
@@ -3409,14 +3553,16 @@ importe», no «está roto ahora». Eso lo **baja** de urgencia y lo **abarata**
 
 > ### 📋 VIGENTES al 2026-09-19 — empezar por acá
 >
-> 🟡 **Abierto desde el 19/09: las propuestas 5-10 de `propuesta.md`.** Los cuatro primeros
-> —og-image, expediente en el correo, plantilla del chantaje y parte por WhatsApp— **están
-> desplegados**. Lo que queda, con las correcciones de arriba (§«Lo que este día corrige»):
-> decidir si **BAR se queda en `impacto.js`**, terminar la pasada de «restaurantes y hoteles»
-> (falta `package.json`, `brand-shield/README.md`), el **vocabulario por rubro** de `temas.js`
-> —que es más barato de lo que decía la propuesta porque `Negocio.tipo` ya existe—, la **alerta
-> del Espejo** (+0,6-7% de Places, no el doble) y el **expediente como caso**. La alerta de
-> competencia se propone **mover al resumen mensual** en vez de un `TipoAlerta` nuevo.
+> 🟡 **De `propuesta.md` (está en `Downloads/`, no en el repo) quedan DOS.** Ocho de las diez
+> están hechas: og-image, expediente en el correo, plantilla del chantaje y parte por WhatsApp el
+> 19/09; la pasada de «restaurantes y hoteles», el **expediente verificable**, el **vocabulario
+> por rubro** y la **competencia en el resumen** el 20/09, más las dos decisiones (el bar se
+> queda en `impacto.js`, y la detección por perfil **no se hace** — §15).
+>
+> | Qué queda | Por qué no se hizo |
+> |---|---|
+> | **#9 · Alerta del Espejo** | El dueño no la aprobó el 20/09. Avisaría si cambia la reseña que ENCABEZA la ficha y es de ≤3★ — el hallazgo más vendible del producto, porque nadie mira su ficha como la ve un extraño. Semanal y solo planes de pago. ⚠️ La propuesta decía que «duplica las consultas a Places» y **es falso**: con cadencia semanal son **+0,6% a +7%**, unos $0,10 al mes por local |
+> | **#10 · El expediente como CASO** | Tampoco aprobada. Hoy es un documento; sería un caso con estado —abierto → reportado → sin respuesta → insistido → cerrado— y recordatorio a los 14 días, con la misma mecánica del cron que ya insiste con SUNAT. Es la más grande de las diez |
 >
 > ✅ ~~**La pregunta de negocio que mandaba: ¿cuánto cuesta una cuenta gratuita?**~~ **Medida y
 > resuelta el 2026-09-19.** S/4.39 al mes, a perpetuidad y sin ningún freno. **Las tres palancas

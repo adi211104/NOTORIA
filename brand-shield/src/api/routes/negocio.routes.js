@@ -12,6 +12,7 @@ const { emitirCodigo, VIGENCIA_DIAS } = require('../../lib/constancia');
 const { generarConstancia } = require('../../utils/constancia.pdf');
 const { armar: armarExpediente, VENTANA_DIAS: VENTANA_EXPEDIENTE } = require('../../lib/expediente');
 const { generarExpediente } = require('../../utils/expediente.pdf');
+const { emitirCodigo: emitirCodigoExpediente, huellaTexto: huellaTextoExpediente } = require('../../lib/expedienteCodigo');
 const { limite: limiteDelPlan, limiteLegible, planesCon, puede, negociosPermitidos } = require('../../lib/planes');
 const score = require('../../lib/score');
 const temasLib = require('../../lib/temas');
@@ -495,11 +496,15 @@ router.get('/:id/resumen', async (req, res, next) => {
     // tienen nada que ver —una cuenta menciones de un tema, la otra decide qué
     // reseña está molesta— y el día que una cambie, la otra se rompe sin motivo.
     const negativas = negocio.resenas.filter((r) => r.rating != null && r.rating <= tareasLib.UMBRAL_NEGATIVA);
-    const distribucion = temasLib.distribucion(negativas, idioma);
+    // ⚠️ El rubro va SIEMPRE: sin él, una peluquería recibe el diccionario de
+    // comida y se queda sin un solo tema (ver `lib/temas.js`). `tipo` está en el
+    // select de esta consulta desde antes; lo que faltaba era pasarlo.
+    const distribucion = temasLib.distribucion(negativas, idioma, negocio.tipo);
     const tendencia = temasLib.tendencia(
       negativas.filter((r) => enPeriodo(r, periodos.actual)),
       negativas.filter((r) => enPeriodo(r, periodos.previo)),
       idioma,
+      negocio.tipo,
     );
 
     // ── Tareas ─────────────────────────────────────────────────────────────
@@ -856,7 +861,29 @@ router.get('/:id/expediente/:resenaId.pdf', async (req, res, next) => {
     ]);
 
     const exp = armarExpediente({ negocio, resena, delPeriodo, snapshots });
-    const pdf = await generarExpediente(exp);
+
+    // 🔴 El código firmado es lo que convierte el PDF en un documento
+    // contrastable (ver `lib/expedienteCodigo.js`). Se emite sobre los datos ya
+    // armados —no sobre la fila cruda— para que lo firmado sea exactamente lo
+    // que el PDF imprime.
+    //
+    // ⚠️ Si falla, el expediente se entrega IGUAL, sin recuadro de verificación.
+    // Lo único que puede hacerlo fallar es que falte `JWT_SECRET`, y negarle al
+    // cliente el documento entero —con el reloj de una denuncia corriendo—
+    // porque no se le puede poner un sello sería el peor de los dos resultados.
+    let verificacion = null;
+    try {
+      const codigo = emitirCodigoExpediente({ negocio, resena: exp.resena, emitidoEn: exp.emitidoEn });
+      verificacion = {
+        codigo,
+        url: `${(process.env.FRONTEND_URL || 'https://usenotoria.app').replace(/\/$/, '')}/verificar/${codigo}`,
+        huellaTexto: huellaTextoExpediente(exp.resena.texto),
+      };
+    } catch (e) {
+      console.warn('[Expediente] Sin código de verificación:', e.message);
+    }
+
+    const pdf = await generarExpediente(exp, verificacion);
 
     res.setHeader('Content-Type', 'application/pdf');
     const limpio = (negocio.nombre || 'negocio').replace(/[^\w-]+/g, '-').slice(0, 40);

@@ -20,7 +20,7 @@ en `CLAUDE.md`.
 | RUC | 20616239466 |
 | Domicilio fiscal | Cal. Isla Filipinas Mza. G9 Lote 8, **La Perla, Provincia Constitucional del Callao**, Perú (ubigeo INEI 070104) |
 | Marca / dominio | Notoria · usenotoria.app |
-| Producto | SaaS de monitoreo de reputación para restaurantes y hoteles **del Perú** (servicio solo nacional: todo negocio se crea con `pais: 'pe'` y la facturación va fija en `PE`) |
+| Producto | SaaS de monitoreo de reputación para **negocios locales del Perú** —restaurantes, hoteles, bares, salones, tiendas, clínicas y más—. Servicio solo nacional: todo negocio se crea con `pais: 'pe'` y la facturación va fija en `PE` |
 | Planes | Gratuito · **Impulso S/29/mes** (S/23/mes anual) · Negocio S/59/mes (S/47/mes anual) · Franquicia S/179/mes (S/143/mes anual) |
 
 **Los precios están en soles e incluyen IGV.** Los cobros se procesan por Culqi en PEN.
