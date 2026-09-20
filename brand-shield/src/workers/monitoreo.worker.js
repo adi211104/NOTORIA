@@ -987,7 +987,14 @@ const iniciarMonitoreo = () => {
     }
   });
 
-  console.log('[Worker] Cron job configurado: cada hora, con intervalo por plan (Gratis 24h · Negocio 4h · Franquicia 1h)');
+  // 🔴 La lista se DERIVA de la tabla de planes, no se escribe a mano. Estuvo
+  // anunciando «Franquicia 1h» después de que pasara a 2 h, y sin IMPULSO desde
+  // que ese plan existe — o sea que el log que uno mira para comprobar la
+  // cadencia afirmaba lo que ya era falso. Es el mismo fallo que §8.6 persigue,
+  // en el único sitio donde no rompe nada y por eso nadie lo mira: un texto.
+  const cadencias = ORDEN.map((p) => `${capacidades(p).id} ${capacidades(p).horasEscaneo}h`).join(' · ');
+  console.log(`[Worker] Cron job configurado: cada hora, con intervalo por plan (${cadencias})`);
+  console.log(`[Worker] Plan gratuito: ${capacidades('GRATIS').horasEscaneo}h los primeros ${capacidades('GRATIS').diasPruebaCompleta} días, después ${capacidades('GRATIS').horasEscaneoTrasPrueba}h; se pausa a los ${dormancia.DIAS_INACTIVIDAD} días sin entrar`);
 };
 
 // Permite ejecutar el monitoreo manualmente (útil para pruebas y scripts).
