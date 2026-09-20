@@ -388,7 +388,12 @@ check('el espejo declara los mismos planes',
   planes.ORDEN.every((p) => filaDelEspejo(p)),
   `faltan: ${planes.ORDEN.filter((p) => !filaDelEspejo(p)).join(', ')}`);
 
-const CLAVES_ESPEJADAS = [...BOOLEANAS, ...NUMERICAS, 'horasEscaneo'];
+// ⚠️ `diasPruebaCompleta` y `horasEscaneoTrasPrueba` SOLO existen en GRATIS, y
+// eso es justo lo que significa «quien paga no tiene periodo de prueba». En los
+// planes de pago los dos lados dan `undefined` y coinciden, así que incluirlas
+// acá no afloja nada y cubre el único plan donde importan. Sin ellas, el panel
+// podría anunciar una cadencia que el backend no ejecuta — y al revés.
+const CLAVES_ESPEJADAS = [...BOOLEANAS, ...NUMERICAS, 'horasEscaneo', 'diasPruebaCompleta', 'horasEscaneoTrasPrueba'];
 for (const plan of planes.ORDEN) {
   const aca = planes.PLANES[plan];
   const alla = filaDelEspejo(plan) || {};

@@ -71,7 +71,7 @@ const BILINGUES = [
   'enviarBienvenida', 'enviarConfirmacionContrasena', 'enviarRecuperacionContrasena',
   'enviarConfirmacionCambioPassword', 'enviarCobroFallido', 'enviarCancelacion',
   'enviarInvitacionEquipo', 'enviarAvisoNuevoMiembro', 'enviarSalidaEquipo',
-  'enviarReembolso',
+  'enviarReembolso', 'enviarAvisoPausa',
 ];
 
 // Los cinco que quedan están en español POR DECISIÓN, y el motivo va escrito.

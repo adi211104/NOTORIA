@@ -1303,4 +1303,51 @@ const enviarSalidaEquipo = async ({ miembro, cuenta }) => {
   });
 };
 
-module.exports = { enviarBienvenida, enviarVerificacion, enviarConfirmacionContrasena, enviarRecuperacionContrasena, enviarAlertaCritica, enviarResumenAlertas, enviarResumenSemanal, enviarResumenSemanalConsolidado, enviarComprobante, enviarDrip, enviarCargoReclamacion, enviarAvisoReclamacionInterno, enviarRespuestaReclamacion, enviarAvisoPlazoReclamaciones, enviarAvisoAnulacionPendiente, enviarConfirmacionCambioPassword, enviarCobroFallido, enviarCancelacion, enviarReembolso, enviarInvitacionEquipo, enviarAvisoNuevoMiembro, enviarSalidaEquipo, getResend, FROM, base, h1, p, btn, hr };
+// ── 24. Aviso de que la vigilancia gratuita se va a pausar ─────────────────
+//
+// 🔴 Este correo es lo que hace que pausar una cuenta sea honesto en vez de
+// apagarle la vigilancia a alguien sin decírselo. Si se quita, la pausa pasa a
+// ser silenciosa, que es exactamente el tipo de fallo que este proyecto persigue.
+//
+// ⚠️ Y de paso es el mejor correo de reactivación que tiene el producto: dice
+// algo concreto que pasa en su cuenta y que depende de él, no «te extrañamos».
+// La palanca de costo y la de conversión resultaron ser la misma.
+const PAUSA = {
+  es: {
+    asunto: (d) => `Tu vigilancia se pausa en ${d} ${d === 1 ? 'día' : 'días'} — Notoria`,
+    titulo: 'Tu vigilancia gratuita se va a pausar',
+    intro: (d) => `Llevas un tiempo sin entrar, así que en <strong>${d} ${d === 1 ? 'día' : 'días'}</strong> vamos a pausar el escaneo automático de tu negocio.`,
+    porque: 'El plan Gratuito vigila mientras lo estés usando. No se borra nada: tus reseñas, tu historial y tus alertas siguen donde están.',
+    comoVolver: 'Para reanudarlo basta con que entres al panel. Se reactiva solo, en el siguiente ciclo.',
+    cta: 'Entrar y reanudar →',
+    mejorar: 'Si prefieres que no se pause nunca y además te avisemos más rápido, cualquier plan de pago vigila sin interrupciones.',
+  },
+  en: {
+    asunto: (d) => `Your monitoring pauses in ${d} ${d === 1 ? 'day' : 'days'} — Notoria`,
+    titulo: 'Your free monitoring is about to pause',
+    intro: (d) => `You have not signed in for a while, so in <strong>${d} ${d === 1 ? 'day' : 'days'}</strong> we will pause the automatic scanning of your business.`,
+    porque: 'The Free plan watches your listing while you are using it. Nothing gets deleted: your reviews, history and alerts stay exactly where they are.',
+    comoVolver: 'To resume it, just sign in. It reactivates on its own, on the next cycle.',
+    cta: 'Sign in and resume →',
+    mejorar: 'If you would rather it never paused — and be alerted faster — any paid plan watches without interruptions.',
+  },
+};
+
+const enviarAvisoPausa = async (usuario, diasRestantes) => {
+  const t = PAUSA[usuario.idioma] || PAUSA.es;
+  console.log('[Email] Aviso de pausa a:', usuario.email);
+  return getResend().emails.send({
+    from: FROM(), to: usuario.email,
+    subject: t.asunto(diasRestantes),
+    html: base(`
+      ${h1(t.titulo)}
+      ${p(t.intro(diasRestantes))}
+      ${p(t.porque)}
+      ${p(t.comoVolver)}
+      ${btn(t.cta, `${FRONT()}/dashboard`)}
+      <p style="color:#9C9B96;font-size:12px;margin:10px 0 0;line-height:1.6;">${t.mejorar}</p>
+    `),
+  });
+};
+
+module.exports = { enviarBienvenida, enviarVerificacion, enviarConfirmacionContrasena, enviarRecuperacionContrasena, enviarAlertaCritica, enviarResumenAlertas, enviarResumenSemanal, enviarResumenSemanalConsolidado, enviarComprobante, enviarDrip, enviarCargoReclamacion, enviarAvisoReclamacionInterno, enviarRespuestaReclamacion, enviarAvisoPlazoReclamaciones, enviarAvisoAnulacionPendiente, enviarConfirmacionCambioPassword, enviarCobroFallido, enviarCancelacion, enviarReembolso, enviarInvitacionEquipo, enviarAvisoNuevoMiembro, enviarSalidaEquipo, enviarAvisoPausa, getResend, FROM, base, h1, p, btn, hr };

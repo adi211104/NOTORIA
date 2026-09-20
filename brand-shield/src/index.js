@@ -24,6 +24,7 @@ const { iniciarMonitoreo, iniciarReportesMensuales, iniciarResumenesAlertas, ini
 const { iniciarResumenSemanal } = require('./workers/resumenSemanal.worker');
 const { iniciarDrip } = require('./workers/drip.worker');
 const { iniciarRecordatoriosVerificacion } = require('./workers/verificacion.worker');
+const { iniciarAvisosPausa } = require('./workers/pausa.worker');
 const { iniciarAvisoAnulaciones } = require('./workers/anulaciones.worker');
 const { iniciarEnvioSunat } = require('./workers/envioSunat.worker');
 const { iniciarResumenSunat } = require('./workers/resumenSunat.worker');
@@ -197,6 +198,8 @@ app.listen(PORT, () => {
     iniciarResumenSunat();
     iniciarDrip();
     iniciarRecordatoriosVerificacion();
+    // Aviso previo a la pausa de las cuentas gratuitas inactivas (lib/dormancia.js).
+    iniciarAvisosPausa();
     iniciarAvisoAnulaciones();
     console.log('🔄 Monitoreo periódico iniciado');
     console.log('📄 Cron de reportes mensuales iniciado');

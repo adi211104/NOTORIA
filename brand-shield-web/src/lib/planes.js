@@ -20,6 +20,14 @@ export const PLANES = {
     es: 'Gratuito', en: 'Free',
     esDePago: false,
     negocios: 1, horasEscaneo: 24, iaSemanal: 5, competidores: 1, asientos: 1,
+    // El plan gratuito es un motor de prueba, no un servicio perpetuo: los
+    // primeros 30 días corre a su cadencia entera y después pasa a 72 h. Lo
+    // aplica `lib/dormancia.js` en el backend; acá están para que el panel pueda
+    // decir la verdad sobre lo que va a pasar.
+    //
+    // ⚠️ Los planes de pago NO los declaran, y eso es lo que significa «quien
+    // paga no tiene periodo de prueba».
+    diasPruebaCompleta: 30, horasEscaneoTrasPrueba: 72,
     localesAdicionales: false,
     vigilanciaFicha: false,
     reporteMensual: false,

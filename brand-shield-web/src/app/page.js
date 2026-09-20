@@ -206,7 +206,7 @@ const TEXTOS = {
       scoreTitulo:'Y un solo número que lo resume todo',
       scoreDesc:'El score de reputación combina tu rating, el ritmo de reseñas nuevas, cuántas son negativas y cuántas huelen a bot. Lo miras una vez al día y sabes si hay algo que atender.',
       masTitulo:'También incluido en todos los planes',
-      mas:['Historial de rating por escaneo', 'Escaneo programado cada 2, 4, 12 o 24 horas', 'La matemática de tu rating: cuántas reseñas te faltan y cuántas aguantas'],
+      mas:['Historial de rating por escaneo', 'Escaneo programado cada 2, 4, 12, 24 o 72 horas según tu plan', 'La matemática de tu rating: cuántas reseñas te faltan y cuántas aguantas'],
     },
     precios: {
       tag:'Precios', titulo:'Precios sin sorpresas',
@@ -219,7 +219,7 @@ const TEXTOS = {
       noIncluyeLabel:'No incluye:',
       planes: [
         { n:'Gratuito', p:0,
-          si:['1 negocio monitoreado','Escaneo cada 24 horas','Aviso si tu ficha aparece cerrada en Google','Score de reputación 0-100','QR y enlace para pedir reseñas','30 plantillas de respuesta','5 respuestas con IA a la semana','1 competidor monitoreado','Alertas por email'],
+          si:['1 negocio monitoreado','Escaneo cada 24 horas el primer mes, luego cada 72 horas','Se pausa a los 30 días sin entrar y se reanuda al volver','Aviso si tu ficha aparece cerrada en Google','Score de reputación 0-100','QR y enlace para pedir reseñas','30 plantillas de respuesta','5 respuestas con IA a la semana','1 competidor monitoreado','Alertas por email'],
           no:['Compartir el panel con tu equipo','Conexión de TikTok','Más respuestas con IA a la semana','Análisis de competencia con IA','Reportes PDF','Soporte prioritario'] },
         { n:'Impulso', p:29,
           si:['1 negocio monitoreado','Escaneo cada 12 horas','Aviso si te cambian el teléfono, el horario o la dirección en Google','25 usos de IA a la semana','3 competidores monitoreados','Aviso si una crítica lleva 24h sin respuesta','Reporte PDF mensual','Boleta o factura electrónica a tu RUC','Todo lo del plan Gratuito'],
@@ -246,7 +246,8 @@ const TEXTOS = {
         { grupo:'Alcance y velocidad de reacción' },
         { label:'Locales incluidos', valores:['1','1','1','1'] },
         { label:'Locales adicionales', valores:['—','—','S/39 c/u','S/99 c/u'] },
-        { label:'Un ataque se detecta en máximo', valores:['24 horas','12 horas','4 horas','2 horas'] },
+        { label:'Un ataque se detecta en máximo', valores:['24 h el primer mes, luego 72 h','12 horas','4 horas','2 horas'] },
+        { label:'Vigila sin pausas aunque no entres al panel', valores:[false,true,true,true] },
         { label:'Aviso si tu ficha aparece cerrada en Google', valores:[true,true,true,true] },
         { label:'Aviso si te cambian el teléfono, el horario o la dirección en Google', valores:[false,true,true,true] },
         { label:'Constancia de reputación con código verificable', valores:[false,false,true,true] },
@@ -288,7 +289,7 @@ const TEXTOS = {
         // directa». Google no ha concedido acceso a esas APIs, así que las tres
         // eran falsas y la de en medio explicaba cómo hacer algo imposible.
         // Reescritas el 2026-08-25 diciendo lo que el producto sí hace.
-        { q:'¿Por qué solo veo 5 reseñas si mi negocio tiene cientos?', a:'La API pública de Google entrega como máximo las 5 reseñas más recientes por consulta; es un límite de Google, no de Notoria. Por eso Notoria no funciona leyendo tu pasado sino vigilando lo que entra: escanea tu ficha cada 24, 12, 4 o 2 horas según tu plan y guarda cada reseña nueva que aparece. A las pocas semanas tienes muy por encima de cinco, y desde el día que te registras no se te escapa ninguna. Lo que no hacemos es importar hacia atrás las que ya estaban.' },
+        { q:'¿Por qué solo veo 5 reseñas si mi negocio tiene cientos?', a:'La API pública de Google entrega como máximo las 5 reseñas más recientes por consulta; es un límite de Google, no de Notoria. Por eso Notoria no funciona leyendo tu pasado sino vigilando lo que entra: escanea tu ficha cada 72, 24, 12, 4 o 2 horas según tu plan y guarda cada reseña nueva que aparece. A las pocas semanas tienes muy por encima de cinco, y desde el día que te registras no se te escapa ninguna. Lo que no hacemos es importar hacia atrás las que ya estaban.' },
         { q:'¿Qué pasa si alguien cambia los datos de mi ficha en Google?', a:'Google Maps permite que cualquier persona sugiera cambios sobre la ficha de un negocio ajeno —el horario, el teléfono, la dirección, incluso marcarla como cerrada permanentemente— y los aplica sin avisarle al dueño. Notoria compara esos datos en cada escaneo y te avisa el mismo día si algo cambió. El aviso de ficha cerrada está en todos los planes, incluido el Gratuito; el de teléfono, horario, nombre y dirección desde el plan Impulso.' },
         // ⚠️ Esta respuesta empezaba con «Sí» a secas, y la pregunta que hace el
         // cliente es si puede responder SIN SALIR de Notoria. Redactar aquí y
@@ -301,6 +302,11 @@ const TEXTOS = {
         { q:'¿Mis competidores se enteran de que los estoy siguiendo?', a:'No. Notoria consulta la información pública de Google como lo haría cualquier visitante, así que no hay ninguna notificación ni rastro visible para ellos. Tu lista de competidores es privada de tu cuenta.' },
         { q:'¿Funciona en toda mi ciudad o solo en Lima?', a:'En todo el Perú. Notoria monitorea cualquier negocio que tenga ficha en Google Maps, esté en Lima, Arequipa, Cusco, Trujillo o un distrito pequeño. Por ahora operamos solo en Perú: cobramos en soles y emitimos comprobantes peruanos.' },
         { q:'¿Puedo cancelar cuando quiera?', a:'Sí. No hay contratos de permanencia. Puedes bajar de plan o cancelar en cualquier momento desde tu panel de control, y tu negocio seguirá monitoreado con el plan Gratuito.' },
+        // ⚠️ Esta pregunta también vive en el JSON-LD de `layout.js`. Y NO es
+        // letra chica: lo que el worker deja de ejecutar tampoco se puede seguir
+        // prometiendo (§15 al revés). Contarlo claro además vende — el motivo
+        // para pagar es concreto y comprobable.
+        { q:'¿El plan Gratuito caduca?', a:'No caduca ni se cobra nunca, pero se pausa si dejas de usarlo. Escanea tu ficha cada 24 horas durante el primer mes y cada 72 horas a partir de entonces; y si pasas 30 días sin entrar al panel, la vigilancia se pausa. Te avisamos por email 3 días antes, no se borra nada —tus reseñas, tu historial y tus alertas siguen ahí— y se reanuda sola en cuanto vuelves a entrar. Cada escaneo nos cuesta dinero en consultas a Google, así que solo vigilamos gratis las cuentas que están en uso. Los planes de pago vigilan sin pausas y a la cadencia contratada, entres o no.' },
         { q:'¿Mis datos están seguros?', a:'Sí. Usamos cifrado en tránsito, tu contraseña se guarda con hash seguro y cumplimos la Ley 29733 de Protección de Datos Personales. No vendemos ni compartimos tus datos, y solo leemos la información pública de tu negocio más la que tú decidas conectar.' },
       ],
     },
@@ -427,7 +433,7 @@ const TEXTOS = {
       scoreTitulo:'And one number that sums it all up',
       scoreDesc:'The reputation score combines your rating, the pace of new reviews, how many are negative and how many look like bots. Check it once a day and you know whether something needs attention.',
       masTitulo:'Also included in every plan',
-      mas:['Rating history per scan', 'Scheduled scanning every 2, 4, 12 or 24 hours', 'The reason spelled out on every flagged review'],
+      mas:['Rating history per scan', 'Scheduled scanning every 2, 4, 12, 24 or 72 hours depending on your plan', 'The reason spelled out on every flagged review'],
     },
     precios: {
       tag:'Pricing', titulo:'Pricing with no surprises',
@@ -437,7 +443,7 @@ const TEXTOS = {
       noIncluyeLabel:'Not included:',
       planes: [
         { n:'Free', p:0,
-          si:['1 monitored business','Scan every 24 hours','0-100 reputation score','QR and link to request reviews','30 reply templates','5 AI replies per week','1 monitored competitor','Email alerts','Alert if your listing shows as closed on Google'],
+          si:['1 monitored business','Scan every 24 hours for the first month, then every 72 hours','Pauses after 30 days without signing in, resumes when you return','0-100 reputation score','QR and link to request reviews','30 reply templates','5 AI replies per week','1 monitored competitor','Email alerts','Alert if your listing shows as closed on Google'],
           no:['Sharing the dashboard with your team','TikTok connection','More AI replies per week','AI competitor analysis','PDF reports','Priority support'] },
         { n:'Impulso', p:29,
           si:['1 monitored business','Scan every 12 hours','Alert if your phone, hours or address are changed on Google','25 AI uses per week','3 monitored competitors','Alert if a critical review goes 24h without a reply','Monthly PDF report','Electronic invoice to your RUC','Everything in the Free plan'],
@@ -460,7 +466,8 @@ const TEXTOS = {
         { grupo:'Coverage and reaction speed' },
         { label:'Locations included', valores:['1','1','1','1'] },
         { label:'Extra locations', valores:['—','—','S/39 each','S/99 each'] },
-        { label:'An attack is detected within', valores:['24 hours','12 hours','4 hours','2 hours'] },
+        { label:'An attack is detected within', valores:['24 h first month, then 72 h','12 hours','4 hours','2 hours'] },
+        { label:'Keeps watching even if you never sign in', valores:[false,true,true,true] },
         { label:'Alert if your listing shows as closed on Google', valores:[true,true,true,true] },
         { label:'Alert if your phone, hours or address change on Google', valores:[false,true,true,true] },
         { label:'Reputation certificate with a verifiable code', valores:[false,false,true,true] },
@@ -497,7 +504,7 @@ const TEXTOS = {
       items: [
         { q:'Do I need a credit card to start?', a:'No. The Free plan is free forever and includes 1 monitored business, reputation score, QR to request reviews and email alerts. You only add a card if you upgrade to a paid plan.' },
         { q:'How does Notoria detect fake reviews?', a:'We analyze typical attack patterns: newly created accounts, authors with a single review, repetitive or duplicated text and unusual spikes of negative reviews within hours. Each suspicious review is flagged with the reason so you can report it to Google.' },
-        { q:'Why do I only see 5 reviews if my business has hundreds?', a:'Google’s public API returns at most the 5 most recent reviews per query — that is Google’s limit, not Notoria’s. So Notoria doesn’t work by reading your past, it works by watching what comes in: it scans your listing every 24, 12, 4 or 2 hours depending on your plan and stores every new review that appears. Within a few weeks you have well over five, and from the day you sign up none gets past us. What we don’t do is import the ones that were already there.' },
+        { q:'Why do I only see 5 reviews if my business has hundreds?', a:'Google’s public API returns at most the 5 most recent reviews per query — that is Google’s limit, not Notoria’s. So Notoria doesn’t work by reading your past, it works by watching what comes in: it scans your listing every 72, 24, 12, 4 or 2 hours depending on your plan and stores every new review that appears. Within a few weeks you have well over five, and from the day you sign up none gets past us. What we don’t do is import the ones that were already there.' },
         { q:'What if someone changes my listing details on Google?', a:'Google Maps lets anyone suggest edits to someone else’s business listing — the hours, the phone number, the address, even marking it permanently closed — and applies them without telling the owner. Notoria compares those details on every scan and warns you the same day if something changed. The permanently-closed alert is in every plan, including Free; phone, hours, name and address from the Impulso plan up.' },
         { q:'Can I reply to reviews from Notoria?', a:'You write the reply in Notoria and publish it yourself on Google, in one click. You get 30 professional templates based on the review’s stars and an AI assistant that drafts it for you: we save your reply, copy it to your clipboard and open your listing on Google Maps so you can paste it. Publishing without leaving Notoria isn’t possible yet — it needs a permission Google grants separately — and we’re working on bringing it all into one place.' },
         { q:'What happens if my rating suddenly drops?', a:'Notoria detects it on the next scan and sends you an immediate alert by email detailing what happened: how many negative reviews, from which accounts and whether they show bot patterns. You decide which alerts to receive and how often.' },
@@ -506,6 +513,7 @@ const TEXTOS = {
         { q:'Will my competitors know I am tracking them?', a:'No. Notoria queries Google’s public information the same way any visitor would, so there is no notification and no visible trace for them. Your competitor list is private to your account.' },
         { q:'Does it work across the country or only in Lima?', a:'Across all of Peru. Notoria monitors any business with a Google Maps listing, whether it is in Lima, Arequipa, Cusco, Trujillo or a small district. For now we operate in Peru only: we charge in soles and issue Peruvian tax receipts.' },
         { q:'Can I cancel anytime?', a:'Yes. There are no lock-in contracts. You can downgrade or cancel anytime from your dashboard, and your business will keep being monitored under the Free plan.' },
+        { q:'Does the Free plan expire?', a:'It never expires and it is never charged, but it pauses if you stop using it. It scans your listing every 24 hours during the first month and every 72 hours after that; and if you go 30 days without signing in, monitoring pauses. We email you 3 days beforehand, nothing gets deleted —your reviews, history and alerts stay exactly where they are— and it resumes on its own as soon as you sign back in. Every scan costs us money in Google queries, so we only watch free accounts that are actually in use. Paid plans keep watching without pauses, at the cadence you contracted, whether you sign in or not.' },
         { q:'Is my data safe?', a:'Yes. We use encryption in transit, your password is stored with a secure hash and we comply with data protection law (Peru’s Law 29733). We never sell or share your data, and we only read your business’s public information plus whatever you choose to connect.' },
       ],
     },

@@ -89,9 +89,16 @@ export const CATALOGO = [
     // el mismo reclamo que §15 mandó retirar del landing en su día y que aquí
     // sobrevivió, porque la limpieza se hizo sobre page.js y no sobre el
     // catálogo. Retirado el 2026-08-24.
+    // 🔴 Lo de la pausa NO es letra chica, y por eso va en la descripción y no
+    // en una nota al pie: es §15 aplicada al revés — lo que el worker deja de
+    // ejecutar tampoco se puede seguir prometiendo. Desde el 2026-09-19 el plan
+    // gratuito corre a 24 h su primer mes, después a 72 h, y se pausa si nadie
+    // entra en 30 días (`brand-shield/src/lib/dormancia.js`). Decirlo además
+    // VENDE: es un motivo concreto para pasar a un plan de pago, y contarlo mal
+    // —o no contarlo— convierte una regla defendible en una sorpresa.
     descripcion:
-      'Monitoreo de 1 negocio con escaneo cada 24 horas. Incluye score de reputación 0-100, detección de reseñas falsas, QR y enlace para pedir reseñas, 30 plantillas de respuesta, 5 usos de IA a la semana, 1 competidor vigilado y alertas por email.',
-    incluye: ['1 negocio monitoreado', 'Escaneo cada 24 horas', 'Alertas por email', 'Aviso si tu ficha aparece cerrada en Google'],
+      'Monitoreo de 1 negocio con escaneo cada 24 horas durante el primer mes y cada 72 horas a partir de entonces. Incluye score de reputación 0-100, detección de reseñas falsas, QR y enlace para pedir reseñas, 30 plantillas de respuesta, 5 usos de IA a la semana, 1 competidor vigilado y alertas por email. Si pasas 30 días sin entrar, la vigilancia se pausa para no consumir recursos: no se borra nada y se reanuda sola en cuanto vuelves a entrar. Los planes de pago vigilan sin pausas y a la cadencia contratada.',
+    incluye: ['1 negocio monitoreado', 'Escaneo cada 24 horas el primer mes, luego cada 72 horas', 'Se pausa a los 30 días sin entrar y se reanuda al volver', 'Alertas por email', 'Aviso si tu ficha aparece cerrada en Google'],
     comprable: false,
   },
   // ── Plan Impulso ────────────────────────────────────────────────────────────

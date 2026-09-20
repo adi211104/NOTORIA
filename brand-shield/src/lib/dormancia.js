@@ -50,7 +50,7 @@
 // de cosa que este proyecto no hace — y además el correo es, de paso, el mejor
 // motivo que tenemos para que vuelva.
 
-const { capacidades } = require('./planes');
+const { capacidades, ORDEN } = require('./planes');
 
 // Sin entrar en 30 días la cuenta gratuita se pausa.
 //
@@ -98,6 +98,21 @@ const motivoDormida = (usuario, ahora = Date.now()) => {
   // 🔴 La guarda que protege al que paga. Va PRIMERO y pregunta a la tabla de
   // planes, no a `plan === 'GRATIS'`: el día que exista un cuarto plan de pago,
   // escribir la lista a mano acá es exactamente el fallo que §8.6 documenta.
+  //
+  // 🔴 Y un plan que NO está en la tabla tampoco se duerme, aunque `capacidades`
+  // lo haga caer a GRATIS. Esa caída es correcta para NEGAR una función —lo
+  // desconocido se comporta como lo más restrictivo— pero acá invierte el riesgo,
+  // porque los dos errores no cuestan lo mismo:
+  //
+  //   · no dormir a quien no paga  →  S/4.39 al mes, y se ve en la factura.
+  //   · dormir a quien SÍ paga     →  dejar de prestar un servicio comprado, en
+  //                                   silencio, sin error y sin que él lo note.
+  //
+  // El escenario no es hipotético: el plan es un enum de Postgres, así que basta
+  // añadir un valor al schema y desplegar ANTES de tocar esta tabla para tener
+  // suscriptores con un plan que este archivo no reconoce. Es la misma secuencia
+  // que produjo los tres fallos silenciosos de IMPULSO (§8.6).
+  if (!ORDEN.includes(usuario.plan)) return null;
   if (capacidades(usuario.plan)?.esDePago) return null;
 
   const edad = diasDesde(usuario.creadoEn, ahora);
@@ -128,7 +143,10 @@ const estaDormida = (usuario, ahora = Date.now()) => motivoDormida(usuario, ahor
  * que precisamente no confirmó nada.
  */
 const tocaAvisar = (usuario, ahora = Date.now()) => {
-  if (!usuario || capacidades(usuario.plan)?.esDePago) return false;
+  // Mismas dos guardas que `motivoDormida`, y por lo mismo: avisar de una pausa
+  // que no va a ocurrir asusta a quien paga sin que haya nada que arreglar.
+  if (!usuario || !ORDEN.includes(usuario.plan)) return false;
+  if (capacidades(usuario.plan)?.esDePago) return false;
   if (!usuario.emailVerificado) return false;
   if (estaDormida(usuario, ahora)) return false;      // ya es tarde, no tiene sentido
 
@@ -169,10 +187,54 @@ const horasEscaneo = (usuario, ahora = Date.now()) => {
   return cap.horasEscaneoTrasPrueba;
 };
 
+// Cada cuánto se vuelve a escribir `ultimoAcceso`.
+//
+// 🔴 Sin throttle esto sería un UPDATE en CADA carga del panel, y el panel pide
+// el perfil en cada navegación: una sesión normal son decenas de escrituras a la
+// misma fila para mover una fecha unos minutos. Con 6 h la precisión sigue
+// sobrándole a un umbral de 30 DÍAS, y el costo baja a una escritura por sesión.
+const HORAS_REFRESCO_ACCESO = 6;
+
+/**
+ * Marca que esta persona entró. Silencioso a propósito.
+ *
+ * 🔴 NUNCA debe romper la petición que la llama: esto cuelga del login y de la
+ * carga del perfil, o sea de las dos rutas por las que pasa todo el mundo. Que
+ * un fallo escribiendo una fecha de telemetría impida iniciar sesión sería
+ * cambiar un problema de costo por uno de disponibilidad. Por eso traga el error
+ * y solo lo registra.
+ *
+ * Devuelve `true` si escribió, para que las pruebas puedan comprobar el throttle
+ * sobre la llamada real y no sobre una regex.
+ */
+const marcarAcceso = async (prisma, usuario) => {
+  try {
+    if (!usuario?.id) return false;
+    const previo = usuario.ultimoAcceso;
+    if (previo && Date.now() - new Date(previo).getTime() < HORAS_REFRESCO_ACCESO * 60 * 60 * 1000) {
+      return false;
+    }
+    await prisma.usuario.update({
+      where: { id: usuario.id },
+      // ⚠️ `data` con UN solo campo. Un `update` que devuelva la fila entera no
+      // molesta acá, pero escribir de más sí: cualquier otro campo que se cuele
+      // pisaría lo que el usuario acabe de guardar desde otra pestaña.
+      data: { ultimoAcceso: new Date() },
+      select: { id: true },
+    });
+    return true;
+  } catch (e) {
+    console.warn('[Dormancia] No se pudo marcar el acceso:', e.message);
+    return false;
+  }
+};
+
 module.exports = {
   DIAS_INACTIVIDAD,
   DIAS_AVISO_PREVIO,
   DIAS_SIN_VERIFICAR,
+  HORAS_REFRESCO_ACCESO,
+  marcarAcceso,
   referencia,
   motivoDormida,
   estaDormida,

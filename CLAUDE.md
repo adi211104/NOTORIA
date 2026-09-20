@@ -1097,12 +1097,13 @@ lo único que cambia es la factura de Google, que además no dice de quién fue 
 
 | Freno | Dónde | Qué corta |
 |---|---|---|
-| `HORAS_COMPETIDOR = 24` | `monitoreo.worker.js` | Un rival se relee **una vez al día**, no una vez por ciclo del dueño. ×6 en NEGOCIO, ×24 en FRANQUICIA. Nadie compara ratings de hora en hora, y `progreso.js` compara **mes contra mes** |
+| `HORAS_COMPETIDOR = 24 * 7` | `monitoreo.worker.js` | Un rival se relee **una vez por semana** —eran 24 h hasta el 2026-09-19 (§8.9)—, no una vez por ciclo del dueño. Nadie compara ratings de hora en hora, y `progreso.js` compara **mes contra mes**: §13 midió cinco negocios con 49 días de datos y sus ratings daban 4.8→4.8, 3.9→3.9, 4.0→4.0 |
 | `obtenerCompetidorCompartido` | ídem | Un place ID se pide **una vez por ciclo**, y si además es un negocio monitoreado sale **gratis** de `fichasGoogle`. ⚠️ La reutilización va en UNA dirección: la lectura de competidor solo pide Basic y no le sirve a un negocio, que necesita `reviews` |
 | `tocaLeerContacto` | `lib/fichaGoogle.js` | Contact Data **una vez al día**, no en cada escaneo. La marca es `_leidoEn` **dentro** de `fichaGoogleRef`, sin columna nueva. ⚠️ La ficha CERRADA no pasa por acá: `business_status` va en Basic y se sigue mirando siempre |
 
-Resultado medido: un local de Franquicia pasó de **$201.60 a $23.58 al mes**.
-`node scripts/prueba-costo-places.js` — 26 comprobaciones.
+Resultado medido: un local de Franquicia pasó de **$201.60 a $23.58 al mes**, y de ahí a **$9.10**
+con las palancas del 2026-09-19 (§8.9).
+`node scripts/prueba-costo-places.js` — 31 comprobaciones.
 
 ⚠️ **Al subir cualquier cadencia, hacer la cuenta antes.** El bloque 8 de esa prueba la deja
 escrita para no tener que rederivarla.
@@ -1242,6 +1243,88 @@ contador que va a rebotar**. Son justo las primeras cuentas que van a tocar esto
   `minmax(232px,1fr)` y en una tablet la tarjeta baja a ~196px de contenido, donde «Confirmar y
   pagar» + «Cancelar» no caben. Van apilados. **La lección es la del 24 y el 25 con una vuelta
   más: mirar no basta si se mira en un solo ancho.**
+
+### 8.9 Las tres palancas de costo — HECHAS el 2026-09-19
+
+Salieron de medir por primera vez cuánto cuesta una cuenta gratuita (§19, «LA ECONOMÍA DEL PLAN
+GRATUITO»). Ahí están los números y el porqué; **acá está cómo quedaron y qué hay que vigilar.**
+
+| # | Qué | Dónde | Visible para el cliente |
+|---|---|---|---|
+| 1 | Competidores cada **7 días** (antes 24 h) | `HORAS_COMPETIDOR` en `monitoreo.worker.js` | **No.** El catálogo promete CUÁNTOS competidores, nunca con qué frecuencia se releen |
+| 2 | El plan gratuito se **espacia y se pausa** | `lib/dormancia.js` | **Sí, y se anuncia** — ver abajo |
+| 3 | FRANQUICIA de 1 h a **2 h** | `planes.js` + sus 6 espejos | **Sí**, y por eso se hizo con cero clientes de pago |
+
+Medido en `prueba-costo-places.js` (bloque 8): un local de Franquicia pasa de **$23.58 a $9.10**.
+
+#### La palanca 2, que es la única con piezas nuevas
+
+Dos cosas distintas, y conviene no confundirlas porque tienen relojes distintos:
+
+| | Qué hace | Se mide desde |
+|---|---|---|
+| **Prueba completa** | 24 h el primer mes, **72 h** después | `creadoEn` (`diasPruebaCompleta` / `horasEscaneoTrasPrueba`, en `planes.js`) |
+| **Pausa** | deja de escanearse del todo | `ultimoAcceso || creadoEn` (`DIAS_INACTIVIDAD = 30`) |
+
+🔴 **La pausa se DERIVA de una fecha y NO se guarda en ninguna columna `pausada`.** Es el mismo
+criterio que «pendiente de anular» (§9): un estado guardado hay que sincronizarlo en los dos
+sentidos, y el día que el cron no corra —o que alguien entre justo entre dos pasadas— la columna
+miente. Derivarlo no puede desincronizarse: la persona entra y el ciclo siguiente ya la ve viva.
+⚠️ Corolario: **`pausa.worker.js` es PRESCINDIBLE.** Solo manda el aviso previo; si se cae, no se
+pausa de más ni de menos. Al revés —un worker que apagara cuentas— un fallo dejaría gente
+apagada para siempre.
+
+🔴 **`ultimoAcceso` se marca en TRES puertas** (`dormancia.marcarAcceso`): login, Google Sign-In
+y la carga del perfil. Si se olvidara la de Google —que es por donde entra buena parte del
+padrón— esa gente acumularía 30 días de «inactividad» **usando el producto a diario**. Van sin
+`await` y la función se traga sus propios errores: cuelga de las dos rutas por las que pasa todo
+el mundo, así que un fallo escribiendo una fecha de telemetría no puede impedir un login.
+⚠️ Con **throttle de 6 h**, o sería un `UPDATE` por cada carga del panel.
+
+⚠️ **`ultimoAcceso` en `null` NO significa «nunca entró»**: es toda cuenta anterior a la columna.
+Por eso `referencia()` cae a `creadoEn`. Tratar ese `null` como «inactiva desde siempre» habría
+apagado de golpe la vigilancia de **todas** las cuentas gratuitas el día del despliegue.
+
+🔴 **Un plan que NO está en `ORDEN` tampoco se duerme**, aunque `capacidades()` lo haga caer a
+GRATIS. Esa caída es correcta para **negar una función**; acá invierte el riesgo, porque los dos
+errores no cuestan lo mismo: no dormir a quien no paga son S/4.39 al mes y se ve en la factura;
+dormir a quien **sí** paga es dejar de prestarle un servicio comprado, en silencio. El escenario
+no es hipotético — el plan es un enum de Postgres, así que basta añadir un valor y desplegar
+antes de tocar la tabla, que es la secuencia exacta que produjo los tres fallos de IMPULSO (§8.6).
+
+⚠️ **Se anuncia, y eso NO es cortesía: es §15 aplicada al revés** — lo que el worker deja de
+ejecutar tampoco se puede seguir prometiendo. Está en `catalogo.js` (descripción + `incluye`), en
+la tarjeta del landing, en una fila nueva de la comparativa («Vigila sin pausas aunque no entres
+al panel») y en el FAQ, **en los dos idiomas y en el JSON-LD de `layout.js`**. Bien contado
+además vende: es un motivo concreto para pagar.
+⚠️ Y el correo del aviso previo es, de paso, **el mejor correo de reactivación del producto** —
+dice algo que está pasando en su cuenta y que depende de él, no «te extrañamos». La palanca de
+costo y la de conversión resultaron ser la misma.
+
+⚠️ **`HORAS_ESCANEO[plan]` sigue vivo y es correcto**: es el cooldown del **botón manual**, que sí
+es por plan. El cron pregunta a `dormancia.horasEscaneo(usuario)`. Son dos relojes distintos, como
+ya lo eran el del cron y el del botón. La app Android muestra el del botón, así que **no hay que
+tocarla**.
+
+`node scripts/prueba-dormancia.js` — **89 comprobaciones**, casi todas sobre silencios.
+
+**A quién pausa esto, medido en producción el 2026-09-19 justo antes de desplegar:**
+
+| | |
+|---|---|
+| Cuentas que se pausan | **6** — 3 `SIN_VERIFICAR`, 3 `INACTIVA` |
+| Negocios activos que dejan de escanearse | **4** |
+| Ahorro | **~S/17.56 al mes**, sobre 11 usuarios |
+| Cuentas del dueño (las 4 de plan NEGOCIO) | **ninguna tocada**, que es la guarda funcionando |
+
+🔴 **Dos de esas seis se pausan SIN aviso previo, y hay que saberlo:** `tocaAvisar` es una ventana
+de **un solo día** (el 27.º), y esas cuentas llevan mucho más que eso sin entrar, así que el cron
+del aviso nunca las va a ver. No es un fallo —es lo que hace que el aviso no se repita cuatro
+veces— pero sí significa que **el día del estreno la pausa es silenciosa para quien ya estaba
+vencido**. Las otras tres son `SIN_VERIFICAR` y a esas no se les puede escribir por definición.
+⚠️ Queda como decisión del dueño en §19: mandarles un aviso único a mano, que es exactamente lo
+que se hizo con `recordar-verificacion.js` el 2026-08-23 para las cuentas que quedaron fuera de
+la ventana de su cron. De aquí en adelante nadie más se pausa sin haber recibido su correo.
 
 ### 8.4 Menciones
 
@@ -1716,11 +1799,18 @@ en español: ahora **gana el local**.
 
 ## 12. Escaneo, detección y alertas
 
-**Cadencia por plan** (`HORAS_ESCANEO`): Gratis 24 h · Negocio 4 h · Franquicia 1 h. El cron
+**Cadencia por plan**: Gratis 24 h · Impulso 12 h · Negocio 4 h · Franquicia 2 h. El cron
 corre **cada hora** y elige a quién le toca. Antes había un solo cron de 4 h para todos, que
 rompía la oferta en las dos direcciones: Franquicia pagaba por 1 h y recibía 4, y cada cuenta
 gratuita costaba **seis veces** las consultas a Places prometidas. El cooldown del botón
 "Escanear ahora" se importa de esa misma constante.
+
+🔴 **Desde el 2026-09-19 el CRON ya no pregunta a `HORAS_ESCANEO[plan]` sino a
+`dormancia.horasEscaneo(usuario)`**, porque el plan gratuito corre a 24 h su primer mes y a 72 h
+después: el número depende del **usuario**, no solo del plan (§8.9). `HORAS_ESCANEO` sigue vivo
+y sigue siendo correcto **para el cooldown del botón manual**, que sí es por plan — son dos
+relojes distintos, igual que ya lo eran el del cron y el del botón. ⚠️ Y el cron ni siquiera
+llega a preguntar la cadencia de una cuenta **pausada**: `elegirVigilables` la saca antes.
 
 **El botón manual se conserva, pero el panel dejó de pedir que lo uses** (decisión del dueño,
 2026-08-22). El cooldown del botón es **igual al intervalo del cron de su plan**, así que
@@ -2404,6 +2494,14 @@ distinta; lo cierto es que Franquicia no tiene tope de negocios) y las señales 
 que no existen. ⚠️ La limpieza se hizo primero **solo en español** y los reclamos falsos
 sobrevivieron meses en inglés: **tocar los dos idiomas.**
 
+🔴 **Y la misma regla AL REVÉS, que es la que se aplicó el 2026-09-19: lo que el worker DEJA de
+ejecutar tampoco se puede seguir prometiendo.** Al pausar las cuentas gratuitas inactivas y
+espaciar su escaneo a las 72 h (§8.9) hubo que decirlo en el catálogo, en la tarjeta del landing,
+en una fila nueva de la comparativa y en el FAQ — en los dos idiomas **y en el JSON-LD de
+`layout.js`**, que es la copia que se olvida. ⚠️ No es letra chica ni una concesión: contado
+claro **vende**, porque «vigila sin pausas aunque no entres» es un motivo concreto para pagar.
+Lo vigila el bloque 12 de `prueba-dormancia.js`, que es su única comprobación sobre el frontend.
+
 🔴 **Una cifra sin URL pública que la sostenga no entra al landing.** Las que había estaban
 inventadas y una era falsa por un orden de magnitud. Las vigentes, cada una con enlace visible
 en su tarjeta:
@@ -2617,7 +2715,8 @@ textos por otros inventados. El procedimiento está en la cabecera del component
 | `reembolsar-cargo.js <chargeId> [--aplicar]` | Devuelve un cargo de Culqi. Avisa **antes** de qué comprobante quedaría sin anular, porque el reembolso no lo anula. El monto sale del `Pago`, no de un argumento |
 | `lib-env-produccion.js` | No es un script: lo requieren los demás. Arregla la trampa de `railway run`, que da los secretos de producción pero pisa `DATABASE_URL` con el host **interno** de Postgres, inalcanzable desde fuera. Costó tiempo dos veces antes de vivir en un solo sitio |
 | `prueba-anulacion-pendiente.js` | 31 comprobaciones del aviso por comprobante reembolsado y sin anular: los dos anclajes del plazo, el `floor` que no sobreestima, y sobre todo los silencios (VOUCHER, ya anulado, no aceptado) |
-| `prueba-costo-places.js` | 26 comprobaciones de los tres frenos de costo de Places (§8.7). Vigila lo que no da ninguna señal al romperse: si el competidor vuelve a releerse a la cadencia del dueño, o el caché deja de reutilizar, no falla nada — solo sube la factura de Google, que no distingue de quién fue cada consulta. El bloque 8 deja escrita la aritmética para no rederivarla |
+| `prueba-dormancia.js` | **89** comprobaciones de la pausa de cuentas gratuitas (§8.9). Casi todo son silencios, porque esta palanca **deja de hacer algo**: cuando se rompe no hay excepción, ni log, ni 500 — solo cambia a quién se escanea. Vigila que un plan de pago NUNCA se duerma (ni uno que no esté en la tabla), que el `null` de `ultimoAcceso` caiga a `creadoEn` en vez de apagar a todo el padrón, que el aviso previo sea una ventana de UN día (45 días de cron = **un** correo), que `marcarAcceso` no propague un fallo de base al login, y que los dos `select` del worker traigan los cuatro campos de los que depende la decisión — el agujero que ya tuvieron `idioma` y `prefsAlertas` en ese mismo sitio. El bloque 12 es el único que mira el frontend: comprueba que lo que el worker **deja de hacer** no se siga prometiendo en el catálogo. 🔴 Dos sondas suyas salieron mal al escribirlas: la de los `select` casaba con consultas ajenas (daba 3 y 4 donde hay 2) y «arreglar» ese rojo habría sido añadirles campos inútiles; y una primera versión abría conexión a la base de **producción** al cargar el worker, mientras su cabecera prometía no tocarla |
+| `prueba-costo-places.js` | 31 comprobaciones de los frenos de costo de Places (§8.7 y §8.9). Vigila lo que no da ninguna señal al romperse: si el competidor vuelve a releerse a la cadencia del dueño, o el caché deja de reutilizar, no falla nada — solo sube la factura de Google, que no distingue de quién fue cada consulta. El bloque 8 deja escrita la aritmética para no rederivarla |
 | `prueba-cartel.js` | **100** comprobaciones de los carteles QR (§13). Lo que vigila son cosas que no dan ninguna señal: que **el espejo del panel no se separe del backend** (si se separan, la vista previa deja de decir la verdad sobre lo que va a salir de la impresora), que ningún módulo del QR baje de **0,4 mm** en ninguno de los cuatro tamaños —por debajo de eso el papel se ve perfecto y **nadie escanea**—, que nada se salga del papel con el nombre más hostil que puede escribir un cliente, y que ningún texto pierda caracteres al pasar por WinAnsi. 🔴 El bloque 7 lee el TEXTO REAL del PDF, y llegar ahí costó dos trampas: los flujos van comprimidos y PDFKit parte cada palabra en trozos hex donde hay kerning — con las dos sin resolver, tres comprobaciones pasaban **por el motivo equivocado** |
 | `prueba-prefs-correo.js` | **96** comprobaciones (93 hasta el 2026-09-16, cuando se le sumó el cuerpo NUEVO de `Alertas.kt` y el de la app vieja como control) de cuánto correo manda el producto (§12). Todo lo que cubre falla en silencio y en la dirección peor: el correo sale, se entrega, y lo único que está mal es cuánto o qué dice. Vigila el default mensual, que la ventana de días acompañe a la cadencia, que el calendario sea el de **Lima** y no el del servidor, que el `select` del worker traiga `prefsAlertas`, que la ruta no vuelva a escribir un `1` encima del default del plan, y —lo más importante— que **nadie marque `Alerta.notificada` a ciegas**, que es lo que pondría el contador del lote a cero en cada reseña |
 | `borrar-usuario.js <email> [--aplicar]` | Borra una cuenta desde la terminal. **No reimplementa nada**: llama a `lib/borrarCuenta.js`, el mismo código que corre cuando un cliente se da de baja — el orden lo exigen media docena de FK con ON DELETE RESTRICT y una segunda copia se desincroniza el día que alguien añada una tabla, contra producción y a mitad del borrado. Exige simulacro, avisa aparte de los **snapshots** (lo único irrecuperable) y al terminar **vuelve a preguntarle a la base** si la fila sigue ahí. Con historial fiscal anonimiza en vez de borrar. ⚠️ Va en local, no con `railway run` |
@@ -3173,11 +3272,17 @@ tocó el botón en 33 días, ninguna leyó una alerta, dos ni verificaron el cor
 ningún mecanismo que las pare.** Hoy son S/10 al mes; con mil altas son S/4 400 al mes sin un
 sol de ingreso. **El problema no es el importe, es que la estructura no tiene freno.**
 
-⚠️ **Y no se puede ni detectar: `Usuario` NO tiene campo de último acceso.** No hay forma de
-saber si una cuenta gratuita sigue viva. Los únicos indicios son `Negocio.ultimoEscaneo` (que es
-el reloj del botón manual) y `Alerta.leida`.
+⚠️ ~~**Y no se puede ni detectar: `Usuario` NO tiene campo de último acceso.**~~ ✅ **Resuelto el
+mismo día:** existe `Usuario.ultimoAcceso`, que se marca en las tres puertas de entrada (§8.9).
+Antes los únicos indicios eran `Negocio.ultimoEscaneo` —que es el reloj del botón manual, no del
+cron— y `Alerta.leida`, o sea que **no había forma de saber si una cuenta gratuita seguía viva**.
 
 ### Las tres palancas, ordenadas por lo que cuestan y lo que devuelven
+
+> ✅ **LAS TRES ESTÁN HECHAS Y DESPLEGADAS el 2026-09-19.** Lo de abajo es el análisis que las
+> justificó y se conserva por los números; **cómo quedaron implementadas está en §8.9**, que es
+> lo que hay que leer para tocarlas. La columna `Usuario.ultimoAcceso` ya existe en producción y
+> el aviso previo tiene su cron.
 
 **1. Competidores cada 7 días en vez de cada 24 h.** La más barata y la única invisible:
 
@@ -3232,6 +3337,41 @@ de Culqi por transacción, el costo real de Railway y Vercel (fijos, hoy los ún
 y el de Groq. Los tres salen de facturas que tiene el dueño, no del código. Lo de arriba es
 **margen bruto sobre el único costo variable**, que es lo que escala con cada cliente.
 
+### ✅ Las tres, ejecutadas y desplegadas el mismo 2026-09-19
+
+Implementación y reglas en **§8.9**; acá solo queda lo que enseñó hacerlas.
+
+🔴 **La palanca 2 destapó un bug que llevaba semanas esperando al primer cliente con locales:**
+el `select` del cron **no pedía `localesExtra`**, así que llegaba `undefined`,
+`negociosPermitidos(plan, undefined)` devolvía **1**, y a un cliente que pagara cuatro locales el
+worker le habría vigilado **uno** dejando los otros tres fuera del barrido en silencio — sin
+borrar, sin desactivar y sin avisar: el historial de tres de sus fichas congelándose sin un solo
+error en pantalla. No había mordido porque hoy **0 cuentas tienen locales extra**; habría mordido
+el día del primer cobro de un local, que §19 tenía anotado como «sin ejercitar nunca con dinero
+real». Apareció por ir a añadir tres campos al mismo `select`, no buscándolo.
+
+🔴 **Y una asimetría de `capacidades()` que solo se ve en esta función.** Devuelve GRATIS ante un
+plan desconocido, y eso es correcto **para negar una función**: lo desconocido se comporta como lo
+más restrictivo. Acá invierte el riesgo — probado en vivo antes de arreglarlo, un plan `PREMIUM`
+inventado devolvía `INACTIVA`. La regla que deja: **«fallar cerrado» no es una dirección fija, es
+la dirección del error más caro**, y hay que preguntársela en cada call-site en vez de heredarla.
+
+⚠️ **Tres sondas propias salieron mal antes de salir bien**, y las tres por el mismo motivo —la
+sonda no distinguía lo que creía distinguir—:
+- la de los `select` casaba con el digest de alertas y con el reporte mensual (daba 3, luego 4,
+  donde hay **2**). «Arreglar» ese rojo habría sido añadirle campos inútiles a consultas ajenas;
+- la de los campos usaba `.every()` sobre un array **vacío**, que devuelve `true`: con la sonda
+  rota, cinco comprobaciones daban **verde sin haber leído una línea**. Por eso el `length === 2`
+  va dentro de cada una y no solo en el check del conteo;
+- y la primera versión del archivo **abría conexión a la base de producción** al cargar el
+  worker, con su propia cabecera prometiendo que no tocaba la base. Lo que conecta es cargar el
+  módulo, no llamarlo.
+
+⚠️ **De paso se arregló una desincronización que dejó la palanca 3:** el JSON-LD de `layout.js`
+—que va a Google como dato estructurado— seguía diciendo «cada 24, 12, 4 o **1 hora**». El FAQ
+está duplicado y el visible sí se había corregido. Es exactamente el fallo que §15 documenta
+desde su día, ocurrido otra vez.
+
 ### 🔴 Lo que este día corrige de `propuesta.md`, que se verificó contra el código
 
 El documento es sólido, pero **cinco afirmaciones no resisten la comprobación**, y dos cambian la
@@ -3277,12 +3417,13 @@ importe», no «está roto ahora». Eso lo **baja** de urgencia y lo **abarata**
 > —que es más barato de lo que decía la propuesta porque `Negocio.tipo` ya existe—, la **alerta
 > del Espejo** (+0,6-7% de Places, no el doble) y el **expediente como caso**. La alerta de
 > competencia se propone **mover al resumen mensual** en vez de un `TipoAlerta` nuevo.
-> ⚠️ **Nada de esto se toca hasta revisar la economía del plan Gratuito** (abajo).
 >
-> 🔴 **Y una pregunta de negocio abierta, que es la que manda: ¿cuánto cuesta una cuenta
-> gratuita?** Hoy no hay clientes de pago, así que todo el costo de Places que genera el plan
-> Gratuito es pérdida seca. Está medido en §8.7 por local de Franquicia, **no por cuenta
-> gratuita**, y ninguna de las propuestas pendientes se debería aprobar sin ese número delante.
+> ✅ ~~**La pregunta de negocio que mandaba: ¿cuánto cuesta una cuenta gratuita?**~~ **Medida y
+> resuelta el 2026-09-19.** S/4.39 al mes, a perpetuidad y sin ningún freno. **Las tres palancas
+> están hechas y desplegadas** (§8.9): competidores semanales, el gratuito espaciado y pausable,
+> y Franquicia a 2 h. Un local de Franquicia pasó de $23.58 a **$9.10**, y la conversión de
+> equilibrio de IMPULSO de 24,5% a **2,8%**. Ya se puede decidir lo de arriba con el número
+> delante, que era la condición.
 >
 > Todo lo de abajo de esta caja es historia con su detalle. **Esto es lo que sigue abierto**,
 > consolidado a mano cruzando este archivo, `README.md`, `docs/secretos.md`,
@@ -3296,6 +3437,8 @@ importe», no «está roto ahora». Eso lo **baja** de urgencia y lo **abarata**
 > |---|---|---|
 > | 🔴 **lun 21/09** | **Declaración de agosto**: RVIE (**3 boletas, deben salir en 0.00** — si alguna trae importe, no aceptar), RCE (factura del 04/08 + gastos del BCP) y 621. Ya se puede presentar | Dueño |
 > | jue 01/10 | Sale solo el **primer resumen mensual**: comprobar que llega y que cuenta 30 días | Mirar |
+> | **ya, en el próximo ciclo** | **La pausa empieza a aplicar**: 6 cuentas y **4 negocios activos** dejan de escanearse (§8.9). Comprobar en los logs que salen las líneas `[Worker] … en pausa` y que **ninguna de las cuatro del dueño** está entre ellas | Mirar |
+> | 🟡 **decisión** | **Las 2 cuentas gratuitas que se pausan SIN aviso previo** —`britneyfarfan05@` y `giorrnellprincipe@`— llevan tanto sin entrar que ya pasaron la ventana de 3 días del correo. ¿Se les manda un aviso único a mano, como se hizo con `recordar-verificacion.js` el 23/08? Manda correo de verdad, así que espera el OK del dueño. Las otras 3 son `SIN_VERIFICAR` y a esas **no se les puede escribir** | Dueño |
 > | vie 16/10 | **Reenviar la solicitud de GBP** desde `usenotoria@`, con `https://usenotoria.app/` exacto. Antes: la ficha sigue «Verificada» | Dueño |
 > | jue 22/10 | Declaración de setiembre (RVIE → RCE → 621) | Dueño |
 > | 2027 | Declaración Anual de Renta 2026 | Dueño + contador |

@@ -11,6 +11,7 @@ const { notificar, enviarAlertaEmail } = require('../alerts/notificador');
 const { revisarDatosDeFicha, tocaLeerContacto } = require('../lib/fichaGoogle');
 const { capacidades, planesCon, PLANES_DE_PAGO, ORDEN } = require('../lib/planes');
 const { negociosVigilables } = require('../lib/equipo');
+const dormancia = require('../lib/dormancia');
 const temasLib = require('../lib/temas');
 
 // Intenta publicar la auto-respuesta aprobada por el usuario para una reseña
@@ -479,6 +480,26 @@ const elegirVigilables = (negocios) => {
   const salida = [];
   for (const lista of porCuenta.values()) {
     const dueno = lista[0].usuario;
+
+    // ── El corte por abandono, hermano del corte por locales de la línea de abajo
+    //
+    // Una cuenta gratuita que dejó de entrar —o que nunca verificó su correo—
+    // deja de consumir Places. Ver `lib/dormancia.js` para los dos motivos y por
+    // qué los planes de pago nunca entran acá.
+    //
+    // ⚠️ Va ANTES de `negociosVigilables` a propósito: si la cuenta está dormida
+    // no hay nada que repartir entre locales contratados, y hacerlo al revés
+    // gastaría el cálculo para tirarlo después.
+    //
+    // ⚠️ No borra, no desactiva y no toca ningún dato — igual que el corte por
+    // asientos y el de locales. En cuanto la persona entra, `ultimoAcceso` se
+    // actualiza y el negocio vuelve al barrido en el ciclo siguiente.
+    const motivo = dormancia.motivoDormida(dueno);
+    if (motivo) {
+      console.log(`[Worker] ${lista.length} negocio(s) en pausa — cuenta ${dueno?.email || dueno?.id}: ${motivo}`);
+      continue;
+    }
+
     salida.push(...negociosVigilables(lista, dueno?.plan, dueno?.localesExtra));
   }
   return salida;
@@ -820,8 +841,13 @@ const MARGEN_ESCANEO_MS = 5 * 60 * 1000;
 // última vez», no hace falta ninguna columna nueva, y deja los dos relojes
 // independientes: el cron cumple el intervalo del plan y el botón conserva su
 // cupo.
+// ⚠️ La cadencia se le pregunta a `dormancia.horasEscaneo(usuario)` y ya NO a
+// `HORAS_ESCANEO[plan]` a secas: el plan gratuito corre a 24 h su primer mes y
+// después a 72 h, así que el número depende del USUARIO y no solo del plan.
+// `HORAS_ESCANEO` se conserva para el cooldown del botón manual, que sí es por
+// plan — son dos relojes distintos, como ya lo eran el del cron y el del botón.
 const leTocaEscaneo = (negocio, ultimoSnapshotEn, ahora = Date.now()) => {
-  const horas = HORAS_ESCANEO[negocio.usuario?.plan] ?? HORAS_ESCANEO.GRATIS;
+  const horas = dormancia.horasEscaneo(negocio.usuario, ahora);
   if (!ultimoSnapshotEn) return true;
   return ahora - new Date(ultimoSnapshotEn).getTime() >= horas * 3600000 - MARGEN_ESCANEO_MS;
 };
@@ -865,6 +891,28 @@ const iniciarMonitoreo = () => {
               // (§11) y con la limpieza del landing (§15): el lado inglés se
               // olvida porque nada falla, solo sale en el idioma que no es.
               idioma: true,
+              // 🔴 `localesExtra` NO es opcional, y faltaba desde que existen los
+              // locales de pago. `elegirVigilables` se lo pasa a
+              // `negociosVigilables`, y sin él llega `undefined` →
+              // `negociosPermitidos(plan, undefined)` devuelve **1** → a un
+              // cliente que pagó cuatro locales el worker le vigilaría UNO y
+              // dejaría los otros tres fuera del barrido **en silencio**: no
+              // borra, no desactiva, no avisa. El cliente vería el historial de
+              // tres de sus fichas congelarse sin un solo error en pantalla.
+              //
+              // No había mordido porque hoy nadie tiene locales extra (medido:
+              // 0 cuentas). Habría mordido el día del primer cobro de un local,
+              // que es exactamente el escenario que §19 dejó anotado como «sin
+              // ejercitar nunca con dinero real».
+              localesExtra: true,
+              // Los tres que necesita `lib/dormancia.js`. Sin ellos
+              // `motivoDormida` recibe `undefined` y devuelve `null`, o sea que
+              // falla ABIERTO: nadie duerme nunca y la palanca no hace nada, sin
+              // que falle absolutamente nada. Es el mismo agujero que ya tuvieron
+              // `idioma` y `prefsAlertas` en este mismo select.
+              emailVerificado: true,
+              creadoEn: true,
+              ultimoAcceso: true,
             },
           },
         },
@@ -960,7 +1008,15 @@ const ejecutarAhora = async (negocioId = null, { global: barridoGlobal = false }
   const negocios = await prisma.negocio.findMany({
     where,
     include: {
-      usuario: { select: { id: true, email: true, nombre: true, prefsAlertas: true, plan: true, idioma: true } },
+      // ⚠️ Los mismos campos que el select del cron, y por los mismos motivos —
+      // ver allá. Los dos alimentan `elegirVigilables`, así que si se separan,
+      // `ejecutarAhora` se comporta distinto que el barrido automático.
+      usuario: {
+        select: {
+          id: true, email: true, nombre: true, prefsAlertas: true, plan: true, idioma: true,
+          localesExtra: true, emailVerificado: true, creadoEn: true, ultimoAcceso: true,
+        },
+      },
     },
   });
   // Mismo caché por pasada que en el cron: `ejecutarAhora` sin `negocioId`

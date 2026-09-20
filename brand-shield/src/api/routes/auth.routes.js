@@ -10,6 +10,7 @@ const jwt = require('jsonwebtoken');
 const { z } = require('zod');
 const prisma = require('../../lib/prisma');
 const prefsCorreo = require('../../lib/prefsCorreo');
+const dormancia = require('../../lib/dormancia');
 const { borrarCuenta } = require('../../lib/borrarCuenta');
 
 const router = express.Router();
@@ -183,6 +184,14 @@ router.post('/login', async (req, res, next) => {
     // Generar token
     const token = firmarSesion(usuario);
 
+    // Esta persona está viva. Ver `lib/dormancia.js`: es lo que impide que su
+    // cuenta gratuita se pause por inactividad.
+    //
+    // ⚠️ SIN `await`: marcar el acceso no puede retrasar un login, y la función
+    // ya se traga sus propios errores. Si falla, lo peor que pasa es que la marca
+    // se escriba en la siguiente carga del panel.
+    dormancia.marcarAcceso(prisma, usuario);
+
     res.json({
       token,
       usuario: {
@@ -244,9 +253,18 @@ router.get('/perfil', autenticar, async (req, res, next) => {
         emailVerificado: true,
         telefono: true,
         idioma: true,
+        // Solo para el throttle de `dormancia.marcarAcceso`: sin él, la función
+        // no tiene contra qué comparar y escribiría en CADA carga del panel.
+        // No se manda al frontend (se quita más abajo).
+        ultimoAcceso: true,
         ...CAMPOS_CUENTA,
       },
     });
+
+    // Esta persona está usando el panel: su cuenta gratuita no se pausa.
+    // Sin `await` — una marca de telemetría no puede retrasar la carga del panel,
+    // y la función ya se traga sus propios errores.
+    dormancia.marcarAcceso(prisma, persona);
 
     // Los negocios se piden con el filtro de la cuenta Y del alcance: un miembro
     // asignado a una sola sede no debe ver las otras ni en el menú lateral.
@@ -261,8 +279,12 @@ router.get('/perfil', autenticar, async (req, res, next) => {
 
     const cuentas = await cuentasDe(req.usuario);
 
+    // `ultimoAcceso` es telemetría interna: se pidió solo para el throttle de
+    // `marcarAcceso` y no tiene por qué viajar al navegador.
+    const { ultimoAcceso: _telemetria, ...personaPublica } = persona;
+
     const usuario = {
-      ...persona,
+      ...personaPublica,
       ...datosCuenta,
       negocios,
       // Con qué permisos se pinta el panel. El frontend los usa para esconder
@@ -679,6 +701,12 @@ router.post('/google', async (req, res, next) => {
     }
 
     const token = firmarSesion(usuario);
+
+    // La tercera puerta de entrada. ⚠️ Si esta se olvidara, quien entra SIEMPRE
+    // con Google —que es buena parte del padrón— acumularía 30 días de
+    // «inactividad» usando el producto a diario, y su cuenta se pausaría con él
+    // dentro. Las tres puertas tienen que marcar: login, Google y carga del panel.
+    dormancia.marcarAcceso(prisma, usuario);
 
     res.json({
       token,
