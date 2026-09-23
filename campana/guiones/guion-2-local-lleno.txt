@@ -1,0 +1,191 @@
+GUIÓN 2 — «Una noche puede cambiarlo todo»   ·   10 s   ·   1 generación   ·   60 créditos
+Idea del encargado (15/09/2026), la marcada como recomendada, desarrollada.
+
+FUNCIÓN: Detector de campañas coordinadas  (nlp/detector.js)
+
+🔴 SUSTITUYE al viejo guión del repique. Es la misma función, pero con el local LLENO
+en vez de vacío la ironía es mucho más fuerte: el negocio va bien y la reputación está
+siendo atacada al mismo tiempo. Ese cambio salió del encargado y mejora lo que había.
+
+⚠️ EL LÍMITE: el detector dice «comportamiento anómalo», NUNCA «esta reseña es falsa».
+La tarjeta dice «detecta el patrón» por eso mismo.
+
+
+🔴 QUÉ SE DESARROLLÓ DESDE LA PRIMERA VERSIÓN
+
+Dos cambios, y el segundo es el que hace el video.
+
+**Lo que se quitó.** La escena original pedía que el celular mostrara reseñas de una
+estrella apareciendo y que «la pantalla se transformara en el panel de Notoria». Eso no
+se puede generar: reseñas legibles y un morph a una interfaz de producto es lo más
+difícil de renderizar y lo que más credibilidad destruye al fallar — el modelo dibuja
+una interfaz inventada y el espectador lo nota. El aviso se cuenta con el resplandor del
+teléfono, que no necesita ser legible para entenderse.
+
+**Lo que se añadió: el casi.** En la primera versión ella no notaba el teléfono en
+ningún momento. Ahora **lo mira** en el segundo 5, duda medio paso, y un cliente la
+llama desde fuera de cuadro. Se va, y el teléfono sigue.
+
+Ese «casi se entera» es mejor que «nunca se entera» por dos razones. Crea tensión donde
+antes solo había ironía. Y es más cierto: el dueño no es distraído, está ocupado — y eso
+es exactamente el motivo por el que el aviso tiene que llegarle en vez de esperarlo.
+
+**Y las dos curvas van al revés.** El local se vuelve MÁS vivo mientras el teléfono se
+vuelve MÁS frenético. Esa divergencia es lo que se siente sin poder nombrarla.
+
+
+1. IMAGEN A GENERAR  →  inicio-2.png
+
+Photograph, vertical 9:16, 35mm lens, shallow depth of field, low angle from the counter
+surface. Foreground, close to camera and slightly out of focus: a phone lying face-up on
+a worn wooden restaurant counter, its screen blown out to pure bright glare with no
+readable content. Background, in focus: a modest neighborhood restaurant in Lima, Peru
+at night, FULL of customers — every table taken, people eating and talking, warm
+tungsten light, a lively room. Among them a 45-year-old Peruvian woman, warm brown skin,
+dark hair pulled back in a low bun, wearing a clean dark green apron over a cream
+long-sleeve shirt, is setting plates down at a table, busy and content. Faces in the
+background are soft and no face is recognizable. Documentary realism, warm desaturated
+grade, subtle 35mm film grain.
+No text, no lettering, no logos, no readable screen content, no recognizable faces.
+
+
+2. EN KLING
+   Primer fotograma:  inicio-2.png
+   🔴 Ninguna tarjeta como último fotograma.
+   10 s · 720p · 9:16 · Native Audio APAGADO
+
+
+3. PROMPT DE VIDEO
+
+A 10-second vertical 9:16 video. Cinematic observational cinematography, like a feature
+film, not an advertisement.
+
+CAMERA: 35mm lens at T2.0, locked off on a tripod at counter height with a very slight
+slow drift forward. The phone stays in the near foreground, slightly out of focus, for
+the entire shot. No pan, no zoom, no shake.
+
+SCENE: The full restaurant from the first frame, unchanged throughout. The counter, the
+phone, the tables and the walls stay fixed. The phone never moves, is never picked up,
+and never changes shape. Its screen is never legible: blown out, pure bright glare. No
+object changes into another object. No face in the background is ever recognizable.
+
+ACTION — the room gets busier while the phone gets more frantic:
+0-2s   The room is warm and busy. The woman sets plates at a table and moves to the
+       next. The phone in the foreground glows once and goes dark.
+2-4s   She clears a glass and laughs silently at something a customer says. Behind her
+       two more people are seated. The phone glows twice more, close together.
+4-6s   She walks past the counter, GLANCES DOWN at the phone, and hesitates for half a
+       step.
+6-8s   An arm rises in the background asking for her. She turns away toward it and
+       leaves frame. The phone keeps glowing, faster now, the pulses overlapping on the
+       wood while nobody looks at it.
+8-10s  The light falls off smoothly and evenly until the frame settles into a flat dark
+       background.
+Nobody speaks intelligibly. Nobody looks at the camera. She never picks up the phone.
+
+LIGHT: Warm tungsten fills the busy background and makes it the bright, alive part of
+the frame; the foreground counter sits a stop darker, so every pulse of the phone reads
+clearly against the wood. Faint kitchen haze. Desaturated warm grade, gentle film
+contrast, natural 35mm grain.
+
+AUDIO: ambient only — a full restaurant: indistinct overlapping conversation, cutlery,
+chairs, a kitchen behind, and a phone vibrating on wood over and over, getting more
+frequent until the two sounds compete. No intelligible speech, no narration, no voices
+in close-up, no music.
+
+
+4. PROMPT NEGATIVO
+
+shaky handheld footage, camera jitter, whip pan, crash zoom, drone shot, orbiting
+camera, stuttering motion, speed ramp, slow motion, lens flare, vlog look, phone camera
+look, flat video lighting, oversaturated colors, teal and orange grade, advertisement
+look, speech, voices, narration, dialogue, lip movement, talking, music, text, letters,
+captions, subtitles, signage, logos, watermark, readable screen content, user interface,
+app icons, notification popups, morphing architecture, furniture moving, objects
+transforming, smiling at camera, looking at camera, distorted hands, extra fingers,
+deformed face, recognizable faces, close-up faces, the phone being picked up, empty restaurant,
+crowd looking at camera, intelligible dialogue, waiters in uniform, chef hats
+
+
+5. EN EDICIÓN
+
+🔴 CORREGIDO EL 2026-09-20 — DOS FRASES QUE NO SE PODÍAN SOSTENER
+
+1) «casi con el mismo texto»
+
+   Google nos entrega COMO MÁXIMO 5 reseñas por consulta. Nosotros sí sabemos que
+   entraron catorce —ese número sale de un contador y es exacto— pero NO leemos el
+   texto de las catorce. Leemos el de cinco. Decirlo da a entender que las revisamos
+   todas, y basta que un cliente lo compruebe una vez para que deje de creerse el
+   resto del anuncio.
+
+2) «te avisa el mismo día»
+
+   En el plan Gratuito la ficha se revisa cada 24 h, y cada 72 h después del primer
+   mes. «El mismo día» no está garantizado para quien se registra gratis, que es
+   justo el que llega por un video.
+
+✅ «Catorce en tres horas» SE QUEDA: es exactamente lo que hace `compararMediciones`,
+sale de un entero y es la parte fuerte del video.
+
+🔑 Y EL REMATE AHORA DICE PARA QUÉ SIRVE
+
+«Detecta el patrón» describe una función y deja al espectador con la pregunta: ¿y
+entonces qué hago? Lo que el dueño gana es poder reportarlo con algo en la mano en vez
+de con una queja. Notoria le deja el detalle de lo que vio, con fechas.
+
+⚠️ EL LÍMITE, que no cambia: el detector dice «comportamiento anómalo», NUNCA «esta
+reseña es falsa». Por eso la tarjeta dice «detecta el patrón» y el remate habla de
+dejarte la prueba — no de que Notoria dictamine que te atacaron.
+
+
+Tarjetas:   2a.png  (2,4 s)   →   2b.png  (3,0 s)
+
+   2a:   No es una mala reseña.
+         Son catorce en tres horas.
+
+   2b:   Notoria detecta el patrón
+         y te deja la prueba.
+
+Subtítulos sobre la imagen viva:
+   0,4 – 3,2 s   Jueves, nueve de la noche.
+   3,4 – 6,2 s   El local lleno.
+   6,4 – 8,0 s   Y el teléfono no para.
+
+Voz en off:
+   0,4 s    Jueves, nueve de la noche. El local lleno.
+   6,4 s    Y el teléfono no para.
+   8,4 s    No es una mala reseña: son catorce en tres horas.
+  11,0 s    Notoria detecta el patrón y te deja la prueba para reportarlo.
+
+⚠️ El remate original era «Notoria te avisa antes de que sea demasiado tarde». Se
+cambió porque promete PREVENCIÓN y Notoria detecta DESPUÉS de que las reseñas entran.
+
+⚠️ La imagen, el prompt de video y el negativo NO SE TOCAN. Solo edición: cero créditos.
+
+
+6. LA TARJETA TAMBIÉN MENTÍA — REGENERADA EL 2026-09-22
+
+🔴 El arreglo del 20/09 se dio por cerrado tocando voz y subtítulos, y se escribió que
+no costaba nada porque «solo es edición». Era verdad a medias: **la frase falsa estaba
+además DENTRO del PNG**, y un PNG no aparece en ninguna búsqueda de texto. Es
+exactamente lo que pasó con el `og-image` el 19/09 — al corregir un mensaje, la lista
+de sitios incluye las IMÁGENES, y se comprueban abriéndolas.
+
+Decían:
+
+   tarjeta 2a  ·  «El local lleno. Y catorce reseñas de una estrella en tres horas.»
+   tarjeta 2b  ·  «Notoria detecta el patrón y te avisa el mismo día.»
+
+La 2b imprimía «el mismo día», que no se sostiene en el plan Gratuito. Y la
+2a afirmaba que las catorce eran DE UNA ESTRELLA: sabemos que entraron catorce —es un
+contador— pero solo leemos cinco, así que la nota de las otras nueve no la conocemos.
+Es el mismo error que «casi con el mismo texto», en la tarjeta en vez de en la voz.
+
+Se regeneraron con la herramienta nueva (`node marca/hacer-tarjeta.js`, ver su
+cabecera: la de Python no corre en esta PC). Las anteriores quedaron en
+`tarjetas-anteriores/` por si hay que volver.
+
+⚠️ Y CAMBIAN DE TIPOGRAFÍA: las viejas salieron con la serif del sistema de la PC
+anterior, no con Georgia. Por eso se regeneran LAS DOS de este video y no una — dentro
+de un mismo clip la diferencia se vería. Los guiones 4 a 7 conservan las suyas.

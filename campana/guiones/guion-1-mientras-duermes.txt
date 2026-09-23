@@ -1,0 +1,183 @@
+GUIÓN 1 — «Mientras tú duermes»   ·   10 s   ·   1 generación   ·   60 créditos
+Idea del encargado (15/09/2026), desarrollada.
+
+FUNCIÓN: el monitoreo por cron  (workers/monitoreo.worker.js)
+POR QUÉ ES LA PRIMERA: expresa la vigilancia como beneficio en vez de como función, es
+literalmente cierta —`cron.schedule('0 * * * *')`, cada hora las 24 del día— y es la
+más barata de acertar: ninguna pantalla tiene que ser legible.
+
+⚠️ LO QUE NO PUEDE PROMETER: en plan Gratuito las reseñas se AGRUPAN de a 5
+(`loteAvisoResenas`), así que el teléfono no suena a las 2 de la mañana. En planes de
+pago va suelta. Por eso el remate dice «lo tienes al despertar» y no «te despierta»:
+así es cierto en los cuatro planes.
+
+
+🔴 QUÉ SE DESARROLLÓ DESDE LA PRIMERA VERSIÓN
+
+La primera versión tenía un problema de fondo: durante los primeros dos segundos no
+pasaba nada. Un cuarto oscuro y quieto es justo donde el espectador desliza, y esos dos
+segundos deciden el video entero.
+
+La solución no es meter movimiento artificial, es **elegir otro encuadre**: un macro del
+despertador con el segundero andando. Hay movimiento desde el primer cuadro, es
+hipnótico, y de paso el reloj —que antes era decorado— pasa a ser el protagonista, que
+es lo correcto en un video sobre las dos de la mañana.
+
+Y se añadió el gesto que de verdad vende: **su mano relajada sobre la manta, a un palmo
+del teléfono, que no se mueve nunca.** No es que no escuche la notificación; es que no
+necesita mirarla. Eso es el producto, y se cuenta sin una palabra.
+
+
+1. IMAGEN A GENERAR  →  inicio-1.png
+
+Photograph, vertical 9:16, 85mm macro lens, very shallow depth of field, camera at
+mattress height, very close to the nightstand. A dark modest bedroom in Lima at night.
+Sharp in the left foreground: the face of an old analogue alarm clock, its hands reading
+2:00, the metal rim catching a thin cold light. To the right, at the very edge of frame
+and slightly out of focus, a phone lying face-down on the wooden nightstand. Behind both,
+soft and deep out of focus, a woman's relaxed hand resting on a pale blanket, fingers
+loose and open, a palm away from the phone. The only light is a faint cold slit from a
+gap in the curtain. Documentary realism, deep shadows with detail, desaturated cool
+grade, subtle 35mm film grain.
+No text, no lettering, no logos, no readable screen content, no faces.
+
+
+2. EN KLING
+   Primer fotograma:  inicio-1.png
+   🔴 Ninguna tarjeta como último fotograma. Se pegan en edición.
+   10 s · 720p · 9:16 · Native Audio APAGADO
+
+
+3. PROMPT DE VIDEO
+
+A 10-second vertical 9:16 video. Cinematic observational cinematography, like a feature
+film, not an advertisement.
+
+CAMERA: 85mm macro lens at T1.8, very shallow depth of field, locked off on a tripod at
+mattress height. The camera does not move, zoom or pan at any point. The clock face stays
+sharp in the left foreground and the hand stays deep out of focus behind it for the whole
+shot.
+
+SCENE: The nightstand and bedroom from the first frame, unchanged throughout. The clock,
+the phone and the hand stay exactly where they are. The phone is never picked up, never
+moves, never turns over and never changes shape. The clock hands stay at 2:00 — only the
+second hand moves. No object changes into another object.
+
+ACTION — the only things that move are a second hand and a glow:
+0-3s   Macro stillness. The second hand of the clock sweeps forward, tick by tick. Dust
+       drifts almost imperceptibly through the thin light.
+3-5s   At the right edge of frame the face-down phone glows amber once. The glow washes
+       faintly across the clock's metal rim and fades.
+5-7s   Stillness again, only the second hand. The relaxed hand on the blanket behind does
+       not move at all.
+7-8s   The phone glows a second time, a little longer, then goes dark.
+8-10s  The light falls off smoothly and evenly until the frame settles into a flat dark
+       background.
+No person is ever visible beyond the relaxed hand. Nobody wakes. Nobody speaks.
+
+LIGHT: A cold blue slit from the curtain is the only key, raking across the clock face.
+The amber phone glow is the only other source and it never illuminates the room, only the
+nearest edges. Everything else stays in deep shadow with detail, no crushed blacks.
+Desaturated cool grade, gentle film contrast, natural 35mm grain.
+
+AUDIO: ambient only — very quiet room tone, the steady tick of the analogue clock, slow
+breathing somewhere off-microphone, one distant car on a wet street, and a single soft
+phone vibration against wood. No speech of any kind, no narration, no voices, no music.
+
+
+4. PROMPT NEGATIVO
+
+shaky handheld footage, camera jitter, whip pan, crash zoom, drone shot, orbiting
+camera, stuttering motion, speed ramp, slow motion, lens flare, vlog look, phone camera
+look, flat video lighting, oversaturated colors, teal and orange grade, advertisement
+look, speech, voices, narration, dialogue, lip movement, talking, music, text, letters,
+captions, subtitles, signage, logos, watermark, readable screen content, user interface,
+app icons, notification popups, morphing architecture, furniture moving, objects
+transforming, smiling at camera, looking at camera, distorted hands, extra fingers,
+deformed face, waking up, eyes opening, sitting up, the hand moving or reaching, the phone being
+picked up or turning over, bright lights, lamps turning on, clock hour hands moving,
+digital clocks, faces
+
+
+5. EN EDICIÓN
+
+🔴 CORREGIDO EL 2026-09-20 — «A LAS TRES Y A LAS CUATRO» NO ERA CIERTO
+
+El guión se defendía diciendo que el sistema corre cada hora (`cron.schedule('0 * * * *')`).
+Y es verdad que el sistema SE DESPIERTA cada hora — pero cuando se despierta, elige a
+quién le toca según su plan. No revisa a todo el mundo cada hora:
+
+     Plan Gratuito     cada 24 h   (y cada 72 h después del primer mes)
+     Plan Impulso      cada 12 h
+     Plan Negocio      cada 4 h
+     Plan Franquicia   cada 2 h
+
+«A las dos, a las tres y a las cuatro» no es cierto para NINGÚN plan. Ni siquiera para
+Franquicia, el más caro, que revisaría a las 2 y a las 4. Y el 19/09 Franquicia bajó de
+1 h a 2 h para que el negocio cerrara, así que la frase quedó aún más lejos.
+
+Es un error fácil de cometer y conviene tenerlo escrito: confundir «el sistema mira cada
+hora» con «TU ficha se revisa cada hora». Son dos cosas distintas.
+
+🔑 Y EL REMATE AHORA DICE DE QUÉ TE ENTERAS
+
+«Si algo cambia, lo tienes al despertar» no dice qué. Ahora nombra el caso concreto —que
+te marquen como cerrado— y es el mismo gancho del video que ya está publicado, así que
+los dos se refuerzan.
+
+✅ Por qué ESE caso y no «una mala reseña»: el aviso de ficha alterada sale DIRECTO en
+los cuatro planes, sin agruparse y sin que ninguna preferencia lo pueda apagar. Una
+reseña negativa, en cambio, se junta de a cinco en el plan Gratuito — así que prometer
+que te enteras de una reseña esa misma noche sería falso para quien se registra gratis.
+
+
+Tarjetas:   1a.png  (2,4 s)   →   1b.png  (2,6 s)
+
+   1a:   Tu negocio está cerrado.
+         Tu ficha no.
+
+   1b:   Si te marcan como cerrado,
+         lo sabes al despertar.
+
+Subtítulos sobre la imagen viva:
+   0,5 – 3,4 s   Son las dos de la mañana.
+   3,6 – 6,4 s   Tu negocio está cerrado.
+   6,6 – 8,0 s   Tu ficha no.
+
+Voz en off:
+   0,5 s    Son las dos de la mañana. Tu negocio está cerrado.
+   6,6 s    Tu ficha no.
+   8,4 s    A las dos Notoria revisó tu ficha. Y va a seguir toda la noche.
+  11,0 s    Si alguien te marca como cerrado, lo sabes al despertar.
+
+⚠️ El sonido hace la mitad: el tic del reloj tiene que estar presente desde el primer
+cuadro y NO debe haber música. Es lo que hace que el silencio del cuarto se sienta, y lo
+que convierte la vibración del teléfono en un acontecimiento.
+
+⚠️ La imagen, el prompt de video y el negativo NO SE TOCAN. Solo edición: cero créditos.
+
+
+6. LA TARJETA TAMBIÉN MENTÍA — REGENERADA EL 2026-09-22
+
+🔴 El arreglo del 20/09 se dio por cerrado tocando voz y subtítulos, y se escribió que
+no costaba nada porque «solo es edición». Era verdad a medias: **la frase falsa estaba
+además DENTRO del PNG**, y un PNG no aparece en ninguna búsqueda de texto. Es
+exactamente lo que pasó con el `og-image` el 19/09 — al corregir un mensaje, la lista
+de sitios incluye las IMÁGENES, y se comprueban abriéndolas.
+
+Decían:
+
+   tarjeta 1a  ·  «A las 2 de la mañana Notoria revisó tu ficha. Y a las 3. Y a las 4.»
+   tarjeta 1b  ·  «Tú descansa. Si algo cambia, lo tienes al despertar.»
+
+La 1a IMPRIMÍA la frase que no es cierta para ningún plan — la mentira no
+estaba solo en la voz, estaba en el papel. La 1b no era falsa, pero decía «si algo
+cambia» sin decir QUÉ, y se cambió para que acompañe al remate nuevo.
+
+Se regeneraron con la herramienta nueva (`node marca/hacer-tarjeta.js`, ver su
+cabecera: la de Python no corre en esta PC). Las anteriores quedaron en
+`tarjetas-anteriores/` por si hay que volver.
+
+⚠️ Y CAMBIAN DE TIPOGRAFÍA: las viejas salieron con la serif del sistema de la PC
+anterior, no con Georgia. Por eso se regeneran LAS DOS de este video y no una — dentro
+de un mismo clip la diferencia se vería. Los guiones 4 a 7 conservan las suyas.

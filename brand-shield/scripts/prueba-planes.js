@@ -550,6 +550,99 @@ check('el cron de renovación usa la misma regla del máximo',
 check('la sonda del periodo sabe fallar (control)',
   !/periodoUsuario === item\.periodo/.test('const esActual = usuario?.plan === item.plan;'));
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 15. LOS GUIONES DE CAMPAÑA (`campana/guiones/`) — 2026-09-22
+//
+// 🔴 Por qué este bloque existe. Los guiones afirman cadencias por plan con número
+// («Plan Negocio cada 4 h»), y §15 dice que lo que el worker no ejecuta no se puede
+// prometer. Hasta hoy nada ataba esas cifras a `planes.js`: el resumen dejó de ser
+// semanal el 09/09 y el guión 3 siguió diciendo «lunes» ONCE DÍAS, hasta que alguien
+// lo leyó de casualidad. Un guión es material publicado, y este barrido es lo único
+// que lo entera de que el producto cambió.
+//
+// ⚠️ Barre TEXTO, no código, así que no pasa por `sinComentarios`: en un guión todo
+// es prosa y no hay comentario que excluir.
+const DIR_GUIONES = path.join(RAIZ, '..', 'campana', 'guiones');
+const GUIONES = fs.existsSync(DIR_GUIONES)
+  ? fs.readdirSync(DIR_GUIONES).filter((f) => f.endsWith('.txt'))
+      .map((f) => ({ ruta: `campana/guiones/${f}`, texto: fs.readFileSync(path.join(DIR_GUIONES, f), 'utf8') }))
+  : [];
+
+// Control: sin esto, un directorio vacío daría todo en verde sin haber leído nada.
+// Es el agujero exacto que tuvo `prueba-gbp-visible` el 26/08 y el `.every()` sobre
+// un array vacío del 19/09.
+check('el barrido ENCUENTRA los guiones (control)', GUIONES.length >= 7,
+  `esperaba 7 o más .txt en campana/guiones, encontré ${GUIONES.length}`);
+
+const NOMBRE_VISIBLE = { Gratuito: 'GRATIS', Impulso: 'IMPULSO', Negocio: 'NEGOCIO', Franquicia: 'FRANQUICIA' };
+
+for (const [visible, id] of Object.entries(NOMBRE_VISIBLE)) {
+  const esperado = planes.capacidades(id).horasEscaneo;
+  for (const g of GUIONES) {
+    const m = g.texto.match(new RegExp(`[Pp]lan ${visible}\s+cada (\d+) ?h`));
+    if (!m) continue;
+    check(`${g.ruta}: la cadencia de ${id} dice ${esperado} h`, Number(m[1]) === esperado,
+      `el guión dice ${m[1]} h y la tabla de planes dice ${esperado} h`);
+  }
+}
+
+// La segunda cifra del plan gratuito: las 72 h de después del primer mes. Viaja en los
+// dos guiones que hablan de la pausa, y si `planes.js` la cambia los dos quedan falsos.
+const trasPrueba = planes.capacidades("GRATIS").horasEscaneoTrasPrueba;
+for (const g of GUIONES) {
+  const m = g.texto.match(/cada (\d+) ?h después del primer mes/);
+  if (!m) continue;
+  check(`${g.ruta}: el espaciado tras el primer mes dice ${trasPrueba} h`,
+    Number(m[1]) === trasPrueba, `el guión dice ${m[1]} h y la tabla dice ${trasPrueba} h`);
+}
+
+// 🔴 LO QUE SE BARRE ES EL TEXTO QUE SALE EN PANTALLA, NO EL ARCHIVO ENTERO.
+// La primera versión de esta sonda miraba el .txt completo y dio ROJO sobre el guión 3
+// — pero las tres coincidencias eran las NOTAS que citan la frase ya retirada («Decía:
+// Lunes, ocho de la mañana…»). Es la trampa del 09/09 por quinta vez: una sonda que no
+// distingue el texto vivo de la explicación de lo que se corrigió acusa justamente a
+// quien lo corrigió. Se reforzó, no se relajó: ahora extrae solo lo que el espectador
+// oye o lee — los renglones con marca de tiempo (subtítulos y voz en off) y el texto
+// de las tarjetas.
+const textoEnPantalla = (txt) => {
+  const vivas = [];
+  const lineas = txt.split(/\r?\n/);
+  for (let i = 0; i < lineas.length; i++) {
+    const l = lineas[i];
+    if (/^\s{2,}\d+,\d+\s*(?:[–-]|s\b)/.test(l)) { vivas.push(l); continue; }   // subtítulo o voz
+    const tarjeta = l.match(/^\s+\d[ab]:\s+(.+)$/);                              // tarjeta, línea 1
+    if (tarjeta) {
+      vivas.push(tarjeta[1]);
+      const sigue = lineas[i + 1];                                                // y su línea 2
+      if (sigue && /^\s{6,}\S/.test(sigue) && !/^\s+\d[ab]:/.test(sigue)) vivas.push(sigue);
+    }
+  }
+  return vivas.join('\n');
+};
+
+// 🔴 Y la que costó once días: NINGÚN guión puede volver a vender el resumen como
+// semanal. El default es MENSUAL desde el 09/09 (`lib/prefsCorreo.js`), y «lunes» era
+// además el día equivocado hasta para quien elige semanal, porque ese default es domingo.
+const RE_RESUMEN_SEMANAL = /\b(cada lunes|todos los lunes|Lunes, ocho|resumen semanal te llega)\b/i;
+for (const g of GUIONES) {
+  check(`${g.ruta}: no vende el resumen como semanal`, !RE_RESUMEN_SEMANAL.test(textoEnPantalla(g.texto)),
+    'el resumen es MENSUAL por defecto; decir «cada lunes» es la falsedad del 20/09');
+}
+
+// Controles: las tres sondas de arriba tienen que saber ponerse en rojo.
+check('la sonda de cadencia sabe fallar (control)',
+  Number('Plan Negocio      cada 9 h'.match(/[Pp]lan Negocio\s+cada (\d+) ?h/)[1]) !== planes.capacidades("NEGOCIO").horasEscaneo);
+check('la sonda del resumen semanal sabe fallar (control)',
+  RE_RESUMEN_SEMANAL.test('Antes: una hora cada lunes revisando reseñas.'));
+
+// 🔴 Los dos controles del extractor, y son los que hacen que los verdes de arriba
+// signifiquen algo: tiene que QUEDARSE con un renglón de voz y TIRAR una nota que cite
+// la frase retirada. Sin el segundo volvería el falso positivo del 22/09.
+check('el extractor conserva la voz en off (control)',
+  textoEnPantalla('   3,2 s    Antes, cerrar el mes te tomaba una hora.').includes('cerrar el mes'));
+check('el extractor descarta la nota que cita lo retirado (control)',
+  textoEnPantalla('Decía «Lunes, ocho de la mañana», y dejó de ser cierto el 09/09.') === '');
 // ─────────────────────────────────────────────────────────────────────────────
 console.log('\n──────────────────────────────────────────────────');
 console.log(`${ok} pasadas · ${fallos} fallidas`);

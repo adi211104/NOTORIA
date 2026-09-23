@@ -1,0 +1,142 @@
+MONTAJE — vale para los cinco videos
+================================================================================
+
+Verificado sobre la generación real del 15/09/2026 (716x1284, 24 fps, sin audio).
+
+🔴 CORTAR EN 7,8 s. Medido fotograma a fotograma: la imagen está limpia hasta el
+   segundo 7,75 y en el 8,00 el logo verde de la tarjeta empieza a pintarse ENCIMA
+   DE LA CARA de la señora. Es Kling interpolando hacia el último fotograma
+   demasiado pronto. Se corta antes y la tarjeta se pega en duro.
+
+   ⚠️ Para las próximas generaciones: NO adjuntes la tarjeta como último fotograma.
+   Genera los 10 s de escena sola y pega la tarjeta después. Sale igual, no cuesta
+   créditos extra y te ahorras el artefacto.
+
+
+TEXTO EN PANTALLA  —  es lo más importante que le falta, más que la voz.
+La mayoría mira sin sonido. Sin texto desde el primer cuadro, el espectador se va
+en el segundo 2 porque no hay ninguna pregunta planteada.
+
+   0,3 – 3,1 s    Son las dos de la tarde.
+   3,3 – 6,3 s    Y no ha entrado nadie.
+   6,5 – 7,8 s    Otra vez.
+   7,8 – 10,0 s   (la tarjeta trae su propio texto)
+
+   La tarjeta deja de ser un cierre y pasa a ser la REVELACIÓN: el texto plantea el
+   síntoma y la tarjeta da la causa. Ese es el giro que genera el impacto.
+
+
+VOZ EN OFF  —  las mismas palabras que el texto, no otras distintas.
+Voz peruana de Lima, tono bajo, sin prisa. Nada de locutor publicitario.
+
+   0,3 s    «Son las dos de la tarde.»
+            (pausa)
+   3,3 s    «Y no ha entrado nadie. Otra vez.»
+            (silencio hasta la tarjeta)
+   7,9 s    «Tu restaurante está abierto. Google dice que cerraste.»
+
+   Grábala con el celular dentro del clóset: la ropa mata el eco y suena mejor que
+   cualquier micro sin tratar.
+
+
+SONIDO  —  el clip viene mudo, así que el ambiente hay que ponerlo.
+   0 – 7,8 s   ambiente de local vacío: ventilador de techo, tráfico lejano
+               amortiguado, una moto que pasa, cubiertos lejanos
+   7,8 s       corte seco. Silencio bajo la tarjeta, o una nota grave sostenida
+               que se corta al final
+
+
+LOS COMANDOS
+
+   # cortar, escalar y quemar el texto
+   ffmpeg -y -i clip.mp4 -t 7.8 -vf "scale=1080:1920:force_original_aspect_ratio=increase,
+   crop=1080:1920,
+   drawtext=fontfile='$(fc-match -f '%{file}' serif)':text='Son las dos de la tarde.':
+    fontcolor=white:fontsize=58:x=(w-tw)/2:y=1320:shadowcolor=black@0.7:shadowx=2:
+    shadowy=2:enable='between(t,0.3,3.1)',
+   drawtext=...:text='Y no ha entrado nadie.':...:enable='between(t,3.3,6.3)',
+   drawtext=...:text='Otra vez.':...:enable='between(t,6.5,7.8)'" \
+   -an -c:v libx264 -crf 18 -pix_fmt yuv420p p1.mp4
+
+   # la tarjeta
+   ffmpeg -y -loop 1 -i tarjeta-1.png -t 2.2 -vf "scale=1080:1920,fps=24" \
+   -c:v libx264 -crf 18 -pix_fmt yuv420p p2.mp4
+
+   # unir
+   printf "file 'p1.mp4'\nfile 'p2.mp4'\n" > l.txt
+   ffmpeg -y -f concat -safe 0 -i l.txt -c copy video-1.mp4
+
+   # y al final, la voz y el ambiente
+   ffmpeg -y -i video-1.mp4 -i voz.m4a -i ambiente.m4a -filter_complex \
+   "[2:a]volume=0.3[amb];[1:a]volume=1.0[voz];[amb][voz]amix=inputs=2:duration=first" \
+   -c:v copy video-1-final.mp4
+
+
+================================================================================
+6. LA SEGUNDA TARJETA — el cierre que dice qué hace la marca
+================================================================================
+
+Archivo: tarjeta-1b-solucion.png
+
+    Notoria vigila tu ficha.
+    Si algo cambia, lo sabes el mismo día.
+    usenotoria.app
+
+Va DESPUÉS de tarjeta-1.png. La primera da la causa del problema; esta da la
+salida. Sin ella el video deja al espectador con el susto y un logo, sin saber qué
+vendes.
+
+VOZ EN OFF COMPLETA, con la línea nueva al final:
+
+    0,3 s    Son las dos de la tarde.
+    3,3 s    Y no ha entrado nadie. Otra vez.
+    8,5 s    Tu restaurante está abierto. Google dice que cerraste.
+   10,5 s    Notoria vigila tu ficha. Si algo cambia, lo sabes el mismo día.
+
+⚠️ Graba la línea nueva en el MISMO cuarto y con el mismo tono que las otras. Un
+cambio de sala entre frases se oye y delata el pegado.
+
+CÓMO PEGARLA — la tarjeta se ajusta sola a lo que dure tu grabación:
+
+   D=$(ffprobe -v error -show_entries format=duration -of csv=p=0 voz-final.m4a)
+   D=$(python3 -c "print(float('$D')+0.5)")
+
+   ffmpeg -y -loop 1 -i tarjeta-1b-solucion.png -i voz-final.m4a -t $D \
+     -vf "scale=1080:1920,fps=24" -c:v libx264 -crf 18 -pix_fmt yuv420p \
+     -c:a aac -shortest cierre.mp4
+
+   printf "file 'video1.mp4'\nfile 'cierre.mp4'\n" > l.txt
+   ffmpeg -y -f concat -safe 0 -i l.txt -c copy video1-final.mp4
+
+⚠️ El concat exige que los dos archivos tengan el mismo códec, resolución y fps.
+Si video1.mp4 sigue en HEVC a 716x1284, conviértelo antes:
+
+   ffmpeg -y -i video1.mp4 -vf "scale=1080:1920:force_original_aspect_ratio=increase,
+   crop=1080:1920" -c:v libx264 -crf 18 -pix_fmt yuv420p -c:a aac video1-h264.mp4
+
+
+================================================================================
+7. LO QUE NO CORRE EN LA PC DEL TALLER — comprobado el 2026-09-22
+================================================================================
+
+Los comandos de arriba se escribieron en la PC anterior, que era Linux. Dos piezas
+que usan NO existen en esta máquina, y ninguna de las dos falla al mudarse: fallan
+el día que se necesitan (§2 de CLAUDE.md y `docs/mudanza-de-pc.md`).
+
+   ❌ `fc-match`   es de fontconfig. En el `drawtext` de arriba aparece como
+                   `fontfile='$(fc-match -f '%{file}' serif)'`, que en Windows se
+                   resuelve a una cadena vacía y ffmpeg cae al tipo por defecto,
+                   SIN avisar. Sustituir por la ruta directa:
+
+                   fontfile='C\:/Windows/Fonts/georgia.ttf'
+
+                   ⚠️ Los dos puntos van escapados (`C\:`) dentro de `drawtext`, o
+                   ffmpeg parte la opción por ahí y el filtro no compila.
+
+   ❌ `python3`    solo se usa para sumarle 0,5 s a la duración de la voz. En bash:
+
+                   D=$(ffprobe -v error -show_entries format=duration -of csv=p=0 voz-final.m4a)
+                   D=$(awk "BEGIN{print $D+0.5}")
+
+⚠️ Y `hacer-tarjeta.py` tampoco corre: se reemplazó por `marca/hacer-tarjeta.js`, que
+vive en el repo. Ver su cabecera.

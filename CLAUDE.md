@@ -70,8 +70,11 @@ Vigilio/
 │   │   ├── utils/         ← emails.js (Resend), reporte/afiche/constancia generators (PDFKit)
 │   │   └── index.js       ← entry point, CORS, rutas
 │   └── prisma/schema.prisma
-└── brand-shield-web/      ← Frontend (Next.js 16 + Tailwind 4 + Turbopack)
-    └── src/{app,components,context,lib}
+├── brand-shield-web/      ← Frontend (Next.js 16 + Tailwind 4 + Turbopack)
+│   └── src/{app,components,context,lib}
+├── marca/                 ← Logos, piezas de redes y `hacer-tarjeta.js` (§17)
+└── campana/guiones/       ← Los 7 guiones de video. SOLO el texto: las imágenes no
+                             están en git (`campana/README.md`)
 ```
 
 > Los nombres de carpeta `brand-shield*` NO cambian (rompería imports). Solo la marca
@@ -2586,6 +2589,13 @@ en ninguno de los dos idiomas.
 eso su etiqueta visible es «Campañas coordinadas». El id no se toca (está en la BD, el worker y
 la app), pero nadie debe leer ese nombre como una función que existe.
 
+🔴 **Al corregir un mensaje, la lista de sitios incluye las IMÁGENES.** Un PNG no aparece
+en ningún `grep`, así que un barrido de texto lo da por limpio. Pasó dos veces: el `og-image`
+seguía diciendo «Vigilio» meses después del rebrand (19/09), y **seis tarjetas de la campaña
+seguían imprimiendo** frases ya retiradas de la voz de sus guiones (22/09). Se comprueban
+**abriéndolas**, y eso incluye el og-image, las piezas de `marca/` y las tarjetas de
+`campana/`.
+
 🔴 **Una cifra sin URL pública que la sostenga no entra al landing.** Las que había estaban
 inventadas y una era falsa por un orden de magnitud. Las vigentes, cada una con enlace visible
 en su tarjeta:
@@ -2810,7 +2820,7 @@ textos por otros inventados. El procedimiento está en la cabecera del component
 | `prueba-expediente.js` | **66** comprobaciones del expediente (I8). 15 son sobre **el límite**: lee el fuente del PDF y falla si alguna vez imprime «reseña falsa», «extorsionando» o cualquier afirmación que le corresponda a Google o a la autoridad, no a nosotros. El bloque 8, del 2026-09-20, cubre el **código verificable**: que la huella del texto sobreviva al reflow del PDF pero cambie si cambia una palabra, y sobre todo las **guardas cruzadas** — los dos documentos se firman con el mismo secreto, así que sin discriminador de tipo un expediente se verificaría como constancia y saldría un sello de «verificado» sobre campos vacíos |
 | `prueba-locales.js` | **103** comprobaciones de sumar y quitar locales sobre el plan que ya se tiene (§8.8). Los bloques 1-12 son aritmética y lectura del fuente; el **13 levanta la ruta de verdad** con Prisma y Culqi simulados, que es lo único que comprueba sobre la LLAMADA REAL —y no sobre una regex— que el `update` no escribe `fechaVencimiento` y que a Culqi le llega exactamente el importe que se le anunció al cliente |
 | `armar-renovacion.js <email> [--aplicar]` | Deja una cuenta lista para que el cron de renovación la cobre en su próxima pasada: pone `suscripcionActiva` y adelanta `fechaVencimiento`. 🔴 **No cobra nada** — quien cobra es el cron, solo y desatendido, que es justo lo que hay que probar: llamar al cobro a mano probaría otra cosa. Calcula el importe con `montoSuscripcion`, el MISMO de producción, para que el script y el worker no puedan discrepar. Se niega sobre cuentas que no sean del dueño y sobre una sin tarjeta guardada. ✅ Se corre EN LOCAL, al revés que `forzar-resumen-sunat.js`: solo escribe en la base, no llama a Culqi ni a SUNAT |
-| `prueba-planes.js` | **109** comprobaciones de la tabla de capacidades (eran 64 cuando se escribió esta fila: la cifra envejece sola, contrastar con la salida real). Vigila lo que no da señal: que todo plan con precio se COBRE y se BAJE (olvidarlo regala el plan de por vida), que la escalera no pierda capacidades al subir, que un plan desconocido falle CERRADO, y **lee el fuente** para fallar si alguien vuelve a escribir `['NEGOCIO','FRANQUICIA']` a mano. 🔴 Desde el 2026-08-30 ese barrido incluye **`scripts/`**, y su regex reconoce las listas que empiezan por `GRATIS`: por esos dos agujeros se le habían escapado `dar-plan.js` y `cuenta-revisor.js` con 109 comprobaciones en verde. Lleva controles que la ponen en rojo a propósito, y uno que comprueba que el barrido **encuentra** los scripts — sin él, un barrido vacío daría verde sin haber leído nada |
+| `prueba-planes.js` | **109** comprobaciones de la tabla de capacidades (eran 64 cuando se escribió esta fila: la cifra envejece sola, contrastar con la salida real). Vigila lo que no da señal: que todo plan con precio se COBRE y se BAJE (olvidarlo regala el plan de por vida), que la escalera no pierda capacidades al subir, que un plan desconocido falle CERRADO, y **lee el fuente** para fallar si alguien vuelve a escribir `['NEGOCIO','FRANQUICIA']` a mano. 🔴 Desde el 2026-08-30 ese barrido incluye **`scripts/`**, y su regex reconoce las listas que empiezan por `GRATIS`: por esos dos agujeros se le habían escapado `dar-plan.js` y `cuenta-revisor.js` con 109 comprobaciones en verde. Lleva controles que la ponen en rojo a propósito, y uno que comprueba que el barrido **encuentra** los scripts — sin él, un barrido vacío daría verde sin haber leído nada. 🔴 **El bloque 15, del 2026-09-22, barre `campana/guiones/`**: ata las cadencias que los guiones afirman con número a `planes.js` y prohíbe volver a vender el resumen como semanal. Nació porque el resumen dejó de ser semanal el 09/09 y el guión 3 siguió diciendo «lunes» **once días**. ⚠️ Mira solo el **texto que sale en pantalla** —los renglones con marca de tiempo y las tarjetas—, no el archivo entero: la primera versión acusó al guión 3 por las NOTAS que citan la frase ya corregida, que es la trampa del 09/09 por quinta vez |
 | `prueba-parte-equipo.js` | 66 comprobaciones del parte semanal para el equipo. Casi todas sobre lo que el prompt NO consigue: que el saneador quite las frases que el modelo escribe pese a prohibírselo **sin estropear las que estaban bien**, y que un conteo que no cuadre con los hechos tire el parte entero. Incluye una prueba de que el fuente no tiene bytes de control invisibles — un `` mal escapado escribió un `0x08` dentro de una regex y la dejó sin casar nunca, en silencio |
 | `prueba-panel.js` | 83 comprobaciones de score, temas, tareas e impacto. Comprueba que la fórmula del score NO cambió al mudarse al backend (replica la aritmética original), que la tendencia de temas compara porcentajes y no conteos, y que no se inventa una cifra en soles donde el estudio no aplica |
 | `embudo.js` | Foto de solo lectura del embudo, de registro a suscripción viva. Con 11 usuarios no hace falta analítica de producto: hace falta una consulta. Nombra las cuentas atascadas y **avisa de que una «suscripción viva» sin cobro es un plan dado a mano, no un cliente** |
@@ -2846,6 +2856,7 @@ textos por otros inventados. El procedimiento está en la cabecera del component
 | `cuenta-revisor.js` | Cuenta de prueba del revisor de Meta |
 | `verificar-webhook-culqi.js` | Comprueba nuestro lado del webhook |
 | `marca/generar-logos.py` | Regenera los PNG del logo a 1024px |
+| `marca/hacer-tarjeta.js <salida.png> "línea 1" "línea 2" [--cierre]` | Las tarjetas 1080x1920 que cierran cada video de campaña. 🔴 **Sustituye a `hacer-tarjeta.py`, que NO corre en esta PC**: no hay Python, usaba `fc-match` (fontconfig, inexistente en Windows) y cargaba el logo de una ruta de la máquina anterior — el mismo hueco mudo que el JDK. ⚠️ Cambia la tipografía a Georgia, que es la de la marca y la que las tarjetas **nunca** usaron, así que una regenerada no casa con una vieja: **las dos de un video o ninguna**. El ancho de cada renglón se MIDE rasterizando y recortando, no se estima |
 
 🔴 **Método que salvó varias integraciones: no escribir el cliente de una API antes de tener
 credenciales.** `obtenerComentariosTikTok` se escribió a ciegas contra un endpoint
@@ -3375,6 +3386,132 @@ compilado pisando otro habría sido un rojo incomprensible.
 |---|---|
 | Build | `next build` exit 0 |
 
+### 📌 2026-09-22 — los guiones entran al repo, la tarjeta que también mentía, y el aviso de Google
+
+Tres cosas de origen distinto. Cada una está desarrollada donde corresponde; esto es el
+resumen y las lecciones.
+
+🔴 **LO URGENTE, Y NO ES DEL CÓDIGO: Google avisó de que la cuenta de facturación no tiene
+datos de pago válidos.** Dos correos de `CloudPlatform-noreply@google.com` el 21/09 a las
+23:39, y el segundo nombra el proyecto por su ID: **`project-f1e03c17-f209-453e-a09`**, que
+es el de producción (§3) — el que tiene **Places API** y el **`GOOGLE_CLIENT_ID`**. Si lo
+suspenden se caen las dos cosas a la vez: el monitoreo entero y el «Entrar con Google» de
+todos los clientes. Cuenta de facturación **`019CC3-FF537C-DBA7DD`**.
+
+**Verificado, no supuesto** — el correo es legítimo (dominio y enlaces de Google) pero lo que
+dice no cuadra del todo con lo que enseña la consola:
+
+| Qué | Estado el 2026-09-22 |
+|---|---|
+| Saldo | **PEN 0.00**, «sin saldo pendiente» |
+| Gasto set (1-22), ago y jul | **S/. 0.00** los tres |
+| Tarjeta registrada | Visa ••••2224, **vence 07/30** — no está vencida |
+| Cuenta | «Cuenta pagada», sin alerta en el panel |
+| **Producción** | **VIVA**: último snapshot hace 1,5 h y **24/día** parejos toda la semana |
+
+⚠️ **O sea que no hay deuda y la tarjeta no caducó**, que son las dos causas que el correo
+propone. La hipótesis que queda —y se marca como hipótesis, no como hallazgo— es que Google
+no pudo **validar** el instrumento: la ••••2224 es una Visa **DÉBITO** (la misma de las
+pruebas de Culqi de agosto, §19 B), y Google Cloud exige crédito en muchos países. Un débito
+peruano además suele rechazar la autorización de prueba.
+
+🔴 **Y lo que el repaso destapó, que es lo que de verdad hay que arreglar: una suspensión
+sería MUDA.** El monitor de uptime comprueba `/health` y el landing, y los dos seguirían
+respondiendo 200; el cron seguiría corriendo cada hora con **cada consulta a Places
+fallando**; y el scraper devuelve `null` ante un fallo, que el worker trata como «no se pudo
+leer» y sigue. Ni excepción, ni log que alguien mire, ni alerta. El cliente vería el
+historial de su ficha congelarse y nada más. Es el patrón que §16 documenta —«no hay
+alertas» y «no pude consultarlas» no pueden verse igual— aplicado al proveedor.
+⚠️ **Queda como pendiente propuesto**, no hecho: que el monitor distinga «Places responde» de
+«Places rechaza». Hoy no lo distingue.
+⚠️ **Arreglar la tarjeta es del dueño**: el agente no introduce datos de pago, y ninguna
+autorización cambia eso.
+
+### Los guiones de campaña viven en `campana/guiones/` desde hoy
+
+Estaban solo en `Downloads/notoria-videos/guiones`, y eso fallaba por dos motivos que no son
+el mismo:
+
+- **`Downloads` se limpia sola** — el mismo aviso que §3 da para el `.p12`. Y lo que se
+  perdería no es texto: cada guión lleva dentro **por qué** cada frase dice lo que dice y
+  contra qué se comprobó, que es lo caro de rehacer.
+- **Son material que afirma cosas sobre el producto**, o sea que §15 los gobierna. Un guión
+  fuera del repo es una promesa que nadie revisa cuando el producto cambia — y ya había
+  mordido: el resumen dejó de ser semanal el 09/09 y el guión 3 siguió diciendo «lunes»
+  **once días**.
+
+⚠️ **Solo los guiones** (decisión del dueño). Las tarjetas no hacen falta porque se
+regeneran; las **imágenes de inicio de Kling NO se regeneran** —salieron de un modelo sin
+semilla guardada— y siguen viviendo en `Downloads`, que es justamente el problema. Anotado en
+`campana/README.md`.
+
+### 🔴 La frase falsa estaba DENTRO del PNG, y un PNG no sale en ningún `grep`
+
+El 20/09 se corrigieron siete guiones y se dio el trabajo por cerrado anotando que «el
+arreglo es solo de voz y subtítulos, no cuesta un crédito». **Era verdad a medias.** Al abrir
+las 14 tarjetas una por una, **seis seguían imprimiendo lo que ya se había quitado de la
+voz**:
+
+| Tarjeta | Lo que imprimía | Por qué no se sostiene |
+|---|---|---|
+| `1a` | «A las 2… **Y a las 3. Y a las 4**» | ningún plan revisa cada hora; el más caro, cada 2 h |
+| `2a` | «catorce reseñas **de una estrella**» | el conteo es exacto, pero Places entrega **5 reseñas**: la nota de las otras nueve no se conoce |
+| `2b` | «y te avisa **el mismo día**» | en GRATIS son 24 h, y 72 h tras el primer mes |
+| `3a` | «una hora **cada lunes**» | el resumen es mensual desde el 09/09 |
+
+⚠️ **Es el `og-image` del 19/09 otra vez, en otro soporte**, y la regla ya estaba escrita:
+**al corregir un mensaje, la lista de sitios incluye las IMÁGENES, y se comprueban
+abriéndolas.** Se aplicó al landing y no a la campaña, porque la campaña vivía fuera del
+repo — que es el otro motivo por el que entró.
+✅ Las seis regeneradas; las anteriores en `tarjetas-anteriores/`. Las ocho de los guiones
+4-7 se revisaron y **dicen la verdad**, así que no se tocan: la `6b` hasta ya decía el
+beneficio del expediente antes de que se discutiera, y el guión se alineó a ELLA en vez de al
+revés.
+
+🔑 **Y la corrección de fondo del guión 6, que la pregunta del dueño destapó.** Preguntó
+«¿para qué el expediente, cómo le serviría eso al cliente?», y el remate decía «Notoria arma
+el expediente: la reseña, su fecha y tu historial» — que **enumera lo que el PDF CONTIENE, no
+lo que el dueño GANA**. Lo que gana es que **la prueba desaparece**: el chantajista borra o
+edita la reseña cuando le conviene, y el propio chantajeado borra la conversación al
+bloquearlo, que es el reflejo normal. Cuando llega a Google o a una comisaría no tiene nada
+que enseñar. Notoria capturó esa reseña el día que la vio, con su hora, y eso es lo único que
+no se puede conseguir después. ⚠️ Si el dueño del producto no entendía para qué sirve una
+función, el espectador tampoco — y el guión llevaba semanas escrito.
+
+### `marca/hacer-tarjeta.js` — el generador, reescrito porque el viejo no corre acá
+
+`hacer-tarjeta.py` **no se puede ejecutar en la PC del taller**, y es la misma familia de
+hueco que el JDK y `respaldos/`: no falla al mudarse, falla el día que se necesita. No hay
+Python (`python` ni `py`), usaba **`fc-match`** —de fontconfig, que no existe en Windows— y
+cargaba el logo de **`~/notoria/marca/`**, una ruta de la máquina anterior.
+
+- Reescrito en Node junto a `generar-social.js`, que ya tenía la receta: se compone en SVG y
+  se rasteriza con `sharp`.
+- ⚠️ **Cambia la tipografía a propósito.** `fc-match serif` resolvía a la serif del sistema,
+  **no a Georgia** — se ve en los numerales de la `1a`, de altura uniforme donde Georgia los
+  dibuja con caídas. O sea que las tarjetas **nunca usaron la tipografía de la marca** (§17).
+  🔴 Corolario: una tarjeta regenerada no casa con una vieja, así que **se regeneran las DOS
+  de un video o ninguna** — dentro de un mismo clip la diferencia se ve.
+- ⚠️ **El ancho se MIDE, no se estima**: se rasteriza el renglón suelto y se recorta con
+  `trim()`. Una heurística de anchos medios se pasa por poco con las frases largas y el fallo
+  es mudo — la línea sale del papel y nadie lo ve hasta que el video está montado.
+- 🔴 Y una trampa al portarlo: el original trabaja en coordenadas de **tapa** (PIL dibuja
+  desde arriba) y el SVG en **línea base**. Sumar saltos de línea base separa los renglones
+  casi el doble; se nota comparando con una tarjeta vieja, no leyendo el código.
+
+⚠️ **`montaje.txt` tiene el mismo problema en dos puntos** y ahí también falla mudo: el
+`drawtext` de ffmpeg lleva `fontfile='$(fc-match …)'`, que en Windows se resuelve a cadena
+vacía y ffmpeg **cae al tipo por defecto sin avisar**. Queda anotado en su §7 con el
+reemplazo exacto (`C\:/Windows/Fonts/georgia.ttf`, con los dos puntos escapados o el filtro
+no compila) y el `awk` que sustituye al `python3`.
+
+⚠️ **Hallazgo suelto, sin tocar:** `marca/generar-social.js` tiene dos frases que §15 ya no
+permite — «por correo **o Telegram**» (eliminado el 2026-08-22) y «**Reseñas falsas** y
+ataques de bots» (el detector dice «comportamiento anómalo», nunca «reseña falsa», y la
+detección por perfil está declarada como que **no se hace**, §15). Son piezas publicadas en
+redes. No se tocaron por no salirse del encargo; **hay que corregirlas antes de volver a
+usarlas.**
+
 ### 🔴 2026-09-19 — LA ECONOMÍA DEL PLAN GRATUITO, medida por primera vez
 
 El dueño preguntó lo que nadie había calculado: **¿cuánto cuesta una cuenta gratuita y aguanta
@@ -3551,7 +3688,18 @@ importe», no «está roto ahora». Eso lo **baja** de urgencia y lo **abarata**
 
 ## 19. Pendientes, ordenados por quién los desbloquea
 
-> ### 📋 VIGENTES al 2026-09-19 — empezar por acá
+> ### 📋 VIGENTES al 2026-09-22 — empezar por acá
+>
+> 🔴 **LO PRIMERO, Y NO ES DEL CÓDIGO: la cuenta de facturación de Google Cloud.**
+> Google avisó el 21/09 de que `019CC3-FF537C-DBA7DD` no tiene datos de pago válidos, y el
+> segundo correo nombra el proyecto de PRODUCCIÓN — el de Places API y el `GOOGLE_CLIENT_ID`.
+> No hay deuda (saldo PEN 0.00) y la tarjeta no está vencida, así que lo más probable es que
+> Google no pueda validar una Visa **DÉBITO**. **Lo arregla el dueño** (agregar una de crédito
+> o que el banco autorice los cobros de Google); el agente no introduce datos de pago. Detalle
+> y lo que se verificó, en 📌 2026-09-22.
+> ⚠️ **Y si lo suspendieran no habría ninguna señal**: el monitor mira `/health` y el landing,
+> que seguirían en 200, y el scraper trata el fallo de Places como «no se pudo leer». Queda
+> propuesto —no hecho— que el monitor distinga «Places responde» de «Places rechaza».
 >
 > 🟡 **De `propuesta.md` (está en `Downloads/`, no en el repo) quedan DOS.** Ocho de las diez
 > están hechas: og-image, expediente en el correo, plantilla del chantaje y parte por WhatsApp el
@@ -3581,6 +3729,7 @@ importe», no «está roto ahora». Eso lo **baja** de urgencia y lo **abarata**
 > **Con fecha**
 > | Cuándo | Qué | Quién |
 > |---|---|---|
+> | 🔴 **ya** | **Tarjeta de Google Cloud** (arriba). Sin fecha de corte en el correo, pero Google no avisa dos veces | Dueño |
 > | 🔴 **lun 21/09** | **Declaración de agosto**: RVIE (**3 boletas, deben salir en 0.00** — si alguna trae importe, no aceptar), RCE (factura del 04/08 + gastos del BCP) y 621. Ya se puede presentar | Dueño |
 > | jue 01/10 | Sale solo el **primer resumen mensual**: comprobar que llega y que cuenta 30 días | Mirar |
 > | **ya, en el próximo ciclo** | **La pausa empieza a aplicar**: 6 cuentas y **4 negocios activos** dejan de escanearse (§8.9). Comprobar en los logs que salen las líneas `[Worker] … en pausa` y que **ninguna de las cuatro del dueño** está entre ellas | Mirar |

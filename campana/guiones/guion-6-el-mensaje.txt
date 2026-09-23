@@ -1,0 +1,156 @@
+GUIÓN 3 — «El mensaje»   ·   10 s   ·   1 generación   ·   60 créditos
+
+FUNCIÓN: Expediente  (lib/expediente.js + GET /api/negocios/:id/expediente/:resenaId.pdf)
+PROBLEMA REAL: alguien deja 1★ y acto seguido escribe por privado ofreciendo
+quitarla a cambio de plata o de una comida. Todo dueño de restaurante en Lima lo
+conoce y no hay casi nada escrito en español sobre qué hacer.
+
+🔴 EL LÍMITE, y va en la tarjeta: Notoria ARMA LA EVIDENCIA. No afirma que la
+reseña sea falsa ni da asesoría legal — eso lo determinan la plataforma o la
+autoridad. Es la misma regla que gobierna el detector.
+
+1. IMAGEN A GENERAR  →  inicio-3.png
+
+Photograph, vertical 9:16, 85mm lens, very shallow depth of field, eye level. Night
+inside a modest neighborhood restaurant in Lima, Peru, after closing: chairs already
+up on some tables, a single warm bulb overhead, the street window dark. A 45-year-old
+Peruvian woman, warm brown skin, dark hair pulled back in a low bun with a few loose
+strands, minimal makeup, small gold stud earrings, wearing a clean dark green apron
+over a plain cream long-sleeve shirt, stands behind the counter holding a phone at
+chest height, looking down at it. Her face is lit from below by the screen. The phone
+screen is not legible: blown out, pure bright glare. Documentary realism, desaturated
+olive and grey grade with warm practical light, subtle 35mm film grain.
+No text, no lettering, no logos, no readable screen content, no other people.
+
+2. EN KLING
+   Primer fotograma:  inicio-3.png
+   🔴 Ninguna tarjeta como último fotograma. Se pegan en edición.
+   10 s · 720p · 9:16 · Native Audio APAGADO
+
+3. PROMPT DE VIDEO
+
+A 10-second vertical 9:16 video. Cinematic observational cinematography, like a
+feature film, not an advertisement.
+
+CAMERA: 85mm lens at T2.0, very shallow depth of field. One single very slow push-in
+toward her face across the whole ten seconds, smooth and continuous. No zoom, no pan,
+no shake. The out-of-focus counter edge sits in the bottom foreground.
+
+SCENE: The closed restaurant at night from the first frame, unchanged throughout. The
+room, the stacked chairs and the dark window stay fixed. No object changes into
+another object.
+
+SUBJECT: The woman from the first frame, the only person in the video. Her lips stay
+pressed together; she does not speak and her jaw stays still except where noted.
+
+ACTION:
+0-3s   She is reading the phone, calm, tired, ordinary end of a long day.
+3-5s   She stops. Her eyes go still on the screen. She reads the same thing again.
+5-7s   Her jaw tightens once. She lowers the phone slowly to the counter without
+       looking away from it.
+7-8s   She lifts her eyes and stares straight ahead at nothing.
+8-10s  The light falls off smoothly and evenly until the frame settles into a flat
+       dark background.
+The phone screen is never legible: blown out, pure bright glare throughout.
+
+LIGHT: The phone screen underlights her face as a cold key; one warm tungsten bulb
+behind her separates her from the dark room. Everything else falls to black.
+Desaturated grade, gentle film contrast, natural 35mm grain.
+
+AUDIO: ambient only — deep room tone of an empty closed restaurant, a fridge
+compressor, one distant car, a single phone vibration on wood. No speech of any kind,
+no narration, no voices, no music.
+
+4. PROMPT NEGATIVO
+
+shaky handheld footage, camera jitter, whip pan, crash zoom, drone shot, orbiting
+camera, stuttering motion, speed ramp, slow motion, lens flare, vlog look, phone
+camera look, flat video lighting, oversaturated colors, teal and orange grade,
+advertisement look, speech, voices, narration, dialogue, lip movement, talking,
+music, text, letters, captions, subtitles, signage, logos, watermark, readable screen
+content, user interface, doors, doorways, window becoming a door, morphing
+architecture, furniture moving, objects transforming, smiling at camera, looking at
+camera, distorted hands, extra fingers, deformed face, other people, customers, crowd, crying, rage, throwing the phone
+
+5. EN EDICIÓN
+
+🔴 REESCRITO EL 2026-09-20, Y ES EL CAMBIO MÁS IMPORTANTE DE LOS SIETE
+
+El remate decía: «Notoria arma el expediente: la reseña, su fecha y tu historial».
+El encargado lo leyó y preguntó lo único que importa: **«¿para qué el expediente?
+¿cómo le serviría eso al cliente?»**. No lo entendía. Y si el dueño del producto no
+lo entiende, el espectador de TikTok tampoco — se va en el segundo nueve.
+
+El problema es que esa frase enumera lo que el PDF CONTIENE, no lo que el dueño GANA.
+«La reseña, su fecha y tu historial» son tres campos de un formulario. Nadie comparte
+un video por tres campos.
+
+🔑 LO QUE EL DUEÑO GANA ES ESTO: LA PRUEBA DESAPARECE.
+
+Quien te chantajea borra o edita la reseña cuando le conviene — si le pagas, para
+cumplir; y si lo denuncias, para tapar el rastro. Y hay algo peor, que es el reflejo
+del propio chantajeado: bloquear a esa persona, y con eso borrar la conversación.
+Cuando llegas a Google o a una comisaría a contar lo que pasó, ya no hay nada que
+enseñar. Es tu palabra contra la suya.
+
+Notoria capturó esa reseña el día que la vio, con su texto tal como estaba y con hora.
+Eso es lo único que el dueño NO puede conseguir después, y es exactamente lo que el PDF
+imprime: «Texto de la reseña, tal como fue capturado» y «Capturada por Notoria el…».
+
+⚠️ El límite no cambia y sigue en la tarjeta: Notoria GUARDA la prueba. No dice que la
+reseña sea falsa, ni que su autor haya cometido un delito — eso lo determinan la
+plataforma o la autoridad. Por eso el remate dice «tú todavía la tienes» y nunca
+«denúncialo» ni «es falsa».
+
+✅ Y se le puede prometer a cualquiera: el expediente NO está gateado por plan, está en
+los cuatro (comprobado sobre la ruta el 2026-09-20).
+
+
+Tarjetas:   6a.png  (2,2 s)   →   6b.png  (3,4 s)
+
+   6a:   Te dejan una estrella.
+         Después te escriben pidiendo plata.
+
+   6b:   Si borran la reseña, tú todavía la tienes.
+         Con su fecha y lo que pasó ese día.
+
+   ⚠️ La tarjeta B dura 3,4 s y no 2,2: lleva la frase que explica PARA QUÉ sirve, y
+      con 2,2 s la voz no entra. Es el segundo más rentable del video entero.
+
+Subtítulos sobre la imagen viva:
+   0,4 – 3,2 s   Cierras a las once.
+   3,4 – 6,0 s   Y te llega un mensaje.
+   6,2 – 8,0 s   «Puedo quitarte esa estrella.»
+
+Voz en off:
+   0,4 s    Cierras a las once. Y te llega un mensaje.
+   6,2 s    «Puedo quitarte esa estrella.»
+   8,4 s    Primero la estrella. Después te piden plata.
+  10,8 s    Notoria ya la guardó, con fecha y hora.
+            El día que la borren, tú todavía la tienes.
+
+
+6. AJUSTE AL PROMPT DE VIDEO (bloque ACTION)
+
+Un solo cambio, y es para que el gesto final NO sea de derrota. Ella no se hunde: se
+queda con el teléfono. Sustituye el tramo 5-8s por este:
+
+5-7s   Her jaw tightens once. She does not put the phone down. She keeps it in her
+       hand, screen up, and her grip closes slightly around it.
+7-8s   She lifts her eyes and stares straight ahead at nothing, the phone still held.
+
+⚠️ Por qué importa: el corte original la dejaba bajando el teléfono al mostrador, que
+se lee como rendirse. Quedarse con él sostiene lo que dicen las tarjetas — que la
+prueba se conserva. El resto del prompt, la imagen y el negativo NO se tocan.
+
+
+7. LAS TARJETAS DE ESTE GUIÓN NO SE REGENERAN — 2026-09-22
+
+Al repasar los PNG uno por uno aparecieron seis que decían algo falso (§ los guiones
+1, 2 y 3). Los de este NO: `6a` y `6b` ya estaban bien, y `6b` ya decía el beneficio
+—«Si borran la reseña, tú todavía la tienes»— antes de que nadie lo discutiera.
+
+🔑 Así que lo que se corrigió acá fue la VOZ, que era la que enumeraba campos del PDF,
+y el texto de este archivo se alineó a las tarjetas que ya existen en vez de al revés.
+Regenerarlas por gusto habría cambiado la tipografía de este video y no la de los
+otros cuatro que tampoco se tocan — ver la cabecera de `marca/hacer-tarjeta.js`.

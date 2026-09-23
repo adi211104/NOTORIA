@@ -1,0 +1,182 @@
+GUIÓN 3 — «El mostrador»   ·   10 s   ·   1 generación   ·   60 créditos
+Idea del encargado (15/09/2026), «Antes y después de Notoria», desarrollada.
+
+FUNCIÓN: el resumen semanal por correo  (workers/resumenSemanal.worker.js)
+
+
+🔴 QUÉ SE DESARROLLÓ, Y ES UN CAMBIO GRANDE
+
+La idea original era **pantalla partida**: a la izquierda el caos, a la derecha un panel
+organizado. Dos problemas, y el segundo es caro:
+
+  · La pantalla partida es de lo peor para la IA. Dos escenas coherentes en un solo
+    cuadro y el modelo las mezcla — acaba con muebles de una en la otra.
+  · El «panel organizado» es otra vez una interfaz de producto, que ya sabemos que no
+    se puede renderizar.
+
+La primera solución fue contarlo con un corte: dos lunes, mismo encuadre, dos tomas de
+5 s. Funcionaba, pero costaba **dos generaciones (120 créditos)** y arrastraba el riesgo
+de que las dos tomas no cuadraran entre sí.
+
+**La versión de ahora lo cuenta en un solo plano y con un solo gesto.** El antes y el
+después son el MISMO mostrador, separados por dos segundos: está cubierto de papeles, y
+una mano lo barre de un movimiento hasta dejar solo el teléfono boca abajo.
+
+Una generación, sin riesgo de continuidad, y es una imagen más fuerte que dos planos
+comparados — porque el espectador ve el cambio ocurrir en vez de que se lo muestren
+lado a lado.
+
+⚠️ Sigue siendo el más débil de los tres. Si hay que elegir dos, van el 1 y el 2.
+
+
+1. IMAGEN A GENERAR  →  inicio-3.png
+
+Photograph, vertical 9:16, 50mm macro lens, shallow depth of field, high angle looking
+down at a counter. Morning light through a street window in a modest neighborhood
+restaurant in Lima, Peru. A worn wooden counter covered in the debris of a Monday
+morning: loose paper receipts scattered and overlapping, a spiral notebook open face-down,
+a cheap ballpoint pen, a pocket calculator, a half-full mug of cold coffee with a skin on
+it, and a phone lying face-up among the papers with its screen blown out to pure bright
+glare. Deep out of focus in the background, the empty set tables of the dining room.
+Nobody in frame. Documentary realism, desaturated olive and grey grade, subtle 35mm film
+grain.
+No text, no printed words, no numbers on the papers, no lettering, no logos, no readable
+screen content, no people.
+
+
+2. EN KLING
+   Primer fotograma:  inicio-3.png
+   🔴 Ninguna tarjeta como último fotograma.
+   10 s · 720p · 9:16 · Native Audio APAGADO
+
+
+3. PROMPT DE VIDEO
+
+A 10-second vertical 9:16 video. Cinematic observational cinematography, like a feature
+film, not an advertisement.
+
+CAMERA: 50mm macro lens at T2.0, shallow depth of field, locked off on a tripod at a
+high angle looking down at the counter. The camera does not move, zoom or pan at any
+point. The framing is identical for the whole ten seconds.
+
+SCENE: The counter from the first frame. The counter itself, the window light and the
+out-of-focus dining room behind stay fixed and unchanged. The papers stay blank: no
+printed words, no handwriting and no numbers ever appear on them. The phone screen is
+never legible: blown out, pure bright glare. No object changes into another object.
+
+ACTION — one gesture is the whole video:
+0-3s   Stillness. The cluttered counter in the morning light. Dust drifts through the
+       beam. The phone among the papers glows once and goes dark.
+3-6s   A woman's hand with short unpainted nails enters from the right and sweeps the
+       loose papers together in one unhurried movement, gathering them into a stack and
+       carrying them out of frame. The notebook and the calculator go with them.
+6-8s   What is left on the bare wood: the mug, a cloth, and the phone — which the hand
+       turns face-down as it withdraws. Nothing else. The grain of the wood is visible
+       for the first time.
+8-10s  The light falls off smoothly and evenly until the frame settles into a flat dark
+       background.
+Only the hand appears. No face and no full person is ever visible. Nobody speaks.
+
+LIGHT: A shaft of cool morning window light crosses the counter from the left as the
+key, with the room falling into soft shadow behind. Faint haze makes the beam visible
+over the wood. The same light for the whole shot — nothing brightens when the counter
+clears, because the change is in the counter and not in the lighting. Desaturated olive
+and grey grade, gentle film contrast, natural 35mm grain.
+
+AUDIO: ambient only — quiet room tone, a ceiling fan turning slowly, distant muffled
+street traffic, the dry rustle of paper being gathered, and the small tap of the phone
+being set face-down. No speech of any kind, no narration, no voices, no music.
+
+
+4. PROMPT NEGATIVO
+
+shaky handheld footage, camera jitter, whip pan, crash zoom, drone shot, orbiting
+camera, stuttering motion, speed ramp, slow motion, lens flare, vlog look, phone camera
+look, flat video lighting, oversaturated colors, teal and orange grade, advertisement
+look, speech, voices, narration, dialogue, lip movement, talking, music, text, letters,
+captions, subtitles, signage, logos, watermark, readable screen content, user interface,
+app icons, notification popups, morphing architecture, furniture moving, objects
+transforming, smiling at camera, looking at camera, distorted hands, extra fingers,
+deformed face, split screen, side by side comparison, before and after layout, charts, graphs,
+dashboards, laptops, printed text on paper, handwriting, numbers, faces, full body,
+second person, the camera framing changing, the light changing
+
+
+5. EN EDICIÓN
+
+🔴 CORREGIDO EL 2026-09-20 — EL CORREO YA NO ES SEMANAL
+
+Decía «Lunes, ocho de la mañana… ya lo sabías al abrir el correo», y eso dejó de ser
+cierto el 9 de septiembre, cuando el resumen cambió de cadencia:
+
+     ANTES  ·  todos los domingos, a todo el mundo, sin poder ajustarlo
+     AHORA  ·  UNA VEZ AL MES, el día 1 — o semanal si el cliente lo elige,
+               y en ese caso el día que viene puesto es el DOMINGO
+
+O sea que a un cliente nuevo ese correo NO le llega un lunes. La hora sí estaba bien:
+sale a las 8:00 de Lima (`cron.schedule('0 8 * * *')`), y eso no se toca.
+
+✅ Y la imagen MEJORA con el cambio: un mostrador cubierto de papeles se lee mejor
+como cierre de MES que como cierre de semana. No hay que regenerar nada.
+
+🔑 EL OTRO ARREGLO, Y ES EL QUE LO SACA DE «EL MÁS DÉBIL DE LOS TRES»
+
+«Ahora ya lo sabías» no dice QUÉ sabías. El espectador oye una promesa vacía. El
+guión vendía la existencia de un correo, no lo que el correo le ahorra.
+Ahora la tarjeta B enumera lo que trae, que es lo que el dueño habría tardado una
+hora en juntar a mano: cuántas reseñas entraron, cómo quedó su nota, y de qué se
+queja la gente. Las tres cosas van en ese correo de verdad.
+
+
+Tarjetas:   3a.png  (2,4 s)   →   3b.png  (3,2 s)
+
+   3a:   Antes, cerrar el mes
+         te tomaba una hora.
+
+   3b:   Cuántas reseñas entraron,
+         tu nota y de qué se quejan.
+
+Subtítulos sobre la imagen viva:
+   0,4 – 3,0 s   Ocho de la mañana.
+   3,2 – 6,0 s   Antes, cerrar el mes te tomaba una hora.
+   6,2 – 8,0 s   Ahora ya lo sabías.
+
+Voz en off:
+   0,4 s    Ocho de la mañana.
+   3,2 s    Antes, cerrar el mes te tomaba una hora.
+   6,2 s    Ahora ya lo sabías al abrir el correo.
+   8,4 s    Cuántas reseñas entraron, cómo quedó tu nota y de qué se queja la gente.
+  11,2 s    Menos tiempo en el teléfono. Más tiempo en tu negocio.
+
+⚠️ El remate se conserva: «menos tiempo en el teléfono, más tiempo en tu negocio»
+nombra la moneda que un dueño de local cuenta de verdad, que es su tiempo. El
+original —«menos preocupación, más control»— es el registro de cualquier anuncio
+de software y no dice nada.
+
+⚠️ La imagen, el prompt de video y el prompt negativo NO SE TOCAN. Este arreglo es
+solo de edición: no cuesta un crédito.
+
+
+6. LA TARJETA TAMBIÉN MENTÍA — REGENERADA EL 2026-09-22
+
+🔴 El arreglo del 20/09 se dio por cerrado tocando voz y subtítulos, y se escribió que
+no costaba nada porque «solo es edición». Era verdad a medias: **la frase falsa estaba
+además DENTRO del PNG**, y un PNG no aparece en ninguna búsqueda de texto. Es
+exactamente lo que pasó con el `og-image` el 19/09 — al corregir un mensaje, la lista
+de sitios incluye las IMÁGENES, y se comprueban abriéndolas.
+
+Decían:
+
+   tarjeta 3a  ·  «Antes: una hora cada lunes revisando reseñas una por una.»
+   tarjeta 3b  ·  «Ahora: un correo. Y sigues con tu día.»
+
+La 3a llevaba «cada lunes» impreso. La 3b no mentía, pero era la frase vacía
+que dejaba el video sin decir qué trae el correo.
+
+Se regeneraron con la herramienta nueva (`node marca/hacer-tarjeta.js`, ver su
+cabecera: la de Python no corre en esta PC). Las anteriores quedaron en
+`tarjetas-anteriores/` por si hay que volver.
+
+⚠️ Y CAMBIAN DE TIPOGRAFÍA: las viejas salieron con la serif del sistema de la PC
+anterior, no con Georgia. Por eso se regeneran LAS DOS de este video y no una — dentro
+de un mismo clip la diferencia se vería. Los guiones 4 a 7 conservan las suyas.

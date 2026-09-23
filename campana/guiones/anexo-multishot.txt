@@ -1,0 +1,87 @@
+GUIÓN 6 — «La ficha», versión MULTI-SHOT    ·    15 s    ·    1 sola generación
+
+Esto reemplaza a los guiones 1 a 5 si funciona: Kling 3.0 genera hasta 6 tomas
+distintas, con sus cortes y su continuidad, dentro de UNA generación de 3 a 15 s.
+Es el video entero de una vez.
+
+
+CONFIGURACIÓN EN KLING
+   Modo              Custom Multi-Shot, 3 tomas de 4 s + 3 s + 3 s
+   Duración          10 s   ·   720p   ·   9:16
+   Native Audio      APAGADO  (Kling no habla español; la voz se la pones tú,
+                     y encenderlo te sube el costo de 180 a 405 créditos)
+   Imagen 1          el local VACÍO, sin nadie dentro   → primer fotograma
+   Imagen 2          tarjeta-1.png                      → último fotograma
+
+   🔴 La dueña NO va como imagen. Va descrita en el texto de cada toma. Dentro de
+   una misma generación multi-shot, Kling mantiene su continuidad entre cortes.
+
+   🔴 Y por eso la toma 1 empieza con el local vacío y ella ENTRA caminando: el
+   primer fotograma no la tiene, así que si el texto la pone ya de pie, el modelo
+   tiene que inventarla de golpe y ahí es donde se deforma.
+
+
+TOMA 1  ·  4 segundos
+
+The interior of a modest neighborhood restaurant in Lima, Peru, exactly as in the
+reference image: every table set with folded paper napkins and completely empty, no
+customers anywhere, a large fixed street-facing window showing an empty sidewalk under
+flat overcast daylight. The room starts empty. A 45-year-old Peruvian woman, warm
+brown skin, dark hair pulled back in a low bun with a few loose strands, minimal
+makeup, small gold stud earrings, wearing a clean dark green apron over a plain cream
+long-sleeve shirt with sleeves rolled to the forearm and a dish towel tucked at her
+waist, practical and unglamorous, walks in from the right drying her hands on a cloth,
+stops behind the wooden counter, and looks toward the street window. Her lips stay
+pressed together; she does not speak and never looks at the camera. Static locked-off
+camera, no movement. Desaturated olive and grey grade, natural light, subtle 35mm film
+grain. No text, no signage, no screens, no other people.
+
+
+TOMA 2  ·  3 segundos
+
+The same empty restaurant and the same woman from Shot 1 — same face, same low bun,
+same dark green apron over a cream long-sleeve shirt. She walks across the room to the
+large fixed street window and looks out at the empty sidewalk, first one way, then the
+other. Nobody is outside and nobody comes in. The window is a fixed pane of glass: it
+never opens and never becomes a door. Her lips stay pressed together; she does not
+speak and never looks at the camera. Static locked-off camera, no movement. Same
+desaturated olive and grey grade. No text, no signage, no screens, no other people.
+
+
+TOMA 3  ·  3 segundos
+
+Close-up of the same woman from Shot 1 and Shot 2 — same face, same low bun, same dark
+green apron — standing in the same empty restaurant. Her hand comes up to the back of
+her neck and rubs it once; she exhales through her nose, face composed with a small
+frown. Her lips stay pressed together; she does not speak and never looks at the
+camera. In the last second the light dims smoothly and evenly until the frame settles
+into a flat dark background. Static locked-off camera. Same grade. No text, no screens,
+no other people.
+
+
+PROMPT NEGATIVO
+
+speech, voices, narration, dialogue, lip movement, talking, mouth opening, music,
+text, letters, captions, subtitles, signage, logos, watermark, screens, phone screens,
+user interface, doors, doorways, window opening, window becoming a door, morphing
+architecture, walls moving, furniture moving, objects transforming, other people,
+customers, waiters, crowd, smiling, looking at camera, crying, handheld shake, slow
+motion, lens flare, distorted hands, extra fingers, deformed face, face changing
+between shots
+
+
+🔴 LA CUENTA DE CRÉDITOS, QUE ES LO QUE DECIDE SI ESTO ES VIABLE
+
+   Sin audio nativo    8 créditos/segundo   →  15 s = 120 créditos
+   Con audio nativo   12 créditos/segundo   →  15 s = 180 créditos
+
+   Con 660 créditos al mes eso son 5 generaciones de 15 s sin audio, o 3 con audio.
+   SIN reintentos. Y vas a descartar tomas.
+
+   Por eso el audio nativo va APAGADO: no lo necesitas —Kling no habla español y la
+   voz se la pones tú— y te ahorra un tercio del costo.
+
+   El plan dice «Element AI Multi-Shot — Daily 3 Free Uses». Si esos 3 usos diarios
+   no descuentan créditos, esto se vuelve casi gratis. COMPRUEBA EN PANTALLA lo que
+   te cobra antes de darle a generar, porque es la diferencia entre 5 intentos al mes
+   y 90.

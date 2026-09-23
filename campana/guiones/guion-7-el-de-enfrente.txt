@@ -1,0 +1,101 @@
+GUIÓN 5 — «El de enfrente»   ·   10 s   ·   1 generación   ·   60 créditos
+
+FUNCIÓN: Competencia  (dashboard/competencia + lib/progreso.js)
+PROBLEMA REAL: tu rating puede estar igual y aun así estar perdiendo, porque el
+de al lado subió. Un dueño mira su propia nota y nunca la de enfrente — y cuando
+se da cuenta, lleva meses cediendo terreno.
+
+1. IMAGEN A GENERAR  →  inicio-5.png
+
+Photograph, vertical 9:16, 50mm lens, shallow depth of field, eye level, shot from
+inside looking out. Interior of a modest neighborhood restaurant in Lima, Peru, with
+white walls, dark wood chairs and set tables in the near foreground, slightly out of
+focus. Through a large fixed street-facing window, in focus across the street, the
+facade of another small restaurant with its lights on and a few blurred figures
+standing near its entrance. Flat overcast Lima daylight outside, warm bulbs inside. A
+45-year-old Peruvian woman, warm brown skin, dark hair in a low bun, wearing a clean
+dark green apron over a cream long-sleeve shirt, stands by the window with her back
+three-quarters to camera, looking out. Documentary realism, desaturated olive and
+grey grade, subtle 35mm film grain.
+No text, no signage, no lettering, no logos, no readable faces across the street.
+
+2. EN KLING
+   Primer fotograma:  inicio-5.png
+   🔴 Ninguna tarjeta como último fotograma.
+   10 s · 720p · 9:16 · Native Audio APAGADO
+
+3. PROMPT DE VIDEO
+
+A 10-second vertical 9:16 video. Cinematic observational cinematography, like a
+feature film, not an advertisement.
+
+CAMERA: 50mm lens at T2.0, shallow depth of field. One single slow dolly-in from
+inside the restaurant toward the window across the whole ten seconds, smooth and
+continuous, passing an out-of-focus set table in the left foreground. No zoom, no
+pan, no shake.
+
+SCENE: The restaurant interior and the street outside from the first frame, unchanged
+throughout. The window is a fixed pane of glass: it never opens and never becomes a
+door. The building across the street keeps its shape and never gains signage or
+lettering. The blurred figures across the street stay distant and out of focus, and
+no face is ever readable. No object changes into another object.
+
+SUBJECT: The woman from the first frame, the only person inside. Her lips stay
+pressed together; she does not speak and her jaw is still.
+
+ACTION:
+0-4s   She stands at the window looking across the street, one hand resting on a
+       chair back.
+4-7s   She shifts her weight, watches a moment longer, and glances back over her
+       shoulder at her own empty set tables.
+7-8s   She turns back to the window and stays still.
+8-10s  The light falls off smoothly and evenly until the frame settles into a flat
+       dark background.
+
+LIGHT: Flat grey daylight outside is the key and blows out slightly through the
+glass; the interior is warmer and about a stop darker, so she reads as a silhouette
+with rim light on her shoulder. Faint reflections on the glass. Desaturated olive and
+grey grade, gentle film contrast, natural 35mm grain.
+
+AUDIO: ambient only — room tone, a ceiling fan, street traffic through glass, faint
+indistinct voices from outside. No speech of any kind, no narration, no dialogue, no
+music.
+
+4. PROMPT NEGATIVO
+
+shaky handheld footage, camera jitter, whip pan, crash zoom, drone shot, orbiting
+camera, stuttering motion, speed ramp, slow motion, lens flare, vlog look, phone
+camera look, flat video lighting, oversaturated colors, teal and orange grade,
+advertisement look, speech, voices, narration, dialogue, lip movement, talking,
+music, text, letters, captions, subtitles, signage, logos, watermark, readable screen
+content, user interface, doors, doorways, window becoming a door, morphing
+architecture, furniture moving, objects transforming, smiling at camera, looking at
+camera, distorted hands, extra fingers, deformed face, readable faces, recognizable people across the street, shop signs, business
+names, crowds inside, customers inside, her leaving the restaurant
+
+5. EN EDICIÓN
+
+Tarjetas:   7a.png  (2,2 s)   →   7b.png  (2,0 s)
+
+Subtítulos sobre la imagen viva:
+   0,4 – 3,2 s   Tu rating no bajó.
+   3,4 – 6,0 s   Sigues en 4,2.
+   6,2 – 8,0 s   Y aun así estás perdiendo.
+
+Voz en off:
+   0,4 s    Tu rating no bajó. Sigues en cuatro coma dos.
+   6,2 s    Y aun así estás perdiendo.
+   8,4 s    El de enfrente subió a 4,6 este mes. Tú no te enteraste.
+  10,8 s    Notoria te lo dice en tu resumen, sin que tengas que entrar a mirar.
+
+🔴 REVISADO EL 2026-09-20 — AYER ESTE VIDEO NO SE PODÍA PUBLICAR Y HOY SÍ.
+El guión decía «el de enfrente subió y tú no te enteraste», y hasta esta mañana eso
+tenía una ironía incómoda: CON Notoria tampoco te enterabas. La comparación existía
+—panel de competidores, análisis, mes contra mes— pero solo la veías si entrabas a
+mirar, y el abandono del dueño está medido a los veinte días.
+El 20/09 esa comparación entró en el correo del resumen, así que ahora el video es
+cierto. Por eso el remate cambió: «vigila también a tu competencia» describía una
+función que el cliente no recibía. Ahora dice cómo le llega.
+✅ Los números cuadran: de 4,2 a 4,6 son 0,4 puntos, por encima del 0,2 que el código
+exige para considerar que un rating se movió de verdad (Google redondea a un decimal,
+así que menos que eso cabe dentro del redondeo).

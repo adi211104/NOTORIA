@@ -1,0 +1,106 @@
+GUIÓN 1 — «Lo que tu equipo no sabe»   ·   10 s   ·   1 generación   ·   60 créditos
+
+FUNCIÓN: Temas + Parte para el equipo  (lib/temas.js, lib/parteEquipo.js)
+PROBLEMA REAL: las quejas se repiten y el equipo nunca se entera. El dueño lee las
+reseñas en su teléfono, responde con educación en Google, y la cocina sigue haciendo
+exactamente lo mismo que provocó la queja. La respuesta pública es cosmética: le
+contesta al cliente que ya se fue molesto y no le dice nada a quien causó el motivo.
+
+🔴 POR QUÉ ESTE ÁNGULO Y NO OTRO: toda herramienta de reputación usa la IA para
+redactar la respuesta pública. Notoria además mira hacia ADENTRO — y eso es lo que
+la convierte de vigilante en herramienta de gestión. Es la diferencia que ningún
+competidor está contando, así que es la que más conviene mostrar.
+
+⚠️ EL LÍMITE: los números los pone el código, la IA solo los redacta. Si el parte
+dice «seis de diez» tienen que ser seis de verdad — lo lee gente que estuvo ahí.
+Por eso la tarjeta da una cifra concreta y no una impresión.
+
+
+1. IMAGEN A GENERAR  →  inicio-1.png
+
+Photograph, vertical 9:16, 50mm lens, shallow depth of field, eye level. Interior of a
+modest neighborhood restaurant in Lima, Peru, during service. In the near foreground,
+slightly out of focus, a 45-year-old Peruvian woman, warm brown skin, dark hair pulled
+back in a low bun with a few loose strands, minimal makeup, small gold stud earrings,
+wearing a clean dark green apron over a plain cream long-sleeve shirt, stands with her
+back three-quarters to camera holding a phone at chest height. Beyond her, sharp and
+well lit, a pass-through window into the kitchen where two cooks in white work at the
+stove with steam rising, absorbed in what they are doing, neither of them looking out.
+Warm kitchen light against the cooler dining room. Documentary realism, desaturated
+olive and grey grade, subtle 35mm film grain.
+No text, no lettering, no logos, no readable screen content, no readable faces in the
+kitchen.
+
+
+2. EN KLING
+   Primer fotograma:  inicio-1.png
+   🔴 Ninguna tarjeta como último fotograma. Se pegan en edición.
+   10 s · 720p · 9:16 · Native Audio APAGADO
+
+
+3. PROMPT DE VIDEO
+
+A 10-second vertical 9:16 video. Cinematic observational cinematography, like a feature
+film, not an advertisement.
+
+CAMERA: 50mm lens at T2.0, shallow depth of field. One single very slow dolly-in past
+her shoulder toward the kitchen pass-through across the whole ten seconds, smooth and
+continuous. The focus stays on the kitchen; she remains a soft dark shape in the
+foreground the entire time. No zoom, no pan, no shake.
+
+SCENE: The restaurant from the first frame, unchanged throughout. The walls, the
+counter and the pass-through window stay fixed. No object changes into another object.
+The kitchen beyond the pass-through keeps the same layout for the whole shot.
+
+SUBJECTS: The woman in the foreground and two cooks in the kitchen. Nobody speaks at
+any point. All lips stay closed, all jaws still. Nobody looks at the camera.
+
+ACTION:
+0-4s   She reads her phone, scrolls once with her thumb, and her shoulders drop
+       slightly. In the kitchen behind her, the two cooks keep working, plating and
+       stirring, completely unaware.
+4-7s   She lowers the phone and lifts her head to watch them through the pass-through.
+       She does not call out. They do not turn around.
+7-8s   She slides the phone into her apron pocket and keeps watching them.
+8-10s  The light falls off smoothly and evenly until the frame settles into a flat dark
+       background.
+The phone screen is never legible: blown out, pure bright glare throughout.
+
+LIGHT: The kitchen is the brightest thing in frame — warm tungsten and the glow of the
+stove, with steam catching the light. The dining room around her is cooler and about
+two stops darker, so she reads as a silhouette against what she is watching.
+Desaturated olive and grey grade, gentle film contrast, natural 35mm grain.
+
+AUDIO: ambient only — kitchen sounds through the pass-through, a pan, an extractor fan,
+plates, distant street traffic, room tone. No speech of any kind, no narration, no
+voices, no shouting, no music.
+
+
+4. PROMPT NEGATIVO
+
+shaky handheld footage, camera jitter, whip pan, crash zoom, drone shot, orbiting
+camera, stuttering motion, speed ramp, slow motion, lens flare, vlog look, phone camera
+look, flat video lighting, oversaturated colors, teal and orange grade, advertisement
+look, speech, voices, narration, dialogue, lip movement, talking, shouting, music,
+text, letters, captions, subtitles, signage, logos, watermark, readable screen content,
+user interface, morphing architecture, furniture moving, objects transforming,
+customers, crowd, chef hats, smiling at camera, looking at camera, distorted hands,
+extra fingers, deformed face, readable faces in the kitchen
+
+
+5. EN EDICIÓN
+
+Tarjetas:   4a.png  (2,2 s)   →   4b.png  (2,2 s)
+
+Subtítulos sobre la imagen viva, blancos con borde negro, MarginV 300:
+   0,4 – 3,2 s   Respondiste la reseña.
+   3,4 – 6,2 s   Con educación, en Google.
+   6,4 – 8,0 s   Tu cocina no se enteró de nada.
+
+Voz en off:
+   0,4 s    Respondiste la reseña. Con educación, en Google.
+   6,4 s    Tu cocina no se enteró de nada.
+   8,4 s    Seis de tus últimas diez reseñas malas dicen lo mismo: la demora.
+  10,8 s    Notoria lo resume para tu equipo, no solo para responder en Google.
+
+Los comandos de montaje están en montaje.txt.

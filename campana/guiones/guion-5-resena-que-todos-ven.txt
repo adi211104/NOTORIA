@@ -1,0 +1,105 @@
+GUIÓN 2 — «La reseña que todos ven»   ·   10 s   ·   1 generación   ·   60 créditos
+
+FUNCIÓN: Espejo «Cómo te ven»  (GET /api/negocios/:id/espejo)
+PROBLEMA REAL: el monitoreo pide las reseñas por fecha, pero Google se las enseña
+al público por relevancia. Medido contra una ficha real: las cinco que veía un
+cliente eran de hace 1, 3, 4, 6 y 10 meses. El dueño lleva meses respondiendo lo
+más reciente mientras su ficha la encabeza otra cosa. Nadie sospecha esto solo.
+
+
+1. IMAGEN A GENERAR  →  inicio-2.png
+
+Photograph, vertical 9:16, 50mm lens, shallow depth of field, eye level. Interior of
+a modest neighborhood restaurant in Lima, Peru: white painted walls, dark wood chairs,
+small square tables with folded paper napkins, tiled floor, a large fixed
+street-facing window on the left, warm interior bulbs against flat overcast daylight.
+Behind a worn wooden counter stands a 45-year-old Peruvian woman, warm brown skin,
+dark hair pulled back in a low bun with a few loose strands, minimal makeup, small
+gold stud earrings, wearing a clean dark green apron over a plain cream long-sleeve
+shirt, sleeves rolled to the forearm. She is looking down at a phone in her hand,
+typing with one thumb, calm and focused. The phone screen is not legible: blown out,
+pure bright glare. Documentary realism, desaturated olive and grey color grade,
+subtle 35mm film grain.
+No text, no lettering, no logos, no readable screen content, no other people.
+
+
+2. EN KLING
+   Primer fotograma:  inicio-2.png
+   🔴 NO pongas ninguna tarjeta como último fotograma. En el video 1 el logo verde
+      empezó a pintarse sobre la cara desde el segundo 8. Las tarjetas se pegan
+      después, en edición.
+   10 s · 720p · 9:16 · Native Audio APAGADO
+
+
+3. PROMPT DE VIDEO
+
+A 10-second vertical 9:16 video. Cinematic observational cinematography, like a
+feature film, not an advertisement.
+
+CAMERA: 50mm lens at T2.0, shallow depth of field, eye level. One single slow
+dolly-in on a gimbal, gliding forward about one metre across the whole ten seconds,
+smooth and almost imperceptible, never stopping. No zoom, no pan, no shake. An
+out-of-focus chair back sits in the right foreground and slips out of frame as the
+camera advances.
+
+SCENE: The restaurant from the first frame, unchanged throughout. The walls, tables,
+chairs and window stay fixed. The window is a fixed pane of glass: it never opens and
+never becomes a door. There is no door and no doorway in frame. No object changes
+into another object.
+
+SUBJECT: The woman from the first frame. She is the only person in the video. Her
+lips stay pressed together; she does not speak and her jaw is still.
+
+ACTION:
+0-4s   She finishes typing on her phone with one thumb, reads it over once, and gives
+       a small satisfied nod.
+4-6s   She sets the phone face-down on the counter and lets her hand rest on it.
+6-8s   She picks up a cloth and starts wiping the counter, unhurried, content, her
+       mind already on something else.
+8-10s  The light falls off smoothly and evenly until the frame settles into a flat
+       dark background.
+The phone screen is never legible at any point: blown out, pure bright glare.
+
+LIGHT: The street window on the left is the key, a large soft source; warm tungsten
+bulbs in the background as accents; faint haze makes the beam visible. Desaturated
+olive and grey grade, gentle film contrast, natural 35mm grain.
+
+AUDIO: ambient only — room tone, a ceiling fan, distant muffled traffic, the soft
+tap of the phone on wood. No speech of any kind, no narration, no voices, no music.
+
+
+4. PROMPT NEGATIVO
+
+shaky handheld footage, camera jitter, whip pan, crash zoom, drone shot, orbiting
+camera, stuttering motion, speed ramp, slow motion, lens flare, vlog look, phone
+camera look, flat video lighting, oversaturated colors, teal and orange grade,
+advertisement look, speech, voices, narration, dialogue, lip movement, talking,
+music, text, letters, captions, subtitles, signage, logos, watermark, readable screen
+content, user interface, doors, doorways, window becoming a door, morphing
+architecture, furniture moving, objects transforming, other people, customers,
+crowd, smiling at camera, looking at camera, distorted hands, extra fingers,
+deformed face
+
+
+5. EN EDICIÓN
+
+Tarjetas, en este orden:   5a.png  (2,0 s)   →   5b.png  (2,0 s)
+Corta el clip ANTES de que aparezca cualquier artefacto y pega las tarjetas en duro.
+
+Subtítulos sobre la imagen viva, blancos con borde negro, MarginV 300:
+   0,3 – 3,2 s   Respondiste la reseña de ayer.
+   3,4 – 6,2 s   Bien hecho.
+   6,4 – 8,0 s   Pero no es la que ve tu cliente.
+
+Voz en off:
+   0,3 s    Respondiste la reseña de ayer. Bien hecho.
+   6,4 s    Pero no es la que ve tu cliente.
+   8,2 s    Google ordena tu ficha por relevancia, no por fecha.
+  10,4 s    Notoria te enseña tu ficha como la ve un cliente. Responde esa.
+
+⚠️ REVISADO EL 2026-09-20 — ESTE ES EL MEJOR ESCRITO DE LOS SIETE Y CASI NO SE TOCA.
+Dice «te ENSEÑA tu ficha», no «te avisa», y esa palabra es justo la que lo hace
+verdadero: el Espejo es una pantalla que el dueño abre, no un aviso que le llega.
+Quien lo escribió acertó en la única palabra que podía hundirlo.
+Se le añaden dos palabras al final —«Responde esa»— porque el video dejaba al
+espectador sabiendo cuál es el problema y sin decirle qué hacer al respecto.

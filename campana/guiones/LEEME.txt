@@ -1,0 +1,91 @@
+SIETE VIDEOS, SIETE FUNCIONES, UN PROBLEMA REAL CADA UNO
+
+Cada guión es un video independiente de 10 s con UNA sola generación (60 créditos).
+Cada uno enseña una función distinta: la idea no es repetir el mismo mensaje, es que
+quien te siga vaya descubriendo qué más resuelves.
+
+EMPIEZA POR EL 1, EL 2 Y EL 3 — son las ideas del encargado, desarrolladas.
+
+  1 · Mientras tú duermes     Monitoreo por cron          monitoreo.worker.js
+      Son las 2 de la mañana y Notoria acaba de revisar tu ficha.
+      🔴 La más fuerte: expresa la vigilancia como beneficio.
+      ⚠️ Decía «Y a las 3. Y a las 4», y eso NO es cierto en ningún plan — corregido
+         el 20/09 en la voz y el 22/09 en la tarjeta. Ver el guión.
+
+  2 · Una noche puede         Detector de campañas        nlp/detector.js
+      cambiarlo todo          El local lleno y el teléfono que no para.
+      🔴 La recomendada. Sustituyó al viejo guión del repique: con el local LLENO en
+         vez de vacío la ironía es mucho más fuerte.
+
+  3 · El mostrador            Resumen semanal             resumenSemanal.worker.js
+      Una mano barre los papeles y deja solo el teléfono boca abajo.
+      ⚠️ Era el más débil de los tres. El 20/09 dejó de vender «existe un correo» y
+         pasó a decir QUÉ trae: cuántas reseñas, tu nota y de qué se queja la gente.
+
+  4 · Lo que tu equipo        Temas + Parte para el equipo  lib/parteEquipo.js
+      no sabe                 Respondes en Google y la cocina sigue igual.
+      Es el ángulo que ningún competidor cuenta.
+
+  5 · La reseña que           Espejo «Cómo te ven»          /espejo
+      todos ven               Respondes lo más reciente; el público ve lo más relevante.
+
+  6 · El mensaje              Expediente                    lib/expediente.js
+      Te dejan 1★ y después te escriben pidiendo plata.
+
+  7 · El de enfrente          Competencia                   dashboard/competencia
+      Tu nota no bajó y aun así estás perdiendo.
+
+Ya publicado: «La ficha» (cualquiera puede marcarte como cerrado en Google), 15/09/2026.
+250 vistas en 48 h con la cuenta recién abierta. ⚠️ El número que dice algo NO es el
+total de vistas sino la retención a 3 segundos: es lo único que distingue «el gancho no
+funciona» de «todavía nadie me conoce».
+
+
+LAS SEIS REGLAS, APRENDIDAS A GOLPES Y YA APLICADAS EN LOS SIETE
+
+🔴 Ninguna tarjeta como último fotograma en Kling. En el primer video el logo verde
+   empezó a pintarse sobre la cara de la señora desde el segundo 8,00 exacto. Las
+   tarjetas se pegan en edición, en duro. Sale igual y no cuesta créditos.
+
+🔴 Ninguna pantalla legible, nunca. Ni reseñas, ni el panel de Notoria, ni una
+   notificación. El modelo dibuja interfaces inventadas y es lo que más credibilidad
+   destruye al fallar. Los teléfonos van con la pantalla quemada o boca abajo, y el
+   aviso se cuenta con el resplandor.
+
+🔴 Nada de voz dentro de la generación. Kling solo habla chino e inglés, y cualquier
+   texto en español dentro del prompt le mueve los labios al personaje y repite la
+   frase para rellenar el clip. Se genera mudo y la voz se pone después.
+
+🔴 No nombres nada que la imagen de referencia no tenga. Al pedir «the doorway» sobre
+   una foto que solo tenía ventana, el modelo convirtió la ventana en puerta. Por eso
+   cada prompt lleva un bloque que ancla la geometría.
+
+🔴 Movimiento desde el primer cuadro. Dos segundos de quietud es donde el espectador
+   desliza. No se arregla metiendo movimiento artificial: se arregla eligiendo otro
+   encuadre — por eso el guión 1 abre en macro sobre un segundero.
+
+🔴 Las emociones se escriben como acciones del cuerpo. «Preocupada» no se renderiza;
+   «limpia dos veces el mismo punto ya limpio» sí. Y los tiempos por toma (0-3s,
+   3-6s…) son lo que evita que se quede en una sola pose los diez segundos.
+
+⚠️ Native Audio APAGADO. No lo necesitas y sube el costo de 60 a 180 créditos.
+
+⚠️ Subtítulos siempre, grandes y con borde negro: la mayoría mira sin sonido. Y se
+   cortan antes de la primera tarjeta, para no pisar su texto.
+
+
+EL MONTAJE, IGUAL PARA LOS SIETE
+
+   clip (recortado antes de cualquier artefacto)
+   + subtítulos quemados
+   + tarjeta A  (el problema)
+   + tarjeta B  (qué hace Notoria)
+   + voz y ambiente
+
+Los comandos exactos están en montaje.txt.
+Tarjeta nueva:  node marca/hacer-tarjeta.js 8a.png "línea 1" "línea 2" [--cierre]
+                🔴 desde el repo de Notoria, NO el `hacer-tarjeta.py` viejo: no hay
+                   Python en la PC del taller. Ver su cabecera.
+
+anexo-multishot.txt es el experimento de Kling 3.0 Multi-Shot, descartado por ahora:
+cobra lo mismo por toma (180 por tres) y un fallo parcial te cuesta las tres.
