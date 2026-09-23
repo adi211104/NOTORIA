@@ -3730,10 +3730,10 @@ importe», no «está roto ahora». Eso lo **baja** de urgencia y lo **abarata**
 > | Cuándo | Qué | Quién |
 > |---|---|---|
 > | 🔴 **ya** | **Tarjeta de Google Cloud** (arriba). Sin fecha de corte en el correo, pero Google no avisa dos veces | Dueño |
-> | 🔴 **lun 21/09** | **Declaración de agosto**: RVIE (**3 boletas, deben salir en 0.00** — si alguna trae importe, no aceptar), RCE (factura del 04/08 + gastos del BCP) y 621. Ya se puede presentar | Dueño |
+> | 🔴 **venció el lun 21/09** | **Declaración de agosto** (RVIE con las 3 boletas en 0.00 → RCE → 621). ⚠️ **El plazo YA PASÓ** y desde el código no se puede comprobar si se presentó: el estado vive en el portal de SUNAT, y el desplegable del SIRE lo dice al lado del mes (`AGO-Presentado`). **Confirmarlo es lo primero**; si no se presentó, la multa corre por día | Dueño |
 > | jue 01/10 | Sale solo el **primer resumen mensual**: comprobar que llega y que cuenta 30 días | Mirar |
-> | **ya, en el próximo ciclo** | **La pausa empieza a aplicar**: 6 cuentas y **4 negocios activos** dejan de escanearse (§8.9). Comprobar en los logs que salen las líneas `[Worker] … en pausa` y que **ninguna de las cuatro del dueño** está entre ellas | Mirar |
-> | 🟡 **decisión** | **Las 2 cuentas gratuitas que se pausan SIN aviso previo** —`britneyfarfan05@` y `giorrnellprincipe@`— llevan tanto sin entrar que ya pasaron la ventana de 3 días del correo. ¿Se les manda un aviso único a mano, como se hizo con `recordar-verificacion.js` el 23/08? Manda correo de verdad, así que espera el OK del dueño. Las otras 3 son `SIN_VERIFICAR` y a esas **no se les puede escribir** | Dueño |
+> | ✅ **verificado 22/09** | ~~La pausa empieza a aplicar~~ — **aplica**: 6 de 11 cuentas dormidas (3 `INACTIVA`, 3 `SIN_VERIFICAR`) y **4 negocios activos** fuera del barrido, exactamente lo que §8.9 predijo el 19/09. **Ninguna cuenta de pago tocada**, que es la guarda funcionando. ⚠️ La primera sonda dijo «0 pausadas» porque llamaba a `dormancia.estado`, **que no existe** — daba verde sin preguntar nada. La buena usa `motivoDormida` y lleva sus dos controles: una gratuita inventada con 365 días sin entrar sale `INACTIVA`, y una NEGOCIO igual de inactiva no se duerme | — |
+> | ✅ **cerrado 22/09** | ~~Las 2 cuentas gratuitas que se pausan sin aviso previo~~ — **el dueño confirmó que `britneyfarfan05@` y `giorrnellprincipe@` son SUYAS.** No se les manda nada y **no vuelve a proponerse**. ⚠️ Y corrige la lectura de §19: de las 4 cuentas gratuitas con negocio activo que el análisis del 19/09 llamó «zombis», **2 son del propio dueño**, así que el padrón real de gratuitos es la mitad de lo que parecía | — |
 > | vie 16/10 | **Reenviar la solicitud de GBP** desde `usenotoria@`, con `https://usenotoria.app/` exacto. Antes: la ficha sigue «Verificada» | Dueño |
 > | jue 22/10 | Declaración de setiembre (RVIE → RCE → 621) | Dueño |
 > | 2027 | Declaración Anual de Renta 2026 | Dueño + contador |
@@ -4711,7 +4711,33 @@ indefinida es justo el caso en que hay que buscar la segunda vía.
 `notoria-secrets` del taller y `keystore.properties` ya apunta ahí, comprobado. Falta la
 herramienta, no la clave — y de las dos, la herramienta es la que se arregla descargando algo.
 
-### Estado de la base de producción (última lectura, 2026-09-16)
+### Estado de la base de producción (última lectura, 2026-09-22)
+
+`11 usuarios · 8 negocios activos · **2206 snapshots** · 152 reseñas · **6 alertas, 0 sin
+notificar** · 3 pagos · 3 comprobantes (los tres ANULADO) · **0 en cola de SUNAT**`.
+
+✅ **La sexta alerta es REAL y disparó sola**, como las cinco anteriores: entró **1 reseña de
+≤2★** en los últimos 7 días y la alerta salió notificada. Es el par de números que conviene
+mirar junto —reseñas negativas nuevas contra alertas creadas—, porque su divergencia es lo que
+destapó el agujero del 2026-08-22.
+
+🔴 **De las 11 cuentas, 6 están dormidas** (3 `INACTIVA`, 3 `SIN_VERIFICAR`) y eso saca **4
+negocios activos** del barrido. Es exactamente lo que §8.9 predijo el 19/09, o sea que la
+palanca aplica. Ninguna cuenta de pago tocada.
+⚠️ **Y dos de esas dormidas son del propio dueño** (confirmado el 22/09), así que el análisis
+del 19/09 que llamó «zombis» a las 4 cuentas gratuitas con negocio activo estaba contando
+**dos cuentas propias**. El padrón real de gratuitos es la mitad de lo que parecía — no cambia
+la aritmética del costo por cuenta, cambia cuántas cuentas ajenas hay de verdad.
+
+⚠️ **Aparece `malena@usenotoria.app` con plan NEGOCIO**, que no figuraba en las lecturas
+anteriores de este archivo. Es del dominio propio, o sea del dueño; se anota para que nadie la
+lea algún día como el primer cliente de pago. **Cargos reales de clientes: sigue siendo cero.**
+
+⚠️ **El último respaldo es del 2026-09-16** y los snapshots pasaron de 2043 a 2206. No es
+urgente —la cadencia de una vez al mes sigue bastando— pero los snapshots son lo único
+irrecuperable que tiene Notoria.
+
+#### Lectura anterior (2026-09-16)
 
 `11 usuarios · 12 negocios · **2043 snapshots** · 135 reseñas · 5 alertas · 5 competidores con
 220 snapshots · **2 comentarios sociales** · 3 pagos · 3 comprobantes · 6 resúmenes SUNAT ·
