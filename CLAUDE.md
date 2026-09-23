@@ -3410,10 +3410,36 @@ dice no cuadra del todo con lo que enseña la consola:
 | **Producción** | **VIVA**: último snapshot hace 1,5 h y **24/día** parejos toda la semana |
 
 ⚠️ **O sea que no hay deuda y la tarjeta no caducó**, que son las dos causas que el correo
-propone. La hipótesis que queda —y se marca como hipótesis, no como hallazgo— es que Google
-no pudo **validar** el instrumento: la ••••2224 es una Visa **DÉBITO** (la misma de las
-pruebas de Culqi de agosto, §19 B), y Google Cloud exige crédito en muchos países. Un débito
-peruano además suele rechazar la autorización de prueba.
+propone.
+
+### 🔑 Y el 2026-09-22 la causa dejó de ser hipótesis: es la TARJETA, y la delató YouTube
+
+El dueño contó que por esas mismas horas **YouTube Premium no se le llegó a cobrar**, con un
+mensaje que también pedía validar la forma de pago. Comprobado en el centro de pagos, y esto
+explica todo lo que no cuadraba:
+
+| Servicio | Forma de pago |
+|---|---|
+| Google AI Plus (400 GB, Google One) | **Visa Débito Clásica Compras ••••2224** |
+| **Google Cloud `019CC3-FF537C-DBA7DD`** | **la misma** |
+| YouTube Premium | **la misma** |
+
+🔴 **Los tres cuelgan de la MISMA tarjeta, y la marca del rechazo va sobre el INSTRUMENTO, no
+sobre la cuenta que lo usa.** Por eso Cloud recibe un aviso de «datos de pago no válidos»
+debiendo **PEN 0.00**: no es que Cloud tenga un problema, es que la tarjeta falló un cobro real
+en otro servicio y Google la marca para todos a la vez. La propia ficha la llama «Visa
+**Débito** Clásica Compras», que es el dato que la hipótesis suponía.
+
+⚠️ **CANCELAR YOUTUBE PREMIUM NO ARREGLA NADA**, y conviene decirlo porque es la reacción
+natural. La tarjeta sigue siendo la forma de pago de Cloud **y de Google AI Plus**, que es la
+siguiente que va a fallar. Lo que hay que arreglar es el medio de pago, no la suscripción.
+
+🔴 **Y pone fecha al riesgo de Cloud, que hasta ahora no la tenía.** La ficha dice: *«Se te
+cobrará automáticamente el 1.º día de cada mes. Si tu saldo alcanza el límite de pago de PEN
+200.00 antes de ese momento, se te cobrará de inmediato.»* Hoy el gasto es **S/ 0.00** porque
+el uso cabe en el crédito mensual de Maps — o sea que **el día que Places pase de ese crédito,
+Google intenta cobrar esa tarjeta y le va a pasar lo que le pasó a YouTube.** El margen no es
+indefinido: es el que queda hasta que el padrón crezca.
 
 🔴 **Y lo que el repaso destapó, que es lo que de verdad hay que arreglar: una suspensión
 sería MUDA.** El monitor de uptime comprueba `/health` y el landing, y los dos seguirían
@@ -3505,12 +3531,21 @@ vacía y ffmpeg **cae al tipo por defecto sin avisar**. Queda anotado en su §7 
 reemplazo exacto (`C\:/Windows/Fonts/georgia.ttf`, con los dos puntos escapados o el filtro
 no compila) y el `awk` que sustituye al `python3`.
 
-⚠️ **Hallazgo suelto, sin tocar:** `marca/generar-social.js` tiene dos frases que §15 ya no
-permite — «por correo **o Telegram**» (eliminado el 2026-08-22) y «**Reseñas falsas** y
-ataques de bots» (el detector dice «comportamiento anómalo», nunca «reseña falsa», y la
-detección por perfil está declarada como que **no se hace**, §15). Son piezas publicadas en
-redes. No se tocaron por no salirse del encargo; **hay que corregirlas antes de volver a
-usarlas.**
+✅ **Las piezas de redes, CORREGIDAS el 2026-09-22** (`marca/generar-social.js`). Tenían
+**tres** frases que §15 ya no permite, no dos, y la tercera era la más cara:
+
+| Decía | Por qué no se puede |
+|---|---|
+| «por correo **o Telegram**» | Telegram se eliminó del producto el 2026-08-22. El canal es el correo, único |
+| «**Reseñas falsas** y ataques de bots» | El detector marca **comportamiento anómalo** —texto repetido entre cuentas, 1★ sin comentario, palabras críticas, ráfagas— y nunca dictamina que una reseña sea falsa. Y la detección por perfil del autor está declarada como que **no se hace** |
+| 🔴 «te avisa **al instante**… y **respondes desde el panel**» | Lo de responder es lo grave: Google tiene **bloqueadas las GBP APIs** (§6), así que la respuesta se redacta en Notoria y se pega a mano. Y el aviso sale cuando el escaneo la encuentra, a la cadencia del plan — no al instante |
+
+Ahora dicen lo que el producto hace: «Notoria te avisa por correo, con la reseña citada y una
+respuesta lista para copiar» y «Campañas coordinadas de reseñas». Los tres PNG regenerados.
+⚠️ **Y la lección es la del PNG otra vez, por tercera vez el mismo día:** estas piezas están
+publicadas en redes desde hace meses y las frases no salían en ningún barrido, porque viven
+dentro de un archivo que **genera imágenes**. El texto estaba en el fuente, sí — pero nadie
+barre `marca/` buscando promesas.
 
 ### 🔴 2026-09-19 — LA ECONOMÍA DEL PLAN GRATUITO, medida por primera vez
 
@@ -3690,16 +3725,20 @@ importe», no «está roto ahora». Eso lo **baja** de urgencia y lo **abarata**
 
 > ### 📋 VIGENTES al 2026-09-22 — empezar por acá
 >
-> 🔴 **LO PRIMERO, Y NO ES DEL CÓDIGO: la cuenta de facturación de Google Cloud.**
-> Google avisó el 21/09 de que `019CC3-FF537C-DBA7DD` no tiene datos de pago válidos, y el
-> segundo correo nombra el proyecto de PRODUCCIÓN — el de Places API y el `GOOGLE_CLIENT_ID`.
-> No hay deuda (saldo PEN 0.00) y la tarjeta no está vencida, así que lo más probable es que
-> Google no pueda validar una Visa **DÉBITO**. **Lo arregla el dueño** (agregar una de crédito
-> o que el banco autorice los cobros de Google); el agente no introduce datos de pago. Detalle
-> y lo que se verificó, en 📌 2026-09-22.
-> ⚠️ **Y si lo suspendieran no habría ninguna señal**: el monitor mira `/health` y el landing,
-> que seguirían en 200, y el scraper trata el fallo de Places como «no se pudo leer». Queda
-> propuesto —no hecho— que el monitor distinga «Places responde» de «Places rechaza».
+> 🔴 **LO PRIMERO, Y NO ES DEL CÓDIGO: la TARJETA de Google, que falla para todo.**
+> No es un problema de Cloud: **Google AI Plus, Google Cloud y YouTube Premium cuelgan de la
+> MISMA Visa DÉBITO ••••2224**, y el rechazo real que sufrió YouTube marca el instrumento para
+> los tres. Por eso Cloud avisa de «datos de pago no válidos» debiendo **PEN 0.00**.
+> ⚠️ **Cancelar YouTube Premium no lo arregla** — la tarjeta sigue siendo la de Cloud y la de
+> Google AI Plus, que es la próxima en fallar. Hay que cambiar el medio de pago (una de crédito,
+> o que el banco autorice los cobros de Google). **Lo hace el dueño**: el agente no introduce
+> datos de pago.
+> 🔴 Y el reloj: Cloud cobra el **día 1 de cada mes**, o antes si el saldo llega al límite de
+> PEN 200. Hoy el gasto es S/ 0.00 porque cabe en el crédito de Maps, así que **el día que
+> Places lo pase, el cobro va a esa tarjeta y le pasará lo de YouTube.**
+> ⚠️ **Y si suspendieran el proyecto no habría ninguna señal**: el monitor mira `/health` y el
+> landing, que seguirían en 200, y el scraper trata el fallo de Places como «no se pudo leer».
+> Queda propuesto —no hecho— que el monitor distinga «Places responde» de «Places rechaza».
 >
 > 🟡 **De `propuesta.md` (está en `Downloads/`, no en el repo) quedan DOS.** Ocho de las diez
 > están hechas: og-image, expediente en el correo, plantilla del chantaje y parte por WhatsApp el
@@ -3730,7 +3769,7 @@ importe», no «está roto ahora». Eso lo **baja** de urgencia y lo **abarata**
 > | Cuándo | Qué | Quién |
 > |---|---|---|
 > | 🔴 **ya** | **Tarjeta de Google Cloud** (arriba). Sin fecha de corte en el correo, pero Google no avisa dos veces | Dueño |
-> | 🔴 **venció el lun 21/09** | **Declaración de agosto** (RVIE con las 3 boletas en 0.00 → RCE → 621). ⚠️ **El plazo YA PASÓ** y desde el código no se puede comprobar si se presentó: el estado vive en el portal de SUNAT, y el desplegable del SIRE lo dice al lado del mes (`AGO-Presentado`). **Confirmarlo es lo primero**; si no se presentó, la multa corre por día | Dueño |
+> | ✅ **presentada** | ~~Declaración de agosto~~ — **el dueño la presentó el 21/09**, en otra sesión. ⚠️ La documentación de ese trámite todavía **no está pusheada**, así que `docs/obligaciones-tributarias-mensuales.md` va por detrás de la realidad hasta que suba: es exactamente el caso que §19 advierte —un pendiente cerrado en un solo sitio— pero al revés | Dueño |
 > | jue 01/10 | Sale solo el **primer resumen mensual**: comprobar que llega y que cuenta 30 días | Mirar |
 > | ✅ **verificado 22/09** | ~~La pausa empieza a aplicar~~ — **aplica**: 6 de 11 cuentas dormidas (3 `INACTIVA`, 3 `SIN_VERIFICAR`) y **4 negocios activos** fuera del barrido, exactamente lo que §8.9 predijo el 19/09. **Ninguna cuenta de pago tocada**, que es la guarda funcionando. ⚠️ La primera sonda dijo «0 pausadas» porque llamaba a `dormancia.estado`, **que no existe** — daba verde sin preguntar nada. La buena usa `motivoDormida` y lleva sus dos controles: una gratuita inventada con 365 días sin entrar sale `INACTIVA`, y una NEGOCIO igual de inactiva no se duerme | — |
 > | ✅ **cerrado 22/09** | ~~Las 2 cuentas gratuitas que se pausan sin aviso previo~~ — **el dueño confirmó que `britneyfarfan05@` y `giorrnellprincipe@` son SUYAS.** No se les manda nada y **no vuelve a proponerse**. ⚠️ Y corrige la lectura de §19: de las 4 cuentas gratuitas con negocio activo que el análisis del 19/09 llamó «zombis», **2 son del propio dueño**, así que el padrón real de gratuitos es la mitad de lo que parecía | — |

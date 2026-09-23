@@ -104,6 +104,18 @@ const piezaPromesa = lienzo(OSCURO, `
 `);
 
 // ── Pieza 2: la reseña que duele ──────────────────────────
+// 🔴 La franja verde decía «Notoria te avisa AL INSTANTE / por correo o TELEGRAM, y
+// RESPONDES DESDE EL PANEL» — tres cosas falsas en dos renglones, corregidas el
+// 2026-09-22:
+//   · Telegram se eliminó del producto el 2026-08-22. El canal es el correo, único.
+//   · «Al instante» no: el aviso sale cuando el escaneo encuentra la reseña, y esa
+//     cadencia va por plan (2 h a 72 h). Prometer inmediatez es la clase de frase que
+//     el cliente comprueba el primer día.
+//   · «Respondes desde el panel» es lo más caro: Google tiene bloqueadas las GBP APIs
+//     (§6), así que la respuesta se REDACTA en Notoria y se pega en el perfil a mano.
+// Lo que sí hace, y es lo que dice ahora: el correo cita la reseña y trae la respuesta
+// lista para copiar (30 plantillas + IA).
+//
 // Enseña el problema en vez de contarlo. La reseña es genérica por dos motivos:
 // no se nombra ningún negocio real —inventarle una queja a un local existente
 // sería difamarlo— y la queja no es de un rubro concreto. Decía "la comida llegó
@@ -120,8 +132,8 @@ const piezaResena = lienzo(CREMA, `
   <text x="${MARGEN + 56}" y="523" font-family="${SERIF}" font-size="44" fill="${OSCURO}">nadie nos atendió.”</text>
 
   <rect x="${MARGEN}" y="660" width="${ANCHO_UTIL}" height="126" rx="22" fill="${VERDE}"/>
-  <text x="${MARGEN + 46}" y="722" font-family="${SERIF}" font-size="36" font-weight="bold" fill="#ffffff">Notoria te avisa al instante</text>
-  <text x="${MARGEN + 46}" y="762" font-family="${SERIF}" font-size="27" fill="#cfe6d5">por correo o Telegram, y respondes desde el panel.</text>
+  <text x="${MARGEN + 46}" y="722" font-family="${SERIF}" font-size="36" font-weight="bold" fill="#ffffff">Notoria te avisa por correo</text>
+  <text x="${MARGEN + 46}" y="762" font-family="${SERIF}" font-size="27" fill="#cfe6d5">con la reseña citada y una respuesta lista para copiar.</text>
 
   <text x="${MARGEN}" y="920" font-family="${SERIF}" font-size="42" fill="${OSCURO}">Una reseña sin responder</text>
   <text x="${MARGEN}" y="976" font-family="${SERIF}" font-size="42" fill="${OSCURO}">la leen todos los que</text>
@@ -132,10 +144,18 @@ const piezaResena = lienzo(CREMA, `
 // ── Pieza 3: lo que vigila ────────────────────────────────
 // Lista corta de capacidades reales. Nada de cifras inventadas: todo lo que dice
 // es algo que el producto hace hoy.
+//
+// 🔴 «Reseñas falsas y ataques de bots» estuvo acá hasta el 2026-09-22 y NO se puede
+// decir. El detector marca COMPORTAMIENTO ANÓMALO —texto repetido entre cuentas
+// distintas, 1★ sin comentario, palabras críticas, ráfagas por volumen— y nunca
+// dictamina que una reseña sea falsa; eso lo determinan Google o la autoridad. Y la
+// detección por el PERFIL del autor está declarada como que **no se hace** (§15): las
+// cinco fuentes escriben `autorResenasTotal: null` porque Places no da ese dato.
+// Es la misma regla que gobierna el expediente y el pie de los carteles.
 const filas = [
   'Reseñas nuevas en Google',
   'Comentarios en tus publicaciones',
-  'Reseñas falsas y ataques de bots',
+  'Campañas coordinadas de reseñas',
   'Caídas de tu calificación',
 ];
 const piezaVigila = lienzo(OSCURO, `
