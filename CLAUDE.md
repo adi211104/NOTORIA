@@ -494,8 +494,9 @@ los logs del servidor y en un cambio observable en la salida.
 (`notoria-web`), DNS en Cloudflare en "DNS only". Dominio verificado en Resend. Search
 Console verificado (`public/googlebab20eafdad21f30.html` — **no borrarlo**, Google
 re-verifica). DMARC en **`p=quarantine`** desde el 2026-08-19
-(`v=DMARC1; p=quarantine; rua=mailto:didier@usenotoria.app`). Monitor de uptime en `.github/workflows/uptime.yml`
-(golpea `/health` y el landing cada 15 min).
+(`v=DMARC1; p=quarantine; rua=mailto:didier@usenotoria.app`). Monitor de uptime: **`monitor-uptime/`** (Cloudflare Worker, cada 5 min, tres sondas: `/health`, el
+landing y **`/health/monitoreo`** desde el 2026-09-23 — ver «📌 2026-09-23»), más el viejo
+`.github/workflows/uptime.yml`, que se queda pero no cubre lo que promete (§19 B).
 
 ### Email Routing de Cloudflare — el catch-all está en **Drop**
 
@@ -2856,6 +2857,8 @@ textos por otros inventados. El procedimiento está en la cabecera del component
 | `cuenta-revisor.js` | Cuenta de prueba del revisor de Meta |
 | `verificar-webhook-culqi.js` | Comprueba nuestro lado del webhook |
 | `marca/generar-logos.py` | Regenera los PNG del logo a 1024px |
+| `prueba-salud-places.js` | **42** comprobaciones de que un rechazo de Google **se vea** (📌 2026-09-23). Levanta el scraper REAL con axios simulado devolviendo `REQUEST_DENIED` con HTTP 200 —que es como Google corta— y comprueba que se registra y se loguea; que `NOT_FOUND`/`ZERO_RESULTS` NO cuenten como rechazo (si contaran, el monitor gritaría con cada búsqueda sin resultados); que «0 snapshots» con todo pausado sea `ok` y no alarma; y lee el fuente —sin comentarios, con sus controles— para que ningún `return null` vuelva a tirar el motivo |
+| `monitor-uptime/prueba-monitor.mjs` | **27** comprobaciones de la máquina de estados del monitor, con el Worker REAL (su `fetch` exportado), un `fetch` global falso y un KV en memoria. Lo caro: que una caída **nueva** se avise aunque otra sonda ya estuviera caída (con el estado booleano de antes era silencio — se comprobó reintroduciéndolo: 0 correos), que lo que sigue caído calle, y que el estado viejo `{caido,desde}` no mande correos fantasma ni se trague una recuperación |
 | `marca/hacer-tarjeta.js <salida.png> "línea 1" "línea 2" [--cierre]` | Las tarjetas 1080x1920 que cierran cada video de campaña. 🔴 **Sustituye a `hacer-tarjeta.py`, que NO corre en esta PC**: no hay Python, usaba `fc-match` (fontconfig, inexistente en Windows) y cargaba el logo de una ruta de la máquina anterior — el mismo hueco mudo que el JDK. ⚠️ Cambia la tipografía a Georgia, que es la de la marca y la que las tarjetas **nunca** usaron, así que una regenerada no casa con una vieja: **las dos de un video o ninguna**. El ancho de cada renglón se MIDE rasterizando y recortando, no se estima |
 
 🔴 **Método que salvó varias integraciones: no escribir el cliente de una API antes de tener
@@ -3448,8 +3451,8 @@ fallando**; y el scraper devuelve `null` ante un fallo, que el worker trata como
 leer» y sigue. Ni excepción, ni log que alguien mire, ni alerta. El cliente vería el
 historial de su ficha congelarse y nada más. Es el patrón que §16 documenta —«no hay
 alertas» y «no pude consultarlas» no pueden verse igual— aplicado al proveedor.
-⚠️ **Queda como pendiente propuesto**, no hecho: que el monitor distinga «Places responde» de
-«Places rechaza». Hoy no lo distingue.
+✅ **Hecho el 2026-09-23**: el monitor ya distingue «Places responde» de «Places rechaza» —
+ver «📌 2026-09-23», más abajo.
 ⚠️ **Arreglar la tarjeta es del dueño**: el agente no introduce datos de pago, y ninguna
 autorización cambia eso.
 
@@ -3546,6 +3549,65 @@ respuesta lista para copiar» y «Campañas coordinadas de reseñas». Los tres 
 publicadas en redes desde hace meses y las frases no salían en ningún barrido, porque viven
 dentro de un archivo que **genera imágenes**. El texto estaba en el fuente, sí — pero nadie
 barre `marca/` buscando promesas.
+
+### 📌 2026-09-23 — si Google nos corta, ahora llega un correo
+
+Pedido por el dueño «por seguridad» tras el aviso de la tarjeta (arriba). Cierra el hueco que
+ese repaso destapó: con la facturación suspendida, el producto dejaba de vigilar **sin ninguna
+señal**.
+
+**Cuatro piezas, y cada una tapa un silencio distinto:**
+
+| Pieza | Qué hace |
+|---|---|
+| `lib/saludPlaces.js` | Cuenta las respuestas de Places. **3 `REQUEST_DENIED` / `OVER_QUERY_LIMIT` seguidos = Google rechaza a la cuenta.** Y aparte deriva de los snapshots si el escaneo sigue produciendo |
+| `google.scraper.js` | Cada respuesta pasa por `salud.registrar()`, y un rechazo **se loguea** con `🔴 [Google] LA CUENTA ESTÁ RECHAZADA` y el `error_message` de Google. Antes era `return null` a secas |
+| `GET /health/monitoreo` | 200 si vigila, **503 con el motivo** si no: `google_rechaza`, `escaneo_detenido` o `sin_comprobar` (la base no responde) |
+| `monitor-uptime/` | Tercera sonda, «Vigilancia». Correo urgente **«Notoria dejó de vigilar»** con el motivo del 503 dentro |
+
+🔴 **Por qué el rechazo era invisible: Places no devuelve un error HTTP.** Devuelve **200** con
+`status: "REQUEST_DENIED"` en el cuerpo, así que el `catch` nunca se entera. Es la misma trampa
+que TikTok (§8.2: HTTP 200 con `code != 0`), otra vez con un proveedor distinto.
+
+⚠️ **`NOT_FOUND` y `ZERO_RESULTS` NO son rechazo**: son la API funcionando —el sitio no existe—.
+Contarlos haría que el monitor gritara cada vez que alguien busca un negocio que no está, y una
+alarma que grita por nada es cómo se pierde la de verdad. `INVALID_REQUEST` (error nuestro) y
+`UNKNOWN_ERROR` (hipo de Google) tampoco mueven el contador.
+
+⚠️ **No hay sonda sintética contra Places, a propósito.** Una consulta cada 5 min serían ~8 600
+al mes, más que toda la plataforma. Se mira el tráfico real del cron.
+
+⚠️ **«0 snapshots» significa cosas opuestas.** Con todas las cuentas pausadas (§8.9) es lo
+correcto; con negocios por vigilar es que el cron se paró. `estadoEscaneo` solo alarma si hay
+alguien despierto con negocio activo y pasaron **3× su cadencia** sin un snapshot.
+
+⚠️ **El contador de rechazos vive en memoria y se pierde al reiniciar, y es aceptable**: si el
+rechazo sigue, el cron siguiente lo re-arma en minutos. Por eso `totalOk: 0` justo después de un
+deploy **no es fallo**, es contenedor recién arrancado — sube en cuanto pasa el cron de las :00.
+
+🔴 **`/health` NO se tocó**: Railway lo usa de liveness y no debe depender de la base. La
+comprobación cara va en su propia ruta, con caché de 60 s.
+
+🔴 **Y la sonda nueva destapó un agujero en el monitor viejo.** Su estado era un booleano
+«caído / no caído», así que con Vigilancia en rojo varios días (una tarjeta sin arreglar) una
+caída de Railway **encima** no habría mandado nada: ya estaba «caído». Ahora el estado es **el
+conjunto de sondas caídas**, cada una con su hora, y se avisa lo NUEVO. El estado viejo
+`{caido, desde}` se migra al leerlo y la migración se persiste — la primera versión no la
+persistía y se tragaba el correo de recuperación; lo cazó la prueba.
+
+**Verificado en producción, no por el «SUCCESS»:**
+- La ruta pasó de **404 a 200** con `vigilancia: ok`, 4 negocios vigilados, umbral 12 h.
+- El Worker (versión `0096a120…`) mide las tres sondas en verde y un ciclo real dio
+  `sin-cambio` sin correo.
+- `prueba-salud-places.js` **42** y `prueba-monitor.mjs` **27**, las dos con sus controles.
+
+### 📌 2026-09-23 — tres cosas del mundo real, confirmadas por el dueño
+
+| Qué | Resultado |
+|---|---|
+| **Cartel QR impreso** | Escaneado en un negocio real: lee y abre la página de reseña. Cierra lo único de los carteles que ninguna prueba podía ver (§13) |
+| **WhatsApp Business** | Probado desde otro teléfono pulsando el botón de la web: llega el mensaje predeterminado, y el saludo automático y el mensaje de ausencia responden bien |
+| **Las 8 tarjetas de los guiones 4-7** | Regeneradas con `hacer-tarjeta.js`, mismo texto, en **Georgia**. Con esto **las 14 tarjetas de campaña** usan la tipografía de la marca. Las anteriores, en `tarjetas-anteriores/`. El texto de cada una está ahora escrito en su guión, que antes solo vivía dentro del PNG |
 
 ### 🔴 2026-09-19 — LA ECONOMÍA DEL PLAN GRATUITO, medida por primera vez
 
@@ -3738,7 +3800,8 @@ importe», no «está roto ahora». Eso lo **baja** de urgencia y lo **abarata**
 > Places lo pase, el cobro va a esa tarjeta y le pasará lo de YouTube.**
 > ⚠️ **Y si suspendieran el proyecto no habría ninguna señal**: el monitor mira `/health` y el
 > landing, que seguirían en 200, y el scraper trata el fallo de Places como «no se pudo leer».
-> Queda propuesto —no hecho— que el monitor distinga «Places responde» de «Places rechaza».
+> ✅ **Cerrado el 2026-09-23**: ahora sí habría señal. Si Google rechaza, llega un correo urgente
+> «Notoria dejó de vigilar» a `didier@` en ≤5 min de que lo note el escaneo («📌 2026-09-23»).
 >
 > 🟡 **De `propuesta.md` (está en `Downloads/`, no en el repo) quedan DOS.** Ocho de las diez
 > están hechas: og-image, expediente en el correo, plantilla del chantaje y parte por WhatsApp el
@@ -3781,9 +3844,11 @@ importe», no «está roto ahora». Eso lo **baja** de urgencia y lo **abarata**
 > - 🔴 **Guardar `SUNAT_CERT_PASSWORD` fuera de Railway.** Nivel 1: sin ella el `.p12` no sirve.
 > - Guardar `JWT_SECRET`, `PROMO_HASH_SECRET` y `SUNAT_SOL_CLAVE` (con la nota de sus permisos).
 > - Guardar el **PDF de la Constancia de Presentación de julio**.
-> - **WhatsApp Business**: redactar el saludo para que acuse recibo y dé el horario de la web,
->   activar el mensaje de ausencia, y probar el botón **desde otro teléfono**.
-> - **Imprimir un cartel y escanearlo** — sobre todo la etiqueta de 7 cm.
+> - ✅ ~~**WhatsApp Business**~~ — **probado por el dueño el 2026-09-23 desde otro teléfono**,
+>   pulsando el botón real de la web: el mensaje predeterminado llega, y el saludo automático y
+>   el mensaje de ausencia responden bien.
+> - ✅ ~~**Imprimir un cartel y escanearlo**~~ — **escaneado en un negocio real** por el dueño
+>   (2026-09-23): el QR impreso lee y lleva a escribir la reseña. Era la única prueba que valía.
 > - **Screencasts de Meta** (Toma A grabable; la B necesita una página con reseñas) y enviar la
 >   2.ª solicitud (`docs/app-review-meta.md` §8.5).
 > - **Contador**: IGV por servicios de no domiciliados (Railway, Vercel, Groq), criterio de IGV y
@@ -5420,7 +5485,7 @@ bueno:**
 | ~~**El bloque de carteles en el PANEL, con los ojos**~~ | ✅ **Mirado el 2026-09-16, en escritorio (1366 px) y en móvil (390 px reales, con el proxy): sin fallos.** Los cuatro tamaños se dibujan, ningún texto se sale del papel (medido con `getBBox` contra el `viewBox`), la consola está limpia y a 390 px hay **0 desbordes** con los cuatro formatos, con el control del div de 900 px pasando de 0 a 1. Los cuatro PDF devuelven `%PDF-` de 4,6–6,5 KB, y un formato inventado da 400 `FORMATO_INVALIDO` — la sonda distingue. La etiqueta no lleva pie **a propósito** (`compacta = ancho < 220`). ⚠️ Dos trampas del método: en el proxy, `scrollTo` por código se queda clavado y hay que usar la **rueda** sobre el iframe; y el `innerHeight` del padre (~557) es menor que 780, así que el iframe hay que achicarlo o la captura corta la mitad |
 | **Un correo de resumen MENSUAL de verdad** | El primero sale el **1 de octubre**. Hasta entonces la cadencia está probada en la lógica, no en un correo recibido. Para no esperar: `ejecutarAhora({ forzar: true })` |
 | **El correo AGRUPADO de cinco reseñas** | Hace falta que entren cinco reseñas negativas nuevas en una cuenta gratuita. Hoy las 5 alertas están todas notificadas, así que el contador arranca en 0 |
-| **Un cartel IMPRESO** | El QR está medido (0,87 mm por módulo en la etiqueta, el peor caso) pero nadie ha escaneado uno en papel. Es lo que el dueño va a hacer esta semana en el salón de su familiar, y es la única prueba que vale |
+| ~~**Un cartel IMPRESO**~~ | ✅ **Cerrado el 2026-09-23**: el dueño imprimió el cartel y lo escaneó en un negocio real, y funciona. El QR estaba medido (0,87 mm por módulo en la etiqueta, el peor caso); ahora además está probado en papel, que era la única prueba que valía |
 
 ### 🔴 Bugs abiertos en producción
 

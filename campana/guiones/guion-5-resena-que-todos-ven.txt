@@ -84,6 +84,15 @@ deformed face
 5. EN EDICIÓN
 
 Tarjetas, en este orden:   5a.png  (2,0 s)   →   5b.png  (2,0 s)
+
+   5a:   Respondiste la reseña más reciente.
+         La que todos ven es de hace diez meses.
+
+   5b:   Notoria te enseña tu ficha
+         como la ve un cliente.
+
+   ⚠️ Texto copiado de los PNG el 2026-09-22. Hasta ese día solo vivía DENTRO de la
+      imagen, y lo que solo vive en una imagen no lo revisa ningún barrido.
 Corta el clip ANTES de que aparezca cualquier artefacto y pega las tarjetas en duro.
 
 Subtítulos sobre la imagen viva, blancos con borde negro, MarginV 300:

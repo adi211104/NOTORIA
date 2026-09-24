@@ -92,6 +92,15 @@ extra fingers, deformed face, readable faces in the kitchen
 
 Tarjetas:   4a.png  (2,2 s)   →   4b.png  (2,2 s)
 
+   4a:   Seis de tus últimas diez reseñas malas
+         dicen lo mismo: la demora.
+
+   4b:   Notoria lo resume para tu equipo,
+         no solo para responder en Google.
+
+   ⚠️ Texto copiado de los PNG el 2026-09-22. Hasta ese día solo vivía DENTRO de la
+      imagen, y lo que solo vive en una imagen no lo revisa ningún barrido.
+
 Subtítulos sobre la imagen viva, blancos con borde negro, MarginV 300:
    0,4 – 3,2 s   Respondiste la reseña.
    3,4 – 6,2 s   Con educación, en Google.

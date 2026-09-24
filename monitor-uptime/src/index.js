@@ -39,6 +39,27 @@ const SONDAS = [
     espera: (texto) => texto.includes('Notoria'),
     queEspera: 'la palabra «Notoria» en el HTML servido',
   },
+  // 🔴 2026-09-22 — la sonda que distingue «el proceso vive» de «el producto trabaja».
+  // Las dos de arriba seguirían en verde con la facturación de Google cortada: la API
+  // responde, el landing carga, y cada consulta a Places se rechaza en silencio. Esta
+  // pregunta al backend si Google le sigue contestando y si el escaneo sigue produciendo
+  // (ver `brand-shield/src/lib/saludPlaces.js`, que explica por qué el fallo era mudo).
+  {
+    nombre: 'Vigilancia',
+    url: 'https://api.usenotoria.app/health/monitoreo',
+    espera: (texto) => texto.includes('"vigilancia":"ok"'),
+    queEspera: '{"vigilancia":"ok"}',
+    // El 503 de esta ruta trae el porqué en el cuerpo. Sin leerlo, el correo diría
+    // «HTTP 503», que manda a mirar Railway cuando lo roto es la tarjeta de Google.
+    detalleDe: (texto) => {
+      try {
+        const j = JSON.parse(texto);
+        return j.detalle ? `${j.vigilancia}: ${j.detalle}` : j.vigilancia;
+      } catch {
+        return null;
+      }
+    },
+  },
 ];
 
 const TIMEOUT_MS = 15000;
@@ -56,7 +77,13 @@ async function sondear(sonda) {
     });
     const ms = Date.now() - t0;
     if (!res.ok) {
-      return { ok: false, detalle: `HTTP ${res.status}`, ms };
+      // Si la sonda sabe leer el porqué del cuerpo, se usa: «HTTP 503» a secas no dice
+      // si hay que mirar Railway o la tarjeta de Google.
+      let porque = null;
+      if (sonda.detalleDe) {
+        try { porque = sonda.detalleDe(await res.text()); } catch { porque = null; }
+      }
+      return { ok: false, detalle: porque ? `HTTP ${res.status} · ${porque}` : `HTTP ${res.status}`, ms };
     }
     const texto = await res.text();
     if (!sonda.espera(texto)) {
@@ -149,42 +176,80 @@ async function ciclo(env, { forzarCorreo = false } = {}) {
   const hayCaida = caidas.length > 0;
   const ahora = new Date().toISOString();
 
-  let previo = { caido: false, desde: null };
+  // 🔴 EL ESTADO RECUERDA QUÉ SONDAS ESTÁN CAÍDAS, no solo «caído sí/no» (2026-09-22).
+  //
+  // Con un booleano bastaba mientras todas las sondas eran caídas que se arreglan en
+  // minutos. La de Vigilancia no: con la tarjeta de Google rechazada puede quedarse en
+  // rojo DÍAS, y con un booleano el estado diría «ya estoy caído» todo ese tiempo — así
+  // que si encima se cayera Railway, el monitor NO AVISARÍA. Añadir la alarma nueva
+  // habría abierto un agujero en la vieja. Ahora se avisa cuando el CONJUNTO cambia:
+  // una sonda que cae se avisa aunque otra ya estuviera caída, y cada una se recupera
+  // por su cuenta. La regla de no repetir sigue intacta: una sonda que SIGUE caída calla.
+  const nombresCaidos = caidas.map((c) => c.nombre);
+  let previo = { caidas: [], desde: {} };
+  let migrado = false;
   if (env.ESTADO) {
     try {
       const guardado = await env.ESTADO.get(CLAVE_ESTADO, { type: 'json' });
-      if (guardado) previo = guardado;
+      if (guardado && Array.isArray(guardado.caidas)) {
+        previo = { caidas: guardado.caidas, desde: guardado.desde || {} };
+      } else if (guardado && guardado.caido) {
+        // ⚠️ Formato anterior `{caido, desde}`, que no decía QUÉ estaba caído.
+        //  · Si algo falla ahora, se asume que era eso: lo contrario mandaría un correo
+        //    de «nueva caída» por algo que ya se avisó, el mismo día del despliegue.
+        //  · Si ya no falla nada, es una recuperación, y se avisa con un nombre honesto
+        //    en vez de inventar cuál sonda era.
+        // 🔴 Y la migración SE ESCRIBE en este mismo ciclo. La primera versión no lo
+        // hacía: el ciclo siguiente volvía a leer el formato viejo, ya no fallaba nada,
+        // deducía «lo caído era nada»… y el correo de recuperación se perdía. Lo cazó
+        // `prueba-monitor.mjs`, bloque 7.
+        const eran = nombresCaidos.length ? nombresCaidos : ['el servicio'];
+        previo = { caidas: eran, desde: Object.fromEntries(eran.map((n) => [n, guardado.desde])) };
+        migrado = true;
+      }
     } catch (e) {
       console.log('[monitor] No se pudo leer KV:', e.message);
     }
   }
 
   // ── La decisión de escribir, que es lo único delicado de este archivo ──
-  const empiezaCaida = hayCaida && !previo.caido;
-  const seRecupera = !hayCaida && previo.caido;
+  const nuevas = nombresCaidos.filter((n) => !previo.caidas.includes(n));
+  const recuperadas = previo.caidas.filter((n) => !nombresCaidos.includes(n));
+  const empiezaCaida = nuevas.length > 0;
+  const seRecupera = !empiezaCaida && recuperadas.length > 0;
   let correo = null;
 
+  // El asunto tiene que decir qué mirar. «Vigilancia no responde» sería falso: responde,
+  // y lo que dice es que Google nos rechaza o que el escaneo se paró.
+  const asuntoDe = (nombre) =>
+    nombre === 'Vigilancia' ? 'Notoria dejó de vigilar' : `${nombre} no responde`;
+
   if (empiezaCaida) {
+    const siguenCaidas = nombresCaidos.filter((n) => !nuevas.includes(n));
     correo = await enviarCorreo(env, {
       urgente: true,
-      asunto: `🔴 CAÍDO — ${caidas.map((c) => c.nombre).join(' y ')} no responde`,
-      titulo: 'Notoria no está respondiendo',
+      asunto: `🔴 CAÍDO — ${nuevas.map(asuntoDe).join(' y ')}`,
+      titulo: nuevas.includes('Vigilancia') && nuevas.length === 1
+        ? 'La web responde, pero Notoria dejó de vigilar'
+        : 'Notoria no está respondiendo',
       cuerpoHtml: `<p style="margin:0 0 4px;color:#3d3c37">Esto es lo que se acaba de medir desde la red de Cloudflare, con un reintento de por medio:</p>
 ${filas(resultados)}
+${siguenCaidas.length ? `<p style="margin:0 0 10px;color:#3d3c37">${esc(siguenCaidas.join(' y '))} ya estaba caído de antes: esto es un fallo <strong>nuevo</strong>, no el mismo.</p>` : ''}
 <p style="margin:0;color:#3d3c37">No volverás a recibir otro correo por esta caída. El siguiente llega cuando <strong>vuelva</strong>.</p>`,
     });
   } else if (seRecupera) {
-    const desde = previo.desde ? new Date(previo.desde) : null;
-    const mins = desde ? Math.round((Date.now() - desde.getTime()) / 60000) : null;
+    const mins = recuperadas
+      .map((n) => (previo.desde[n] ? Math.round((Date.now() - new Date(previo.desde[n]).getTime()) / 60000) : null))
+      .filter((m) => m !== null);
+    const max = mins.length ? Math.max(...mins) : null;
+    const todoBien = !hayCaida;
     correo = await enviarCorreo(env, {
-      asunto: `✅ Restablecido — Notoria vuelve a responder${mins !== null ? ` (${mins} min caído)` : ''}`,
-      titulo: 'Ya responde con normalidad',
+      asunto: `✅ Restablecido — ${recuperadas.join(' y ')}${max !== null ? ` (${max} min caído)` : ''}`,
+      titulo: todoBien ? 'Ya responde con normalidad' : `${recuperadas.join(' y ')} volvió`,
       cuerpoHtml: `${filas(resultados)}
 <p style="margin:0;color:#3d3c37">${
-        mins !== null
-          ? `Estuvo sin responder <strong>${mins} minuto${mins === 1 ? '' : 's'}</strong>, desde las ${desde.toISOString().replace('T', ' ').slice(0, 16)} UTC.`
-          : 'Se ha restablecido.'
-      }</p>`,
+        max !== null ? `Estuvo caído <strong>${max} minuto${max === 1 ? '' : 's'}</strong>.` : 'Se ha restablecido.'
+      }${todoBien ? '' : ` ⚠️ Sigue caído: <strong>${esc(nombresCaidos.join(' y '))}</strong>.`}</p>`,
     });
   } else if (forzarCorreo) {
     correo = await enviarCorreo(env, {
@@ -194,18 +259,31 @@ ${filas(resultados)}
     });
   }
 
-  if (env.ESTADO && (empiezaCaida || seRecupera)) {
+  // Se escribe siempre que el CONJUNTO cambie — también cuando en el mismo ciclo una
+  // sonda cae y otra vuelve, que es el caso en que `seRecupera` es falso.
+  const cambioElConjunto = nuevas.length > 0 || recuperadas.length > 0;
+  if (env.ESTADO && (cambioElConjunto || migrado)) {
+    // Cada sonda conserva su propia hora de caída: la que sigue caída mantiene la suya
+    // y la nueva estrena la de ahora. Con una sola hora global, el correo de vuelta
+    // diría cuánto estuvo caída la que cayó primero, no la que volvió.
+    const desde = {};
+    for (const n of nombresCaidos) desde[n] = previo.desde[n] || ahora;
     try {
       await env.ESTADO.put(
         CLAVE_ESTADO,
-        JSON.stringify({ caido: hayCaida, desde: hayCaida ? ahora : null, ultimo: ahora })
+        JSON.stringify({ caidas: nombresCaidos, desde, caido: hayCaida, ultimo: ahora })
       );
     } catch (e) {
       console.log('[monitor] No se pudo escribir KV:', e.message);
     }
   }
 
-  return { ahora, hayCaida, resultados, cambio: empiezaCaida ? 'empieza-caida' : seRecupera ? 'recuperado' : 'sin-cambio', correo };
+  return {
+    ahora, hayCaida, resultados,
+    caidas: nombresCaidos, nuevas, recuperadas,
+    cambio: empiezaCaida ? 'empieza-caida' : seRecupera ? 'recuperado' : 'sin-cambio',
+    correo,
+  };
 }
 
 export default {

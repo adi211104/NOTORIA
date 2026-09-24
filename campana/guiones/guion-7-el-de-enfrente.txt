@@ -77,6 +77,15 @@ names, crowds inside, customers inside, her leaving the restaurant
 
 Tarjetas:   7a.png  (2,2 s)   →   7b.png  (2,0 s)
 
+   7a:   El de enfrente subió a 4,6 este mes.
+         Tú no te enteraste.
+
+   7b:   Notoria vigila también
+         a tu competencia.
+
+   ⚠️ Texto copiado de los PNG el 2026-09-22. Hasta ese día solo vivía DENTRO de la
+      imagen, y lo que solo vive en una imagen no lo revisa ningún barrido.
+
 Subtítulos sobre la imagen viva:
    0,4 – 3,2 s   Tu rating no bajó.
    3,4 – 6,0 s   Sigues en 4,2.

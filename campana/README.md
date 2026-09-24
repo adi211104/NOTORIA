@@ -52,3 +52,13 @@ consecuencia de que cambie la tipografía.
 tarjetas seguían imprimiendo lo que ya se había quitado de la voz —«Y a las 3. Y a las
 4», «cada lunes», «te avisa el mismo día»— y nadie lo vio porque **un PNG no aparece en
 ningún `grep`**. Es el mismo fallo que el `og-image` del 19/09, en otro soporte.
+
+## Estado de las tarjetas (2026-09-23)
+
+✅ **Las 14 están regeneradas con `hacer-tarjeta.js`, en Georgia.** Las seis de los guiones
+1-3 se rehicieron el 22/09 porque decían cosas falsas; las ocho de los guiones 4-7 el 23/09
+con el **mismo texto**, solo para que las catorce usen la tipografía de la marca. Las
+anteriores quedan en `tarjetas-anteriores/`, junto a las nuevas en `Downloads`.
+
+El texto de cada tarjeta está escrito ahora **dentro de su guión**: hasta ese día solo vivía
+en el PNG, y lo que solo vive en una imagen no lo revisa ningún barrido.

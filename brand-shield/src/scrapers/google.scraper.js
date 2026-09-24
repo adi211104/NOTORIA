@@ -1,6 +1,28 @@
 const axios = require('axios');
 const { CAMPOS_CONTACTO } = require('../lib/fichaGoogle');
+const salud = require('../lib/saludPlaces');
 const BASE_URL = 'https://maps.googleapis.com/maps/api/place';
+
+// 🔴 Places NO falla con un código HTTP: devuelve **200** y un campo `status`. Hasta el
+// 2026-09-22 esto era `if (data.status !== 'OK') return null;` — el motivo se tiraba, y
+// una facturación suspendida (`REQUEST_DENIED`) salía por el mismo sitio y con el mismo
+// silencio que un sitio que no existe (`NOT_FOUND`). Con la cuenta cortada, el producto
+// entero dejaba de vigilar sin escribir una sola línea. Ver `lib/saludPlaces.js`.
+//
+// ⚠️ Sigue devolviendo `null`: el contrato con el worker no cambia —`null` es «no se pudo
+// leer»— y cambiarlo obligaría a tocar sus cinco ramas. Lo único que se añade es la voz.
+const avisar = (data) => {
+  // NOT_FOUND y ZERO_RESULTS son respuestas normales: el sitio no está. No son noticia.
+  if (!salud.RESPONDE.includes(data.status)) {
+    const grave = salud.RECHAZA_LA_CUENTA.includes(data.status);
+    console.error(
+      `${grave ? '🔴 [Google] LA CUENTA ESTÁ RECHAZADA' : '[Google] respuesta inesperada'}: `
+      + `status=${data.status}${data.error_message ? ` — ${data.error_message}` : ''}`
+      + (grave ? ' · revisar la facturación del proyecto de Google Cloud y la llave' : ''));
+  }
+  return null;
+};
+
 
 const buscarNegocioEnGoogle = async (placeId) => {
   try {
@@ -12,7 +34,7 @@ const buscarNegocioEnGoogle = async (placeId) => {
         language: 'es',
       },
     });
-    if (data.status !== 'OK') return null;
+    if (salud.registrar(data.status) !== 'OK') return avisar(data);
     return {
       nombre: data.result.name,
       rating: data.result.rating || 0,
@@ -20,6 +42,7 @@ const buscarNegocioEnGoogle = async (placeId) => {
       direccion: data.result.formatted_address || null,
     };
   } catch (error) {
+    salud.registrar('ERROR_RED');
     console.error(`[Google] Error: ${error.message}`);
     return null;
   }
@@ -61,7 +84,7 @@ const obtenerResenasGoogle = async (placeId, { conContacto = false } = {}) => {
         reviews_sort: 'newest',
       },
     });
-    if (data.status !== 'OK') return null;
+    if (salud.registrar(data.status) !== 'OK') return avisar(data);
     const resultado = data.result;
     return {
       ratingActual: resultado.rating || 0,
@@ -75,6 +98,7 @@ const obtenerResenasGoogle = async (placeId, { conContacto = false } = {}) => {
       crudo: conContacto ? resultado : null,
     };
   } catch (error) {
+    salud.registrar('ERROR_RED');
     console.error(`[Google] Error obteniendo reseñas: ${error.message}`);
     return null;
   }
@@ -104,13 +128,14 @@ const obtenerResenasVisibles = async (placeId) => {
         // Sin `reviews_sort` → Google usa most_relevant, que es lo que ve el público
       },
     });
-    if (data.status !== 'OK') return null;
+    if (salud.registrar(data.status) !== 'OK') return avisar(data);
     return {
       ratingActual: data.result.rating || 0,
       totalResenas: data.result.user_ratings_total || 0,
       resenas: mapearResenas(data.result.reviews),
     };
   } catch (error) {
+    salud.registrar('ERROR_RED');
     console.error(`[Google] Error obteniendo reseñas visibles: ${error.message}`);
     return null;
   }
@@ -141,11 +166,12 @@ const obtenerUbicacionNegocio = async (placeId) => {
         key: process.env.GOOGLE_PLACES_API_KEY,
       },
     });
-    if (data.status !== 'OK') return null;
+    if (salud.registrar(data.status) !== 'OK') return avisar(data);
     const loc = data.result.geometry?.location;
     if (!loc) return null;
     return { lat: loc.lat, lng: loc.lng };
   } catch (error) {
+    salud.registrar('ERROR_RED');
     console.error(`[Google] Error obteniendo ubicación: ${error.message}`);
     return null;
   }
@@ -164,7 +190,7 @@ const buscarCompetidoresCercanos = async ({ lat, lng, tipo, placeIdExcluir }) =>
         language: 'es',
       },
     });
-    if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') return null;
+    if (!['OK', 'ZERO_RESULTS'].includes(salud.registrar(data.status))) return avisar(data);
 
     return (data.results || [])
       .filter((r) => r.place_id !== placeIdExcluir && r.business_status !== 'CLOSED_PERMANENTLY')
@@ -177,6 +203,7 @@ const buscarCompetidoresCercanos = async ({ lat, lng, tipo, placeIdExcluir }) =>
         totalResenas: r.user_ratings_total || 0,
       }));
   } catch (error) {
+    salud.registrar('ERROR_RED');
     console.error(`[Google] Error en Nearby Search: ${error.message}`);
     return null;
   }

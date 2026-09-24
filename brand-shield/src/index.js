@@ -161,6 +161,49 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// ─── ¿Seguimos VIGILANDO? — 2026-09-22 ────────────────────
+//
+// 🔴 `/health` de arriba dice que el proceso está vivo, y eso no es lo mismo que decir
+// que el producto está haciendo su trabajo. El día que Google suspenda la facturación,
+// `/health` va a seguir contestando 200 mientras cada consulta a Places se rechaza y el
+// escaneo deja de producir. Esta ruta es la que sabe distinguirlo (ver
+// `lib/saludPlaces.js`, que explica por qué el fallo es completamente mudo).
+//
+// ⚠️ Va SEPARADA de `/health` a propósito: `/health` es la sonda de vida que mira
+// Railway y no debe tocar la base — si lo hiciera, un hipo de Postgres haría que
+// Railway diera el contenedor por muerto y lo reiniciara.
+//
+// ⚠️ Es pública porque la lee el monitor de Cloudflare, que no tiene sesión. Solo
+// devuelve agregados: ni nombres de negocio, ni correos, ni nada de una persona.
+const salud = require('./lib/saludPlaces');
+const dormancia = require('./lib/dormancia');
+const prisma = require('./lib/prisma');   // el singleton, nunca un PrismaClient propio
+
+// Cachea un minuto. La ruta es pública y toca la base; el monitor pregunta cada 5
+// minutos, así que el caché no le quita frescura a nadie y le pone techo al gasto.
+const CACHE_MS = 60 * 1000;
+let cacheSalud = { hasta: 0, cuerpo: null };
+
+app.get('/health/monitoreo', async (req, res) => {
+  try {
+    if (Date.now() > cacheSalud.hasta) {
+      cacheSalud = {
+        hasta: Date.now() + CACHE_MS,
+        cuerpo: await salud.veredicto(prisma, dormancia),
+      };
+    }
+    const v = cacheSalud.cuerpo;
+    // 503 cuando algo va mal, para que el monitor lo vea por el código Y por el cuerpo.
+    res.status(v.vigilancia === 'ok' ? 200 : 503).json({
+      ...v,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (e) {
+    // No puede lanzar: un 500 sin cuerpo le diría al monitor que algo falla sin decir qué.
+    res.status(503).json({ vigilancia: 'sin_comprobar', detalle: e.message });
+  }
+});
+
 // ─── Manejo de errores ────────────────────────────────────
 app.use((err, req, res, next) => {
   console.error(`[Error] ${err.message}`);
