@@ -12,7 +12,7 @@ export const metadata = {
     default: 'Notoria — Monitor de reputación online',
     template: '%s — Notoria',
   },
-  description: 'Detecta reseñas falsas, ataques de bots y caídas de rating antes de que el daño sea irreversible. Monitor de reputación para negocios del Perú.',
+  description: 'Vigila tu ficha de Google, detecta ataques de reseñas y caídas de rating, y te avisa antes de que el daño sea irreversible. Monitor de reputación para negocios del Perú.',
   keywords: ['reputación online', 'monitor reseñas', 'reseñas falsas', 'Google Business', 'restaurantes', 'hoteles'],
   authors: [{ name: 'Notoria' }],
   openGraph: {
@@ -21,13 +21,13 @@ export const metadata = {
     url: 'https://usenotoria.app',
     siteName: 'Notoria',
     title: 'Notoria — Tu reputación puede hundirse en una sola noche.',
-    description: 'Detecta reseñas falsas, ataques de bots y caídas de rating en tiempo real. Para negocios del Perú.',
+    description: 'Detecta ataques de reseñas, caídas de rating y cambios en tu ficha de Google, y te avisa por correo. Para negocios del Perú.',
     images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'Notoria' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Notoria — Monitor de reputación online',
-    description: 'Detecta reseñas falsas y ataques de bots antes de que destruyan tu negocio.',
+    description: 'Detecta ataques de reseñas y caídas de rating antes de que te cuesten clientes.',
     images: ['/og-image.png'],
   },
   icons: {
@@ -55,7 +55,7 @@ const JSON_LD = {
       url: 'https://usenotoria.app',
       applicationCategory: 'BusinessApplication',
       operatingSystem: 'Web',
-      description: 'Monitor de reputación online para negocios del Perú —restaurantes, hoteles, tiendas, clínicas y más—: detecta reseñas falsas, ataques de bots y caídas de rating antes de que cuesten clientes.',
+      description: 'Monitor de reputación online para negocios del Perú —restaurantes, hoteles, tiendas, clínicas y más—: detecta ataques de reseñas, caídas de rating y cambios en tu ficha antes de que cuesten clientes.',
       inLanguage: 'es',
       offers: [
         { '@type': 'Offer', name: 'Plan Gratuito', price: '0', priceCurrency: 'PEN' },
@@ -69,7 +69,7 @@ const JSON_LD = {
       '@type': 'FAQPage',
       mainEntity: [
         { q: '¿Necesito tarjeta de crédito para empezar?', a: 'No. El plan Gratuito es gratis para siempre e incluye 1 negocio monitoreado, score de reputación, QR para pedir reseñas y alertas por email. Solo pides una tarjeta si decides subir a un plan de pago.' },
-        { q: '¿Cómo detecta Notoria las reseñas falsas?', a: 'Analizamos patrones típicos de ataques: reseñas que repiten el mismo texto desde cuentas distintas, calificaciones de 1 estrella sin ningún comentario, acusaciones graves, y picos de reseñas muy por encima del ritmo habitual de tu propia ficha. Cada reseña sospechosa se marca con el motivo para que puedas reportarla en Google.' },
+        { q: '¿Cómo detecta Notoria las reseñas sospechosas?', a: 'Analizamos patrones típicos de ataques: reseñas que repiten el mismo texto desde cuentas distintas, calificaciones de 1 estrella sin ningún comentario, acusaciones graves, y picos de reseñas muy por encima del ritmo habitual de tu propia ficha. Cada reseña sospechosa se marca con el motivo para que puedas reportarla en Google. Notoria señala comportamiento anómalo; quien decide si una reseña es falsa y la retira es Google.' },
         // ⚠️ Este bloque es una COPIA del FAQ visible de `page.js` y va a Google
         // como dato estructurado. Al corregir una pregunta hay que corregirla en
         // los dos sitios: ya pasó una vez que el JSON-LD siguió prometiendo una
@@ -78,7 +78,7 @@ const JSON_LD = {
         { q: '¿Por qué solo veo 5 reseñas si mi negocio tiene cientos?', a: 'La API pública de Google entrega como máximo las 5 reseñas más recientes por consulta; es un límite de Google, no de Notoria. Por eso Notoria no funciona leyendo tu pasado sino vigilando lo que entra: escanea tu ficha cada 72, 24, 12, 4 o 2 horas según tu plan y guarda cada reseña nueva que aparece. A las pocas semanas tienes muy por encima de cinco, y desde el día que te registras no se te escapa ninguna.' },
         { q: '¿Qué pasa si alguien cambia los datos de mi ficha en Google?', a: 'Google Maps permite que cualquier persona sugiera cambios sobre la ficha de un negocio ajeno —el horario, el teléfono, la dirección, incluso marcarla como cerrada permanentemente— y los aplica sin avisarle al dueño. Notoria compara esos datos en cada escaneo y te avisa el mismo día si algo cambió. El aviso de ficha cerrada está en todos los planes, incluido el Gratuito; el de teléfono, horario, nombre y dirección desde el plan Impulso.' },
         { q: '¿Puedo responder las reseñas desde Notoria?', a: 'La redactas en Notoria y la publicas tú en Google, en un clic. Tienes 30 plantillas profesionales según las estrellas de la reseña y un asistente de IA que la escribe por ti: guardamos tu respuesta, la copiamos al portapapeles y te abrimos tu ficha de Google Maps para que la pegues. Publicarla sin salir de Notoria todavía no es posible —hace falta un permiso que Google concede aparte— y estamos trabajando para que todo quede en un solo punto.' },
-        { q: '¿Qué pasa si mi rating cae de repente?', a: 'Notoria lo detecta en el siguiente escaneo y te envía una alerta inmediata por email con el detalle de qué pasó: cuántas reseñas negativas, de qué cuentas y si tienen patrones de bot. Tú decides qué alertas recibir y con qué frecuencia.' },
+        { q: '¿Qué pasa si mi rating cae de repente?', a: 'Notoria lo detecta en el siguiente escaneo y te envía una alerta por email con el detalle de qué pasó: cuánto bajó el rating, cuántas reseñas entraron y si muestran señales de ataque. Tú decides qué alertas recibir y con qué frecuencia.' },
         { q: '¿Cómo sabe Notoria quiénes son mis competidores?', a: 'Tú los eliges. Los buscas igual que a tu negocio, en Google Maps, y los agregas a la lista (1 en el plan Gratuito, 3 en Impulso, 5 en Negocio y 15 en Franquicia por cada negocio). Además, en el plan Franquicia Notoria busca por su cuenta locales de tu mismo rubro a la redonda y te los propone.' },
         { q: '¿Es legal analizar las reseñas de mis competidores?', a: 'Sí. Notoria solo lee lo que ya es público en Google Maps: el mismo rating y las mismas reseñas que vería cualquier persona buscando ese negocio. No accedemos a nada privado de su ficha, no interactuamos con sus reseñas y no publicamos nada en su nombre.' },
         { q: '¿Funciona en toda mi ciudad o solo en Lima?', a: 'En todo el Perú. Notoria monitorea cualquier negocio que tenga ficha en Google Maps, esté en Lima, Arequipa, Cusco, Trujillo o un distrito pequeño. Por ahora operamos solo en Perú: cobramos en soles y emitimos comprobantes peruanos.' },

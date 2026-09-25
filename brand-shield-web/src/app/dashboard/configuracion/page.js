@@ -77,8 +77,8 @@ const TEXTOS = {
     automatizaciones: {
       titulo: 'Automatizaciones', descripcion: 'Deja que Notoria trabaje sola por ti',
       negocio: 'Negocio',
-      resumenSemanal: 'Resumen semanal por email',
-      resumenSemanalDesc: 'Cifras de rating y reseñas cada domingo. El plan Negocio suma un insight generado con IA.',
+      resumenSemanal: 'Resumen por email',
+      resumenSemanalDesc: 'Cifras de rating y reseñas, cada mes o cada semana según elijas en Alertas. Los planes de pago suman un insight generado con IA.',
       autoRespuesta: 'Auto-respuesta a reseñas positivas',
       autoRespuestaDesc: 'Responde sola las reseñas de 4-5★ con la plantilla que apruebes, sin que tengas que hacer nada.',
       autoRespuestaBloqueo: 'Disponible en plan Negocio →',
@@ -147,7 +147,7 @@ const TEXTOS = {
     header: { titulo: 'Settings', sub: 'Manage your account and preferences' },
     emailVerif: {
       titulo: 'Unconfirmed email',
-      desc: (email) => <>Your account has limited features until you confirm your email <strong style={{ color:'var(--text)' }}>{email}</strong>. Verify it to receive alerts and your weekly summary.</>,
+      desc: (email) => <>Your account has limited features until you confirm your email <strong style={{ color:'var(--text)' }}>{email}</strong>. Verify it to receive alerts and your email summary.</>,
       enviando: 'Sending...',
       espera: (s) => `Wait ${s}s`,
       enviado: 'Sent ✓ — Resend',
@@ -191,8 +191,8 @@ const TEXTOS = {
     automatizaciones: {
       titulo: 'Automations', descripcion: 'Let Notoria work on its own for you',
       negocio: 'Business',
-      resumenSemanal: 'Weekly email summary',
-      resumenSemanalDesc: 'Rating and review figures every Sunday. The Business plan adds an AI-generated insight.',
+      resumenSemanal: 'Email summary',
+      resumenSemanalDesc: 'Rating and review figures, monthly or weekly as you choose in Alerts. Paid plans add an AI-generated insight.',
       autoRespuesta: 'Auto-reply to positive reviews',
       autoRespuestaDesc: 'Automatically replies to 4-5★ reviews with the template you approve — no action needed from you.',
       autoRespuestaBloqueo: 'Available on the Business plan →',

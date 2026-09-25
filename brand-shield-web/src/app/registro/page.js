@@ -214,7 +214,7 @@ export default function RegistroPage() {
 
         <div style={{ marginTop:18, padding:'12px 14px', background:'var(--surface2)', borderRadius:6, fontSize:12, color:'var(--text-3)', lineHeight:1.7 }}>
           Incluye en el plan gratuito:
-          {['1 negocio monitoreado','Alertas por email en tiempo real','Detección básica de reseñas falsas'].map(f => (
+          {['1 negocio monitoreado','Alertas por email','Detección de reseñas sospechosas'].map(f => (
             <div key={f} style={{ display:'flex', gap:7, marginTop:3 }}>
               <span style={{ color:G, fontWeight:700 }}>✓</span>
               <span>{f}</span>

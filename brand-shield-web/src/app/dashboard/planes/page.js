@@ -96,7 +96,7 @@ const PLANES = {
         { texto: 'Análisis IA de la competencia', ok: true },
         { texto: 'Historial de rating desde que te registras', ok: true },
         { texto: 'Conexión de TikTok (perfil y videos)', ok: true },
-        { texto: 'Detección de bots avanzada', ok: true },
+        { texto: 'Descubrimiento automático de rivales cercanos', ok: true },
         { texto: 'Alertas por email', ok: true },
         { texto: 'Reporte PDF mensual automático', ok: true },
         { texto: 'Boleta o factura electrónica a tu RUC', ok: true },
@@ -120,7 +120,7 @@ const PLANES = {
       descripcion: 'Para cadenas, grupos hoteleros y agencias',
       features: [
         { texto: '1 local incluido · S/99 por local adicional', ok: true },
-        { texto: 'Escaneo cada hora', ok: true },
+        { texto: 'Escaneo cada 2 horas', ok: true },
         { texto: '300 usos de IA a la semana', ok: true },
         { texto: '15 competidores por negocio', ok: true },
         { texto: 'Análisis IA de la competencia', ok: true },
@@ -212,7 +212,7 @@ const PLANES = {
         { texto: 'AI competitor analysis', ok: true },
         { texto: 'Rating history from the day you sign up', ok: true },
         { texto: 'TikTok connection (profile and videos)', ok: true },
-        { texto: 'Advanced bot detection', ok: true },
+        { texto: 'Automatic discovery of nearby rivals', ok: true },
         { texto: 'Email alerts', ok: true },
         { texto: 'Automatic monthly PDF report', ok: true },
         { texto: 'Automatic electronic invoice (SUNAT, Peru)', ok: true },
@@ -232,7 +232,7 @@ const PLANES = {
       descripcion: 'For chains, hotel groups and agencies',
       features: [
         { texto: '1 location included · S/99 per extra location', ok: true },
-        { texto: 'Scan every hour', ok: true },
+        { texto: 'Scan every 2 hours', ok: true },
         { texto: '300 AI uses per week', ok: true },
         { texto: '15 competitors per business', ok: true },
         { texto: 'AI competitor analysis', ok: true },
@@ -306,8 +306,11 @@ const TEXTOS = {
     },
     valorTitulo: '¿Por qué vale la pena pagar?',
     valorItems: [
-      { t:'Cada hora importa', d:'Un ataque de reseñas falsas puede destruir semanas de trabajo en una noche. Con escaneo cada 4 horas, actúas antes de que el daño sea irreversible.' },
-      { t:'Los bots son reales', d:'El 30% de las reseñas negativas en restaurantes tienen patrones de bots. Nuestro detector identifica cuentas creadas el mismo día con texto repetitivo.' },
+      { t:'Cada hora importa', d:'Un ataque de reseñas puede destruir semanas de trabajo en una noche. Con escaneo cada 4 horas, actúas antes de que el daño sea irreversible.' },
+      // ⚠️ Decía «El 30% de las reseñas negativas tienen patrones de bots» (cifra sin
+      // fuente) y «identifica cuentas creadas el mismo día» (detección por perfil,
+      // que no existe). Las dos contra CLAUDE.md §15. Corregido el 2026-09-24.
+      { t:'Los ataques son reales', d:'Una ráfaga de reseñas de 1★ en pocas horas o el mismo texto repetido desde cuentas distintas es el patrón de una campaña. Notoria compara el ritmo de tu ficha con el habitual y marca esas reseñas con el motivo.' },
       { t:'Tu reputación en papel', d:'El reporte PDF mensual te da un documento profesional para mostrar a socios, inversionistas o bancos. Tu reputación online tiene valor medible.' },
     ],
     footerNota: 'Sin contratos · Cancela cuando quieras · Precios en soles, IGV incluido',
@@ -359,8 +362,8 @@ const TEXTOS = {
     },
     valorTitulo: 'Why is it worth paying?',
     valorItems: [
-      { t:'Every hour matters', d:'A fake-review attack can destroy weeks of work in one night. With scans every 4 hours, you act before the damage becomes irreversible.' },
-      { t:'Bots are real', d:'30% of negative restaurant reviews show bot patterns. Our detector flags accounts created the same day with repetitive text.' },
+      { t:'Every hour matters', d:'A review attack can destroy weeks of work in one night. With scans every 4 hours, you act before the damage becomes irreversible.' },
+      { t:'Attacks are real', d:'A burst of 1-star reviews within hours, or the same text repeated from different accounts, is the signature of a campaign. Notoria compares your listing pace against its usual one and flags those reviews with the reason.' },
       { t:'Your reputation on paper', d:'The monthly PDF report gives you a professional document to show partners, investors or banks. Your online reputation has measurable value.' },
     ],
     footerNota: 'No contracts · Cancel anytime · Prices in Peruvian soles, VAT included',

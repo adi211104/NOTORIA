@@ -97,7 +97,7 @@ export const CATALOGO = [
     // VENDE: es un motivo concreto para pasar a un plan de pago, y contarlo mal
     // —o no contarlo— convierte una regla defendible en una sorpresa.
     descripcion:
-      'Monitoreo de 1 negocio con escaneo cada 24 horas durante el primer mes y cada 72 horas a partir de entonces. Incluye score de reputación 0-100, detección de reseñas falsas, QR y enlace para pedir reseñas, 30 plantillas de respuesta, 5 usos de IA a la semana, 1 competidor vigilado y alertas por email. Si pasas 30 días sin entrar, la vigilancia se pausa para no consumir recursos: no se borra nada y se reanuda sola en cuanto vuelves a entrar. Los planes de pago vigilan sin pausas y a la cadencia contratada.',
+      'Monitoreo de 1 negocio con escaneo cada 24 horas durante el primer mes y cada 72 horas a partir de entonces. Incluye score de reputación 0-100, detección de reseñas sospechosas, QR y enlace para pedir reseñas, 30 plantillas de respuesta, 5 usos de IA a la semana, 1 competidor vigilado y alertas por email. Si pasas 30 días sin entrar, la vigilancia se pausa para no consumir recursos: no se borra nada y se reanuda sola en cuanto vuelves a entrar. Los planes de pago vigilan sin pausas y a la cadencia contratada.',
     incluye: ['1 negocio monitoreado', 'Escaneo cada 24 horas el primer mes, luego cada 72 horas', 'Se pausa a los 30 días sin entrar y se reanuda al volver', 'Alertas por email', 'Aviso si tu ficha aparece cerrada en Google'],
     comprable: false,
   },
@@ -119,7 +119,7 @@ export const CATALOGO = [
     unidad: 'por mes',
     imagen: 'impulso',
     descripcion:
-      'Para una tienda, una barbería o un local con una sola sede. Monitoreo de 1 negocio con escaneo cada 12 horas —el doble de rápido que el plan gratuito— y aviso inmediato si te cambian el teléfono, el horario, el nombre o la dirección en tu ficha de Google, o si alguien la marca como cerrada. Incluye 25 usos de IA a la semana para responder reseñas, 3 competidores vigilados, aviso si una reseña crítica lleva 24 horas sin respuesta, alertas por email y notificaciones en la app de Android, reporte PDF mensual automático y boleta o factura electrónica a tu RUC. Cobro mensual, se renueva cada 30 días.',
+      'Para una tienda, una barbería o un local con una sola sede. Monitoreo de 1 negocio con escaneo cada 12 horas —el doble de rápido que el plan gratuito— y aviso inmediato si te cambian el teléfono, el horario, el nombre o la dirección en tu ficha de Google, o si alguien la marca como cerrada. Incluye 25 usos de IA a la semana para responder reseñas, 3 competidores vigilados, aviso si una reseña crítica lleva 24 horas sin respuesta, alertas por email, reporte PDF mensual automático y boleta o factura electrónica a tu RUC. Cobro mensual, se renueva cada 30 días.',
     incluye: ['1 negocio monitoreado', 'Escaneo cada 12 horas', 'Aviso si te alteran la ficha', '25 usos de IA por semana', '3 competidores vigilados', 'Reporte PDF mensual'],
     comprable: true,
   },
@@ -146,8 +146,8 @@ export const CATALOGO = [
     imagen: 'negocio',
     destacado: true,
     descripcion:
-      `Monitoreo de tu local con escaneo cada 4 horas, y hasta ${MAX_LOCALES_TOTALES - 1} locales más por S/39 al mes cada uno. Incluye 100 usos de IA a la semana para respuestas y análisis, 5 competidores vigilados por negocio con análisis IA de sus puntos débiles, conexión de TikTok, detección de reseñas copiadas y de picos anormales, aviso si te cambian el teléfono o el horario en tu ficha de Google, constancia de reputación con código verificable, panel compartido con 2 personas más de tu equipo (cada una con su propio usuario y su rol), alertas por email y notificaciones en la app de Android, reporte PDF mensual automático y boleta o factura electrónica a tu RUC. Cobro mensual, se renueva cada 30 días.`,
-    incluye: ['1 local incluido (+S/39 por local extra)', 'Escaneo cada 4 horas', 'Panel para 3 personas', 'Alertas por email y app', 'Reporte PDF mensual', 'Aviso si te alteran la ficha'],
+      `Monitoreo de tu local con escaneo cada 4 horas, y hasta ${MAX_LOCALES_TOTALES - 1} locales más por S/39 al mes cada uno. Incluye 100 usos de IA a la semana para respuestas y análisis, 5 competidores vigilados por negocio con análisis IA de sus puntos débiles, conexión de TikTok, detección de reseñas copiadas y de picos anormales, aviso si te cambian el teléfono o el horario en tu ficha de Google, constancia de reputación con código verificable, panel compartido con 2 personas más de tu equipo (cada una con su propio usuario y su rol), alertas por email, reporte PDF mensual automático y boleta o factura electrónica a tu RUC. Cobro mensual, se renueva cada 30 días.`,
+    incluye: ['1 local incluido (+S/39 por local extra)', 'Escaneo cada 4 horas', 'Panel para 3 personas', 'Alertas por email', 'Reporte PDF mensual', 'Aviso si te alteran la ficha'],
     comprable: true,
   },
   {
@@ -172,8 +172,8 @@ export const CATALOGO = [
     unidad: 'por mes',
     imagen: 'franquicia',
     descripcion:
-      `Para cadenas y grupos hoteleros: escaneo cada 2 horas y hasta ${MAX_LOCALES_TOTALES} locales en la misma cuenta — se suman de a uno por S/99 al mes cada uno. Incluye 300 usos de IA a la semana, 15 competidores por negocio con descubrimiento automático de rivales cercanos, conexión de TikTok, alertas por email y notificaciones en la app de Android, reporte PDF mensual, todos tus locales en un solo panel, panel compartido con hasta 9 personas más —cada encargado con acceso solo a su sede— y soporte prioritario por correo. Cobro mensual.`,
-    incluye: ['1 local incluido (+S/99 por local extra)', 'Escaneo cada 2 horas', 'Panel para 10 personas', 'Alertas por email y app', 'Todos tus locales en un panel', 'Soporte prioritario'],
+      `Para cadenas y grupos hoteleros: escaneo cada 2 horas y hasta ${MAX_LOCALES_TOTALES} locales en la misma cuenta — se suman de a uno por S/99 al mes cada uno. Incluye 300 usos de IA a la semana, 15 competidores por negocio con descubrimiento automático de rivales cercanos, conexión de TikTok, alertas por email, reporte PDF mensual, todos tus locales en un solo panel, panel compartido con hasta 9 personas más —cada encargado con acceso solo a su sede— y soporte prioritario por correo. Cobro mensual.`,
+    incluye: ['1 local incluido (+S/99 por local extra)', 'Escaneo cada 2 horas', 'Panel para 10 personas', 'Alertas por email', 'Todos tus locales en un panel', 'Soporte prioritario'],
     comprable: true,
   },
   {

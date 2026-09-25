@@ -93,7 +93,7 @@ const TEXTOS = {
       tag:'Monitor de reputación online',
       titulo:'Tu reputación puede hundirse',
       tituloVerde:'en una sola noche.',
-      sub:'Notoria detecta reseñas falsas, ataques de bots y caídas de rating, y te avisa antes de que el daño sea irreversible.',
+      sub:'Notoria vigila tu ficha de Google, detecta ataques de reseñas y caídas de rating, y te avisa antes de que el daño sea irreversible.',
       ctaCrear:'Crear cuenta gratis', ctaComo:'Ver cómo funciona', ctaDash:'Ir al panel de control',
       micro:'Sin tarjeta de crédito · 1 negocio gratis para siempre · Registro en 30 segundos',
     },
@@ -191,7 +191,10 @@ const TEXTOS = {
       // función no la ejecuta el worker, no entra acá.
       items: [
         { icon:'lock', t:'Vigilamos tu ficha, no solo tus reseñas', d:'Cualquiera puede sugerirle a Google que tu local cerró. Si tu ficha aparece cerrada, te avisamos ese mismo día — no el lunes, cuando ya no entró nadie en todo el fin de semana.' },
-        { icon:'bell', t:'Alertas en tiempo real', d:'Correo al minuto, y una notificación en tu teléfono si instalas la app. No el lunes, sino al momento en que ocurre.' },
+        // ⚠️ Decía «Correo al minuto» y «notificación si instalas la app»: el
+        // aviso sale cuando el escaneo encuentra la reseña (cada 2-72 h según el
+        // plan) y la app de Android no está publicada. Corregido el 2026-09-24.
+        { icon:'bell', t:'Alertas por correo', d:'Cuando el escaneo encuentra una reseña negativa o una caída de rating, te llega un correo con la reseña citada y una respuesta lista. Ese mismo día, no el lunes.' },
         { icon:'bot', t:'Detecta ataques y reseñas copiadas', d:'Compara el ritmo de reseñas de tu ficha con el tuyo habitual y marca las que repiten el mismo texto: es el patrón de una campaña comprada.' },
         { icon:'eye', t:'Mira tu ficha como un desconocido', d:'A un cliente nuevo, Google no le enseña tus reseñas más recientes sino las que considera relevantes. Te mostramos exactamente esas cinco, y cuáles siguen sin respuesta.' },
         { icon:'lightning', t:'QR para pedir reseñas', d:'Enlace directo y código QR imprimible. Convierte clientes felices en reseñas de 5 estrellas.' },
@@ -235,7 +238,7 @@ const TEXTOS = {
     comparativa: {
       tag:'Comparativa completa', titulo:'Lo que cambia de un plan a otro',
       sub:'Sin relleno: solo las diferencias reales entre los cuatro planes.',
-      incluidos:'Los 4 planes incluyen: score de reputación 0-100, detección de reseñas falsas y bots, 30 plantillas de respuesta profesionales, QR para pedir reseñas y alertas por email.',
+      incluidos:'Los 4 planes incluyen: score de reputación 0-100, detección de reseñas sospechosas y ataques, 30 plantillas de respuesta profesionales, QR para pedir reseñas y alertas por email.',
       // Qué columna va resaltada. Era el índice 1 escrito a mano en cinco
       // estilos, y al insertar Impulso el verde se movió a la columna
       // equivocada sin que nada fallara: la tabla seguía compilando y
@@ -261,7 +264,7 @@ const TEXTOS = {
         { label:'Registro de quién respondió cada reseña', valores:[false,false,true,true] },
         { grupo:'Inteligencia artificial' },
         { label:'Respuestas y análisis con IA a la semana', valores:['5','25','100','300'] },
-        { label:'Resumen semanal por email', valores:['Cifras básicas','Con insights de IA','Con insights de IA','Con insights de IA'] },
+        { label:'Resumen por email (mensual o semanal, tú eliges)', valores:['Cifras básicas','Con insights de IA','Con insights de IA','Con insights de IA'] },
         { grupo:'Vigilancia de la competencia' },
         { label:'Competidores vigilados por negocio', valores:['1','3','5','15'] },
         { label:'Análisis IA de sus puntos débiles', valores:[false,false,true,true] },
@@ -283,7 +286,7 @@ const TEXTOS = {
       tag:'Preguntas frecuentes', titulo:'Resolvemos tus dudas',
       items: [
         { q:'¿Necesito tarjeta de crédito para empezar?', a:'No. El plan Gratuito es gratis para siempre e incluye 1 negocio monitoreado, score de reputación, QR para pedir reseñas y alertas por email. Solo pides una tarjeta si decides subir a un plan de pago.' },
-        { q:'¿Cómo detecta Notoria las reseñas falsas?', a:'Analizamos patrones típicos de ataques: reseñas que repiten el mismo texto desde cuentas distintas, calificaciones de 1 estrella sin ningún comentario, acusaciones graves, y picos de reseñas muy por encima del ritmo habitual de tu propia ficha. Cada reseña sospechosa se marca con el motivo para que puedas reportarla en Google.' },
+        { q:'¿Cómo detecta Notoria las reseñas sospechosas?', a:'Analizamos patrones típicos de ataques: reseñas que repiten el mismo texto desde cuentas distintas, calificaciones de 1 estrella sin ningún comentario, acusaciones graves, y picos de reseñas muy por encima del ritmo habitual de tu propia ficha. Cada reseña sospechosa se marca con el motivo para que puedas reportarla en Google. Notoria señala comportamiento anómalo; quien decide si una reseña es falsa y la retira es Google.' },
         // ⚠️ Estas tres preguntas prometían Google Business Profile: «gratis,
         // tardas 1 minuto», «acceso a todo tu historial» y «la publicación será
         // directa». Google no ha concedido acceso a esas APIs, así que las tres
@@ -296,7 +299,7 @@ const TEXTOS = {
         // pegar allá no es eso. Se dice el límite antes que la función, porque
         // enterarse después de contratar es lo que produce una baja.
         { q:'¿Puedo responder las reseñas desde Notoria?', a:'La redactas en Notoria y la publicas tú en Google, en un clic. Tienes 30 plantillas profesionales según las estrellas de la reseña y un asistente de IA que la escribe por ti: guardamos tu respuesta, la copiamos al portapapeles y te abrimos tu ficha de Google Maps para que la pegues. Publicarla sin salir de Notoria todavía no es posible —hace falta un permiso que Google concede aparte— y estamos trabajando para que todo quede en un solo punto.' },
-        { q:'¿Qué pasa si mi rating cae de repente?', a:'Notoria lo detecta en el siguiente escaneo y te envía una alerta inmediata por email con el detalle de qué pasó: cuántas reseñas negativas, de qué cuentas y si tienen patrones de bot. Tú decides qué alertas recibir y con qué frecuencia.' },
+        { q:'¿Qué pasa si mi rating cae de repente?', a:'Notoria lo detecta en el siguiente escaneo y te envía una alerta por email con el detalle de qué pasó: cuánto bajó el rating, cuántas reseñas entraron y si muestran señales de ataque. Tú decides qué alertas recibir y con qué frecuencia.' },
         { q:'¿Cómo sabe Notoria quiénes son mis competidores?', a:'Tú los eliges. Los buscas igual que a tu negocio, en Google Maps, y los agregas a la lista (1 en el plan Gratuito, 3 en Impulso, 5 en Negocio y 15 en Franquicia por cada negocio). Además, en el plan Franquicia Notoria busca por su cuenta locales de tu mismo rubro a la redonda y te los propone, para que descubras rivales que quizá no tenías fichados.' },
         { q:'¿Es legal analizar las reseñas de mis competidores?', a:'Sí. Notoria solo lee lo que ya es público en Google Maps: el mismo rating y las mismas reseñas que vería cualquier persona buscando ese negocio. No accedemos a nada privado de su ficha, no interactuamos con sus reseñas y no publicamos nada en su nombre. Es exactamente la información que tú mismo podrías mirar a mano, ordenada y comparada por ti.' },
         { q:'¿Mis competidores se enteran de que los estoy siguiendo?', a:'No. Notoria consulta la información pública de Google como lo haría cualquier visitante, así que no hay ninguna notificación ni rastro visible para ellos. Tu lista de competidores es privada de tu cuenta.' },
@@ -319,7 +322,7 @@ const TEXTOS = {
       dudas:'¿Preguntas? hola@usenotoria.app',
     },
     footer: {
-      descripcion:'Monitor de reputación online para negocios del Perú —restaurantes, hoteles, tiendas, clínicas y más—: detecta reseñas falsas, ataques de bots y caídas de rating antes de que te cuesten clientes.',
+      descripcion:'Monitor de reputación online para negocios del Perú —restaurantes, hoteles, tiendas, clínicas y más—: detecta ataques de reseñas, caídas de rating y cambios en tu ficha antes de que te cuesten clientes.',
       lema:'Monitor de reputación online',
       columnas: [
         { titulo:'Producto', links:[
@@ -358,7 +361,7 @@ const TEXTOS = {
       tag:'Online reputation monitoring',
       titulo:'Your reputation can sink',
       tituloVerde:'in a single night.',
-      sub:'Notoria detects fake reviews, bot attacks and rating drops, and warns you before the damage becomes irreversible.',
+      sub:'Notoria watches your Google listing, detects review attacks and rating drops, and warns you before the damage becomes irreversible.',
       ctaCrear:'Create free account', ctaComo:'See how it works', ctaDash:'Go to dashboard',
       micro:'No credit card · 1 business free forever · Sign up in 30 seconds',
     },
@@ -421,7 +424,7 @@ const TEXTOS = {
     features: {
       tag:'Features', titulo:'Everything you need in one place',
       items: [
-        { icon:'bell', t:'Real-time alerts', d:'Email within minutes, plus a phone notification if you install the app. Not on Monday, but the moment it happens.' },
+        { icon:'bell', t:'Email alerts', d:'When a scan finds a negative review or a rating drop, you get an email quoting the review with a reply ready to use. That same day, not on Monday.' },
         { icon:'lock', t:'We watch your listing, not just your reviews', d:'Anyone can suggest to Google that your venue closed down. If your listing shows as closed, we tell you that same day — not on Monday, once nobody came all weekend.' },
         { icon:'bot', t:'Detects attacks and copied reviews', d:'Compares your listing review pace against your own normal and flags reviews repeating the same text: the signature of a bought campaign.' },
         { icon:'eye', t:'See your listing like a stranger does', d:'Google does not show a new customer your latest reviews, but the ones it finds relevant. We show you exactly those five, and which still have no reply.' },
@@ -459,7 +462,7 @@ const TEXTOS = {
     comparativa: {
       tag:'Full comparison', titulo:'What actually changes between plans',
       sub:'No filler: only the real differences between the four plans.',
-      incluidos:'All 4 plans include: 0-100 reputation score, fake-review and bot detection, 30 professional reply templates, a QR code to request reviews and email alerts.',
+      incluidos:'All 4 plans include: 0-100 reputation score, detection of suspicious reviews and attacks, 30 professional reply templates, a QR code to request reviews and email alerts.',
       destacada:'Business',
       columnas:['Free','Impulso','Business','Franchise'],
       filas:[
@@ -481,7 +484,7 @@ const TEXTOS = {
         { label:'Record of who replied to each review', valores:[false,false,true,true] },
         { grupo:'Artificial intelligence' },
         { label:'AI replies and analyses per week', valores:['5','25','100','300'] },
-        { label:'Weekly email summary', valores:['Basic figures','With AI insights','With AI insights','With AI insights'] },
+        { label:'Email summary (monthly or weekly, your choice)', valores:['Basic figures','With AI insights','With AI insights','With AI insights'] },
         { grupo:'Competitor watch' },
         { label:'Competitors watched per business', valores:['1','3','5','15'] },
         { label:'AI analysis of their weak points', valores:[false,false,true,true] },
@@ -503,11 +506,15 @@ const TEXTOS = {
       tag:'FAQ', titulo:'We answer your questions',
       items: [
         { q:'Do I need a credit card to start?', a:'No. The Free plan is free forever and includes 1 monitored business, reputation score, QR to request reviews and email alerts. You only add a card if you upgrade to a paid plan.' },
-        { q:'How does Notoria detect fake reviews?', a:'We analyze typical attack patterns: newly created accounts, authors with a single review, repetitive or duplicated text and unusual spikes of negative reviews within hours. Each suspicious review is flagged with the reason so you can report it to Google.' },
+        // ⚠️ Prometía «newly created accounts, authors with a single review»:
+        // detección por perfil del autor, que ninguna fuente permite y que se
+        // declaró como que NO se hace (CLAUDE.md §15). Ahora dice lo mismo que el
+        // FAQ en español. Corregido el 2026-09-24.
+        { q:'How does Notoria detect suspicious reviews?', a:'We analyze typical attack patterns: reviews repeating the same text from different accounts, 1-star ratings with no comment, serious accusations, and review spikes well above your own listing’s usual pace. Each suspicious review is flagged with the reason so you can report it to Google. Notoria flags anomalous behavior; Google is the one that decides whether a review is fake and removes it.' },
         { q:'Why do I only see 5 reviews if my business has hundreds?', a:'Google’s public API returns at most the 5 most recent reviews per query — that is Google’s limit, not Notoria’s. So Notoria doesn’t work by reading your past, it works by watching what comes in: it scans your listing every 72, 24, 12, 4 or 2 hours depending on your plan and stores every new review that appears. Within a few weeks you have well over five, and from the day you sign up none gets past us. What we don’t do is import the ones that were already there.' },
         { q:'What if someone changes my listing details on Google?', a:'Google Maps lets anyone suggest edits to someone else’s business listing — the hours, the phone number, the address, even marking it permanently closed — and applies them without telling the owner. Notoria compares those details on every scan and warns you the same day if something changed. The permanently-closed alert is in every plan, including Free; phone, hours, name and address from the Impulso plan up.' },
         { q:'Can I reply to reviews from Notoria?', a:'You write the reply in Notoria and publish it yourself on Google, in one click. You get 30 professional templates based on the review’s stars and an AI assistant that drafts it for you: we save your reply, copy it to your clipboard and open your listing on Google Maps so you can paste it. Publishing without leaving Notoria isn’t possible yet — it needs a permission Google grants separately — and we’re working on bringing it all into one place.' },
-        { q:'What happens if my rating suddenly drops?', a:'Notoria detects it on the next scan and sends you an immediate alert by email detailing what happened: how many negative reviews, from which accounts and whether they show bot patterns. You decide which alerts to receive and how often.' },
+        { q:'What happens if my rating suddenly drops?', a:'Notoria detects it on the next scan and sends you an email alert detailing what happened: how far the rating dropped, how many reviews came in and whether they show signs of an attack. You decide which alerts to receive and how often.' },
         { q:'How does Notoria know who my competitors are?', a:'You choose them. You search for them just like your own business, on Google Maps, and add them to the list (1 on Free, 3 on Impulso, 5 on Business and 15 on Franchise, per business). On the Franchise plan Notoria also searches for venues in your category nearby and suggests them, so you discover rivals you may not have been tracking.' },
         { q:'Is it legal to analyse my competitors’ reviews?', a:'Yes. Notoria only reads what is already public on Google Maps: the same rating and the same reviews anyone searching for that business would see. We do not access anything private on their listing, we do not interact with their reviews and we never post anything on their behalf. It is exactly the information you could look up by hand, organised and compared for you.' },
         { q:'Will my competitors know I am tracking them?', a:'No. Notoria queries Google’s public information the same way any visitor would, so there is no notification and no visible trace for them. Your competitor list is private to your account.' },
@@ -526,7 +533,7 @@ const TEXTOS = {
       dudas:'Questions? hola@usenotoria.app',
     },
     footer: {
-      descripcion:'Online reputation monitoring for any business: detects fake reviews, bot attacks and rating drops before they cost you customers.',
+      descripcion:'Online reputation monitoring for any business: detects review attacks, rating drops and listing changes before they cost you customers.',
       lema:'Online reputation monitoring',
       columnas: [
         { titulo:'Product', links:[
@@ -1288,16 +1295,21 @@ export default function LandingPage() {
                       <td style={{ padding:'14px 20px 6px', fontSize:11, fontWeight:700, color:C.text3, textTransform:'uppercase', letterSpacing:0.8, background:C.bg, position:'sticky', left:0, whiteSpace:'nowrap', zIndex:1 }}>
                         {fila.grupo}
                       </td>
-                      <td colSpan={3} style={{ padding:'14px 16px 6px', background:C.bg }} />
+                      <td colSpan={t.comparativa.columnas.length} style={{ padding:'14px 16px 6px', background:C.bg }} />
                     </tr>
                   ) : (
                     <tr key={i}>
-                      <td style={{ padding:'11px 20px', fontSize:13.5, color:C.text2, borderTop:`1px solid ${C.border}`, position:'sticky', left:0, background:C.bg, whiteSpace:'nowrap', zIndex:1 }}>{fila.label}</td>
+                      {/* La etiqueta y los valores PARTEN línea. Con `nowrap` la tabla
+                          medía más que su caja incluso en una laptop de 1366 px, y la
+                          columna Franquicia salía cortada («Con insights de I…») sin que
+                          se notara que había scroll. En móvil sigue el scroll
+                          horizontal que da el `minWidth` de la tabla. */}
+                      <td style={{ padding:'11px 20px', fontSize:13.5, color:C.text2, borderTop:`1px solid ${C.border}`, position:'sticky', left:0, background:C.bg, minWidth:200, maxWidth:320, lineHeight:1.45, zIndex:1 }}>{fila.label}</td>
                       {fila.valores.map((v,j) => (
                         <td key={j} style={{ textAlign:'center', padding:'11px 16px', fontSize:13, color:C.text2, borderTop:`1px solid ${C.border}`, background: j===colDestacada?C.greenT:C.bg, borderLeft: j===colDestacada?`1px solid ${C.greenB}`:'none', borderRight: j===colDestacada?`1px solid ${C.greenB}`:'none' }}>
                           {v===true ? <span style={{ display:'flex', justifyContent:'center' }}><Icon d={ICONS.check} size={16} color={C.green}/></span> :
                            v===false ? <span style={{ display:'flex', justifyContent:'center' }}><Icon d={ICONS.cross} size={14} color={C.text3}/></span> :
-                           <span style={{ display:'block', textAlign:'center', fontWeight: j===colDestacada?600:400, whiteSpace:'nowrap' }}>{v}</span>}
+                           <span style={{ display:'block', textAlign:'center', fontWeight: j===colDestacada?600:400, lineHeight:1.4 }}>{v}</span>}
                         </td>
                       ))}
                     </tr>

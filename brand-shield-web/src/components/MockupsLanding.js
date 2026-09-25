@@ -57,7 +57,10 @@ const TEXTOS = {
       negocio: 'Cevichería El Muelle',
       caida: 'Tu rating cayó',
       resena: '"Pésimo servicio, no vayan"',
-      motivo: 'Cuenta creada hace 2 días · 1 sola reseña',
+      // ⚠️ Decía «Cuenta creada hace 2 días · 1 sola reseña»: detección por perfil
+      // del autor, que ninguna fuente permite (CLAUDE.md §15). Ahora es una señal
+      // que el detector sí levanta. Corregido el 2026-09-24.
+      motivo: 'Mismo texto en 3 cuentas distintas',
       sospechosa: 'Sospechosa',
       mas: '+7 reseñas de 1★ en las últimas 6 horas',
       canales: 'Email',
@@ -71,9 +74,9 @@ const TEXTOS = {
     },
     flujo: {
       pasos: [
-        { t: 'Vigila',    d: 'Revisa tu ficha de Google cada hora' },
-        { t: 'Detecta',   d: 'Marca las reseñas con patrón de bot' },
-        { t: 'Te alerta', d: 'Correo y notificación en la app al instante' },
+        { t: 'Vigila',    d: 'Revisa tu ficha de Google cada 2 a 24 horas según tu plan' },
+        { t: 'Detecta',   d: 'Marca las reseñas con señales de ataque' },
+        { t: 'Te alerta', d: 'Te llega un correo con la reseña y una respuesta lista' },
         { t: 'Respondes', d: 'Con plantillas o con la respuesta de la IA' },
       ],
     },
@@ -95,7 +98,7 @@ const TEXTOS = {
       negocio: 'El Muelle Seafood',
       caida: 'Your rating dropped',
       resena: '"Terrible service, stay away"',
-      motivo: 'Account created 2 days ago · single review',
+      motivo: 'Same text from 3 different accounts',
       sospechosa: 'Suspicious',
       mas: '+7 one-star reviews in the last 6 hours',
       canales: 'Email',
@@ -109,9 +112,9 @@ const TEXTOS = {
     },
     flujo: {
       pasos: [
-        { t: 'Watches',  d: 'Checks your Google listing every hour' },
-        { t: 'Detects',  d: 'Flags reviews with bot patterns' },
-        { t: 'Alerts',   d: 'Email and app notification instantly' },
+        { t: 'Watches',  d: 'Checks your Google listing every 2 to 24 hours, by plan' },
+        { t: 'Detects',  d: 'Flags reviews showing signs of an attack' },
+        { t: 'Alerts',   d: 'An email with the review and a reply ready to use' },
         { t: 'You reply', d: 'With templates or the AI-written answer' },
       ],
     },

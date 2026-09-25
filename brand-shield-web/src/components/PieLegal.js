@@ -38,7 +38,7 @@ export default function PieLegal() {
             </Link>
             <p style={{ fontSize: 12.5, color: '#5C5B57', lineHeight: 1.7, margin: 0 }}>
               Monitoreo de reputación online para negocios del Perú.
-              Detectamos reseñas falsas, ataques de bots y caídas de rating.
+              Detectamos ataques de reseñas, caídas de rating y cambios en tu ficha.
             </p>
           </div>
 

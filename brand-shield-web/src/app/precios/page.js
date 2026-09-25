@@ -262,7 +262,7 @@ export default function PreciosPage() {
         <h1 style={{ fontSize: 34, fontWeight: 900, color: '#141413', margin: '0 0 10px', letterSpacing: '-1.5px' }}>Precios y contratación</h1>
         <p style={{ fontSize: 15, color: '#5C5B57', lineHeight: 1.7, margin: '0 0 8px', maxWidth: 680 }}>
           Notoria es un servicio de monitoreo de reputación online para negocios del Perú:
-          vigila tus reseñas en Google y TikTok, detecta reseñas falsas y ataques de bots, y te alerta
+          vigila tus reseñas en Google y TikTok, detecta ataques de reseñas y reseñas sospechosas, y te alerta
           cuando tu rating cae. Estos son todos nuestros servicios y sus precios.
         </p>
         <p style={{ fontSize: 13, color: '#9C9B96', margin: '0 0 32px' }}>

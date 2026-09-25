@@ -95,7 +95,7 @@ const TEXTOS = {
     emailVerif: {
       titulo:'Confirma tu correo',
       revisaBandeja:'Revisa tu bandeja y carpeta de spam. Puede tardar 1-2 min.',
-      sinVerificar:'Sin verificar no recibirás alertas ni el resumen semanal de tu negocio.',
+      sinVerificar:'Sin verificar no recibirás alertas ni el resumen por email de tu negocio.',
       enviando:'Enviando...',
       reenviarEn:(s)=>`Reenviar en ${s}s`,
       enviado:'Enviado ✓ — Reenviar otro',
@@ -126,7 +126,7 @@ const TEXTOS = {
     emailVerif: {
       titulo:'Confirm your email',
       revisaBandeja:'Check your inbox and spam folder. It can take 1-2 min.',
-      sinVerificar:"Without verifying you won't get alerts or your weekly summary.",
+      sinVerificar:"Without verifying you won't get alerts or your email summary.",
       enviando:'Sending...',
       reenviarEn:(s)=>`Resend in ${s}s`,
       enviado:'Sent ✓ — Resend another',

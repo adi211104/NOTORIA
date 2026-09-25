@@ -45,7 +45,7 @@ export const ARTICULOS = [
       { tipo: 'p', texto: '<strong>Queja por demora:</strong> "Hola [nombre], gracias por avisarnos. Tienes razón: ese día la espera se nos fue de las manos y no es la experiencia que queremos dar. Ya ajustamos los turnos de cocina para los fines de semana. Si nos das otra oportunidad, escríbenos antes de ir y nos aseguramos de que tu mesa salga a tiempo."' },
       { tipo: 'p', texto: '<strong>Queja por la comida:</strong> "Hola [nombre], lamentamos que el plato no estuviera a la altura. Se lo pasamos al chef con tu detalle exacto — nos sirve más de lo que crees. Nos encantaría que pruebes la nueva versión; pregunta por [encargado] cuando vuelvas."' },
       { tipo: 'p', texto: '<strong>Queja por el trato:</strong> "Hola [nombre], sentimos mucho que el trato no fuera el correcto — es lo primero que pedimos a nuestro equipo. Ya conversamos con el personal de ese turno. Gracias por decirlo: es la única forma de mejorar."' },
-      { tipo: 'destacado', texto: 'Notoria te avisa al instante cuando llega una reseña negativa y te sugiere la respuesta con IA según las estrellas y el motivo — la editas, la apruebas y listo. <a href="/registro">Crea tu cuenta gratis</a> y deja de enterarte tarde.' },
+      { tipo: 'destacado', texto: 'Notoria te avisa por email en cuanto el escaneo encuentra una reseña negativa y te sugiere la respuesta con IA según las estrellas y el motivo — la editas, la apruebas y listo. <a href="/registro">Crea tu cuenta gratis</a> y deja de enterarte tarde.' },
     ],
   },
   {
@@ -78,7 +78,7 @@ export const ARTICULOS = [
       { tipo: 'p', texto: 'Mientras Google procesa el reporte, tu mejor defensa es el volumen: pide reseñas a tus clientes reales de esta semana. Un QR en la mesa o en la boleta con el enlace directo convierte más de lo que crees. Diez reseñas auténticas de 5 estrellas diluyen el efecto de tres falsas mucho antes de que Google las borre.' },
       { tipo: 'h2', texto: 'Paso 4: monitorea para que la próxima no te agarre dormido' },
       { tipo: 'p', texto: 'El daño real de un ataque no son las estrellas: es el tiempo que pasa sin que lo notes. Un ataque el viernes por la noche que descubres el lunes ya te costó el fin de semana completo de clientes que miraron tu ficha y eligieron otro local.' },
-      { tipo: 'destacado', texto: 'Notoria escanea tus reseñas automáticamente, marca las sospechosas con el motivo exacto (cuenta nueva, sin texto, pico inusual) y te alerta al instante por email (y con una notificación en la app de Android). <a href="/#hero">Analiza tu negocio gratis</a> — te decimos en 10 segundos si tienes reseñas sospechosas ahora mismo.' },
+      { tipo: 'destacado', texto: 'Notoria escanea tus reseñas automáticamente, marca las sospechosas con el motivo exacto (texto repetido entre cuentas, 1★ sin comentario, pico inusual) y te avisa por email en cuanto el escaneo las encuentra. <a href="/#hero">Analiza tu negocio gratis</a> — te decimos en 10 segundos si tienes reseñas sospechosas ahora mismo.' },
     ],
   },
   {
@@ -132,7 +132,7 @@ export const ARTICULOS = [
       ]},
       { tipo: 'h2', texto: 'El error silencioso: no enterarte cuando algo cambia' },
       { tipo: 'p', texto: 'Todo lo anterior funciona si detectas rápido cuándo el rating se mueve y por qué. Una caída de 0.2 en dos semanas siempre tiene una causa concreta — un cocinero nuevo, un cambio de proveedor, un turno desbordado. Si la ves a tiempo, la corriges antes de que se vuelva tendencia.' },
-      { tipo: 'destacado', texto: 'Notoria te da el QR listo para imprimir, responde reseñas contigo usando IA y te avisa al instante si tu rating cae o si tu competencia te está alcanzando. <a href="/registro">Crea tu cuenta gratis</a> — sin tarjeta.' },
+      { tipo: 'destacado', texto: 'Notoria te da el QR listo para imprimir, responde reseñas contigo usando IA y te avisa por email si tu rating cae o si tu competencia te está alcanzando. <a href="/registro">Crea tu cuenta gratis</a> — sin tarjeta.' },
     ],
   },
   {

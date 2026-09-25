@@ -33,7 +33,7 @@ export default function TerminosPage() {
         <P>Al registrarte y utilizar Notoria (usenotoria.app), aceptas estos Términos de Servicio en su totalidad. Si no estás de acuerdo con alguna parte de estos términos, no puedes utilizar el servicio. Notoria es operado por {CONTACTO.razonSocial}, RUC {CONTACTO.ruc}, con domicilio fiscal en {CONTACTO.direccion}.</P>
 
         <H2>2. Descripción del servicio</H2>
-        <P>Notoria es una plataforma de monitoreo de reputación digital para restaurantes, hoteles y negocios en el Perú. El servicio incluye: monitoreo de reseñas en Google Maps y Facebook, alertas en tiempo real, detección de reseñas sospechosas, reportes PDF mensuales y herramientas para responder reseñas.</P>
+        <P>Notoria es una plataforma de monitoreo de reputación digital para restaurantes, hoteles y negocios en el Perú. El servicio incluye: monitoreo de reseñas en Google Maps, alertas por correo electrónico, detección de reseñas sospechosas, reportes PDF mensuales y herramientas para responder reseñas.</P>
         <P>Notoria actúa como intermediario tecnológico. No somos responsables del contenido de las reseñas ni de las decisiones tomadas por plataformas de terceros (Google, Facebook) respecto a la eliminación o permanencia de reseñas.</P>
 
         <H2>3. Registro y cuenta de usuario</H2>

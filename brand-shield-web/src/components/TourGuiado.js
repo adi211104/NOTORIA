@@ -9,7 +9,7 @@ import { useIdioma } from '../context/IdiomaContext';
 
 const PASOS = [
   { key: 'negocios', es: { t: 'Tus negocios', d: 'Aquí ves, agregas y escaneas todos los negocios que monitoreamos por ti.' }, en: { t: 'Your businesses', d: 'Here you see, add and scan every business we monitor for you.' } },
-  { key: 'alertas', es: { t: 'Alertas', d: 'Te avisamos aquí si detectamos reseñas falsas, ataques de bots o caídas de rating.' }, en: { t: 'Alerts', d: "We'll notify you here if we detect fake reviews, bot attacks or rating drops." } },
+  { key: 'alertas', es: { t: 'Alertas', d: 'Te avisamos aquí si detectamos reseñas sospechosas, ataques de reseñas o caídas de rating.' }, en: { t: 'Alerts', d: "We'll notify you here if we detect suspicious reviews, review attacks or rating drops." } },
   { key: 'reportes', es: { t: 'Reportes PDF', d: 'Descarga un reporte profesional de tu reputación para socios o inversionistas.' }, en: { t: 'PDF reports', d: 'Download a professional reputation report for partners or investors.' } },
   { key: 'planes', es: { t: 'Planes', d: 'Compara los planes y desbloquea más negocios, IA y alertas.' }, en: { t: 'Plans', d: 'Compare plans and unlock more businesses, AI and alerts.' } },
   { key: 'facturacion', es: { t: 'Facturación', d: 'Revisa el historial de tus pagos: fecha, monto, titular y los primeros 4 dígitos de la tarjeta usada.' }, en: { t: 'Billing', d: 'Check your payment history: date, amount, cardholder and the first 4 digits of the card used.' } },

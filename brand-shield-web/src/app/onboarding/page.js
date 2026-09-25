@@ -243,9 +243,9 @@ export default function OnboardingPage() {
               <div style={{ background:'var(--surface)', border:'1px solid var(--border-c)', borderRadius:16, padding:20, textAlign:'left', marginBottom:20 }}>
                 <p style={{ fontSize:12, fontWeight:600, color:'var(--text-3)', textTransform:'uppercase', letterSpacing:0.5, margin:'0 0 12px' }}>Activo desde hoy</p>
                 {[
-                  { ico:'estrella', t:'Monitoreo del rating en tiempo real' },
-                  { ico:'sirena', t:'Detección de reseñas falsas y bots' },
-                  { ico:'mail', t:'Alertas por email instantáneas' },
+                  { ico:'estrella', t:'Monitoreo automático del rating' },
+                  { ico:'sirena', t:'Detección de reseñas sospechosas y ataques' },
+                  { ico:'mail', t:'Alertas por email' },
                   { ico:'grafica', t:'Historial de rating con gráficas' },
                 ].map((i,idx) => (
                   <div key={idx} style={{ display:'flex', gap:10, marginBottom:10, alignItems:'center' }}>

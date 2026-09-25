@@ -88,7 +88,7 @@ export default async function ArticuloPage({ params }) {
 
         <div style={{ borderTop: '1px solid var(--border-c)', marginTop: 40, paddingTop: 24 }}>
           <p style={{ fontSize: 13, color: 'var(--text-3)', lineHeight: 1.7, margin: 0 }}>
-            Notoria es un monitor de reputación para negocios del Perú: detecta reseñas falsas, te alerta de caídas de rating y te ayuda a responder con IA.{' '}
+            Notoria es un monitor de reputación para negocios del Perú: detecta ataques de reseñas, te alerta de caídas de rating y te ayuda a responder con IA.{' '}
             <Link href="/" style={{ color: 'var(--accent)' }}>Conócelo aquí</Link>.
           </p>
         </div>
