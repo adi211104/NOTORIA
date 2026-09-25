@@ -853,3 +853,37 @@ model RegistroActividad {
   @@index([cuentaId, creadoEn])
   @@map("registro_actividad")
 }
+
+// ─── Ruta comercial (2026-09-25) ───────────────────────────
+// Locales que visita el promotor externo, para atribuirle las ventas y
+// calcularle la comisión del contrato de promoción (modelo C). La página es
+// `/ruta` en el frontend y SOLO la abren los correos de `RUTA_COMERCIAL_ACCESO`
+// (lib/rutaComercial.js): guarda datos de contacto de terceros, igual que el
+// Libro de Reclamaciones, así que no se expone a ninguna otra cuenta.
+//
+// ⚠️ La comisión NO se guarda: se DERIVA en cada lectura de los `Pago` reales
+// de la cuenta cuyo correo anotó el promotor. Guardarla obligaría a
+// sincronizarla con reembolsos y cancelaciones, y el día que el cron no corra
+// mentiría. Lo único que se guarda es lo que ya se le PAGÓ al promotor.
+model VisitaComercial {
+  id              String   @id @default(cuid())
+  promotor        String   // alias del promotor ("Usuario1"), sale de RUTA_COMERCIAL_ACCESO
+  creadoPorId     String
+  nombre          String
+  distrito        String?
+  contacto        String?
+  notas           String?
+  // "visitado" | "interesado" | "volver" | "cuenta_gratis" | "cliente" | "no_interesado"
+  estado          String   @default("visitado")
+  // Correo de la cuenta de Notoria del cliente: con él se cruzan sus pagos.
+  correo          String?
+  // Comisión ya pagada al promotor por este cliente, en céntimos. Solo el dueño la escribe.
+  comisionPagada  Int      @default(0)
+  fechaVisita     DateTime @default(now())
+  creadoEn        DateTime @default(now())
+  actualizadoEn   DateTime @updatedAt
+
+  @@index([promotor])
+  @@index([correo])
+  @@map("visitas_comerciales")
+}

@@ -3783,6 +3783,62 @@ que hoy «cero temas» es la respuesta **correcta**, no una falla. El hueco es r
 día que a un salón le entre la primera queja de verdad — o sea que es «arreglar antes de que
 importe», no «está roto ahora». Eso lo **baja** de urgencia y lo **abarata**.
 
+### 📌 2026-09-25 — Ruta comercial: la página oculta del promotor (`/ruta`)
+
+El dueño contrató a un promotor externo para vender en persona («Usuario1»), con el **modelo C**
+de comisión del contrato de promoción: bono de alta del 50% del primer mes a precio de lista sin
+IGV, más 10% residual sin IGV de cada pago durante 12 meses. El contrato, el manual comercial y
+esta página salen del mismo día y **tienen que decir lo mismo**.
+
+| Pieza | Dónde |
+|---|---|
+| Tabla | `VisitaComercial` (`visitas_comerciales`) — aditiva, no toca nada existente |
+| Reglas | `src/lib/rutaComercial.js` — acceso y comisión, puro |
+| Rutas | `src/api/routes/ruta.routes.js` → `/api/ruta/visitas` (GET/POST/PUT/DELETE) |
+| Página | `brand-shield-web/src/app/ruta/` — `noindex`, sin enlace desde ningún sitio |
+| Pruebas | `node scripts/prueba-ruta-comercial.js` — **35**, con los ejemplos del Anexo 1 del contrato |
+
+🔴 **Es una excepción consciente a la nota de `auth.middleware.js`** («no hay rol de administrador,
+nada de datos de terceros tras el panel»). Guarda datos de contacto de prospectos, así que:
+- Solo entran los correos de **`RUTA_COMERCIAL_ACCESO`** (`correo:alias`, coma entre pares; el
+  alias `dueno` ve todo y escribe la comisión pagada). Se lee en cada petición. **Sin la variable,
+  nadie entra**: falla cerrado.
+- A cualquier otra cuenta le responde el **mismo 404** que el catch-all (`Ruta no encontrada`):
+  no revela que la página existe. ⚠️ Por eso **`/ruta` NO va en el `robots.txt`**, que es público y
+  la anunciaría; el `noindex` va en `app/ruta/layout.js`.
+- El promotor solo ve y edita sus visitas, y **no puede escribir `comisionPagada`** (lo vigila la prueba).
+
+🔴 **La comisión NO se guarda: se deriva en cada lectura de los `Pago` reales** de la cuenta cuyo
+correo anotó el promotor (búsqueda insensible a mayúsculas, §14). Es el mismo criterio que «pendiente
+de anular» (§9) y la pausa (§8.9): un estado guardado hay que sincronizarlo con reembolsos y
+cancelaciones, y el día que algo no corra mentiría. Lo único guardado es lo ya pagado al promotor.
+- Atribución: visita **anterior** al primer pago y primer pago **≤ 60 días** después. Si ya pagaba
+  antes de la visita → `YA_ERA_CLIENTE`. Primer pago `REEMBOLSADO` → `ANULADA`.
+- Cuentan `EXITOSO` dentro de 12 meses del primero; `FALLIDO` y `tipo: PRUEBA` no.
+- ⚠️ Los locales adicionales del bono de alta salen de `Usuario.localesExtra` **de hoy**, no del
+  momento del primer pago (no se guarda histórico). Aproximación aceptada; si importa, ajustar a mano.
+
+**Estado al 2026-09-25: EN GIT, SIN DESPLEGAR** (se programó desde la PC de casa, que no tiene el
+`.env`). Despliegue, en el orden de §4 — la tabla ANTES del código, porque es aditiva:
+
+```bash
+cd brand-shield
+npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --script  # debe ser SOLO el CREATE TABLE visitas_comerciales
+npx prisma db push && npx prisma generate
+printf '%s' 'didierprincipe@gmail.com:dueno,promotor@usenotoria.app:Usuario1' | railway variable set RUTA_COMERCIAL_ACCESO --stdin --service api --skip-deploys
+railway up --service api          # y comprobar el arranque en los logs (§5)
+cd ../brand-shield-web && vercel --prod --yes
+```
+
+Sondas: sin sesión `GET /api/ruta/visitas` → 401; con una cuenta que no está en la lista → 404
+`Ruta no encontrada`; con la del dueño → 200 y `yo.dueno: true`. ⚠️ **El correo del dueño en la
+variable tiene que ser el de SU cuenta de Notoria** (hoy `didierprincipe@gmail.com` o
+`didier@usenotoria.app`, las dos con plan concedido a mano).
+
+📧 **`promotor@usenotoria.app`** es la cuenta con la que entra el promotor. ⚠️ Necesita su **regla
+de Email Routing en Cloudflare** (§6: sin regla, el catch-all en Drop se come el correo de
+verificación y parece que Notoria no manda nada).
+
 ## 19. Pendientes, ordenados por quién los desbloquea
 
 > ### 📋 VIGENTES al 2026-09-22 — empezar por acá
@@ -3827,6 +3883,10 @@ importe», no «está roto ahora». Eso lo **baja** de urgencia y lo **abarata**
 > `docs/acceso-gbp-organization.md` y `NotoriaApp/PENDIENTES.md`. ⚠️ **Al cerrar algo, tacharlo
 > AQUÍ y en su documento**: un pendiente cerrado en un solo sitio es lo que dio por pendiente un
 > RVIE ya presentado el 24/08.
+>
+> 🟡 **Ruta comercial (`/ruta`) — programada y en git, SIN DESPLEGAR** (2026-09-25). Crear la tabla,
+> cargar `RUTA_COMERCIAL_ACCESO` y desplegar: pasos en «📌 2026-09-25». Más la regla de Email
+> Routing de `promotor@usenotoria.app`.
 >
 > **Con fecha**
 > | Cuándo | Qué | Quién |

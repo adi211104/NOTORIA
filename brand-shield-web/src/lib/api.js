@@ -260,4 +260,11 @@ export const utils = {
   generarReporte:  () => api('/api/utils/generar-reporte', { method:'POST' }),
 };
 
+export const rutaApi = {
+  listar:     ()         => api('/api/ruta/visitas'),
+  crear:      (datos)    => api('/api/ruta/visitas', { method: 'POST', body: JSON.stringify(datos) }),
+  actualizar: (id, datos) => api(`/api/ruta/visitas/${id}`, { method: 'PUT', body: JSON.stringify(datos) }),
+  borrar:     (id)       => api(`/api/ruta/visitas/${id}`, { method: 'DELETE' }),
+};
+
 export default api;

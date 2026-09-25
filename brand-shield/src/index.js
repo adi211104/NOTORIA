@@ -19,6 +19,7 @@ const publicoRoutes = require('./api/routes/publico.routes');
 const reclamacionRoutes = require('./api/routes/reclamacion.routes');
 const webhooksRoutes = require('./api/routes/webhooks.routes');
 const equipoRoutes = require('./api/routes/equipo.routes');
+const rutaRoutes = require('./api/routes/ruta.routes');
 
 const { iniciarMonitoreo, iniciarReportesMensuales, iniciarResumenesAlertas, iniciarRenovacionesCulqi, iniciarBajadaDePlanes, iniciarEscalacionUrgencias, iniciarAvisoReclamaciones } = require('./workers/monitoreo.worker');
 const { iniciarResumenSemanal } = require('./workers/resumenSemanal.worker');
@@ -152,6 +153,7 @@ app.use('/api/menciones',   mencionRoutes);
 app.use('/api/comentarios', comentarioRoutes);
 app.use('/api/publico',     publicoRoutes);
 app.use('/api/reclamaciones', reclamacionRoutes);
+app.use('/api/ruta',        rutaRoutes);   // ruta comercial del promotor — solo RUTA_COMERCIAL_ACCESO
 app.use('/api/equipo',      equipoRoutes);
 app.use('/api/auth/google-business', gbpRoutes);
 app.use('/api/negocios-gbp', gbpRoutes);
