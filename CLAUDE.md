@@ -3834,7 +3834,12 @@ cambiando e informando los negocios»). Columnas nuevas `placeId` y `direccion` 
   pegado el borde del estado anterior al cambiar de «Cómo terminó».
 - Pruebas: **50** (15 nuevas: Maps, prioridad del correo, varias cuentas, estado automático).
 
-**Estado al 2026-09-25: EN GIT, SIN DESPLEGAR** (se programó desde la PC de casa, que no tiene el
+✅ **DESPLEGADA Y VERIFICADA el 2026-09-26** (con la vinculación por Maps): sin sesión `/api/ruta/visitas`
+→ 401 frente al 404 de control; `railway ssh` encuentra `placeId` y `estadoEfectivo`; `migrate diff`
+contra producción → «This is an empty migration»; el chunk de `usenotoria.app/ruta` trae «Local en Google
+Maps»; `RUTA_COMERCIAL_ACCESO` con dueño y `Usuario1`. Receta usada, por si hay que repetirla:
+
+~~Estado al 2026-09-25: EN GIT, SIN DESPLEGAR~~ (se programó desde la PC de casa, que no tiene el
 `.env`). Despliegue, en el orden de §4 — la tabla ANTES del código, porque es aditiva:
 
 ```bash
@@ -3903,9 +3908,8 @@ verificación y parece que Notoria no manda nada).
 > AQUÍ y en su documento**: un pendiente cerrado en un solo sitio es lo que dio por pendiente un
 > RVIE ya presentado el 24/08.
 >
-> 🟡 **Ruta comercial (`/ruta`) — programada y en git, SIN DESPLEGAR** (2026-09-25). Crear la tabla,
-> cargar `RUTA_COMERCIAL_ACCESO` y desplegar: pasos en «📌 2026-09-25». Más la regla de Email
-> Routing de `promotor@usenotoria.app`.
+> ✅ ~~**Ruta comercial (`/ruta`)**~~ **desplegada y verificada el 2026-09-26.** 🟡 Queda la regla de Email
+> Routing de `promotor@usenotoria.app` (sin comprobar: vive en el panel de Cloudflare).
 >
 > **Con fecha**
 > | Cuándo | Qué | Quién |
