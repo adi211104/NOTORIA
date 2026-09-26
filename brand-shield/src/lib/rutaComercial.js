@@ -104,6 +104,36 @@ function comisionDeVisita({ fechaVisita, pagos = [], localesExtra = 0, ahora = n
   };
 }
 
+const primerPago = (cuenta) => {
+  const t = (cuenta.pagos || [])
+    .filter((p) => (p.estado === 'EXITOSO' || p.estado === 'REEMBOLSADO') && p.tipo !== 'PRUEBA')
+    .map((p) => new Date(p.creadoEn).getTime());
+  return t.length ? Math.min(...t) : Infinity;
+};
+
+/**
+ * Varias cuentas pueden tener agregado el mismo local de Google Maps. Cuenta la
+ * que PAGÓ primero; si ninguna pagó, la que lo agregó primero. Conservador a
+ * propósito: si el local ya era cliente antes de la visita, sale YA_ERA_CLIENTE
+ * en vez de premiar una cuenta nueva abierta después.
+ * `cuentas`: [{ ...cuenta, negocioCreadoEn }].
+ */
+function elegirCuenta(cuentas = []) {
+  return [...cuentas].sort((a, b) => (primerPago(a) - primerPago(b))
+    || (new Date(a.negocioCreadoEn || 0) - new Date(b.negocioCreadoEn || 0)))[0] || null;
+}
+
+/**
+ * Lo que se muestra como «cómo terminó», corregido con lo que dice el sistema:
+ * si la cuenta pagó, «cliente»; si existe y no pagó, al menos «cuenta_gratis».
+ * Así nadie tiene que ir a cambiar el estado a mano cuando el cliente se decide.
+ */
+function estadoEfectivo(estado, { cuentaEncontrada, comision }) {
+  if (comision && comision.estado !== 'SIN_PAGOS') return 'cliente';
+  if (cuentaEncontrada && estado !== 'cliente') return 'cuenta_gratis';
+  return estado;
+}
+
 module.exports = {
-  ESTADOS, DIAS_ATRIBUCION, tablaAcceso, accesoDe, comisionDeVisita,
+  ESTADOS, DIAS_ATRIBUCION, tablaAcceso, accesoDe, comisionDeVisita, elegirCuenta, estadoEfectivo,
 };

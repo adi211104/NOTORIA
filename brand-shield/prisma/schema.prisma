@@ -877,6 +877,11 @@ model VisitaComercial {
   estado          String   @default("visitado")
   // Correo de la cuenta de Notoria del cliente: con él se cruzan sus pagos.
   correo          String?
+  // Local elegido en Google Maps al registrar la visita. Si el correo no casa con
+  // ninguna cuenta, se cruza con `Negocio.googlePlaceId`: la venta se vincula sola
+  // cuando el cliente agrega ese mismo local en su panel.
+  placeId         String?
+  direccion       String?
   // Comisión ya pagada al promotor por este cliente, en céntimos. Solo el dueño la escribe.
   comisionPagada  Int      @default(0)
   fechaVisita     DateTime @default(now())
@@ -885,5 +890,6 @@ model VisitaComercial {
 
   @@index([promotor])
   @@index([correo])
+  @@index([placeId])
   @@map("visitas_comerciales")
 }

@@ -14,7 +14,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
-import { rutaApi } from '../../lib/api';
+import { rutaApi, utils } from '../../lib/api';
 
 const ESTADOS = [
   ['visitado', 'Solo visité'], ['interesado', 'Interesado'], ['volver', 'Volver otro día'],
@@ -35,13 +35,24 @@ const colorEstado = (e) => ({
   volver: ['rgba(200,140,20,.14)', '#B7791F'],
 }[e] || ['var(--surface2)', 'var(--text-2)']);
 
-const VACIO = { nombre: '', distrito: '', contacto: '', notas: '', estado: 'visitado', correo: '', comisionPagada: '' };
+const VACIO = { nombre: '', distrito: '', contacto: '', notas: '', estado: 'visitado', correo: '', placeId: '', direccion: '', comisionPagada: '' };
+// Lo que se muestra: el backend lo corrige con los pagos reales (si pagó, «Pagó»),
+// así el promotor no tiene que volver a cambiar el estado a mano.
+const estadoDe = (v) => v.estadoAuto || v.estado;
+// «Av. Larco 123, Miraflores 15074, Perú» → «Miraflores».
+const distritoDe = (direccion = '') => {
+  const partes = direccion.split(',').map((x) => x.trim()).filter(Boolean);
+  return partes.length >= 3 ? partes[partes.length - 2].replace(/\s*\d+$/, '') : '';
+};
 
 const s = {
   pagina: { minHeight: '100vh', background: 'var(--bg)', color: 'var(--text)', padding: '20px 16px 80px' },
   caja: { maxWidth: 860, margin: '0 auto' },
   tarjeta: { background: 'var(--surface)', border: '1px solid var(--border-c)', borderRadius: 12, padding: '12px 14px' },
-  boton: { font: 'inherit', cursor: 'pointer', borderRadius: 10, border: '1px solid var(--border-c)', background: 'var(--surface)', color: 'var(--text)', padding: '9px 14px' },
+  // Sin los atajos `font` y `border`: los botones cambian `fontWeight` y `borderColor` al
+  // seleccionarse, y mezclar atajo con propiedad suelta deja el borde viejo pegado al re-renderizar.
+  boton: { fontFamily: 'inherit', fontSize: 'inherit', fontWeight: 'inherit', lineHeight: 'inherit', cursor: 'pointer', borderRadius: 10,
+    borderWidth: 1, borderStyle: 'solid', borderColor: 'var(--border-c)', background: 'var(--surface)', color: 'var(--text)', padding: '9px 14px' },
   primario: { background: 'var(--accent)', borderColor: 'var(--accent)', color: '#fff', fontWeight: 700 },
   input: { font: 'inherit', width: '100%', color: 'var(--text)', background: 'var(--surface)', border: '1px solid var(--border-c)', borderRadius: 9, padding: '10px 11px', fontSize: 16 },
   etiqueta: { display: 'flex', flexDirection: 'column', gap: 5, fontSize: 12.5, color: 'var(--text-2)', fontWeight: 600 },
@@ -59,6 +70,7 @@ export default function RutaComercial() {
   const [guardando, setGuardando] = useState(false);
   const [confirmarBorrar, setConfirmarBorrar] = useState(false);
   const [copiado, setCopiado] = useState('');
+  const [busqueda, setBusqueda] = useState({ q: '', resultados: null, cargando: false, error: '' });
 
   const cargar = useCallback(async () => {
     try { setDatos(await rutaApi.listar()); setError(''); }
@@ -88,22 +100,36 @@ export default function RutaComercial() {
     if (v.comision.pagosCobrados > 0 && !['YA_ERA_CLIENTE', 'FUERA_DE_PLAZO', 'ANULADA'].includes(v.comision.estado)) t.clientes += 1;
     return t;
   }, { ganada: 0, porGanar: 0, pagada: 0, clientes: 0 });
-  const conCuenta = (e) => visitas.filter((v) => v.estado === e).length;
-  const visibles = visitas.filter((v) => filtro === 'todos' || v.estado === filtro);
+  const conCuenta = (e) => visitas.filter((v) => estadoDe(v) === e).length;
+  const visibles = visitas.filter((v) => filtro === 'todos' || estadoDe(v) === filtro);
   const conComision = visitas.filter((v) => v.comision.pagosCobrados > 0 || v.comisionPagada > 0);
 
   const abrir = (v) => {
-    setConfirmarBorrar(false); setError('');
+    setConfirmarBorrar(false); setError(''); setBusqueda({ q: '', resultados: null, cargando: false, error: '' });
     setForm(v ? { id: v.id, nombre: v.nombre, distrito: v.distrito || '', contacto: v.contacto || '', notas: v.notas || '',
-      estado: v.estado, correo: v.correo || '', comisionPagada: v.comisionPagada ? (v.comisionPagada / 100).toFixed(2) : '' } : { ...VACIO });
+      estado: estadoDe(v), correo: v.correo || '', placeId: v.placeId || '', direccion: v.direccion || '', comisionPagada: v.comisionPagada ? (v.comisionPagada / 100).toFixed(2) : '' } : { ...VACIO });
   };
   const cambiar = (campo) => (e) => setForm((f) => ({ ...f, [campo]: e.target.value }));
+  const buscarEnMaps = async (e) => {
+    e?.preventDefault();
+    const q = busqueda.q.trim();
+    if (q.length < 3) { setBusqueda((b) => ({ ...b, error: 'Escribe al menos 3 letras.' })); return; }
+    setBusqueda((b) => ({ ...b, cargando: true, error: '', resultados: null }));
+    try { const r = await utils.buscarNegocio(q, '', 'pe'); setBusqueda((b) => ({ ...b, cargando: false, resultados: r || [] })); }
+    catch { setBusqueda((b) => ({ ...b, cargando: false, error: 'No se pudo buscar en Google Maps. Puedes registrar la visita igual.' })); }
+  };
+  const elegirLocal = (r) => {
+    setForm((f) => ({ ...f, placeId: r.placeId, direccion: r.direccion || '', nombre: r.nombre || f.nombre,
+      distrito: f.distrito || distritoDe(r.direccion) }));
+    setBusqueda({ q: '', resultados: null, cargando: false, error: '' });
+  };
 
   const guardar = async (e) => {
     e.preventDefault();
     if (!form.nombre.trim()) { setError('Escribe el nombre del local.'); return; }
-    if (form.estado === 'cliente' && !form.correo.trim()) { setError('Anota el correo de su cuenta en Notoria: así se comprueba que la venta es tuya.'); return; }
-    const cuerpo = { nombre: form.nombre, distrito: form.distrito, contacto: form.contacto, notas: form.notas, estado: form.estado, correo: form.correo };
+    if (form.estado === 'cliente' && !form.correo.trim() && !form.placeId) { setError('Busca el local en Google Maps o anota el correo de su cuenta en Notoria: así se comprueba que la venta es tuya.'); return; }
+    const cuerpo = { nombre: form.nombre, distrito: form.distrito, contacto: form.contacto, notas: form.notas, estado: form.estado, correo: form.correo,
+      placeId: form.placeId, direccion: form.direccion };
     if (dueno && form.id && form.comisionPagada !== '') cuerpo.comisionPagada = Math.round(parseFloat(String(form.comisionPagada).replace(',', '.')) * 100) || 0;
     setGuardando(true); setError('');
     try {
@@ -148,7 +174,7 @@ export default function RutaComercial() {
         <div role="tablist" style={{ display: 'flex', gap: 6, borderBottom: '1px solid var(--border-c)', marginBottom: 12 }}>
           {[['locales', 'Locales'], ['comisiones', 'Comisiones'], ['ayuda', 'Cómo usarla']].map(([id, t]) => (
             <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
-              style={{ ...s.boton, border: 'none', borderRadius: 0, background: 'none', fontWeight: 700, color: tab === id ? 'var(--text)' : 'var(--text-3)', borderBottom: `2px solid ${tab === id ? 'var(--accent)' : 'transparent'}` }}>{t}</button>
+              style={{ ...s.boton, borderWidth: '0 0 2px 0', borderColor: `transparent transparent ${tab === id ? 'var(--accent)' : 'transparent'} transparent`, borderRadius: 0, background: 'none', fontWeight: 700, color: tab === id ? 'var(--text)' : 'var(--text-3)' }}>{t}</button>
           ))}
         </div>
 
@@ -161,20 +187,22 @@ export default function RutaComercial() {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {visibles.length ? visibles.map((v) => {
-              const [fondo, tinta] = colorEstado(v.estado);
+              const [fondo, tinta] = colorEstado(estadoDe(v));
               const c = v.comision;
               const venta = c.pagosCobrados > 0
                 ? `${PLAN[c.plan] || c.plan} ${c.periodo} · ${COMISION[c.estado] || c.estado} · ${soles(c.ganada || c.porGanar)}`
-                : v.correo ? (v.cuentaEncontrada ? 'Cuenta creada · aún no paga' : 'Aún no hay cuenta con ese correo') : '';
+                : v.cuentaEncontrada ? `Cuenta creada · aún no paga${v.vinculo === 'maps' ? ' · vinculada por Maps' : ''}`
+                  : v.correo ? 'Aún no hay cuenta con ese correo' : v.placeId ? 'Aún no hay cuenta con este local' : '';
               return (
                 <button key={v.id} onClick={() => abrir(v)} style={{ ...s.tarjeta, ...s.boton, textAlign: 'left', display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px' }}>
                   <div style={{ minWidth: 0, flex: '1 1 220px' }}>
                     <div style={{ fontWeight: 700 }}>{v.nombre}</div>
-                    <div style={{ fontSize: 12.5, color: 'var(--text-2)' }}>{[v.distrito, v.contacto, `visitado ${fecha(v.fechaVisita)}`, dueno ? v.promotor : null].filter(Boolean).join(' · ')}</div>
+                    <div style={{ fontSize: 12.5, color: 'var(--text-2)' }}>{[v.placeId ? '📍 ' + (v.distrito || 'Google Maps') : v.distrito, v.contacto, `visitado ${fecha(v.fechaVisita)}`, dueno ? v.promotor : null].filter(Boolean).join(' · ')}</div>
+                    {dueno && v.correoVinculado && <div style={{ fontSize: 12, color: 'var(--text-3)' }}>Cuenta: {v.correoVinculado} · por {v.vinculo === 'maps' ? 'Google Maps' : 'correo'}</div>}
                     {v.notas && <div style={{ fontSize: 12.5, color: 'var(--text-3)' }}>{v.notas}</div>}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                    <span style={{ fontSize: 11.5, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: fondo, color: tinta, whiteSpace: 'nowrap' }}>{ETIQUETA[v.estado] || v.estado}</span>
+                    <span style={{ fontSize: 11.5, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: fondo, color: tinta, whiteSpace: 'nowrap' }}>{ETIQUETA[estadoDe(v)] || estadoDe(v)}</span>
                     {venta && <span style={{ fontSize: 12, color: 'var(--text-2)' }}>{venta}</span>}
                   </div>
                 </button>
@@ -218,7 +246,8 @@ export default function RutaComercial() {
         </>}
 
         {tab === 'ayuda' && <div style={{ ...s.tarjeta, fontSize: 14, lineHeight: 1.6 }}>
-          <p style={{ marginTop: 0 }}><b>Después de cada visita</b> toca «+ Registrar visita», escribe el nombre del local y toca cómo terminó. Si puedes, agrega el distrito y un teléfono.</p>
+          <p style={{ marginTop: 0 }}><b>Después de cada visita</b> toca «+ Registrar visita», <b>busca el local en Google Maps</b> y elígelo, y toca cómo terminó. Si puedes, agrega un contacto y un teléfono.</p>
+          <p>Con el local de Maps, la venta se vincula sola cuando el negocio agrega ese mismo local en su panel de Notoria, y el estado pasa solo a «Creó cuenta gratis» o «Pagó».</p>
           <p><b>Si crea su cuenta o paga</b>, anota el <b>correo con el que se registró en Notoria</b>. Con ese correo el sistema encuentra sus pagos y calcula tu comisión solo. Regístralo antes de que pague: la visita cuenta 60 días.</p>
           <p style={{ marginBottom: 0 }}><b>Nunca</b> cobres en efectivo: todo pago va por usenotoria.app con tarjeta.</p>
         </div>}
@@ -230,7 +259,29 @@ export default function RutaComercial() {
           <form onSubmit={guardar} noValidate style={{ ...s.tarjeta, maxWidth: 560, margin: '0 auto', padding: 18, background: 'var(--bg)' }}>
             <h2 style={{ fontFamily: 'Georgia, serif', fontSize: 20, margin: '0 0 12px' }}>{form.id ? form.nombre || 'Visita' : 'Registrar visita'}</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <label style={s.etiqueta}>Nombre del local *<input style={s.input} value={form.nombre} onChange={cambiar('nombre')} autoFocus={!form.id} /></label>
+              <div style={s.etiqueta}>Local en Google Maps
+                {form.placeId ? (
+                  <div style={{ ...s.tarjeta, display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between', padding: '9px 11px', fontWeight: 400 }}>
+                    <span style={{ color: 'var(--text)', fontSize: 13.5 }}>📍 <b>{form.nombre}</b>{form.direccion ? <><br /><span style={{ color: 'var(--text-3)' }}>{form.direccion}</span></> : null}</span>
+                    <button type="button" style={{ ...s.boton, padding: '6px 10px', fontSize: 13 }} onClick={() => setForm((f) => ({ ...f, placeId: '', direccion: '' }))}>Cambiar</button>
+                  </div>
+                ) : (<>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <input style={s.input} value={busqueda.q} placeholder="Nombre del local y distrito" autoFocus={!form.id}
+                      onChange={(e) => setBusqueda((b) => ({ ...b, q: e.target.value }))}
+                      onKeyDown={(e) => { if (e.key === 'Enter') buscarEnMaps(e); }} />
+                    <button type="button" style={{ ...s.boton, whiteSpace: 'nowrap' }} onClick={buscarEnMaps} disabled={busqueda.cargando}>{busqueda.cargando ? 'Buscando…' : 'Buscar'}</button>
+                  </div>
+                  {busqueda.error && <span style={{ fontWeight: 400, color: '#C0392B' }}>{busqueda.error}</span>}
+                  {busqueda.resultados && (busqueda.resultados.length ? busqueda.resultados.map((r) => (
+                    <button type="button" key={r.placeId} onClick={() => elegirLocal(r)} style={{ ...s.boton, textAlign: 'left', fontWeight: 400, fontSize: 13.5 }}>
+                      <b>{r.nombre}</b><br /><span style={{ color: 'var(--text-3)' }}>{r.direccion}</span>
+                    </button>
+                  )) : <span style={{ fontWeight: 400, color: 'var(--text-3)' }}>No apareció. Prueba con otro nombre o escribe el local abajo.</span>)}
+                  <span style={{ fontWeight: 400, color: 'var(--text-3)' }}>Elegirlo aquí vincula la venta sola cuando el negocio lo agregue en su panel.</span>
+                </>)}
+              </div>
+              <label style={s.etiqueta}>Nombre del local *<input style={s.input} value={form.nombre} onChange={cambiar('nombre')} /></label>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 10 }}>
                 <label style={s.etiqueta}>Distrito<input style={s.input} value={form.distrito} onChange={cambiar('distrito')} /></label>
                 <label style={s.etiqueta}>Contacto y teléfono<input style={s.input} value={form.contacto} onChange={cambiar('contacto')} placeholder="Rosa, dueña · 987 654 321" /></label>
@@ -246,7 +297,7 @@ export default function RutaComercial() {
               {['cuenta_gratis', 'cliente'].includes(form.estado) && (
                 <label style={s.etiqueta}>Correo de su cuenta en Notoria
                   <input style={s.input} type="email" value={form.correo} onChange={cambiar('correo')} placeholder="el que usó al registrarse" autoComplete="off" />
-                  <span style={{ fontWeight: 400, color: 'var(--text-3)' }}>Con este correo se encuentran sus pagos y se calcula tu comisión.</span>
+                  <span style={{ fontWeight: 400, color: 'var(--text-3)' }}>{form.placeId ? 'Opcional si elegiste el local en Maps, pero ayuda si el negocio se registra con otro local o nombre.' : 'Con este correo se encuentran sus pagos y se calcula tu comisión.'}</span>
                 </label>
               )}
               <label style={s.etiqueta}>Nota (opcional)<textarea style={{ ...s.input, minHeight: 64 }} value={form.notas} onChange={cambiar('notas')} placeholder="Qué le interesó, cuándo volver…" /></label>

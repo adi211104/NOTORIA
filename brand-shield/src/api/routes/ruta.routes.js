@@ -10,7 +10,7 @@ const express = require('express');
 const { z } = require('zod');
 const prisma = require('../../lib/prisma');
 const { autenticar } = require('../middlewares/auth.middleware');
-const { ESTADOS, accesoDe, comisionDeVisita } = require('../../lib/rutaComercial');
+const { ESTADOS, accesoDe, comisionDeVisita, elegirCuenta, estadoEfectivo } = require('../../lib/rutaComercial');
 
 const router = express.Router();
 router.use(autenticar);
@@ -30,6 +30,8 @@ const esquema = z.object({
   estado: z.enum(ESTADOS).default('visitado'),
   correo: z.union([z.string().trim().toLowerCase().email('El correo no es válido').max(200), z.literal('')]).optional()
     .transform((v) => v || null),
+  placeId: texto(300),
+  direccion: texto(300),
   comisionPagada: z.number().int().min(0).max(100000000).optional(),
 });
 
@@ -40,24 +42,43 @@ const alcance = (req) => (req.ruta.dueno ? {} : { promotor: req.ruta.alias });
 router.get('/visitas', async (req, res, next) => {
   try {
     const visitas = await prisma.visitaComercial.findMany({ where: alcance(req), orderBy: { actualizadoEn: 'desc' } });
+    const PAGOS = { select: { plan: true, periodo: true, tipo: true, estado: true, monto: true, creadoEn: true } };
     const correos = [...new Set(visitas.map((v) => v.correo).filter(Boolean))];
     // Búsqueda insensible a mayúsculas: hay cuentas anteriores a la
     // normalización de correos (CLAUDE.md §14).
     const cuentas = correos.length ? await prisma.usuario.findMany({
       where: { OR: correos.map((email) => ({ email: { equals: email, mode: 'insensitive' } })) },
-      select: { id: true, email: true, localesExtra: true,
-        pagos: { select: { plan: true, periodo: true, tipo: true, estado: true, monto: true, creadoEn: true } } },
+      select: { id: true, email: true, localesExtra: true, pagos: PAGOS },
     }) : [];
     const porCorreo = Object.fromEntries(cuentas.map((c) => [c.email.toLowerCase(), c]));
+
+    // Respaldo por Google Maps: si el correo no casa (o no se anotó), el local
+    // elegido en Maps se cruza con los negocios que los clientes agregaron en su panel.
+    const sinCorreo = visitas.filter((v) => v.placeId && !(v.correo && porCorreo[v.correo.toLowerCase()]));
+    const placeIds = [...new Set(sinCorreo.map((v) => v.placeId))];
+    const negocios = placeIds.length ? await prisma.negocio.findMany({
+      where: { googlePlaceId: { in: placeIds } },
+      select: { googlePlaceId: true, creadoEn: true, usuario: { select: { id: true, email: true, localesExtra: true, pagos: PAGOS } } },
+    }) : [];
+    const porLocal = {};
+    for (const n of negocios) (porLocal[n.googlePlaceId] ||= []).push({ ...n.usuario, negocioCreadoEn: n.creadoEn });
+
     const ahora = new Date();
     res.json({
       yo: { alias: req.ruta.alias, dueno: req.ruta.dueno },
       visitas: visitas.map((v) => {
-        const cuenta = v.correo ? porCorreo[v.correo.toLowerCase()] : null;
+        let cuenta = v.correo ? porCorreo[v.correo.toLowerCase()] : null;
+        let vinculo = cuenta ? 'correo' : null;
+        if (!cuenta && v.placeId) { cuenta = elegirCuenta(porLocal[v.placeId]); if (cuenta) vinculo = 'maps'; }
+        const comision = comisionDeVisita({ fechaVisita: v.fechaVisita, pagos: cuenta?.pagos || [], localesExtra: cuenta?.localesExtra, ahora });
         return {
           ...v,
           cuentaEncontrada: !!cuenta,
-          comision: comisionDeVisita({ fechaVisita: v.fechaVisita, pagos: cuenta?.pagos || [], localesExtra: cuenta?.localesExtra, ahora }),
+          vinculo,
+          // Solo el dueño ve con qué cuenta se vinculó: sirve para revisar la liquidación.
+          ...(req.ruta.dueno && cuenta ? { correoVinculado: cuenta.email } : {}),
+          estadoAuto: estadoEfectivo(v.estado, { cuentaEncontrada: !!cuenta, comision }),
+          comision,
         };
       }),
     });

@@ -13,7 +13,7 @@ const check = (nombre, cond, detalle = '') => {
   if (cond) { ok++; console.log('  ✓', nombre); } else { mal++; console.log('  ✗', nombre, detalle); }
 };
 
-const { accesoDe, tablaAcceso, comisionDeVisita } = require('../src/lib/rutaComercial');
+const { accesoDe, tablaAcceso, comisionDeVisita, elegirCuenta, estadoEfectivo } = require('../src/lib/rutaComercial');
 
 console.log('\n1. Acceso');
 const ACC = 'Didier@Gmail.com:dueno, promotor@usenotoria.app:Usuario1';
@@ -73,12 +73,31 @@ check('los cobros FALLIDOS no cuentan como pago',
 check('el cargo de PRUEBA no cuenta',
   comisionDeVisita({ fechaVisita: d(visita), pagos: [pago('2026-01-02', 100, { tipo: 'PRUEBA' })], ahora }).estado === 'SIN_PAGOS');
 
+console.log('\n3b. Vinculación por Google Maps y estado automático');
+const cuentaNueva = { id: 'n', pagos: [pago('2026-01-20', 2950)], negocioCreadoEn: d('2026-01-15') };
+const cuentaVieja = { id: 'v', pagos: [pago('2025-06-01', 5900)], negocioCreadoEn: d('2025-05-01') };
+const cuentaGratis = { id: 'g', pagos: [], negocioCreadoEn: d('2025-01-01') };
+check('mismo local en varias cuentas: cuenta la que pagó primero', elegirCuenta([cuentaNueva, cuentaVieja, cuentaGratis]).id === 'v');
+check('si ninguna pagó, la que agregó el local primero', elegirCuenta([{ id: 'b', pagos: [], negocioCreadoEn: d('2026-02-01') }, cuentaGratis]).id === 'g');
+check('sin cuentas: null', elegirCuenta([]) === null && elegirCuenta(undefined) === null);
+const sin = comisionDeVisita({ fechaVisita: d(visita), pagos: [], ahora });
+check('pagó → «cliente» aunque el promotor dejó «interesado»', estadoEfectivo('interesado', { cuentaEncontrada: true, comision: c1 }) === 'cliente');
+check('cuenta sin pagos → «cuenta_gratis»', estadoEfectivo('volver', { cuentaEncontrada: true, comision: sin }) === 'cuenta_gratis');
+check('sin cuenta, se respeta lo que marcó el promotor', estadoEfectivo('no_interesado', { cuentaEncontrada: false, comision: sin }) === 'no_interesado');
+check('marcó «pagó» y aún no se encuentra el pago: no se degrada', estadoEfectivo('cliente', { cuentaEncontrada: true, comision: sin }) === 'cliente');
+
 console.log('\n4. La ruta de verdad, con Prisma y la sesión simulados');
 (async () => {
   let sesion = { id: 'u1', email: 'promotor@usenotoria.app' };
   const visitas = [
     { id: 'v1', promotor: 'Usuario1', nombre: 'Local A', correo: 'cli@x.com', comisionPagada: 0, fechaVisita: d(visita), actualizadoEn: new Date() },
     { id: 'v2', promotor: 'Otro', nombre: 'Local B', correo: null, comisionPagada: 0, fechaVisita: d(visita), actualizadoEn: new Date() },
+    // Sin correo: se vincula solo porque el cliente agregó el MISMO local de Maps en su panel.
+    { id: 'v3', promotor: 'Usuario1', nombre: 'Local C', correo: null, placeId: 'ChIJ_C', estado: 'interesado', comisionPagada: 0, fechaVisita: d(visita), actualizadoEn: new Date() },
+    // Correo que no existe, pero el local de Maps sí: Maps rescata el vínculo.
+    { id: 'v4', promotor: 'Usuario1', nombre: 'Local D', correo: 'otro@x.com', placeId: 'ChIJ_D', estado: 'volver', comisionPagada: 0, fechaVisita: d(visita), actualizadoEn: new Date() },
+    // Local de Maps que nadie agregó: sin cuenta.
+    { id: 'v5', promotor: 'Usuario1', nombre: 'Local E', correo: null, placeId: 'ChIJ_E', estado: 'volver', comisionPagada: 0, fechaVisita: d(visita), actualizadoEn: new Date() },
   ];
   let ultimoUpdate = null;
   const prismaFalso = {
@@ -89,7 +108,14 @@ console.log('\n4. La ruta de verdad, con Prisma y la sesión simulados');
       update: async ({ data }) => { ultimoUpdate = data; return data; },
       delete: async () => ({}),
     },
-    usuario: { findMany: async () => [{ id: 'c', email: 'CLI@x.com', localesExtra: 0, pagos: doce }] },
+    usuario: { findMany: async ({ where }) => [{ id: 'c', email: 'CLI@x.com', localesExtra: 0, pagos: doce }]
+      .filter((u) => where.OR.some((o) => o.email.equals.toLowerCase() === u.email.toLowerCase())) },
+    negocio: {
+      findMany: async ({ where }) => [
+        { googlePlaceId: 'ChIJ_C', creadoEn: d('2026-01-08'), usuario: { id: 'cc', email: 'localc@x.com', localesExtra: 0, pagos: doce.slice(0, 3) } },
+        { googlePlaceId: 'ChIJ_D', creadoEn: d('2026-01-08'), usuario: { id: 'dd', email: 'locald@x.com', localesExtra: 0, pagos: [] } },
+      ].filter((n) => where.googlePlaceId.in.includes(n.googlePlaceId)),
+    },
   };
   const R = (p) => path.resolve(__dirname, '..', p);
   require.cache[require.resolve(R('src/lib/prisma'))] = { exports: prismaFalso };
@@ -105,9 +131,16 @@ console.log('\n4. La ruta de verdad, con Prisma y la sesión simulados');
 
   try {
     let r = await pedir('GET', '/visitas');
-    check('el promotor solo ve SUS visitas', r.s === 200 && r.j.visitas.length === 1 && r.j.visitas[0].id === 'v1');
-    check('…y la comisión sale de los pagos reales (S/77.50)', r.j.visitas[0].comision.ganada === 7750, JSON.stringify(r.j.visitas[0].comision));
-    check('el correo del cliente se cruza sin mayúsculas', r.j.visitas[0].cuentaEncontrada === true);
+    check('el promotor solo ve SUS visitas', r.s === 200 && r.j.visitas.length === 4 && r.j.visitas.every((v) => v.promotor === 'Usuario1'));
+    const por = Object.fromEntries(r.j.visitas.map((v) => [v.id, v]));
+    check('sin correo, se vincula por el local de Maps (S/32.50)', por.v3.vinculo === 'maps' && por.v3.comision.ganada === 3250, JSON.stringify(por.v3.comision));
+    check('…y su estado pasa solo a «cliente»', por.v3.estadoAuto === 'cliente');
+    check('correo inexistente pero local agregado: vínculo por Maps', por.v4.vinculo === 'maps' && por.v4.cuentaEncontrada === true && por.v4.estadoAuto === 'cuenta_gratis');
+    check('local de Maps que nadie agregó: sin cuenta y se respeta el estado', por.v5.cuentaEncontrada === false && por.v5.vinculo === null && por.v5.estadoAuto === 'volver');
+    check('el correo tiene prioridad sobre Maps', por.v1.vinculo === 'correo');
+    check('el promotor NO ve con qué cuenta se vinculó', !('correoVinculado' in por.v3));
+    check('…y la comisión sale de los pagos reales (S/77.50)', por.v1.comision.ganada === 7750, JSON.stringify(por.v1.comision));
+    check('el correo del cliente se cruza sin mayúsculas', por.v1.cuentaEncontrada === true);
 
     await pedir('PUT', '/visitas/v1', { nombre: 'Local A', comisionPagada: 999999 });
     check('el promotor NO puede escribir la comisión pagada', ultimoUpdate && ultimoUpdate.comisionPagada === undefined);
@@ -122,7 +155,10 @@ console.log('\n4. La ruta de verdad, con Prisma y la sesión simulados');
 
     sesion = { id: 'u2', email: 'dueno@x.com' };
     r = await pedir('GET', '/visitas');
-    check('el dueño ve TODAS las visitas', r.s === 200 && r.j.visitas.length === 2 && r.j.yo.dueno === true);
+    check('el dueño ve TODAS las visitas', r.s === 200 && r.j.visitas.length === visitas.length && r.j.yo.dueno === true);
+    check('el dueño SÍ ve la cuenta vinculada, para revisar la liquidación', r.j.visitas.find((v) => v.id === 'v3').correoVinculado === 'localc@x.com');
+    r = await pedir('POST', '/visitas', { nombre: 'Con Maps', placeId: 'ChIJ_Z', direccion: 'Av. Larco 123, Miraflores' });
+    check('se guarda el local de Maps al crear', r.s === 201 && r.j.placeId === 'ChIJ_Z' && r.j.direccion === 'Av. Larco 123, Miraflores');
     await pedir('PUT', '/visitas/v1', { nombre: 'Local A', comisionPagada: 2500 });
     check('el dueño SÍ registra la comisión pagada', ultimoUpdate.comisionPagada === 2500);
 

@@ -3796,7 +3796,7 @@ esta página salen del mismo día y **tienen que decir lo mismo**.
 | Reglas | `src/lib/rutaComercial.js` — acceso y comisión, puro |
 | Rutas | `src/api/routes/ruta.routes.js` → `/api/ruta/visitas` (GET/POST/PUT/DELETE) |
 | Página | `brand-shield-web/src/app/ruta/` — `noindex`, sin enlace desde ningún sitio |
-| Pruebas | `node scripts/prueba-ruta-comercial.js` — **35**, con los ejemplos del Anexo 1 del contrato |
+| Pruebas | `node scripts/prueba-ruta-comercial.js` — **50**, con los ejemplos del Anexo 1 del contrato |
 
 🔴 **Es una excepción consciente a la nota de `auth.middleware.js`** («no hay rol de administrador,
 nada de datos de terceros tras el panel»). Guarda datos de contacto de prospectos, así que:
@@ -3818,12 +3818,31 @@ cancelaciones, y el día que algo no corra mentiría. Lo único guardado es lo y
 - ⚠️ Los locales adicionales del bono de alta salen de `Usuario.localesExtra` **de hoy**, no del
   momento del primer pago (no se guarda histórico). Aproximación aceptada; si importa, ajustar a mano.
 
+**2026-09-26 — Vinculación por Google Maps y estado automático** (pedido del dueño: «no tener que ir
+cambiando e informando los negocios»). Columnas nuevas `placeId` y `direccion` en `visitas_comerciales`
+(la tabla aún no existía en producción, así que entran en el mismo `db push`).
+- El formulario busca el local con `/api/utils/buscar-negocio` (el mismo del panel; ~6 consultas a Places
+  por búsqueda) y guarda su `placeId`. Nombre y distrito se rellenan solos.
+- **Orden de cruce: correo primero, Maps de respaldo.** Si el correo no casa con ninguna cuenta, el
+  `placeId` se cruza con `Negocio.googlePlaceId`. Si varias cuentas tienen ese local, `elegirCuenta` toma
+  la que **pagó primero** (conservador: un cliente previo sale `YA_ERA_CLIENTE`, no premia a una cuenta nueva).
+- `estadoAuto` (`estadoEfectivo`): pagó → «cliente»; cuenta sin pagos → «cuenta_gratis». Solo el dueño
+  ve `correoVinculado` y por dónde se vinculó, para revisar la liquidación.
+- ⚠️ **Riesgo aceptado:** con Maps, un promotor podría registrar locales que no visitó y cobrar por altas
+  orgánicas dentro de 60 días. Por eso el dueño ve «por Google Maps» en cada venta así vinculada.
+- También se quitó la mezcla de `border`/`borderColor` y `font`/`fontWeight` en `s.boton`: React dejaba
+  pegado el borde del estado anterior al cambiar de «Cómo terminó».
+- Pruebas: **50** (15 nuevas: Maps, prioridad del correo, varias cuentas, estado automático).
+
 **Estado al 2026-09-25: EN GIT, SIN DESPLEGAR** (se programó desde la PC de casa, que no tiene el
 `.env`). Despliegue, en el orden de §4 — la tabla ANTES del código, porque es aditiva:
 
 ```bash
 cd brand-shield
-npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --script  # debe ser SOLO el CREATE TABLE visitas_comerciales
+npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --script  # debe ser SOLO el CREATE TABLE visitas_comerciales (+ sus 3 índices)
+# ⚠️ En esta PC no hay .env: $DATABASE_URL es la PÚBLICA → railway variables --service Postgres --kv (DATABASE_PUBLIC_URL).
+#    La de --service api es postgres.railway.internal y desde fuera da P1001.
+# ⚠️ Y `railway status` en brand-shield/ decía «Vigilio» (el proyecto malo): el 2026-09-26 se re-enlazó a notoria-api.
 npx prisma db push && npx prisma generate
 printf '%s' 'didierprincipe@gmail.com:dueno,promotor@usenotoria.app:Usuario1' | railway variable set RUTA_COMERCIAL_ACCESO --stdin --service api --skip-deploys
 railway up --service api          # y comprobar el arranque en los logs (§5)
