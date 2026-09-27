@@ -494,7 +494,8 @@ los logs del servidor y en un cambio observable en la salida.
 (`notoria-web`), DNS en Cloudflare en "DNS only". Dominio verificado en Resend. Search
 Console verificado (`public/googlebab20eafdad21f30.html` — **no borrarlo**, Google
 re-verifica). DMARC en **`p=quarantine`** desde el 2026-08-19
-(`v=DMARC1; p=quarantine; rua=mailto:didier@usenotoria.app`). Monitor de uptime: **`monitor-uptime/`** (Cloudflare Worker, cada 5 min, tres sondas: `/health`, el
+(`v=DMARC1; p=quarantine; rua=mailto:751009fd2d5847b180f4bedd8cddc519@dmarc-reports.cloudflare.net` — desde el
+2026-09-27 los informes van a **DMARC Management de Cloudflare**, ya no a `didier@`; ver «Gmail está LIMITANDO»). Monitor de uptime: **`monitor-uptime/`** (Cloudflare Worker, cada 5 min, tres sondas: `/health`, el
 landing y **`/health/monitoreo`** desde el 2026-09-23 — ver «📌 2026-09-23»), más el viejo
 `.github/workflows/uptime.yml`, que se queda pero no cubre lo que promete (§19 B).
 
@@ -519,8 +520,10 @@ recibidos, **167 «Delivery failed»**. Casi todos son los **informes DMARC de G
 Gmail con `421 4.7.28 … unusual rate of unsolicited mail … temporarily rate limited`: SPF/DKIM/DMARC en *pass*,
 o sea que no es configuración, es reputación del reenvío. Google reintenta el MISMO informe ~20 veces en dos días
 (eso infla la cifra). No es total: `revisormeta@` salió *Forwarded* el mismo día. ⚠️ Riesgo: cualquier correo a
-estas direcciones puede llegar tarde o no llegar mientras dure. Opción a decidir: que el `rua` del DMARC apunte a
-**DMARC Management de Cloudflare** en vez de reenviarse a Gmail.
+estas direcciones puede llegar tarde o no llegar mientras dure. ✅ **Hecho el mismo 2026-09-27:** se activó **DMARC Management** y el `rua` quedó SOLO
+con `…@dmarc-reports.cloudflare.net` (sin `didier@`); `p=quarantine` intacto. Los informes se leen en Cloudflare →
+Email → DMARC Management. ⚠️ Los informes que Google ya tenía en cola a `didier@` seguirán reintentándose unos
+días hasta caducar: que el Overview siga en rojo esos días no significa que no funcionó.
 
 🔴 **El 2026-08-30 se descubrió que `didier@` NO tenía regla y llevaba tiempo perdiéndose.** Esta
 misma tabla afirmaba lo contrario desde el 19/08, así que el documento estaba mintiendo sobre el
