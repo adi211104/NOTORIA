@@ -512,6 +512,15 @@ SMTP y se descarta**. Desde fuera es indistinguible de una entrega correcta: el 
 | `revisormeta@usenotoria.app` | → `didierprincipe@gmail.com` (creada el 2026-08-20) |
 | `didier@usenotoria.app` | → `didierprincipe@gmail.com` |
 | `agencia@usenotoria.app` | → `didierprincipe@gmail.com` (arreglada el 2026-08-30 — **existía y estaba en Drop**) |
+| `promotor@usenotoria.app` | → `didierprincipe@gmail.com` (creada el 2026-09-27 — cuenta del promotor de la Ruta comercial; comprobado antes que no existía) |
+
+🔴 **Hallazgo del 2026-09-27: Gmail está LIMITANDO lo que Cloudflare le reenvía.** Overview de 7 días: 174
+recibidos, **167 «Delivery failed»**. Casi todos son los **informes DMARC de Google a `didier@`**, rechazados por
+Gmail con `421 4.7.28 … unusual rate of unsolicited mail … temporarily rate limited`: SPF/DKIM/DMARC en *pass*,
+o sea que no es configuración, es reputación del reenvío. Google reintenta el MISMO informe ~20 veces en dos días
+(eso infla la cifra). No es total: `revisormeta@` salió *Forwarded* el mismo día. ⚠️ Riesgo: cualquier correo a
+estas direcciones puede llegar tarde o no llegar mientras dure. Opción a decidir: que el `rua` del DMARC apunte a
+**DMARC Management de Cloudflare** en vez de reenviarse a Gmail.
 
 🔴 **El 2026-08-30 se descubrió que `didier@` NO tenía regla y llevaba tiempo perdiéndose.** Esta
 misma tabla afirmaba lo contrario desde el 19/08, así que el documento estaba mintiendo sobre el
@@ -3909,7 +3918,7 @@ verificación y parece que Notoria no manda nada).
 > RVIE ya presentado el 24/08.
 >
 > ✅ ~~**Ruta comercial (`/ruta`)**~~ **desplegada y verificada el 2026-09-26.** 🟡 Queda la regla de Email
-> Routing de `promotor@usenotoria.app` (sin comprobar: vive en el panel de Cloudflare).
+> Routing de `promotor@usenotoria.app` ✅ creada el 2026-09-27; falta ver su primer *Forwarded* en el Activity Log.
 >
 > **Con fecha**
 > | Cuándo | Qué | Quién |
