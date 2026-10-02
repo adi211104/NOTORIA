@@ -231,8 +231,8 @@ check('   …y la sonda de arriba sí lo detectaría (control)',
   'sin este control, la comprobación anterior podría estar pasando por no medir nada');
 check('   …y no confunde LEER con escribir (control)',
   !escribeVencimiento('prorrateo({ fechaVencimiento: usuario.fechaVencimiento })'));
-check('cobra contra la tarjeta guardada (`suscripcionId`), no contra un token',
-  /sourceId:\s*usuario\.suscripcionId/.test(bloqueLocales));
+check('cobra contra la tarjeta guardada (`tarjetaCulqiId`), no contra un token',
+  /sourceId:\s*usuario\.tarjetaCulqiId/.test(bloqueLocales));
 check('registra el pago con su propio tipo',
   /tipo:\s*'LOCAL_ADICIONAL'/.test(bloqueLocales));
 check('emite comprobante del cobro',
@@ -384,7 +384,7 @@ const VENCE_RUTA = () => new Date(Date.now() + 12 * 86400000);
 const estadoRuta = () => ({
   usuario: {
     id: 'u1', email: 'ana@ejemplo.pe', nombre: 'Ana Torres', plan: 'NEGOCIO',
-    suscripcionActiva: true, suscripcionId: 'crd_test_1',
+    suscripcionActiva: true, tarjetaCulqiId: 'crd_test_1',
     // ⚠️ RELATIVO a hoy, no la fecha fija de los bloques puros: la ruta usa el
     // reloj real (`prorrateo` cae a `new Date()`), así que una fecha de
     // calendario haría que esta prueba se pusiera roja sola el 6 de septiembre.
@@ -398,7 +398,22 @@ const estadoRuta = () => ({
 });
 let db = estadoRuta();
 
+// Desde la auditoría del 2026-10-02 el cobro pasa por lib/cobros.js: intento
+// registrado antes de Culqi y todo lo de la base en UNA transacción. El doble
+// modela las dos cosas, incluida la clave única del intento.
 const prismaFalso = {
+  $transaction: async (fn) => fn(prismaFalso),
+  intentoCobro: {
+    create: async ({ data }) => {
+      db.intentos = db.intentos || [];
+      if (db.intentos.some((i) => i.clave === data.clave)) { const e = new Error('dup'); e.code = 'P2002'; throw e; }
+      const i = { id: `ic${db.intentos.length + 1}`, pagoId: null, ...data };
+      db.intentos.push(i); return i;
+    },
+    update: async ({ where, data }) => Object.assign(db.intentos.find((i) => i.id === where.id), data),
+    updateMany: async ({ where }) => ({ count: db.intentos.some((i) => i.id === where.id && !i.pagoId && (!where.estado || i.estado === where.estado)) ? 1 : 0 }),
+    findUnique: async ({ where }) => db.intentos.find((i) => i.clave === where.clave || i.id === where.id) || null,
+  },
   usuario: {
     findUnique: async () => ({ ...db.usuario }),
     update: async ({ data }) => { db.updates.push(data); Object.assign(db.usuario, data); return db.usuario; },
@@ -419,14 +434,15 @@ const culqiFalso = {
 
 const original = Module.prototype.require;
 Module.prototype.require = function (id) {
-  if (id.endsWith('lib/prisma')) return prismaFalso;
-  if (id.endsWith('lib/culqi')) return culqiFalso;
+  if (id.endsWith('lib/prisma') || id === './prisma') return prismaFalso;
+  if (id.endsWith('lib/culqi') || id === './culqi') return culqiFalso;
   if (id.endsWith('services/comprobante.service')) return {
     emitirComprobante: async ({ pago }) => { db.comprobantes.push(pago); return { tipo: 'BOLETA', numero: 'B001-00000002' }; },
     pdfDeComprobante: async () => null,
   };
   if (id.endsWith('utils/emails')) return {
     enviarCancelacion: async () => {}, enviarAvisoAnulacionPendiente: async () => {},
+    enviarReembolso: async () => {}, enviarAvisoInterno: async () => {},
   };
   // ⚠️ El doble del middleware devuelve `permitir` Y pone `req.cuenta`: sin lo
   // segundo la consulta caería en `usuarioId: undefined`, que en Prisma no es un
@@ -519,7 +535,7 @@ const correr = async () => {
     check('un valor no numérico da 409 y no cobra',
       basura.status === 409 && db.cargos.length === 0);
 
-    db = estadoRuta(); db.usuario.suscripcionId = null;
+    db = estadoRuta(); db.usuario.tarjetaCulqiId = null;
     const sinTarjeta = await post(1);
     check('sin tarjeta guardada no se cobra', sinTarjeta.cuerpo.codigo === 'SIN_TARJETA' && db.cargos.length === 0);
 

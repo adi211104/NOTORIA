@@ -69,6 +69,7 @@ export default function RutaComercial() {
   const [form, setForm] = useState(null); // null = cerrado; { ...campos, id? }
   const [guardando, setGuardando] = useState(false);
   const [confirmarBorrar, setConfirmarBorrar] = useState(false);
+  const [motivoAnular, setMotivoAnular] = useState('');
   const [copiado, setCopiado] = useState('');
   const [busqueda, setBusqueda] = useState({ q: '', resultados: null, cargando: false, error: '' });
 
@@ -138,8 +139,12 @@ export default function RutaComercial() {
     } catch (err) { setError(err.status === 400 ? err.message : 'No se pudo guardar. Revisa tu conexión y vuelve a intentar.'); }
     finally { setGuardando(false); }
   };
-  const borrar = async () => {
-    try { await rutaApi.borrar(form.id); setForm(null); await cargar(); } catch { setError('No se pudo borrar.'); }
+  // Las visitas no se borran: son la prueba de la atribución de una venta. Se
+  // ANULAN con un motivo y quedan guardadas (auditoría 2026-10-02, P1-14).
+  const anular = async () => {
+    if (motivoAnular.trim().length < 3) { setError('Escribe por qué anulas esta visita.'); return; }
+    try { await rutaApi.anular(form.id, motivoAnular.trim()); setForm(null); setMotivoAnular(''); await cargar(); }
+    catch (err) { setError(err.status === 400 ? err.message : 'No se pudo anular.'); }
   };
 
   const copiarResumen = async () => {
@@ -310,8 +315,12 @@ export default function RutaComercial() {
             {error && <div style={{ color: '#C0392B', fontSize: 13, marginTop: 10 }}>{error}</div>}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between', marginTop: 16 }}>
               <div>
-                {form.id && !confirmarBorrar && <button type="button" style={{ ...s.boton, color: '#C0392B', borderColor: '#C0392B' }} onClick={() => setConfirmarBorrar(true)}>Borrar</button>}
-                {confirmarBorrar && <span style={{ fontSize: 13 }}>¿Seguro? <button type="button" style={{ ...s.boton, color: '#fff', background: '#C0392B', borderColor: '#C0392B' }} onClick={borrar}>Sí, borrar</button> <button type="button" style={s.boton} onClick={() => setConfirmarBorrar(false)}>No</button></span>}
+                {form.id && !confirmarBorrar && <button type="button" style={{ ...s.boton, color: '#C0392B', borderColor: '#C0392B' }} onClick={() => setConfirmarBorrar(true)}>Anular</button>}
+                {confirmarBorrar && <span style={{ fontSize: 13, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                  <input style={{ ...s.input, width: 220 }} value={motivoAnular} onChange={(e) => setMotivoAnular(e.target.value)} placeholder="Motivo (p. ej. registrada dos veces)" />
+                  <button type="button" style={{ ...s.boton, color: '#fff', background: '#C0392B', borderColor: '#C0392B' }} onClick={anular}>Anular visita</button>
+                  <button type="button" style={s.boton} onClick={() => { setConfirmarBorrar(false); setMotivoAnular(''); }}>No</button>
+                </span>}
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button type="button" style={s.boton} onClick={() => setForm(null)}>Cancelar</button>

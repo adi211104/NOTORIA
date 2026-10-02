@@ -3,6 +3,10 @@ import Link from 'next/link';
 // domicilio fiscal estaba copiado en tres paginas y el dia que cambie ante SUNAT
 // hay que cambiarlo en TODAS o los datos legales se contradicen entre si.
 import { CONTACTO } from '../../components/PieLegal';
+// Los precios salen del catálogo, no se escriben acá (auditoría 2026-10-02,
+// P0-11 y 10.4): esta página listaba solo Negocio y Franquicia, un mes después
+// de que Impulso se pusiera a la venta.
+import { precioMensualDe, PRECIO_LOCAL } from '../../lib/catalogo';
 
 const GEO = "Georgia,'Times New Roman',serif";
 const G = '#0B7324';
@@ -41,9 +45,9 @@ export default function TerminosPage() {
 
         <H2>4. Planes y pagos</H2>
         <P><strong>Plan Gratuito:</strong> acceso permanente con funcionalidades limitadas. No requiere tarjeta de crédito.</P>
-        <P><strong>Planes de pago:</strong> los planes Negocio (S/59/mes) y Franquicia (S/179/mes) se facturan por adelantado. Los precios están en soles peruanos (PEN) e incluyen IGV. El pago se procesa mediante Culqi, plataforma certificada PCI-DSS.</P>
+        <P><strong>Planes de pago:</strong> los planes Impulso (S/{precioMensualDe('IMPULSO')}/mes), Negocio (S/{precioMensualDe('NEGOCIO')}/mes) y Franquicia (S/{precioMensualDe('FRANQUICIA')}/mes), o su modalidad anual, se facturan por adelantado. Cada plan de pago incluye un local; en Negocio y Franquicia los locales adicionales se cobran aparte (S/{PRECIO_LOCAL.NEGOCIO.mensual}/mes y S/{PRECIO_LOCAL.FRANQUICIA.mensual}/mes por local, respectivamente). Lo que incluye cada plan es lo publicado en <Link href="/precios" style={{ color:G }}>Precios</Link>. Los precios están en soles peruanos (PEN) e incluyen IGV. El pago se procesa mediante Culqi, plataforma certificada PCI-DSS.</P>
         <P><strong>Promoción de bienvenida:</strong> las cuentas nuevas que se suscriban a un plan de pago con facturación mensual reciben 50% de descuento durante los primeros 2 meses. Esta promoción no aplica a la facturación anual (que ya incluye un descuento propio de 20%), se aplica una sola vez por cuenta y no es acumulable con otras ofertas. Desde el tercer mes, la renovación se cobra al precio regular del plan.</P>
-        <P><strong>Cancelación:</strong> puedes cancelar tu suscripción en cualquier momento desde Configuración. Al cancelar, mantienes el acceso hasta el fin del período pagado. No realizamos reembolsos de períodos parciales salvo casos excepcionales a nuestra discreción.</P>
+        <P><strong>Cancelación:</strong> puedes cancelar tu suscripción en cualquier momento desde Configuración → Suscripción. Al cancelar, mantienes el acceso hasta el fin del período pagado. Los reembolsos (incluido el derecho de retracto de 7 días) y los cambios de plan se rigen por nuestra <Link href="/devoluciones" style={{ color:G }}>Política de Devoluciones</Link>.</P>
         <P><strong>Cambios de precio:</strong> notificaremos con 30 días de anticipación cualquier cambio de precio a través del email registrado.</P>
 
         <H2>5. Uso aceptable</H2>
@@ -56,10 +60,10 @@ export default function TerminosPage() {
         <P>El tratamiento de tus datos personales se rige por nuestra <Link href="/privacidad" style={{ color:G }}>Política de Privacidad</Link>, la cual forma parte integral de estos términos. Al usar Notoria, consientes el tratamiento de tus datos según dicha política.</P>
 
         <H2>8. Integraciones de terceros</H2>
-        <P>Notoria se integra con Google Business Profile y Facebook. Al conectar estas cuentas, aceptas también sus respectivos términos de servicio. Notoria no almacena tus contraseñas de servicios de terceros; usamos tokens de acceso OAuth que puedes revocar en cualquier momento.</P>
+        <P>Notoria lee la información pública de tu ficha de Google Maps. Además, según tu plan y según lo que cada plataforma tenga habilitado para Notoria en cada momento, puedes conectar cuentas de terceros (hoy, Instagram y TikTok). Las integraciones que dependen de una aprobación de la plataforma —como Google Business Profile o las reseñas de Facebook— solo se ofrecen en el panel cuando están disponibles; mientras no lo estén, no forman parte del servicio contratado. Al conectar una cuenta, aceptas también los términos de esa plataforma. Notoria no almacena tus contraseñas de servicios de terceros; usamos tokens de acceso OAuth, guardados cifrados, que puedes revocar en cualquier momento desconectando la cuenta.</P>
 
         <H2>9. Limitación de responsabilidad</H2>
-        <P>Notoria se proporciona "tal cual". No garantizamos que el servicio sea ininterrumpido, libre de errores o que los resultados de detección de reseñas falsas sean siempre precisos. En ningún caso nuestra responsabilidad total excederá el importe pagado por el usuario en los últimos 3 meses.</P>
+        <P>Notoria se proporciona «tal cual». No garantizamos que el servicio sea ininterrumpido, libre de errores o que las señales de reseñas sospechosas sean siempre precisas. Notoria señala comportamiento anómalo; determinar si una reseña es falsa y retirarla corresponde a la plataforma que la publica. En ningún caso nuestra responsabilidad total excederá el importe pagado por el usuario en los últimos 3 meses.</P>
         <P>No somos responsables por pérdidas de ingresos, daños a la reputación o cualquier daño indirecto derivado del uso o imposibilidad de uso de Notoria.</P>
 
         <H2>10. Modificaciones del servicio</H2>

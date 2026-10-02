@@ -21,21 +21,52 @@ const path = require('path');
 
 let estado;
 
+// Desde la auditoría del 2026-10-02 el webhook GUARDA el evento antes de
+// procesarlo (lib/webhookInbox.js) y el reembolso depende del TIPO de pago, así
+// que el doble lleva la bandeja, la transacción y los datos del pago.
 const prismaFalso = {
+  $transaction: async (fn) => fn(prismaFalso),
+  eventoWebhook: {
+    create: async ({ data }) => {
+      if (estado.baseCaida) throw new Error('base caída');
+      if (estado.eventos.some((e) => e.idExterno === data.idExterno)) { const e = new Error('dup'); e.code = 'P2002'; throw e; }
+      const ev = { id: `ev${estado.eventos.length + 1}`, intentos: 0, ...data };
+      estado.eventos.push(ev); return ev;
+    },
+    update: async ({ where, data }) => {
+      const ev = estado.eventos.find((e) => e.id === where.id);
+      Object.assign(ev, data, { intentos: typeof data.intentos === 'number' ? data.intentos : (ev.intentos || 0) + 1 });
+      return ev;
+    },
+  },
   pago: {
     findUnique: async ({ where }) => (
-      where.culqiCargoId === estado.cargoEnLaBase ? { id: 'p1', usuarioId: 'u1' } : null
+      where.culqiCargoId === estado.cargoEnLaBase
+        ? { id: 'p1', usuarioId: 'u1', tipo: estado.tipo || 'INICIAL', monto: 5900, moneda: 'PEN', estado: estado.estadoPago || 'EXITOSO', comprobante: null, usuario: {} }
+        : null
     ),
-    update: async ({ data }) => { estado.pagoActualizado = data; return data; },
+    // ¿Es la última cuota? Por defecto sí; `estado.hayCuotaPosterior` lo niega.
+    findFirst: async () => ({ id: estado.hayCuotaPosterior ? 'p2' : 'p1' }),
+    update: async ({ data }) => {
+      if (estado.fallaAlProcesar) throw new Error('fallo interno');
+      estado.pagoActualizado = data; return data;
+    },
   },
   usuario: {
     update: async ({ data }) => { estado.usuarioActualizado = data; return data; },
+    findUnique: async () => ({ email: 'cli@x.com', localesExtra: 2 }),
   },
 };
 
 const requireOriginal = Module.prototype.require;
 Module.prototype.require = function (id) {
-  if (id.endsWith('lib/prisma')) return prismaFalso;
+  if (id.endsWith('lib/prisma') || id === './prisma') return prismaFalso;
+  if (id.endsWith('utils/emails')) {
+    return {
+      enviarCancelacion: async () => {}, enviarReembolso: async () => {}, enviarAvisoAnulacionPendiente: async () => {},
+      enviarAvisoInterno: async (a) => { estado.avisos = [...(estado.avisos || []), a]; },
+    };
+  }
   if (id.endsWith('lib/culqi')) return { configurado: () => true };
   if (id.endsWith('lib/tributario')) return { requiereIdentificacion: () => false };
   if (id.endsWith('services/comprobante.service')) {
@@ -184,14 +215,101 @@ const casos = [
       ok('un cuerpo ilegible no tumba el endpoint');
     },
   },
+  // ── Auditoría 2026-10-02 ────────────────────────────────────────────────
+  {
+    nombre: 'Reembolso TOTAL de la cuota vigente → la suscripción termina HOY (no al final del periodo)',
+    estado: { cargoEnLaBase: 'chr_t1' },
+    peticion: { body: evento('refund.creation.succeeded', { chargeId: 'chr_t1', amount: 5900 }), query: { secret: 'secreto-de-prueba' } },
+    comprobar: (r, e) => {
+      const u = e.usuarioActualizado;
+      if (!u || u.suscripcionActiva !== false || !(u.fechaVencimiento instanceof Date)) return mal('no cortó el periodo:', JSON.stringify(u));
+      if (Math.abs(u.fechaVencimiento - Date.now()) > 60000) return mal('el vencimiento no es ahora');
+      ok('cuota devuelta entera: plan efectivo GRATIS en el acto');
+    },
+  },
+  {
+    nombre: 'Reembolso de un LOCAL ADICIONAL → NO toca la suscripción',
+    estado: { cargoEnLaBase: 'chr_l1', tipo: 'LOCAL_ADICIONAL' },
+    peticion: { body: evento('refund.creation.succeeded', { chargeId: 'chr_l1', amount: 5900 }), query: { secret: 'secreto-de-prueba' } },
+    comprobar: (r, e) => {
+      if (e.usuarioActualizado) return mal('apagó la suscripción por devolver un local:', JSON.stringify(e.usuarioActualizado));
+      if (e.pagoActualizado?.estado !== 'REEMBOLSADO') return mal('no marcó el pago del local');
+      if (!e.avisos?.some((a) => /local adicional/i.test(a.asunto))) return mal('no avisó a contabilidad para revisar el local');
+      ok('el plan sigue; contabilidad decide sobre el local');
+    },
+  },
+  {
+    nombre: 'Reembolso PARCIAL → el pago sigue EXITOSO, la suscripción sigue, y se pide nota de crédito',
+    estado: { cargoEnLaBase: 'chr_p1' },
+    peticion: { body: evento('refund.creation.succeeded', { chargeId: 'chr_p1', amount: 1000 }), query: { secret: 'secreto-de-prueba' } },
+    comprobar: (r, e) => {
+      if (e.usuarioActualizado) return mal('un reembolso parcial apagó la suscripción');
+      if (e.pagoActualizado?.estado !== 'EXITOSO' || e.pagoActualizado?.montoReembolsado !== 1000) return mal('no registró el parcial:', JSON.stringify(e.pagoActualizado));
+      if (!e.avisos?.some((a) => a.lineas.join(' ').includes('NOTA DE CRÉDITO'))) return mal('no avisó de la nota de crédito');
+      ok('parcial: queda registrado y el servicio continúa');
+    },
+  },
+  {
+    nombre: 'Reembolso de una cuota VIEJA (hay una posterior) → no corta el periodo actual',
+    estado: { cargoEnLaBase: 'chr_v1', hayCuotaPosterior: true, tipo: 'RENOVACION' },
+    peticion: { body: evento('refund.creation.succeeded', { chargeId: 'chr_v1', amount: 5900 }), query: { secret: 'secreto-de-prueba' } },
+    comprobar: (r, e) => {
+      if (e.usuarioActualizado) return mal('devolver un mes viejo cortó el mes en curso');
+      ok('solo se registra');
+    },
+  },
+  {
+    nombre: 'El MISMO evento dos veces (reintento de Culqi) → se aplica una sola vez',
+    estado: { cargoEnLaBase: 'chr_d1' },
+    peticion: { body: { id: 'evt_dup_1', ...evento('refund.creation.succeeded', { chargeId: 'chr_d1', amount: 5900 }) }, query: { secret: 'secreto-de-prueba' } },
+    comprobar: async (r, e) => {
+      e.pagoActualizado = null;
+      const r2 = await ejecutar({ body: { id: 'evt_dup_1', ...evento('refund.creation.succeeded', { chargeId: 'chr_d1', amount: 5900 }) }, query: { secret: 'secreto-de-prueba' } });
+      if (!r2.body?.duplicado || e.pagoActualizado) return mal('reaplicó un evento ya recibido');
+      ok('el segundo envío responde 200 «duplicado» y no toca nada');
+    },
+  },
+  {
+    nombre: 'Falla el procesamiento → el evento queda PENDIENTE (para el reintento) y se responde 200',
+    estado: { cargoEnLaBase: 'chr_f1', fallaAlProcesar: true },
+    peticion: { body: evento('refund.creation.succeeded', { chargeId: 'chr_f1', amount: 5900 }), query: { secret: 'secreto-de-prueba' } },
+    comprobar: (r, e) => {
+      const ev = e.eventos[0];
+      if (!ev || ev.estado !== 'PENDIENTE' || !/fallo interno/.test(ev.ultimoError || '')) return mal('no quedó guardado como PENDIENTE:', JSON.stringify(ev));
+      if (r.body?.recibido !== true) return mal('debía responder 200: el evento ya está a salvo en la base');
+      ok('nada se pierde: queda para el worker de reintentos');
+    },
+  },
+  {
+    nombre: 'La base no puede ni GUARDAR el evento → 500, para que Culqi reintente',
+    estado: { cargoEnLaBase: 'chr_b1', baseCaida: true },
+    peticion: { body: evento('refund.creation.succeeded', { chargeId: 'chr_b1' }), query: { secret: 'secreto-de-prueba' } },
+    comprobar: (r) => {
+      if (r.status !== 500) return mal(`status ${r.status}: con la base caída hay que pedir reintento`);
+      ok('500 = Culqi lo vuelve a mandar');
+    },
+  },
+  {
+    nombre: 'PRODUCCIÓN sin CULQI_WEBHOOK_SECRET → se rechaza todo (antes aceptaba todo)',
+    estado: { cargoEnLaBase: 'chr_s1' },
+    antes: () => { estado.envPrevio = [process.env.CULQI_WEBHOOK_SECRET, process.env.NODE_ENV]; delete process.env.CULQI_WEBHOOK_SECRET; process.env.NODE_ENV = 'production'; },
+    despues: () => { process.env.CULQI_WEBHOOK_SECRET = 'secreto-de-prueba'; process.env.NODE_ENV = estado.envPrevio[1] || ''; },
+    peticion: { body: evento('refund.creation.succeeded', { chargeId: 'chr_s1' }) },
+    comprobar: (r, e) => {
+      if (r.status !== 401 || e.pagoActualizado) return mal('sin secreto en producción, aceptó el evento');
+      ok('falla cerrado');
+    },
+  },
 ];
 
 (async () => {
   for (const caso of casos) {
-    estado = { ...caso.estado };
+    estado = { eventos: [], ...caso.estado };
+    if (caso.antes) caso.antes();
     console.log(`\n— ${caso.nombre}`);
     const r = await ejecutar(caso.peticion);
-    caso.comprobar(r, estado);
+    await caso.comprobar(r, estado);
+    if (caso.despues) caso.despues();
   }
 
   console.log(fallos ? `\n${fallos} fallo(s)` : `\nTodo OK — ${casos.length} casos`);

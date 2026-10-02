@@ -18,7 +18,7 @@
 //    vencimiento desde hoy. A un cliente de NEGOCIO anual con 11 meses por
 //    delante, sumar un local de S/372 le costaría S/936 y tiraría S/517 de
 //    servicio ya pagado. Y encima vuelve a pedir la tarjeta por el widget
-//    cuando ya está guardada en `suscripcionId`.
+//    cuando ya está guardada en `tarjetaCulqiId`.
 //  · Dejarlo gratis hasta la renovación es cero aritmética y aguanta en
 //    mensual (se regalan ≤S/39 una sola vez), pero en ANUAL son hasta 364 días
 //    gratis y es repetible: contratar en enero y sumar cinco locales en febrero

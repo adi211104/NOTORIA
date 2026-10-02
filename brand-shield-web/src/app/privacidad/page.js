@@ -49,7 +49,7 @@ export default function PrivacidadPage() {
         <P><strong>Datos recopilados automáticamente:</strong></P>
         <ul style={{ margin:'0 0 14px', paddingLeft:20 }}>
           <Li>Información de los negocios que agregas (nombre, dirección, Google Place ID)</Li>
-          <Li>Tokens OAuth de Google Business Profile y Facebook (cifrados en base de datos)</Li>
+          <Li>Tokens OAuth de las cuentas que conectes (Instagram, TikTok y, cuando estén disponibles, Google Business Profile y Facebook), cifrados en base de datos con AES-256</Li>
           <Li>Datos de uso del servicio (escaneos realizados, alertas generadas)</Li>
           <Li>Información técnica básica para el funcionamiento del servicio</Li>
         </ul>

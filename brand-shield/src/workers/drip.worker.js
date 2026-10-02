@@ -19,6 +19,7 @@
 //   todo pendiente recibe los correos espaciados, no tres juntos.
 
 const cron = require('node-cron');
+const { programar } = require('../lib/candado');
 const prismaReal = require('../lib/prisma');
 const emails = require('../utils/emails');
 
@@ -88,9 +89,9 @@ const procesarDrip = async (deps = {}) => {
 };
 
 const iniciarDrip = () => {
-  cron.schedule('0 10 * * *', () => {
-    procesarDrip().catch((e) => console.error('[Drip] Ciclo falló:', e.message));
-  }, { timezone: 'America/Lima' });
+  programar('0 10 * * *', 'drip', 60, () => (
+    procesarDrip().catch((e) => console.error('[Drip] Ciclo falló:', e.message))
+  ), { timezone: 'America/Lima' });
   console.log('[Drip] Programado: todos los días 10:00 (hora Lima)');
 };
 

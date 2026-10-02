@@ -4,7 +4,7 @@ import PanelAccionable from '../../../../components/PanelAccionable';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { negociosApi, comentariosApi, cabecerasAuth, redes as redesApi } from '../../../../lib/api';
+import { negociosApi, comentariosApi, cabecerasAuth, redes as redesApi, urlConexionGBP } from '../../../../lib/api';
 import { iconoParaTipo, labelParaTipo } from '../../../../lib/tiposNegocio';
 import { textoAlerta, etiquetaAlerta } from '../../../../lib/alertas';
 import { useAuth } from '../../../../context/AuthContext';
@@ -15,7 +15,6 @@ import CodigoQR, { descargarQR } from '../../../../components/CodigoQR';
 import CartelResenas from '../../../../components/CartelResenas';
 
 import { API_URL } from '../../../../lib/api';
-const getToken = () => localStorage.getItem('bs_token');
 
 const COLORES = ['#3AA857','#8b5cf6','#ec4899','#ef4444','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#64748b'];
 
@@ -447,7 +446,8 @@ const TEXTOS = {
       simSub:'Tu rating es un promedio simple, así que se puede calcular exactamente cuánto falta para subir y cuánto aguanta antes de caer.',
       simMedido:(f) => `Medido el ${f}`,
       simSinDatos:'Todavía no tenemos el conteo de reseñas de tu ficha. Escanea el negocio y vuelve a entrar.',
-      simMeta:(n,o) => <>Para llegar a <strong>{o.toFixed(1)}★</strong> necesitas <strong>{n}</strong> reseñas de 5★.</>,
+      simMeta:(n,o,r) => <>Para llegar a <strong>{o.toFixed(1)}★</strong> necesitas <strong>{r && r.min !== r.max ? `entre ${r.min} y ${r.max}` : n}</strong> reseñas de 5★.</>,
+      simNota: 'Cifras aproximadas: Google publica tu nota redondeada a un decimal y no el promedio exacto.',
       simUmbral:(n) => <>Te bastan <strong>{n}</strong> reseña{n===1?'':'s'} de 1★ para caer por debajo de 4.5★.</>,
       simAtaque:'Si mañana te caen reseñas de 1★',
       simCuantas:(n) => `${n} reseñas`,
@@ -958,7 +958,8 @@ const TEXTOS = {
       simSub:'Your rating is a simple average, so it can be calculated exactly how much you need to go up and how much you can take before dropping.',
       simMedido:(f) => `Measured on ${f}`,
       simSinDatos:"We don't have your listing's review count yet. Scan the business and come back.",
-      simMeta:(n,o) => <>To reach <strong>{o.toFixed(1)}★</strong> you need <strong>{n}</strong> five-star reviews.</>,
+      simMeta:(n,o,r) => <>To reach <strong>{o.toFixed(1)}★</strong> you need <strong>{r && r.min !== r.max ? `between ${r.min} and ${r.max}` : n}</strong> five-star reviews.</>,
+      simNota: 'Approximate figures: Google publishes your rating rounded to one decimal, not the exact average.',
       simUmbral:(n) => <>It only takes <strong>{n}</strong> one-star review{n===1?'':'s'} to drop below 4.5★.</>,
       simAtaque:'If one-star reviews hit you tomorrow',
       simCuantas:(n) => `${n} reviews`,
@@ -1960,13 +1961,10 @@ export default function DetallePage() {
 
   // ── Conectar Google Business (reutilizado en Reseñas y Ajustes) ──
   const conectarGBP = () => {
-    const t = getToken();
-    fetch(`${API_URL}/api/auth/perfil`, { headers:{ ...cabecerasAuth() } })
-      .then(r => {
-        if (r.status === 401 || r.ok) {
-          window.location.href = `${API_URL}/api/auth/google-business/iniciar?negocioId=${id}&token=${t}`;
-        } else { throw new Error(); }
-      })
+    // La sesión ya no viaja en la URL: se pide la URL de Google con una
+    // petición autenticada (lib/api.js → urlConexionGBP, auditoría P1-06).
+    urlConexionGBP(id)
+      .then((url) => { window.location.href = url; })
       // Aviso en página, no alert(): el alert tapaba el panel con un diálogo
       // del sistema y había que aceptarlo antes de poder hacer nada.
       .catch(() => setErrorAccion((TEXTOS[idioma] || TEXTOS.es).general.errorBackend));
@@ -3480,8 +3478,11 @@ export default function DetallePage() {
                         <li style={{ fontSize:13.5, color:'var(--text-2)', lineHeight:1.6 }}>{t.espejo.simUmbral(simulador.paraCaerDelUmbral)}</li>
                       )}
                       {simulador.metas?.map((m) => (
-                        <li key={m.objetivo} style={{ fontSize:13.5, color:'var(--text-2)', lineHeight:1.6 }}>{t.espejo.simMeta(m.resenas, m.objetivo)}</li>
+                        <li key={m.objetivo} style={{ fontSize:13.5, color:'var(--text-2)', lineHeight:1.6 }}>{t.espejo.simMeta(m.resenas, m.objetivo, m.rango)}</li>
                       ))}
+                      {simulador.estimacion && (
+                        <li style={{ fontSize:12, color:'var(--text-3)', lineHeight:1.5 }}>{t.espejo.simNota}</li>
+                      )}
                       {simulador.costeUnaEstrella && (
                         <li style={{ fontSize:13.5, color:'var(--text-2)', lineHeight:1.6 }}>{t.espejo.simCoste(Math.abs(simulador.costeUnaEstrella.exacto))}</li>
                       )}

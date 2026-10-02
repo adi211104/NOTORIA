@@ -3,10 +3,12 @@
 // y dispara alertas cuando detecta anomalías
 
 const cron = require('node-cron');
+const { programar } = require('../lib/candado');
+const cobros = require('../lib/cobros');
 const prisma = require('../lib/prisma');
 const { obtenerResenasGoogle, buscarNegocioEnGoogle } = require('../scrapers/google.scraper');
 const { obtenerRatingFacebook, obtenerResenasFacebook } = require('../scrapers/facebook.scraper');
-const { analizarResena, detectarAnomalias } = require('../nlp/detector');
+const { analizarResena, detectarAnomalias, requiereRevisionHumana } = require('../nlp/detector');
 const { notificar, enviarAlertaEmail } = require('../alerts/notificador');
 const { revisarDatosDeFicha, tocaLeerContacto } = require('../lib/fichaGoogle');
 const { capacidades, planesCon, PLANES_DE_PAGO, ORDEN } = require('../lib/planes');
@@ -600,8 +602,17 @@ const procesarNegocio = async (negocio, ctx = {}) => {
           continue; // ya existe (condición de carrera con otro ciclo) — ignorar
         }
 
-        // Auto-respuesta a reseñas positivas — solo planes Negocio/Franquicia
-        if (resenaCreada.rating >= 4 && negocio.autoRespuestaActiva && negocio.usuario.plan !== 'GRATIS') {
+        // Auto-respuesta a reseñas positivas — solo los planes que la incluyen.
+        //
+        // 🔴 Era `plan !== 'GRATIS'`, o sea que dejaba pasar a IMPULSO, que NO
+        // la incluye (planes.js) — la lista a mano que §8.6 prohíbe, en forma
+        // de negación. Y una 5★ puede hablar de una intoxicación, una amenaza
+        // o una denuncia (sarcasmo, o un cliente que puntúa alto y cuenta algo
+        // grave): esas NO se contestan con una plantilla de agradecimiento
+        // publicada sola (auditoría 2026-10-02, P1-04). Las decide una persona.
+        if (resenaCreada.rating >= 4 && negocio.autoRespuestaActiva
+          && capacidades(negocio.usuario.plan).autoRespuesta
+          && !requiereRevisionHumana(resenaCreada)) {
           await intentarAutoRespuesta(negocio, resenaCreada);
         }
 
@@ -869,7 +880,7 @@ const ultimosEscaneos = async (negocioIds) => {
  * a los que les toca según el plan de su dueño (ver HORAS_ESCANEO).
  */
 const iniciarMonitoreo = () => {
-  cron.schedule('0 * * * *', async () => {
+  programar('0 * * * *', 'monitoreo', 58, async () => {
     console.log(`\n[Worker] ⏰ Iniciando ciclo de monitoreo — ${new Date().toISOString()}`);
 
     try {
@@ -1381,7 +1392,7 @@ const guardarMencion = async (negocio, m) => {
 // ── Cron mensual para reportes PDF ──────────────────────
 const iniciarReportesMensuales = () => {
   // Corre el día 1 de cada mes a las 8:00 AM
-  cron.schedule('0 8 1 * *', async () => {
+  programar('0 8 1 * *', 'reportes-mensuales', 180, async () => {
     console.log('[Reportes] Generando reportes mensuales...');
     const { enviarReporteMensual } = require('../utils/reporte.generator');
 
@@ -1413,7 +1424,7 @@ const iniciarReportesMensuales = () => {
 // ── Resúmenes de alertas (frecuencia semanal/mensual) ─────
 // Corre todos los días a las 8:00 y envía el resumen a quienes lo configuraron
 const iniciarResumenesAlertas = () => {
-  cron.schedule('0 8 * * *', async () => {
+  programar('0 8 * * *', 'resumen-alertas', 120, async () => {
     const { enviarResumenAlertas } = require('../utils/emails');
     const hoy = new Date();
     const diaSemana = hoy.getDay();
@@ -1507,7 +1518,7 @@ const intentosFallidosDelCiclo = async (usuarioId) => {
 };
 
 const iniciarRenovacionesCulqi = () => {
-  cron.schedule('0 5 * * *', async () => {
+  programar('0 5 * * *', 'renovaciones-culqi', 120, async () => {
     const culqi = require('../lib/culqi');
     const { emitirComprobante } = require('../services/comprobante.service');
     const { enviarCobroFallido } = require('../utils/emails');
@@ -1522,7 +1533,7 @@ const iniciarRenovacionesCulqi = () => {
     const usuarios = await prisma.usuario.findMany({
       where: {
         suscripcionActiva: true,
-        suscripcionId: { not: null },
+        tarjetaCulqiId: { not: null },
         // 🔴 PLANES_DE_PAGO, nunca una lista escrita a mano. Un plan de pago que
         // falte en este filtro se cobra UNA VEZ y no se renueva jamás: el
         // cliente conserva el plan gratis para siempre y no hay error, ni log,
@@ -1555,16 +1566,6 @@ const iniciarRenovacionesCulqi = () => {
         const enPromo = periodo === 'mensual' && usuario.mesesPromoRestantes > 0;
         const monto = enPromo ? Math.round(precioBase / 2) : precioBase;
 
-        const cargo = await culqi.crearCargo({
-          monto,
-          moneda: MONEDA, // ver lib/precios.js
-          email: usuario.email,
-          sourceId: usuario.suscripcionId,
-          descripcion: `Notoria — Renovación plan ${usuario.plan} (${periodo})`
-            + (usuario.localesExtra ? ` + ${usuario.localesExtra} local(es)` : '')
-            + (enPromo ? ' — promo 50% bienvenida' : ''),
-        });
-
         // El nuevo vencimiento se calcula desde el ANTERIOR, no desde hoy: si un
         // cobro se retrasó tres días por reintentos, el cliente no debe perder
         // esos tres días de servicio ni correrse el aniversario cada vez. El
@@ -1575,33 +1576,61 @@ const iniciarRenovacionesCulqi = () => {
           : new Date();
         const fechaVencimiento = new Date(base);
         fechaVencimiento.setMonth(fechaVencimiento.getMonth() + (periodo === 'anual' ? 12 : 1));
-        await prisma.usuario.update({
-          where: { id: usuario.id },
-          data: {
-            fechaVencimiento,
-            ...(enPromo ? { mesesPromoRestantes: { decrement: 1 } } : {}),
-          },
+
+        // 🔴 Por lib/cobros.js, con una clave atada a ESTE vencimiento
+        // (auditoría 2026-10-02, P0-01/02). Antes: cobrar → update → `pago.create`
+        // con un `.catch` que devolvía null. Si la base fallaba tras el cobro, el
+        // vencimiento no avanzaba y al día siguiente el cron COBRABA OTRA VEZ el
+        // mismo periodo. Ahora la segunda pasada choca contra la clave y no llega
+        // a Culqi; la reconciliación completa la primera. Un rechazo del banco
+        // corre el vencimiento 3 días (abajo), así que el reintento es otra clave.
+        const { cargo, intento } = await cobros.cobrar({
+          clave: `renovacion:${usuario.id}:${new Date(usuario.fechaVencimiento).toISOString()}`,
+          usuarioId: usuario.id,
+          tipo: 'RENOVACION',
+          plan: usuario.plan,
+          periodo,
+          monto,
+          moneda: MONEDA, // ver lib/precios.js
+          email: usuario.email,
+          sourceId: usuario.tarjetaCulqiId,
+          descripcion: `Notoria — Renovación plan ${usuario.plan} (${periodo})`
+            + (usuario.localesExtra ? ` + ${usuario.localesExtra} local(es)` : '')
+            + (enPromo ? ' — promo 50% bienvenida' : ''),
+          detalle: { fechaVencimiento: fechaVencimiento.toISOString(), descontarPromo: enPromo },
         });
 
-        const tarjeta = culqi.datosTarjeta(cargo);
-        const pago = await prisma.pago.create({
-          data: {
-            usuarioId: usuario.id, plan: usuario.plan, periodo, tipo: 'RENOVACION',
-            estado: 'EXITOSO', monto, moneda: MONEDA, titular: usuario.nombre,
-            tarjetaInicio: tarjeta.inicio,
-            tarjetaMarca: tarjeta.marca,
-            culqiCargoId: cargo?.id || null,
-          },
-        }).catch(e => {
-          console.error('[Facturación] No se pudo registrar la renovación:', e.message);
-          return null;
-        });
+        let pago = null;
+        try {
+          pago = await cobros.aplicar({ intento, cargo, titular: usuario.nombre });
+        } catch (e) {
+          // El cobro YA ocurrió: no es un «cobro fallido» y no debe contar como
+          // intento ni mandar el correo de tarjeta rechazada. La reconciliación
+          // lo completa; contabilidad se entera ahora.
+          console.error(`[Culqi] 🔴 Renovación de ${usuario.email} COBRADA (${cargo?.id}) pero sin aplicar:`, e.message);
+          require('../utils/emails').enviarAvisoInterno({
+            asunto: `🔴 Renovación cobrada sin aplicar — ${usuario.email}`,
+            lineas: [`Cargo ${cargo?.id} · intento ${intento.id}`, `Error: ${e.message}`, 'La reconciliación lo completa sola en ≤30 min.'],
+          }).catch(() => {});
+          continue;
+        }
 
         // Comprobante de la renovación, igual que en el cobro inicial
         if (pago) await emitirComprobante({ pago, usuario });
 
         console.log(`[Culqi] Renovación cobrada a ${usuario.email}`);
       } catch (error) {
+        // Dos fallos que NO son «la tarjeta rechazó» y no deben contarse como
+        // intento ni mandar el correo de cobro fallido:
+        //  · COBRO_DUPLICADO: la clave de este vencimiento ya tiene un cobro
+        //    (exitoso a medias o en curso). Cobrar otra vez es el error caro.
+        //  · DESCONOCIDO: Culqi no contestó; puede que SÍ haya cobrado.
+        // Los dos los resuelve la reconciliación.
+        if (error.codigo === 'COBRO_DUPLICADO' || error.estadoIntento === 'DESCONOCIDO') {
+          console.error(`[Culqi] Renovación de ${usuario.email} en duda (${error.codigo || error.estadoIntento}) — la resuelve la reconciliación, no se reintenta`);
+          await new Promise(r => setTimeout(r, 1000));
+          continue;
+        }
         const motivo = error.response?.data?.user_message || error.message;
         console.error(`[Culqi] Falló la renovación de ${usuario.email}:`, motivo);
 
@@ -1628,7 +1657,7 @@ const iniciarRenovacionesCulqi = () => {
           // `suscripcionActiva`, que no bloqueaba nada por sí solo.
           await prisma.usuario.update({
             where: { id: usuario.id },
-            data: { plan: 'GRATIS', suscripcionActiva: false, suscripcionId: null, periodoFacturacion: null },
+            data: { plan: 'GRATIS', suscripcionActiva: false, tarjetaCulqiId: null, periodoFacturacion: null },
           });
           console.log(`[Culqi] ${usuario.email} agotó los ${MAX_INTENTOS_COBRO} intentos — pasa a GRATIS`);
         } else {
@@ -1667,7 +1696,7 @@ const iniciarRenovacionesCulqi = () => {
 // GRATIS. Sin él, `plan` se quedaba en NEGOCIO o FRANQUICIA para siempre —que
 // era el hallazgo F3— y el cliente seguía usando funciones de pago sin pagar.
 const iniciarBajadaDePlanes = () => {
-  cron.schedule('30 5 * * *', async () => {
+  programar('30 5 * * *', 'bajada-planes', 30, async () => {
     try {
       const vencidos = await prisma.usuario.findMany({
         where: {
@@ -1682,7 +1711,7 @@ const iniciarBajadaDePlanes = () => {
       for (const u of vencidos) {
         await prisma.usuario.update({
           where: { id: u.id },
-          data: { plan: 'GRATIS', suscripcionId: null, periodoFacturacion: null, fechaVencimiento: null },
+          data: { plan: 'GRATIS', tarjetaCulqiId: null, periodoFacturacion: null, fechaVencimiento: null },
         });
         console.log(`[Planes] ${u.email} terminó su periodo ${u.plan} — pasa a GRATIS`);
       }
@@ -1747,7 +1776,7 @@ const revisarEscalacionesUrgentes = async () => {
 };
 
 const iniciarEscalacionUrgencias = () => {
-  cron.schedule('0 */4 * * *', revisarEscalacionesUrgentes);
+  programar('0 */4 * * *', 'escalacion-urgencias', 60, revisarEscalacionesUrgentes);
   console.log('[Escalación] Cron configurado: cada 4 horas');
 };
 
@@ -1780,7 +1809,7 @@ const revisarPlazosReclamaciones = async () => {
 };
 
 const iniciarAvisoReclamaciones = () => {
-  cron.schedule('0 9 * * *', revisarPlazosReclamaciones);
+  programar('0 9 * * *', 'plazos-reclamaciones', 30, revisarPlazosReclamaciones);
   console.log('[Reclamaciones] Cron de plazos configurado: 9:00 AM diario');
 };
 

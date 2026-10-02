@@ -31,6 +31,18 @@ const MESES_RESIDUAL = 12;
 const TASA_ALTA = 0.5;
 const TASA_RESIDUAL = 0.1;
 const ESTADOS = ['visitado', 'interesado', 'volver', 'cuenta_gratis', 'cliente', 'no_interesado'];
+
+// ── Versión de las reglas (auditoría 2026-10-02, P1-17) ─────────────────────
+// El contrato dice que un cambio futuro de reglas no perjudica lo ya
+// atribuido. Por eso cada visita guarda con qué versión nació
+// (`VisitaComercial.politicaComision`) y el cálculo usa ESA, no la vigente.
+// Al cambiar una tasa o un plazo: NO se editan las constantes de arriba; se
+// añade una versión nueva a POLITICAS y se sube POLITICA_VIGENTE. Las visitas
+// viejas siguen cobrando con la suya.
+const POLITICAS = {
+  1: { DIAS_ATRIBUCION, DIAS_ESPERA_ANUAL, MESES_RESIDUAL, TASA_ALTA, TASA_RESIDUAL },
+};
+const POLITICA_VIGENTE = 1;
 const DIA = 864e5;
 
 /** { email → alias } a partir de la variable. Correos en minúscula. */
@@ -60,8 +72,13 @@ const sinIgv = (centimos) => centimos / IGV;
  * Todo en céntimos. `pagos` son las filas de `Pago` de esa cuenta (cualquier
  * orden); `localesExtra` es el de la cuenta hoy.
  */
-function comisionDeVisita({ fechaVisita, pagos = [], localesExtra = 0, ahora = new Date() }) {
-  const vacio = { alta: 0, residual: 0, ganada: 0, porGanar: 0, plan: null, periodo: null, pagosCobrados: 0 };
+function comisionDeVisita({ fechaVisita, pagos = [], localesExtra = 0, ahora = new Date(), politica = POLITICA_VIGENTE }) {
+  const vacio = { alta: 0, residual: 0, ganada: 0, porGanar: 0, plan: null, periodo: null, pagosCobrados: 0, politica };
+  // Una versión que este código no conoce NO se calcula con la vigente: eso es
+  // exactamente aplicarle reglas nuevas a una atribución vieja.
+  const reglas = POLITICAS[politica];
+  if (!reglas) return { ...vacio, estado: 'POLITICA_DESCONOCIDA' };
+  const { DIAS_ATRIBUCION, DIAS_ESPERA_ANUAL, MESES_RESIDUAL, TASA_ALTA, TASA_RESIDUAL } = reglas;
   const validos = pagos
     .filter((p) => (p.estado === 'EXITOSO' || p.estado === 'REEMBOLSADO') && p.tipo !== 'PRUEBA')
     .sort((a, b) => new Date(a.creadoEn) - new Date(b.creadoEn));
@@ -135,5 +152,5 @@ function estadoEfectivo(estado, { cuentaEncontrada, comision }) {
 }
 
 module.exports = {
-  ESTADOS, DIAS_ATRIBUCION, tablaAcceso, accesoDe, comisionDeVisita, elegirCuenta, estadoEfectivo,
+  ESTADOS, DIAS_ATRIBUCION, POLITICAS, POLITICA_VIGENTE, tablaAcceso, accesoDe, comisionDeVisita, elegirCuenta, estadoEfectivo,
 };

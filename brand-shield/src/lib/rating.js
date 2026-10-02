@@ -78,6 +78,9 @@ const costeDeUnaEstrella = ({ rating, totalResenas }) => {
 // diferencia entre 4.4 y 4.5 importa mucho más que entre 4.1 y 4.2.
 const UMBRAL_FILTRO = 4.5;
 
+// Google publica el promedio redondeado a un decimal: el real está a ±0.05.
+const MARGEN_PUBLICADO = 0.05;
+
 /**
  * Informe completo para una ficha: dónde está, qué le falta para las metas
  * relevantes, y qué le pasaría ante una ráfaga de reseñas de 1★.
@@ -89,10 +92,21 @@ const informeRating = ({ rating, totalResenas }) => {
   const R = Number(rating), N = Number(totalResenas);
   if (!Number.isFinite(R) || !Number.isFinite(N) || N <= 0 || R <= 0) return null;
 
+  // ⚠️ Lo que el panel recibe es la nota PUBLICADA, redondeada a un decimal: un
+  // 4.3 puede ser cualquier promedio entre 4.25 y 4.35 (auditoría 2026-10-02,
+  // P2-03). Con pocas reseñas eso mueve bastante el resultado, así que cada meta
+  // lleva además el RANGO calculado en los dos extremos. El número principal
+  // sigue siendo el del valor publicado; el rango es lo honesto.
   const metas = [4.0, 4.3, 4.5, 4.7]
     .filter((o) => o > R)
     .slice(0, 3)
-    .map((objetivo) => ({ objetivo, resenas: resenasParaLlegarA({ rating: R, totalResenas: N, objetivo }) }))
+    .map((objetivo) => {
+      const resenas = resenasParaLlegarA({ rating: R, totalResenas: N, objetivo });
+      const a = resenasParaLlegarA({ rating: Math.min(5, R + MARGEN_PUBLICADO), totalResenas: N, objetivo });
+      const b = resenasParaLlegarA({ rating: Math.max(0, R - MARGEN_PUBLICADO), totalResenas: N, objetivo });
+      const extremos = [a, b, resenas].filter((x) => x !== null);
+      return { objetivo, resenas, rango: { min: Math.min(...extremos), max: Math.max(...extremos) } };
+    })
     .filter((m) => m.resenas !== null);
 
   // Ráfagas de tamaño creciente. Son las cifras del "simulacro": el mismo
@@ -126,6 +140,10 @@ const informeRating = ({ rating, totalResenas }) => {
     ataques,
     paraCaerDelUmbral,
     costeUnaEstrella: costeDeUnaEstrella({ rating: R, totalResenas: N }),
+    // Todo lo de arriba sale de la nota publicada (redondeada), no del promedio
+    // exacto, que Google no publica. El panel lo dice al pie.
+    estimacion: true,
+    margenRating: MARGEN_PUBLICADO,
   };
 };
 
@@ -135,4 +153,5 @@ module.exports = {
   costeDeUnaEstrella,
   informeRating,
   UMBRAL_FILTRO,
+  MARGEN_PUBLICADO,
 };

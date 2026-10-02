@@ -38,7 +38,7 @@ const salir = (mensaje, codigo = 1) => { console.error(mensaje); process.exit(co
     where: { email: { equals: email, mode: 'insensitive' } },
     select: {
       id: true, email: true, nombre: true, plan: true, creadoEn: true,
-      emailVerificado: true, suscripcionActiva: true, suscripcionId: true,
+      emailVerificado: true, suscripcionActiva: true, tarjetaCulqiId: true,
     },
   });
   if (!usuario) salir(`No existe ninguna cuenta con el correo ${email}`);
@@ -78,7 +78,7 @@ const salir = (mensaje, codigo = 1) => { console.error(mensaje); process.exit(co
     ? '\n➡️  Modo: ANONIMIZAR (tiene historial fiscal, la fila mínima se conserva 5 años)'
     : '\n➡️  Modo: BORRAR de verdad (no tiene historial fiscal que conservar)');
 
-  if (usuario.suscripcionId) {
+  if (usuario.tarjetaCulqiId) {
     console.log('\n⚠️  Esta cuenta tiene una TARJETA GUARDADA en Culqi. Borrarla acá no');
     console.log('   cancela nada en Culqi: si la suscripción estuviera viva, hay que');
     console.log('   cancelarla antes o el cron intentaría cobrarle a una cuenta que ya no existe.');

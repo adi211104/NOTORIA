@@ -17,6 +17,7 @@
 // REEMBOLSADO y el comprobante siga ACEPTADO. Ver `lib/anulacionPendiente.js`.
 
 const cron = require('node-cron');
+const { programar } = require('../lib/candado');
 const prismaReal = require('../lib/prisma');
 const emails = require('../utils/emails');
 const anulacion = require('../lib/anulacionPendiente');
@@ -68,9 +69,9 @@ const revisarAnulacionesPendientes = async (deps = {}) => {
 const iniciarAvisoAnulaciones = () => {
   // 8:00, antes que el resto de correos del día: si hay algo que anular, es lo
   // primero que hay que ver, no lo que aparece después de tres resúmenes.
-  cron.schedule('0 8 * * *', () => {
-    revisarAnulacionesPendientes().catch((e) => console.error('[Anulación] Ciclo falló:', e.message));
-  }, { timezone: 'America/Lima' });
+  programar('0 8 * * *', 'anulaciones', 30, () => (
+    revisarAnulacionesPendientes().catch((e) => console.error('[Anulación] Ciclo falló:', e.message))
+  ), { timezone: 'America/Lima' });
   console.log('[Anulación] Cron de comprobantes por anular: 8:00 AM diario (hora Lima)');
 };
 

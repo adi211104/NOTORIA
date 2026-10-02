@@ -442,7 +442,10 @@ const correr = async () => {
   bloque('11. El cron, y que la pausa NO dependa de él');
 
   const pausaWorker = leerLimpio('src', 'workers', 'pausa.worker.js');
-  check('el cron es diario', /cron\.schedule\('0 \d+ \* \* \*'/.test(pausaWorker));
+  // Desde el 2026-10-02 los cron van con candado: `programar(expr, nombre, min, fn)`
+  // (lib/candado.js). La sonda acepta las dos formas y además exige el candado.
+  check('el cron es diario', /(cron\.schedule|programar)\('0 \d+ \* \* \*'/.test(pausaWorker));
+  check('…y con candado: dos instancias no mandan dos avisos', /programar\('0 \d+ \* \* \*', '[\w-]+', \d+,/.test(pausaWorker));
   check('no coincide con el drip (10:00) ni con el de verificación (10:30)',
     !pausaWorker.includes("'0 15 * * *'") && !pausaWorker.includes("'30 15 * * *'"),
     'tres correos a la misma persona en media hora es la vía más corta a que marque spam');

@@ -88,21 +88,36 @@ router.post('/:negocioId', permitir('actuar'), async (req, res, next) => {
     }
 
     const { googlePlaceId } = req.body;
-    if (!googlePlaceId) return res.status(400).json({ error: 'googlePlaceId requerido' });
+    if (!googlePlaceId || typeof googlePlaceId !== 'string') return res.status(400).json({ error: 'googlePlaceId requerido' });
+
+    // El mismo local dos veces en la lista se pagaría dos veces a Places en cada
+    // relectura (auditoría 2026-10-02, P1-18). Se mira ANTES de llamar a Google
+    // para no gastar ni esa consulta; el @@unique de la base cubre la carrera.
+    const yaEsta = await prisma.competidor.findFirst({
+      where: { negocioId: req.params.negocioId, googlePlaceId },
+      select: { id: true },
+    });
+    if (yaEsta) return res.status(409).json({ error: 'Ese competidor ya está en tu lista', codigo: 'COMPETIDOR_DUPLICADO' });
 
     // Obtener datos del competidor desde Google
     const info = await buscarNegocioEnGoogle(googlePlaceId);
     if (!info) return res.status(404).json({ error: 'No se encontró el negocio en Google Places' });
 
-    const competidor = await prisma.competidor.create({
-      data: {
-        nombre: info.nombre,
-        googlePlaceId,
-        ratingActual: info.rating,
-        totalResenas: info.totalResenas,
-        negocioId: req.params.negocioId,
-      },
-    });
+    let competidor;
+    try {
+      competidor = await prisma.competidor.create({
+        data: {
+          nombre: info.nombre,
+          googlePlaceId,
+          ratingActual: info.rating,
+          totalResenas: info.totalResenas,
+          negocioId: req.params.negocioId,
+        },
+      });
+    } catch (e) {
+      if (e.code === 'P2002') return res.status(409).json({ error: 'Ese competidor ya está en tu lista', codigo: 'COMPETIDOR_DUPLICADO' });
+      throw e;
+    }
 
     res.status(201).json({ mensaje: 'Competidor agregado correctamente', competidor });
   } catch (error) { next(error); }

@@ -10,6 +10,7 @@
 // empresa antes de que el plazo se agote.
 
 const cron = require('node-cron');
+const { programar } = require('../lib/candado');
 const prisma = require('../lib/prisma');
 const tributario = require('../lib/tributario');
 const ubl = require('../sunat/ublInvoice');
@@ -222,9 +223,9 @@ const iniciarEnvioSunat = () => {
     console.log('[SUNAT] Cola de envío inactiva (falta SUNAT_EMISION_ACTIVA, certificado o credenciales SOL)');
     return;
   }
-  cron.schedule('*/10 * * * *', () => {
-    procesarPendientes().catch((e) => console.error('[SUNAT] Error en la cola:', e.message));
-  });
+  programar('*/10 * * * *', 'envio-sunat', 9, () => (
+    procesarPendientes().catch((e) => console.error('[SUNAT] Error en la cola:', e.message))
+  ));
   console.log(`[SUNAT] Cola de envío activa cada 10 min — entorno ${billService.entorno()}`);
 };
 

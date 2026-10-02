@@ -23,17 +23,44 @@ const PRECIO_ANUAL = 56400;
 let estado;
 
 // ── Dobles de prueba ──────────────────────────────────────
+// Desde la auditoría del 2026-10-02 la promo se RESERVA antes de cobrar
+// (crear la fila de la tarjeta + UPDATE condicional de la cuenta) y el cobro
+// pasa por lib/cobros.js (intento de cobro + transacción). El doble modela las
+// dos cosas, incluido el @unique de la tarjeta, que es lo que decide la carrera.
 const prismaFalso = {
+  $transaction: async (fn) => fn(prismaFalso),
   usuario: {
     findUnique: async () => ({
       id: 'u1', email: 'cliente@notoria.test', nombre: 'Cliente Prueba',
-      direccionFiscal: null, promoBienvenidaUsada: estado.cuentaYaUso,
+      direccionFiscal: null, promoBienvenidaUsada: estado.cuentaYaUso, plan: 'GRATIS',
     }),
-    update: async ({ data }) => { estado.usuarioActualizado = data; return data; },
+    update: async ({ data }) => { estado.usuarioActualizado = { ...(estado.usuarioActualizado || {}), ...data }; return data; },
+    updateMany: async ({ where }) => {
+      if (where.promoBienvenidaUsada === false) {
+        if (estado.cuentaYaUso || estado.cuentaReservada) return { count: 0 };
+        estado.cuentaReservada = true;
+      }
+      return { count: 1 };
+    },
   },
   promoTarjeta: {
-    findUnique: async () => (estado.tarjetaYaUso ? { id: 'pt1' } : null),
-    create: async ({ data }) => { estado.tarjetaRegistrada = data; return data; },
+    create: async ({ data }) => {
+      if (estado.tarjetaYaUso || estado.tarjetaTomada) { const e = new Error('dup'); e.code = 'P2002'; throw e; }
+      estado.tarjetaTomada = true;
+      estado.tarjetaRegistrada = data; return data;
+    },
+    deleteMany: async () => { estado.tarjetaLiberada = true; return { count: 1 }; },
+  },
+  intentoCobro: {
+    create: async ({ data }) => {
+      estado.intentos = estado.intentos || [];
+      if (estado.intentos.some((i) => i.clave === data.clave)) { const e = new Error('dup'); e.code = 'P2002'; throw e; }
+      const i = { id: `ic${estado.intentos.length + 1}`, pagoId: null, ...data };
+      estado.intentos.push(i); return i;
+    },
+    update: async ({ where, data }) => Object.assign(estado.intentos.find((i) => i.id === where.id), data),
+    updateMany: async ({ where }) => ({ count: estado.intentos.some((i) => i.id === where.id && !i.pagoId) ? 1 : 0 }),
+    findUnique: async ({ where }) => estado.intentos.find((i) => i.clave === where.clave || i.id === where.id) || null,
   },
   pago: { create: async (args) => ({ id: 'p1', ...args.data }) },
 };
@@ -48,7 +75,11 @@ const culqiFalso = {
     id: 'crd_test_1',
     source: { card_number: '411111******1111', last_four: '1111', iin: { bin: '411111', card_brand: 'Visa' } },
   }),
-  crearCargo: async ({ monto }) => { estado.montoCobrado = monto; return { id: 'chr_test_1', source: {} }; },
+  crearCargo: async ({ monto }) => {
+    if (estado.cargoRechazado) { const e = new Error('rechazada'); e.response = { status: 402, data: { user_message: 'Tarjeta rechazada' } }; throw e; }
+    estado.cobros = (estado.cobros || 0) + 1;
+    estado.montoCobrado = monto; return { id: `chr_test_${estado.cobros}`, source: {} };
+  },
   // Las dos de verdad: son la lógica que se está probando
   datosTarjeta: require('../src/lib/culqi').datosTarjeta,
   huellaTarjeta: require('../src/lib/culqi').huellaTarjeta,
@@ -57,8 +88,8 @@ const culqiFalso = {
 // Intercepta los require del módulo de rutas para inyectar los dobles
 const requireOriginal = Module.prototype.require;
 Module.prototype.require = function (id) {
-  if (id.endsWith('lib/prisma')) return prismaFalso;
-  if (id.endsWith('lib/culqi')) return culqiFalso;
+  if (id.endsWith('lib/prisma') || id === './prisma') return prismaFalso;
+  if (id.endsWith('lib/culqi') || id === './culqi') return culqiFalso;
   if (id.endsWith('services/comprobante.service')) {
     return { emitirComprobante: async () => null, pdfDeComprobante: async () => null };
   }
@@ -160,15 +191,50 @@ const casos = [
       ok('cobra el anual completo y no consume la promo');
     },
   },
+  // ── Auditoría 2026-10-02 ────────────────────────────────────────────────
+  {
+    nombre: 'CARRERA: dos pagos SIMULTÁNEOS con la misma tarjeta nueva → la promo se aplica UNA vez',
+    estado: { cuentaYaUso: false, tarjetaYaUso: false },
+    body: { token: 'tkn-a', plan: 'NEGOCIO', anual: false },
+    concurrente: { token: 'tkn-b', plan: 'NEGOCIO', anual: false },
+    comprobar: (r, e, r2) => {
+      const promos = [r, r2].filter((x) => x.body?.promoAplicada === true).length;
+      const rechazos = [r, r2].filter((x) => x.status === 409).length;
+      if (promos !== 1 || rechazos !== 1) return mal(`promos=${promos}, 409=${rechazos}: el @unique solo frenaba la fila, no el segundo cobro`);
+      if (e.cobros !== 1) return mal(`se cobró ${e.cobros} veces`);
+      ok('uno cobra con promo, el otro recibe 409 sin cobrar');
+    },
+  },
+  {
+    nombre: 'Cargo RECHAZADO con promo reservada → la promo se libera (no se pierde por un rechazo del banco)',
+    estado: { cuentaYaUso: false, tarjetaYaUso: false, cargoRechazado: true },
+    body: { token: 'tkn', plan: 'NEGOCIO', anual: false },
+    comprobar: (r, e) => {
+      if (r.status !== 400) return mal(`status ${r.status}, esperado 400`);
+      if (!e.tarjetaLiberada || e.usuarioActualizado?.promoBienvenidaUsada !== false) return mal('la promo quedó gastada por un cargo que no se hizo');
+      ok('rechazo del banco: la tarjeta y la cuenta conservan su promo');
+    },
+  },
+  {
+    nombre: 'El MISMO token dos veces (doble clic) → un solo cobro',
+    estado: { cuentaYaUso: true, tarjetaYaUso: false },
+    body: { token: 'tkn-dup', plan: 'NEGOCIO', anual: false },
+    concurrente: { token: 'tkn-dup', plan: 'NEGOCIO', anual: false },
+    comprobar: (r, e, r2) => {
+      if (e.cobros !== 1) return mal(`se cobró ${e.cobros} veces con el mismo token`);
+      if (![r, r2].some((x) => x.body?.codigo === 'COBRO_DUPLICADO')) return mal('el segundo no fue frenado por la clave');
+      ok('la clave del intento frena el segundo antes de llegar a Culqi');
+    },
+  },
 ];
 
 (async () => {
   console.log('Promo de bienvenida — Culqi y base simulados, no se cobra ni se guarda nada\n');
   for (const caso of casos) {
     estado = { ...caso.estado };
-    const r = await ejecutar(caso.body);
+    const [r, r2] = await Promise.all([ejecutar(caso.body), caso.concurrente ? ejecutar(caso.concurrente) : null]);
     if (r.error) { mal(caso.nombre, '— lanzó:', r.error.message); continue; }
-    caso.comprobar(r, estado);
+    caso.comprobar(r, estado, r2);
   }
   console.log(fallos ? `\n${fallos} fallo(s)` : '\nTodo OK — la promo no se puede repetir ni por cuenta ni por tarjeta');
   process.exit(fallos ? 1 : 0);

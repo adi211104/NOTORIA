@@ -104,7 +104,7 @@ if (!email) {
     await tx.usuario.update({
       where: { id: usuario.id },
       data: {
-        plan: 'GRATIS', suscripcionActiva: false, suscripcionId: null,
+        plan: 'GRATIS', suscripcionActiva: false, tarjetaCulqiId: null,
         fechaVencimiento: null, periodoFacturacion: null,
         promoBienvenidaUsada: false, mesesPromoRestantes: 0,
       },

@@ -16,7 +16,7 @@
 //
 // El cron pide CUATRO condiciones a la vez (monitoreo.worker.js):
 //     suscripcionActiva: true
-//     suscripcionId:     not null       ← la tarjeta guardada; esto NO se inventa
+//     tarjetaCulqiId:     not null       ← la tarjeta guardada; esto NO se inventa
 //     plan:              in PLANES_DE_PAGO
 //     fechaVencimiento:  <= fin de hoy
 // Este script solo toca la primera y la cuarta. Si falta la tarjeta se niega:
@@ -78,7 +78,7 @@ const soles = (c) => 'S/' + (c / 100).toFixed(2);
     where: { email },
     select: {
       id: true, email: true, plan: true, periodoFacturacion: true, localesExtra: true,
-      suscripcionActiva: true, suscripcionId: true, fechaVencimiento: true,
+      suscripcionActiva: true, tarjetaCulqiId: true, fechaVencimiento: true,
       mesesPromoRestantes: true,
     },
   });
@@ -101,14 +101,14 @@ const soles = (c) => 'S/' + (c / 100).toFixed(2);
   const finHoy = new Date(); finHoy.setHours(23, 59, 59, 999);
   const cond = [
     ['suscripcionActiva: true', u.suscripcionActiva === true, 'la pone este script'],
-    ['suscripcionId: not null', !!u.suscripcionId, 'NO se puede inventar'],
+    ['tarjetaCulqiId: not null', !!u.tarjetaCulqiId, 'NO se puede inventar'],
     ['plan in PLANES_DE_PAGO', PLANES_DE_PAGO.includes(u.plan), 'depende del plan'],
     ['fechaVencimiento <= hoy', !!u.fechaVencimiento && u.fechaVencimiento <= finHoy, 'la adelanta este script'],
   ];
   console.log('\n── Lo que el cron exige ──');
   cond.forEach(([q, ok, nota]) => console.log('  ', ok ? '✅' : '❌', q.padEnd(26), ok ? '' : '← ' + nota));
 
-  if (!u.suscripcionId) {
+  if (!u.tarjetaCulqiId) {
     console.error('\n🔴 No hay tarjeta guardada. Sin ella el cron no puede cobrar, y armar esto');
     console.error('   solo prepararía un fallo. Hace falta una suscripción contratada de verdad.');
     process.exit(1);
@@ -166,9 +166,9 @@ const soles = (c) => 'S/' + (c / 100).toFixed(2);
   // lo que creemos haber escrito.
   const v = await prisma.usuario.findUnique({
     where: { id: u.id },
-    select: { suscripcionActiva: true, suscripcionId: true, plan: true, fechaVencimiento: true },
+    select: { suscripcionActiva: true, tarjetaCulqiId: true, plan: true, fechaVencimiento: true },
   });
-  const listo = v.suscripcionActiva && v.suscripcionId && PLANES_DE_PAGO.includes(v.plan)
+  const listo = v.suscripcionActiva && v.tarjetaCulqiId && PLANES_DE_PAGO.includes(v.plan)
     && v.fechaVencimiento && v.fechaVencimiento <= finHoy;
 
   console.log('\n' + (listo

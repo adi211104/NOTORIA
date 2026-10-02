@@ -3,8 +3,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useIdioma } from '../context/IdiomaContext';
 
-import { API_URL, cabecerasAuth } from '../lib/api';
-const getToken = () => localStorage.getItem('bs_token');
+import { API_URL, cabecerasAuth, urlConexionGBP } from '../lib/api';
 
 // Este banner era el ÚNICO trozo del panel escrito a mano en español, sin pasar
 // por el contexto de idioma. Con la interfaz en inglés aparecía un bloque en
@@ -76,8 +75,10 @@ export default function GBPBanner() {
 
   const conectar = () => {
     setConectando(true);
-    const token = getToken();
-    window.location.href = `${API_URL}/api/auth/google-business/iniciar?negocioId=${negocioSinGBP.id}&token=${token}`;
+    // La sesión ya no viaja en la URL (lib/api.js → urlConexionGBP).
+    urlConexionGBP(negocioSinGBP.id)
+      .then((url) => { window.location.href = url; })
+      .catch(() => setConectando(false));
   };
 
   return (

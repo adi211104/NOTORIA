@@ -19,26 +19,57 @@ const { MONEDA, montoSuscripcion, precioLocal } = require('../../lib/precios');
 const { etiquetaDe, puede: planPuede, PLANES_DE_PAGO } = require('../../lib/planes');
 const locales = require('../../lib/localesExtra');
 
-// Guarda un registro de Facturación a partir de la respuesta de un cargo de
-// Culqi exitoso. Solo persiste los primeros 4 dígitos de la tarjeta
-// (source.card_number viene enmascarada, ej. "411111******1111") — nunca el
-// número completo. Si el charge no trae `source` (no debería pasar en un
-// cargo real) el registro queda sin datos de tarjeta en vez de fallar.
-const registrarPago = async ({ usuarioId, plan, periodo, tipo, monto, titular, cargo }) => {
-  const tarjeta = culqi.datosTarjeta(cargo);
-  try {
-    return await prisma.pago.create({
-      data: {
-        usuarioId, plan, periodo, tipo, estado: 'EXITOSO', monto, moneda: MONEDA, titular,
-        tarjetaInicio: tarjeta.inicio,
-        tarjetaMarca: tarjeta.marca,
-        culqiCargoId: cargo?.id || null,
+const cobros = require('../../lib/cobros');
+const webhookInbox = require('../../lib/webhookInbox');
+const { ORDEN } = require('../../lib/planes');
+const { planEfectivo } = require('../../lib/suscripcion');
+const { enviarAvisoInterno } = require('../../utils/emails');
+
+// 🔴 Ya no existe `registrarPago()`, que se tragaba su propio error y devolvía
+// null: si la base fallaba después de cobrar, el cliente quedaba cobrado y sin
+// Pago, y en Notoria no quedaba ningún rastro (auditoría 2026-10-02, P0-01).
+// Todo cobro pasa ahora por `lib/cobros.js`, que registra el intento ANTES de
+// llamar a Culqi y aplica el resultado en una sola transacción.
+
+// Un cobro que salió pero no se pudo aplicar es URGENTE: el cliente pagó y no
+// tiene su plan. La reconciliación lo completa sola en ≤30 min; esto es para
+// que una persona se entere AHORA y no al leer los logs.
+const avisarCobroSinAplicar = ({ intento, cargo, usuario, error }) => {
+  enviarAvisoInterno({
+    asunto: `🔴 Cobro sin aplicar — ${usuario.email}`,
+    lineas: [
+      `Culqi cobró el cargo ${cargo?.id} (${(intento.monto / 100).toFixed(2)} ${intento.moneda}, ${intento.tipo}) pero la base falló al aplicarlo.`,
+      `Intento: ${intento.id} · clave ${intento.clave}`,
+      `Error: ${error?.message}`,
+      'La reconciliación (cada 30 min) lo completa sola. Si en una hora sigue sin Pago, revisar a mano.',
+    ],
+  }).catch((e) => console.error('[Cobro] No se pudo avisar del cobro sin aplicar:', e.message));
+};
+
+// Respuestas para los dos fallos de cobro que NO son «la tarjeta rechazó».
+const respuestaDeCobroFallido = (error) => {
+  if (error?.codigo === 'COBRO_DUPLICADO') {
+    return {
+      status: 409,
+      cuerpo: {
+        error: 'Este pago ya se está procesando o ya se hizo. No lo repitas: revisa tu Facturación en unos minutos.',
+        codigo: 'COBRO_DUPLICADO',
       },
-    });
-  } catch (e) {
-    console.error('[Facturación] No se pudo registrar el pago:', e.message);
-    return null;
+    };
   }
+  if (error?.estadoIntento === cobros.ESTADO.DESCONOCIDO) {
+    // Culqi no contestó: puede que SÍ haya cobrado. Decirle «falló, reintenta»
+    // es como se cobra dos veces. La reconciliación lo resuelve contra Culqi.
+    console.error(`[Cobro] Intento ${error.intento?.id} DESCONOCIDO — Culqi no contestó:`, error.message);
+    return {
+      status: 502,
+      cuerpo: {
+        error: 'El procesador de pagos no respondió a tiempo y no sabemos todavía si el cobro se hizo. No vuelvas a pagar: lo verificamos en minutos y, si se cobró, activamos tu plan solos.',
+        codigo: 'COBRO_EN_VERIFICACION',
+      },
+    };
+  }
+  return null;
 };
 
 // ── POST /api/pagos/culqi/webhook ─────────────────────────
@@ -68,16 +99,37 @@ const EVENTO_REEMBOLSO = 'refund.creation.succeeded';
 // es lo que activa el interruptor "Activar autenticación" del panel de Culqi.
 // Con básica el secreto viaja en la cabecera y no queda escrito en la URL, que
 // es lo que queda guardado a la vista en el propio panel.
+//
+// 🔴 Sin secreto configurado, en PRODUCCIÓN se rechaza todo (auditoría
+// 2026-10-02, P0-03). Antes era «si falta, acepto»: bastaba con que la variable
+// se perdiera en un cambio de servicio de Railway para que cualquiera pudiera
+// mandar un `refund.creation.succeeded` inventado y apagar la suscripción de un
+// cliente. En un webhook que mueve el estado de cobros, el fallo tiene que ser
+// cerrado. Fuera de producción se acepta, para poder probar en local.
+const iguales = (a, b) => {
+  const x = Buffer.from(String(a ?? ''));
+  const y = Buffer.from(String(b ?? ''));
+  // timingSafeEqual exige el mismo largo; comparar los largos primero filtra
+  // solo eso, que no es secreto (el panel de Culqi ya limita a 20 caracteres).
+  return x.length === y.length && x.length > 0 && require('crypto').timingSafeEqual(x, y);
+};
+
 const webhookAutorizado = (req) => {
   const esperado = process.env.CULQI_WEBHOOK_SECRET;
-  if (!esperado) return true; // sin secreto configurado no se exige nada
+  if (!esperado) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[Culqi webhook] 🔴 CULQI_WEBHOOK_SECRET sin definir en producción — se rechaza todo evento');
+      return false;
+    }
+    return true;
+  }
 
-  if (req.query.secret === esperado) return true;
+  if (req.query.secret && iguales(req.query.secret, esperado)) return true;
 
   const cabecera = req.headers?.authorization || '';
   if (!cabecera.startsWith('Basic ')) return false;
   const [usuario, clave] = Buffer.from(cabecera.slice(6), 'base64').toString('utf8').split(':');
-  return clave === esperado || usuario === esperado;
+  return iguales(clave, esperado) || iguales(usuario, esperado);
 };
 
 const datosDelEvento = (body) => {
@@ -90,7 +142,47 @@ const datosDelEvento = (body) => {
   }
 };
 
-// Marca el cobro devuelto en Facturación y desactiva la suscripción que pagaba.
+// Marca el cobro devuelto en Facturación y decide qué le pasa a la suscripción
+// SEGÚN QUÉ se devolvió (auditoría 2026-10-02, P0-06).
+//
+// 🔴 Antes cualquier reembolso hacía `suscripcionActiva = false`. Pero un Pago
+// puede ser la cuota del plan, un local adicional cobrado a mitad de periodo o
+// una prueba, y devolver un local no es cancelar el plan. Ahora:
+//
+//   · cuota (INICIAL / RENOVACION) del periodo VIGENTE, devuelta ENTERA → la
+//     suscripción termina hoy: se apaga la renovación y el vencimiento pasa a
+//     ahora, así que el plan efectivo cae a GRATIS en el acto (lib/suscripcion.js)
+//     — es lo que pasa con el retracto de 7 días. Antes conservaba el plan hasta
+//     el final del periodo SIN haberlo pagado.
+//   · cuota de un periodo VIEJO, o devuelta en PARTE (p. ej. días de una caída,
+//     /devoluciones c) → el servicio sigue; solo se registra.
+//   · LOCAL_ADICIONAL → no se toca el plan; contabilidad decide si se resta el
+//     local (no se adivina: el cliente pudo haberlo vuelto a pagar).
+//   · PRUEBA → solo se registra.
+//
+// Idempotente: un reembolso que ya figura no repite correos ni efectos.
+const CUOTAS = ['INICIAL', 'RENOVACION'];
+
+// ¿Este Pago es la cuota que paga el periodo de HOY? Solo devolver esa termina
+// la suscripción: devolver la de hace tres meses no dice nada del mes en curso.
+const esUltimaCuota = async (pago) => {
+  if (!CUOTAS.includes(pago.tipo)) return false;
+  const ultima = await prisma.pago.findFirst({
+    where: { usuarioId: pago.usuarioId, estado: 'EXITOSO', tipo: { in: CUOTAS } },
+    orderBy: { creadoEn: 'desc' },
+    select: { id: true },
+  });
+  return ultima?.id === pago.id;
+};
+
+// Puro, para poder probarlo sin base (scripts/prueba-auditoria.js).
+const efectoDeReembolso = ({ pago, total, ultimoCuota }) => {
+  if (pago.tipo === 'LOCAL_ADICIONAL') return 'REVISAR_LOCAL';
+  if (!CUOTAS.includes(pago.tipo)) return 'SOLO_REGISTRO';
+  if (total && ultimoCuota) return 'TERMINA_SUSCRIPCION';
+  return 'SOLO_REGISTRO';
+};
+
 const procesarReembolso = async (datos) => {
   // ⚠️ Tiene que ser una CADENA. El cuerpo lo arma quien llame al webhook (va
   // protegido por secreto, pero el secreto no valida la forma del JSON) y este
@@ -107,7 +199,7 @@ const procesarReembolso = async (datos) => {
     where: { culqiCargoId: cargoId },
     select: {
       id: true, usuarioId: true, culqiCargoId: true, estado: true, comprobante: true,
-      monto: true, moneda: true,
+      monto: true, moneda: true, tipo: true, creadoEn: true, montoReembolsado: true,
       // 🔴 `idioma` no es opcional: sin él el aviso de reembolso sale siempre en
       // español, sin fallar y sin dejar rastro. Es la mitad que se olvida —
       // prueba-correos-idioma.js §4 la vigila leyendo este mismo fuente.
@@ -121,16 +213,52 @@ const procesarReembolso = async (datos) => {
     return;
   }
 
-  await prisma.pago.update({ where: { id: pago.id }, data: { estado: 'REEMBOLSADO' } });
-  await prisma.usuario.update({ where: { id: pago.usuarioId }, data: { suscripcionActiva: false } });
-  console.log(`[Culqi webhook] Reembolso aplicado al cargo ${cargoId}`);
+  // Cuánto se devolvió. Si el evento no lo trae, se asume el cargo entero, que
+  // es lo que se hacía siempre (y lo que hace scripts/reembolsar-cargo.js).
+  const montoEvento = Number(datos?.amount);
+  const devuelto = Number.isFinite(montoEvento) && montoEvento > 0 ? montoEvento : pago.monto;
+  const acumulado = Math.min(pago.monto, (pago.montoReembolsado || 0) + devuelto);
+  const total = acumulado >= pago.monto;
+
+  if (pago.estado === 'REEMBOLSADO') {
+    console.log(`[Culqi webhook] El cargo ${cargoId} ya figuraba como reembolsado — sin efectos nuevos`);
+    return;
+  }
+
+  const efecto = efectoDeReembolso({ pago, total, ultimoCuota: await esUltimaCuota(pago) });
+
+  await prisma.$transaction(async (tx) => {
+    await tx.pago.update({
+      where: { id: pago.id },
+      data: { estado: total ? 'REEMBOLSADO' : pago.estado, montoReembolsado: acumulado },
+    });
+    if (efecto === 'TERMINA_SUSCRIPCION') {
+      await tx.usuario.update({
+        where: { id: pago.usuarioId },
+        data: { suscripcionActiva: false, fechaVencimiento: new Date() },
+      });
+    }
+  });
+  console.log(`[Culqi webhook] Reembolso ${total ? 'total' : 'parcial'} del cargo ${cargoId} (${pago.tipo}) → ${efecto}`);
+
+  if (efecto === 'REVISAR_LOCAL' || !total) {
+    const u = await prisma.usuario.findUnique({ where: { id: pago.usuarioId }, select: { email: true, localesExtra: true } });
+    enviarAvisoInterno({
+      asunto: total ? `Reembolso de local adicional — ${u?.email}` : `Reembolso PARCIAL — ${u?.email}`,
+      lineas: total
+        ? [`Se devolvió el cargo ${cargoId} (${(pago.monto / 100).toFixed(2)} ${pago.moneda}), que era un LOCAL ADICIONAL.`,
+          `El plan NO se tocó. La cuenta tiene hoy localesExtra = ${u?.localesExtra}. Si el local devuelto ya no debe cobrarse, bajarlo desde su panel o a mano.`]
+        : [`Se devolvieron ${(devuelto / 100).toFixed(2)} de ${(pago.monto / 100).toFixed(2)} ${pago.moneda} del cargo ${cargoId} (${pago.tipo}).`,
+          'La suscripción sigue activa. Un reembolso PARCIAL de un comprobante aceptado no se anula: corresponde una NOTA DE CRÉDITO por el importe devuelto.'],
+    }).catch((e) => console.error('[Culqi webhook] No se pudo avisar a contabilidad:', e.message));
+  }
 
   // El cliente no se enteraba por ningún sitio de que se le devolvió el dinero.
   // Va con su propio catch, igual que el aviso de anulación: un fallo del correo
   // no puede tumbar el webhook, o Culqi lo reintentaría y acabaría desactivando
   // la suscripción de eventos.
   if (pago.usuario?.email) {
-    await enviarReembolso(pago.usuario, { monto: pago.monto, moneda: pago.moneda })
+    await enviarReembolso(pago.usuario, { monto: devuelto, moneda: pago.moneda })
       .catch((e) => console.error('[Cobro] No se pudo avisar del reembolso:', e.message));
   }
 
@@ -142,8 +270,8 @@ const procesarReembolso = async (datos) => {
   //
   // Va con su propio catch: un fallo del correo no puede tumbar el webhook, o
   // Culqi lo reintentaría y acabaría desactivando la suscripción de eventos.
-  const pagoReembolsado = { ...pago, estado: 'REEMBOLSADO' };
-  if (anulacion.necesitaAnulacion(pago.comprobante, pagoReembolsado)) {
+  const pagoReembolsado = { ...pago, estado: total ? 'REEMBOLSADO' : pago.estado };
+  if (total && anulacion.necesitaAnulacion(pago.comprobante, pagoReembolsado)) {
     await enviarAvisoAnulacionPendiente({
       comprobante: pago.comprobante,
       pago: pagoReembolsado,
@@ -166,22 +294,45 @@ router.post('/culqi/webhook', async (req, res) => {
     return res.status(401).json({ error: 'No autorizado' });
   }
 
+  // 🔴 Bandeja durable (auditoría 2026-10-02, P0-04/05). Antes el handler
+  // procesaba directo y, si algo fallaba, igual contestaba 200 «recibido»: Culqi
+  // daba el evento por entregado y no reintentaba, y el reembolso se perdía sin
+  // rastro. Ahora:
+  //   1. el evento se GUARDA primero; si ni eso se puede (base caída), se
+  //      contesta 500 y Culqi reintenta — ahí sí es lo correcto;
+  //   2. ya guardado, se procesa; si falla queda PENDIENTE y lo reintenta
+  //      `workers/webhooks.worker.js`, con aviso a contabilidad si no sale;
+  //   3. `@@unique([proveedor, idExterno])`: un reintento de Culqi del mismo
+  //      evento no se aplica dos veces.
+  let evento;
   try {
-    const tipo = req.body?.type;
-    console.log(`[Culqi webhook] ${tipo}`);
-
-    if (tipo === EVENTO_REEMBOLSO) await procesarReembolso(datosDelEvento(req.body));
-    // Los demás se registran en vez de ignorarse en silencio: si algún día se
-    // suscribe otro evento en el panel, o Culqi renombra uno, esto es lo único
-    // que lo delata.
-    else console.log(`[Culqi webhook] Evento sin manejar: ${tipo}`);
-
-    res.json({ recibido: true });
+    evento = await webhookInbox.recibir({ proveedor: 'culqi', cuerpo: req.body });
   } catch (error) {
-    console.error('[Culqi webhook] Error:', error.message);
-    res.json({ recibido: true }); // Culqi reintenta si no responde 2xx
+    console.error('[Culqi webhook] 🔴 No se pudo GUARDAR el evento — se pide reintento:', error.message);
+    return res.status(500).json({ recibido: false });
   }
+  if (evento.duplicado) return res.json({ recibido: true, duplicado: true });
+
+  await webhookInbox.procesar(evento, procesarEventoCulqi);
+  res.json({ recibido: true });
 });
+
+// El procesador de UN evento de Culqi. Lo llaman el webhook y el worker que
+// reintenta los pendientes: lanzar = «no se pudo, reintentar».
+const procesarEventoCulqi = async (evento) => {
+  const tipo = evento.tipo;
+  console.log(`[Culqi webhook] ${tipo}`);
+  if (tipo === EVENTO_REEMBOLSO) {
+    await procesarReembolso(datosDelEvento(evento.payload));
+    return 'PROCESADO';
+  }
+  // Los demás se registran en vez de ignorarse en silencio: si algún día se
+  // suscribe otro evento en el panel, o Culqi renombra uno, esto es lo único
+  // que lo delata.
+  console.log(`[Culqi webhook] Evento sin manejar: ${tipo}`);
+  return 'IGNORADO';
+};
+webhookInbox.registrarProcesador('culqi', procesarEventoCulqi);
 
 router.use(autenticar);
 // Toda la facturación es del propietario, sin excepciones: también las lecturas.
@@ -267,6 +418,27 @@ router.post('/culqi', async (req, res) => {
     }
     const precioBase = montoSuscripcion(plan, anual, extras);
 
+    // 🔴 BAJAR de plan no pasa por aquí (auditoría 2026-10-02, P0-09). Este
+    // alta aplica el plan nuevo AL MOMENTO y le suma el periodo a lo ya pagado:
+    // a quien sube le regala días, pero a quien BAJA le convertía los días ya
+    // pagados del plan caro en días del barato, sin devolverle nada — y
+    // /devoluciones promete que la bajada «se hace efectiva al terminar el
+    // periodo que ya pagaste». Ahora se cumple: se rechaza antes de cobrar y se
+    // explica el camino (cancelar la renovación y elegir el plan menor cuando
+    // termine lo pagado).
+    const actual = planEfectivo(usuario);
+    const quedaPeriodo = usuario.fechaVencimiento && new Date(usuario.fechaVencimiento) > new Date();
+    // Lo mismo para pasar de ANUAL a MENSUAL en el mismo plan: /devoluciones
+    // dice que «se aplica al vencer la anualidad», y este alta lo aplicaba ya.
+    const anualAMensual = plan === actual && !anual && usuario.periodoFacturacion === 'anual';
+    if (quedaPeriodo && (ORDEN.indexOf(plan) < ORDEN.indexOf(actual) || anualAMensual)) {
+      return res.status(409).json({
+        error: `Tienes el ${etiquetaDe(actual)} pagado hasta el ${new Date(usuario.fechaVencimiento).toLocaleDateString('es-PE', { timeZone: 'America/Lima' })}. `
+          + (anualAMensual ? 'Para pasar a mensual' : 'Para bajar de plan') + ', cancela la renovación en Configuración → Suscripción: conservas lo que pagaste hasta esa fecha y entonces eliges el nuevo plan, sin perder nada.',
+        codigo: 'BAJADA_AL_VENCER',
+      });
+    }
+
     // obtenerOCrearCliente, NO crearCliente: Culqi rechaza un segundo customer
     // con el mismo correo, así que reintentar una suscripción fallaría siempre.
     // Identificación obligatoria por importe (RS 007-99, art. 8): desde S/700
@@ -310,94 +482,132 @@ router.post('/culqi', async (req, res) => {
     // huella solo se conoce con la tarjeta ya creada y el importe no se puede
     // cambiar una vez hecho el cargo.
     const huella = culqi.huellaTarjeta(tarjeta);
-    const tarjetaYaUsoPromo = huella
-      ? !!(await prisma.promoTarjeta.findUnique({ where: { huella } }))
-      // Sin huella (Culqi no devolvió los datos, o falta PROMO_HASH_SECRET) no
-      // se puede verificar la tarjeta: se trata como ya usada para no dejar el
-      // descuento sin control.
-      : true;
-
     const cuentaPuedePromo = !anual && !usuario.promoBienvenidaUsada && !sinPromo;
-    const aplicaPromo = cuentaPuedePromo && !tarjetaYaUsoPromo;
 
     // Si la cuenta tenía derecho al descuento pero la tarjeta ya lo gastó, NO se
     // cobra: el widget le mostró al usuario el importe con descuento y cobrarle
     // el precio regular sería cobrarle algo distinto de lo que aceptó. Se le
     // avisa y decide si continúa al precio de lista.
-    if (cuentaPuedePromo && tarjetaYaUsoPromo) {
-      return res.status(409).json({
-        error: 'Esta tarjeta ya usó la promoción de bienvenida. Puedes continuar al precio regular.',
-        codigo: 'PROMO_NO_APLICA',
-        montoRegular: precioBase,
+    const promoNoAplica = () => res.status(409).json({
+      error: 'Esta tarjeta ya usó la promoción de bienvenida. Puedes continuar al precio regular.',
+      codigo: 'PROMO_NO_APLICA',
+      montoRegular: precioBase,
+    });
+
+    // 🔴 La promo se RESERVA antes de cobrar, no se marca después (auditoría
+    // 2026-10-02, P0-08). Antes: leer si la tarjeta ya la usó → cobrar → crear la
+    // fila. Dos pagos simultáneos con la misma tarjeta veían «libre» los dos y
+    // los dos cobraban al 50%; el @unique solo impedía la SEGUNDA fila, no el
+    // segundo cobro. Ahora la operación única es la reserva: crear la fila de la
+    // tarjeta (choca contra el @unique si ya existe) y pasar la cuenta a
+    // «promo usada» con un UPDATE condicional. Solo una de dos peticiones gana.
+    // Si el cobro FALLA se libera; si queda en duda (Culqi no contestó) se
+    // conserva, porque puede que sí se haya cobrado al 50%.
+    let aplicaPromo = false;
+    const liberarPromo = async () => {
+      if (!aplicaPromo) return;
+      await prisma.promoTarjeta.deleteMany({ where: { huella, usuarioId: usuario.id } }).catch(() => {});
+      await prisma.usuario.update({ where: { id: usuario.id }, data: { promoBienvenidaUsada: false } }).catch(() => {});
+    };
+    if (cuentaPuedePromo) {
+      // Sin huella (Culqi no devolvió los datos, o falta PROMO_HASH_SECRET) no
+      // se puede verificar la tarjeta: se trata como ya usada para no dejar el
+      // descuento sin control.
+      if (!huella) return promoNoAplica();
+      try {
+        await prisma.promoTarjeta.create({ data: { huella, usuarioId: usuario.id } });
+      } catch (e) {
+        if (e.code === 'P2002') return promoNoAplica();
+        throw e;
+      }
+      const cuenta = await prisma.usuario.updateMany({
+        where: { id: usuario.id, promoBienvenidaUsada: false },
+        data: { promoBienvenidaUsada: true },
       });
+      if (cuenta.count !== 1) {
+        await prisma.promoTarjeta.deleteMany({ where: { huella, usuarioId: usuario.id } }).catch(() => {});
+        return promoNoAplica();
+      }
+      aplicaPromo = true;
     }
 
     const monto = aplicaPromo ? Math.round(precioBase / 2) : precioBase;
-
-    const cargo = await culqi.crearCargo({
-      monto,
-      moneda: MONEDA,
-      email: usuario.email,
-      sourceId: tarjeta.id,
-      // El nombre sale de lib/planes.js. Era `Plan ${plan}` con el valor crudo del
-      // enum, o sea "Plan NEGOCIO" en mayúsculas — y esta descripción la ve el
-      // cliente en el panel de Culqi y en el detalle de su tarjeta.
-      descripcion: `Notoria — ${etiquetaDe(plan)} (${anual ? 'anual' : 'mensual'})`
-        + (puedeLocales && extras ? ` + ${extras} local(es)` : '')
-        + (aplicaPromo ? ' — promo 50% bienvenida' : ''),
-    });
 
     // 🔴 El periodo nuevo se SUMA a lo que el cliente ya tiene pagado, no arranca
     // hoy. Hasta el 2026-08-30 esto era `new Date()` a secas, y el precio lo
     // pagaba el cliente: quien estaba en mensual con veinte días por delante y
     // se pasaba a anual perdía esos veinte días sin que nada se lo dijera. Es la
     // MISMA regla que ya usa el cron de renovación (`monitoreo.worker.js`, el
-    // `base` con el máximo entre vencimiento y ahora); tenerla en un solo sitio
-    // y no en el otro era la asimetría que hacía caro cambiarse de periodo.
+    // `base` con el máximo entre vencimiento y ahora).
     //
-    // ⚠️ Alcance: aplica a CUALQUIER alta con vencimiento futuro, no solo al
-    // cambio de periodo. En una subida de plan eso regala los días que quedaban
-    // del plan viejo — es a favor del cliente, acotado a un periodo, y hace el
-    // upgrade más atractivo. Lo exacto sería prorratear, y se descartó a
-    // propósito: añadir esa aritmética a un camino que emite comprobantes
-    // fiscales no compensa por unos días (misma decisión que en §8.8).
+    // ⚠️ Esto ES la política de cambio de plan, y desde el 2026-10-02 es la que
+    // publica /devoluciones (antes prometía un «cobro proporcional» que nunca
+    // existió — auditoría P0-09): al subir de plan se cobra el plan nuevo
+    // completo y los días que quedaban se SUMAN, ya con el plan nuevo. Lo exacto
+    // sería prorratear, y se descartó a propósito: añadir esa aritmética a un
+    // camino que emite comprobantes fiscales no compensa por unos días.
     const baseVencimiento = usuario.fechaVencimiento && new Date(usuario.fechaVencimiento) > new Date()
       ? new Date(usuario.fechaVencimiento)
       : new Date();
     const fechaVencimiento = new Date(baseVencimiento);
     fechaVencimiento.setMonth(fechaVencimiento.getMonth() + (anual ? 12 : 1));
 
-    const usuarioActualizado = await prisma.usuario.update({
-      where: { id: usuario.id },
-      data: {
+    let cobro;
+    try {
+      cobro = await cobros.cobrar({
+        // El token del widget es de UN solo uso: la misma clave = el mismo pago.
+        // Un doble clic o un reintento del navegador no pueden cobrar dos veces.
+        clave: `alta:${usuario.id}:${token}`,
+        usuarioId: usuario.id,
+        tipo: 'INICIAL',
         plan,
-        suscripcionActiva: true,
-        suscripcionId: tarjeta.id, // tarjeta guardada — se reutiliza cada mes para renovar
-        fechaVencimiento,
-        periodoFacturacion: anual ? 'anual' : 'mensual',
-        // Lo que se acaba de COBRAR, que es lo que manda para el tope de
-        // negocios y para lo que se le cobrará el mes que viene. Se guarda
-        // siempre —también cuando son 0— para que bajar de cuatro locales a uno
-        // deje de cobrar los tres de más.
-        localesExtra: puedeLocales ? extras : 0,
-        ...(aplicaPromo ? { promoBienvenidaUsada: true, mesesPromoRestantes: 1 } : {}),
-      },
-      select: { plan: true, suscripcionActiva: true, fechaVencimiento: true },
-    });
-
-    // Quema la tarjeta para la promo. Va después del cobro exitoso: si el cargo
-    // falla, la tarjeta no debe quedar marcada. `create` puede chocar contra el
-    // @unique si dos cobros con la misma tarjeta entran a la vez — es
-    // precisamente lo que la restricción evita, así que el error se absorbe: el
-    // cobro ya es válido y la tarjeta queda registrada igual.
-    if (aplicaPromo && huella) {
-      await prisma.promoTarjeta.create({ data: { huella, usuarioId: usuario.id } })
-        .catch(e => console.error('[Promo] No se pudo registrar la tarjeta:', e.message));
+        periodo: anual ? 'anual' : 'mensual',
+        monto,
+        moneda: MONEDA,
+        email: usuario.email,
+        sourceId: tarjeta.id,
+        // El nombre sale de lib/planes.js. Era `Plan ${plan}` con el valor crudo
+        // del enum — y esta descripción la ve el cliente en su tarjeta.
+        descripcion: `Notoria — ${etiquetaDe(plan)} (${anual ? 'anual' : 'mensual'})`
+          + (puedeLocales && extras ? ` + ${extras} local(es)` : '')
+          + (aplicaPromo ? ' — promo 50% bienvenida' : ''),
+        detalle: {
+          plan,
+          periodoFacturacion: anual ? 'anual' : 'mensual',
+          fechaVencimiento: fechaVencimiento.toISOString(),
+          // Lo que se acaba de COBRAR, que es lo que manda para el tope de
+          // negocios y para la renovación. Se guarda siempre —también 0— para
+          // que bajar de cuatro locales a uno deje de cobrar los tres de más.
+          localesExtra: puedeLocales ? extras : 0,
+          tarjetaCulqiId: tarjeta.id, // tarjeta guardada — se reutiliza para renovar
+          promo: aplicaPromo,
+        },
+      });
+    } catch (e) {
+      if (e.estadoIntento !== cobros.ESTADO.DESCONOCIDO) await liberarPromo();
+      throw e;
     }
+    const { cargo, intento } = cobro;
 
-    const pago = await registrarPago({
-      usuarioId: usuario.id, plan, periodo: anual ? 'anual' : 'mensual', tipo: 'INICIAL',
-      monto, titular: usuario.nombre, cargo,
+    // Todo lo de la base en UNA transacción (lib/cobros.js). Si falla, el cobro
+    // YA ocurrió: no se finge éxito ni se devuelve un 400 que invite a pagar
+    // otra vez. El intento queda EXITOSO y sin Pago, la reconciliación lo
+    // completa con la misma función, y contabilidad se entera ahora.
+    let pago;
+    try {
+      pago = await cobros.aplicar({ intento, cargo, titular: usuario.nombre });
+    } catch (e) {
+      console.error(`[Cobro] 🔴 Cargo ${cargo?.id} COBRADO pero no se pudo aplicar a ${usuario.email}:`, e.message);
+      avisarCobroSinAplicar({ intento, cargo, usuario, error: e });
+      return res.status(202).json({
+        error: 'Recibimos tu pago, pero no pudimos activar tu plan en este momento. Lo activamos en unos minutos sin que tengas que pagar de nuevo; si no ves el cambio, escríbenos.',
+        codigo: 'PAGO_PENDIENTE_DE_ACTIVAR',
+        cargoId: cargo?.id,
+      });
+    }
+    const usuarioActualizado = await prisma.usuario.findUnique({
+      where: { id: usuario.id },
+      select: { plan: true, suscripcionActiva: true, fechaVencimiento: true },
     });
 
     // El comprobante nunca tumba el cobro: si falla, se registra en el log y el
@@ -418,6 +628,8 @@ router.post('/culqi', async (req, res) => {
       comprobante: comprobante ? { tipo: comprobante.tipo, numero: comprobante.numero } : null,
     });
   } catch (error) {
+    const respuesta = respuestaDeCobroFallido(error);
+    if (respuesta) return res.status(respuesta.status).json(respuesta.cuerpo);
     // Al usuario se le enseña `user_message` (redactado para él); al log va
     // ADEMÁS `merchant_message` y el campo que falló, que es lo único que
     // permite diagnosticar. Antes solo se registraba el mensaje de cara al
@@ -470,7 +682,7 @@ const contextoLocales = async (usuarioId) => {
     where: { id: usuarioId },
     select: {
       id: true, email: true, nombre: true, plan: true, suscripcionActiva: true,
-      suscripcionId: true, fechaVencimiento: true, periodoFacturacion: true,
+      tarjetaCulqiId: true, fechaVencimiento: true, periodoFacturacion: true,
       localesExtra: true, mesesPromoRestantes: true, direccionFiscal: true,
     },
   });
@@ -521,7 +733,7 @@ const resumenLocales = (usuario, negociosActivos, localesExtraNuevo) => {
     motivo: locales.validarCambio({
       plan: usuario.plan,
       suscripcionActiva: usuario.suscripcionActiva,
-      tieneTarjeta: !!usuario.suscripcionId,
+      tieneTarjeta: !!usuario.tarjetaCulqiId,
       localesExtraNuevo: nuevo,
       negociosActivos,
     }),
@@ -567,7 +779,7 @@ router.post('/locales', async (req, res) => {
     const motivo = locales.validarCambio({
       plan: usuario.plan,
       suscripcionActiva: usuario.suscripcionActiva,
-      tieneTarjeta: !!usuario.suscripcionId,
+      tieneTarjeta: !!usuario.tarjetaCulqiId,
       localesExtraNuevo: nuevo,
       negociosActivos,
     });
@@ -616,28 +828,40 @@ router.post('/locales', async (req, res) => {
     // nuevo del widget. El cliente ya la registró al contratar y volver a
     // pedírsela para sumar un local sería fricción inventada — además de que el
     // widget cobra lo que se le diga y acá el importe lo decide el servidor.
-    const cargo = await culqi.crearCargo({
+    // ⚠️ El vencimiento NO se toca (el `detalle` solo lleva `localesExtra`). Es
+    // la diferencia con pasar por el alta, y es el motivo de todo esto: el
+    // aniversario del cliente no se mueve porque haya sumado un local a mitad
+    // de mes. prueba-locales.js lo vigila sobre la llamada real.
+    const { cargo, intento } = await cobros.cobrar({
+      // El mismo cambio, en el mismo periodo, no se cobra dos veces (doble clic,
+      // reintento del navegador). Otro cambio distinto es otra clave.
+      clave: `locales:${usuario.id}:${new Date(usuario.fechaVencimiento).toISOString()}:${usuario.localesExtra}->${nuevo}`,
+      usuarioId: usuario.id,
+      tipo: 'LOCAL_ADICIONAL',
+      plan: usuario.plan,
+      periodo: anual ? 'anual' : 'mensual',
       monto: cuenta.centimos,
       moneda: MONEDA,
       email: usuario.email,
-      sourceId: usuario.suscripcionId,
+      sourceId: usuario.tarjetaCulqiId,
       descripcion: `Notoria — ${etiquetaDe(usuario.plan)}, +${cuenta.delta} local(es)`
         + ` (${cuenta.dias} de ${cuenta.diasPeriodo} días)`
         + (cuenta.promoAplicada ? ' — promo 50% bienvenida' : ''),
+      detalle: { localesExtra: nuevo, antes: usuario.localesExtra },
     });
 
-    // ⚠️ El vencimiento NO se toca. Es la diferencia con pasar por el alta, y es
-    // el motivo de todo esto: el aniversario del cliente no se mueve porque haya
-    // sumado un local a mitad de mes.
-    await prisma.usuario.update({
-      where: { id: usuario.id },
-      data: { localesExtra: nuevo },
-    });
-
-    const pago = await registrarPago({
-      usuarioId: usuario.id, plan: usuario.plan, periodo: anual ? 'anual' : 'mensual',
-      tipo: 'LOCAL_ADICIONAL', monto: cuenta.centimos, titular: usuario.nombre, cargo,
-    });
+    let pago;
+    try {
+      pago = await cobros.aplicar({ intento, cargo, titular: usuario.nombre });
+    } catch (e) {
+      console.error(`[Cobro] 🔴 Cargo ${cargo?.id} COBRADO pero no se pudo aplicar a ${usuario.email}:`, e.message);
+      avisarCobroSinAplicar({ intento, cargo, usuario, error: e });
+      return res.status(202).json({
+        error: 'Recibimos tu pago, pero no pudimos sumar el local en este momento. Lo hacemos en unos minutos sin volver a cobrarte.',
+        codigo: 'PAGO_PENDIENTE_DE_ACTIVAR',
+        cargoId: cargo?.id,
+      });
+    }
     // El comprobante nunca tumba el cobro, igual que en el alta.
     const comprobante = pago ? await emitirComprobante({ pago, usuario }) : null;
 
@@ -650,6 +874,8 @@ router.post('/locales', async (req, res) => {
       ...resumenLocales({ ...usuario, localesExtra: nuevo }, negociosActivos, nuevo),
     });
   } catch (error) {
+    const respuesta = respuestaDeCobroFallido(error);
+    if (respuesta) return res.status(respuesta.status).json(respuesta.cuerpo);
     // Mismo tratamiento que el alta: al usuario el mensaje redactado, al log
     // además el `merchant_message` y el campo, que es lo único que diagnostica.
     const datos = error.response?.data;
@@ -796,3 +1022,5 @@ router.get('/comprobantes/:id/pdf', async (req, res, next) => {
 });
 
 module.exports = router;
+// Expuestas para scripts/prueba-auditoria.js.
+module.exports._interno = { webhookAutorizado, efectoDeReembolso, respuestaDeCobroFallido, procesarEventoCulqi };

@@ -18,6 +18,7 @@
 // forma de saber si SUNAT aceptó, y reenviar el resumen sería un duplicado.
 
 const cron = require('node-cron');
+const { programar } = require('../lib/candado');
 const prisma = require('../lib/prisma');
 const tributario = require('../lib/tributario');
 const ublResumen = require('../sunat/ublResumenBoletas');
@@ -376,9 +377,9 @@ const iniciarResumenSunat = () => {
   }
   // Desfasado 5 minutos respecto de la cola de facturas para no pegarle a SUNAT
   // con las dos cosas a la vez y provocar el 401 de saturación.
-  cron.schedule('5-59/10 * * * *', () => {
-    procesarResumenes().catch((e) => console.error('[SUNAT] Error en el resumen diario:', e.message));
-  });
+  programar('5-59/10 * * * *', 'resumen-sunat', 9, () => (
+    procesarResumenes().catch((e) => console.error('[SUNAT] Error en el resumen diario:', e.message))
+  ));
   console.log(`[SUNAT] Resumen diario activo cada 10 min — entorno ${billService.entorno()}`);
 };
 

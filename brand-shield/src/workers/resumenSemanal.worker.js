@@ -6,6 +6,7 @@
 // email consolidado en vez de uno por negocio.
 
 const cron = require('node-cron');
+const { programar } = require('../lib/candado');
 const axios = require('axios');
 const prisma = require('../lib/prisma');
 const { puede } = require('../lib/planes');
@@ -297,7 +298,7 @@ const ejecutarAhora = async ({ forzar = false } = {}) => {
 // ni el día que elija cada uno; y con crons separados (uno domingo, uno el día 1)
 // habría dos calendarios que mantener y un usuario podría caer en los dos.
 const iniciarResumenSemanal = () => {
-  cron.schedule('0 8 * * *', () => ejecutarAhora(), { timezone: 'America/Lima' });
+  programar('0 8 * * *', 'resumen-por-negocio', 120, () => ejecutarAhora(), { timezone: 'America/Lima' });
   console.log('[Resumen] Cron configurado: diario 8:00 AM (hora Lima), cadencia por usuario');
 };
 

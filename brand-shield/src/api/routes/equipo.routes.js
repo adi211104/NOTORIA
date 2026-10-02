@@ -10,6 +10,15 @@ const crypto = require('crypto');
 const { z } = require('zod');
 const prisma = require('../../lib/prisma');
 const { autenticar, permitir } = require('../middlewares/auth.middleware');
+const { planEfectivo } = require('../../lib/suscripcion');
+
+// Candado de la cuenta para la duración de UNA transacción (se suelta solo al
+// terminar). Serializa invitar/aceptar sobre la misma cuenta para que el cupo de
+// asientos no se pueda pasar con dos peticiones simultáneas (auditoría P1-01).
+// `$executeRaw` y no `$queryRaw`: la función devuelve `void`, que Prisma no sabe
+// leer como columna.
+const candadoDeCuenta = (tx, cuentaId) =>
+  tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`equipo:${cuentaId}`}))`;
 const {
   ROLES_INVITABLES, asientosDelPlan, equipoDeCuenta, contarAsientos, cuentasDe, registrar,
 } = require('../../lib/equipo');
@@ -132,27 +141,44 @@ router.post('/invitacion/:token/aceptar', async (req, res, next) => {
     // Se vuelve a comprobar el cupo AQUÍ, no solo al invitar. Entre la
     // invitación y su aceptación puede haber pasado una semana, y en ese rato el
     // dueño pudo bajar de plan o llenar los asientos con otras personas.
-    const miembros = await prisma.miembro.count({ where: { cuentaId: inv.cuentaId } });
-    if (miembros >= asientosDelPlan(inv.cuenta.plan) - 1) {
-      return res.status(409).json({
-        error: `El plan de ${inv.cuenta.nombre} ya no tiene asientos libres. Pídele que amplíe el plan.`,
-        tipo: 'SIN_ASIENTOS',
+    //
+    // 🔴 Y se comprueba DENTRO de la transacción, con el candado de la cuenta
+    // tomado (auditoría 2026-10-02, P1-01). Antes se contaba fuera y se creaba
+    // después: dos invitados aceptando a la vez veían el mismo asiento libre y
+    // entraban los dos. `pg_advisory_xact_lock` serializa las aceptaciones (y
+    // las invitaciones) de UNA cuenta; se suelta solo al terminar la transacción.
+    const sinAsiento = new Error('SIN_ASIENTOS');
+    let miembro;
+    try {
+      miembro = await prisma.$transaction(async (tx) => {
+        await candadoDeCuenta(tx, inv.cuentaId);
+        const plan = planEfectivo(await tx.usuario.findUnique({
+          where: { id: inv.cuentaId },
+          select: { plan: true, suscripcionActiva: true, fechaVencimiento: true },
+        }));
+        const miembros = await tx.miembro.count({ where: { cuentaId: inv.cuentaId } });
+        if (miembros >= asientosDelPlan(plan) - 1) throw sinAsiento;
+        const m = await tx.miembro.create({
+          data: {
+            cuentaId: inv.cuentaId,
+            usuarioId: req.usuario.id,
+            rol: inv.rol,
+            negociosIds: inv.negociosIds,
+          },
+        });
+        // La invitación se consume: el enlace deja de valer en cuanto se usa.
+        await tx.invitacion.delete({ where: { id: inv.id } });
+        return m;
       });
+    } catch (e) {
+      if (e === sinAsiento) {
+        return res.status(409).json({
+          error: `El plan de ${inv.cuenta.nombre} ya no tiene asientos libres. Pídele que amplíe el plan.`,
+          tipo: 'SIN_ASIENTOS',
+        });
+      }
+      throw e;
     }
-
-    const miembro = await prisma.$transaction(async (tx) => {
-      const m = await tx.miembro.create({
-        data: {
-          cuentaId: inv.cuentaId,
-          usuarioId: req.usuario.id,
-          rol: inv.rol,
-          negociosIds: inv.negociosIds,
-        },
-      });
-      // La invitación se consume: el enlace deja de valer en cuanto se usa.
-      await tx.invitacion.delete({ where: { id: inv.id } });
-      return m;
-    });
 
     await prisma.registroActividad.create({
       data: {
@@ -344,14 +370,34 @@ router.post('/invitar', async (req, res, next) => {
     // upsert y no create: reinvitar al mismo correo tiene que renovar el enlace,
     // no chocar contra el @unique con un error que no explica nada. Es además lo
     // que hace que el botón "Reenviar" sea trivial.
-    await prisma.invitacion.upsert({
-      where: { cuentaId_email: { cuentaId: req.cuenta.id, email } },
-      create: {
-        cuentaId: req.cuenta.id, email, rol, negociosIds: alcance,
-        tokenHash: hashear(token), expira, invitadaPorId: req.usuario.id,
-      },
-      update: { rol, negociosIds: alcance, tokenHash: hashear(token), expira, invitadaPorId: req.usuario.id },
+    //
+    // 🔴 El cupo se vuelve a contar DENTRO de la transacción y con el candado
+    // de la cuenta (auditoría 2026-10-02, P1-01): dos invitaciones enviadas a
+    // la vez veían el mismo asiento libre y salían las dos. La invitación que
+    // se está renovando (mismo correo) no cuenta contra sí misma.
+    const cabe = await prisma.$transaction(async (tx) => {
+      await candadoDeCuenta(tx, req.cuenta.id);
+      const [miembros, pendientes] = await Promise.all([
+        tx.miembro.count({ where: { cuentaId: req.cuenta.id } }),
+        tx.invitacion.count({ where: { cuentaId: req.cuenta.id, expira: { gt: new Date() }, NOT: { email } } }),
+      ]);
+      if (1 + miembros + pendientes >= asientos.total) return false;
+      await tx.invitacion.upsert({
+        where: { cuentaId_email: { cuentaId: req.cuenta.id, email } },
+        create: {
+          cuentaId: req.cuenta.id, email, rol, negociosIds: alcance,
+          tokenHash: hashear(token), expira, invitadaPorId: req.usuario.id,
+        },
+        update: { rol, negociosIds: alcance, tokenHash: hashear(token), expira, invitadaPorId: req.usuario.id },
+      });
+      return true;
     });
+    if (!cabe) {
+      return res.status(403).json({
+        error: `Tu plan incluye ${asientos.total} personas y ya están ocupadas. Libera un lugar o pasa a Franquicia (10).`,
+        accion: 'ACTUALIZAR_PLAN',
+      });
+    }
 
     const nombres = alcance.length
       ? (await prisma.negocio.findMany({ where: { id: { in: alcance } }, select: { nombre: true } })).map((n) => n.nombre)

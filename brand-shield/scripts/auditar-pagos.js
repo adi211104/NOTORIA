@@ -32,14 +32,14 @@ const fecha = (d) => (d ? d.toISOString().slice(0, 10) : '—');
 
   const conPlan = await prisma.usuario.findMany({
     where: { OR: [{ suscripcionActiva: true }, { plan: { not: 'GRATIS' } }] },
-    select: { email: true, plan: true, suscripcionActiva: true, fechaVencimiento: true, suscripcionId: true },
+    select: { email: true, plan: true, suscripcionActiva: true, fechaVencimiento: true, tarjetaCulqiId: true },
   });
 
   console.log(`\nUSUARIOS con plan de pago o suscripción activa: ${conPlan.length}`);
   for (const u of conPlan) {
     // Sin tarjeta guardada = plan concedido a mano, no comprado. Es lo que
     // distingue una cuenta del dueño de un cobro real.
-    const origen = u.suscripcionId ? `tarjeta ${u.suscripcionId}` : 'concedido a mano (sin tarjeta)';
+    const origen = u.tarjetaCulqiId ? `tarjeta ${u.tarjetaCulqiId}` : 'concedido a mano (sin tarjeta)';
     console.log(`  ${u.email}  ${u.plan}  activa=${u.suscripcionActiva}  vence=${fecha(u.fechaVencimiento)}  ${origen}`);
   }
 

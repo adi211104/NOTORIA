@@ -2,12 +2,11 @@
 import { puede as planIncluye } from '../../../lib/planes';
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { negociosApi, redes, API_URL } from '../../../lib/api';
+import { negociosApi, redes, API_URL, urlConexionGBP } from '../../../lib/api';
 import { useAuth } from '../../../context/AuthContext';
 import { useIdioma } from '../../../context/IdiomaContext';
 import Icon from '../../../components/Icons';
 
-const getToken = () => localStorage.getItem('bs_token');
 
 const TEXTOS = {
   es: {
@@ -274,10 +273,12 @@ export default function ConexionesPage() {
     }
   };
 
-  // Google Business no pasa por /api/redes: su OAuth lo inicia el backend
-  // directamente con el token en la query.
+  // Google Business no pasa por /api/redes: el backend devuelve la URL de Google
+  // a una petición autenticada (ya no viaja la sesión en la URL — lib/api.js).
   const conectarGBP = (negocioId) => {
-    window.location.href = `${API_URL}/api/auth/google-business/iniciar?negocioId=${negocioId}&token=${getToken()}`;
+    urlConexionGBP(negocioId)
+      .then((url) => { window.location.href = url; })
+      .catch((e) => setErrorDesc(e.message));
   };
 
   // El callback de TikTok vuelve al detalle del negocio, pero si alguien llega

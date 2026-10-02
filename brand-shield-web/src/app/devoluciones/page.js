@@ -48,9 +48,10 @@ export default function DevolucionesPage() {
         <P>d) <strong>Suscripción anual:</strong> si cancelas un plan anual pasados los 7 días, puedes solicitar la devolución proporcional de los meses completos no consumidos, descontando el descuento anual aplicado.</P>
 
         <H2>5. Cambios de plan</H2>
-        <P><strong>Subir de plan (upgrade):</strong> el cambio es inmediato. Se cobra la diferencia proporcional por los días que resten del periodo en curso y a partir de la siguiente renovación se factura el precio del nuevo plan.</P>
-        <P><strong>Bajar de plan (downgrade):</strong> se hace efectivo al terminar el periodo que ya pagaste, para que aproveches lo contratado. No se genera devolución por la diferencia de precio del periodo en curso.</P>
-        <P><strong>Cambio de modalidad de cobro:</strong> puedes pasar de mensual a anual en cualquier momento; el cambio de anual a mensual se aplica al vencer la anualidad.</P>
+        <P><strong>Subir de plan (upgrade):</strong> el cambio es inmediato. Se cobra el periodo completo del nuevo plan y los días que te quedaban del periodo anterior no se pierden: se suman al final del nuevo periodo, ya con el plan nuevo. Desde la siguiente renovación se factura el precio del nuevo plan.</P>
+        <P><strong>Bajar de plan (downgrade):</strong> se hace efectivo al terminar el periodo que ya pagaste, para que aproveches lo contratado: cancela la renovación desde Configuración → Suscripción, conservas tu plan hasta esa fecha y entonces eliges el plan menor. No se genera devolución por la diferencia de precio del periodo en curso.</P>
+        <P><strong>Cambio de modalidad de cobro:</strong> puedes pasar de mensual a anual en cualquier momento, con la misma regla que al subir de plan (los días que te quedaban se suman). El cambio de anual a mensual se aplica al vencer la anualidad.</P>
+        <P><strong>Locales adicionales:</strong> sumar un local a mitad de periodo se cobra en proporción a los días que faltan para tu renovación; quitarlo no genera devolución y deja de cobrarse en la siguiente renovación.</P>
 
         <H2>6. Plazos y medio de devolución</H2>
         <P>Toda solicitud se responde en un plazo máximo de <strong>2 días hábiles</strong>. Aprobada la devolución, el reembolso se procesa a través de Culqi <strong>a la misma tarjeta con la que se realizó el pago</strong>: no es posible devolver a una tarjeta o cuenta distinta.</P>

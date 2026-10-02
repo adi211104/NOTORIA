@@ -53,13 +53,11 @@ const VIGENCIA_DIAS = 365;
 // gemela en `constancia.js`.
 const TIPO = 'x';
 
-const secreto = () => {
-  const s = process.env.JWT_SECRET;
-  if (!s) throw new Error('JWT_SECRET no está configurado — no se puede firmar el expediente');
-  return s;
-};
+// La clave sale de lib/firmaDocumentos.js: DOCUMENTOS_SECRET (o JWT_SECRET si
+// todavía no está puesta), y se verifica contra las dos (auditoría P2-04).
+const { firmar: firmarDocumento, firmaValida } = require('./firmaDocumentos');
 
-const firmar = (body) => crypto.createHmac('sha256', secreto()).update(body).digest('base64url');
+const firmar = (body) => firmarDocumento(body);
 
 /**
  * Huella del texto de la reseña.
@@ -119,11 +117,8 @@ const verificarCodigo = (codigo) => {
       return { valida: false, motivo: 'FORMATO' };
     }
     const [body, firma] = codigo.split('.');
-    const esperada = firmar(body);
-    const a = Buffer.from(firma);
-    const b = Buffer.from(esperada);
-    // timingSafeEqual exige longitudes iguales, y comparar antes evita que lance
-    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    // En tiempo constante y contra los dos secretos vigentes (firmaDocumentos.js).
+    if (!firmaValida(body, firma)) {
       return { valida: false, motivo: 'FIRMA' };
     }
 

@@ -202,7 +202,10 @@ const correr = async () => {
   const comp = require('../src/lib/competencia');
 
   // Snapshots dentro del MES EN CURSO, que es lo que compara `progreso.js`.
-  const ahoraComp = new Date();
+  // FIJO a mitad de mes y pasado a la función. Con `new Date()` la serie
+  // crecía según el día del mes: entre el 1 y el 3 la ventaja no alcanzaba el
+  // mínimo y la prueba fallaba sola (pasó el 2026-10-02, sin cambio de código).
+  const ahoraComp = new Date(2026, 8, 20, 12, 0, 0);
   const diasDelMes = Math.max(ahoraComp.getDate() - 1, 1);
   const serie = (porDia) => {
     const a = [];
@@ -220,7 +223,7 @@ const correr = async () => {
   const rivalFuerte = { nombre: 'El vecino', snapshots: serie(1.0) };
   const rivalParejo = { nombre: 'El parejo', snapshots: serie(0.2) };
 
-  const destacado = comp.destacadoDelMes(propio, [rivalFuerte]);
+  const destacado = comp.destacadoDelMes(propio, [rivalFuerte], ahoraComp);
   check('avisa del competidor que sacó ventaja de verdad',
     destacado && destacado.motivo === 'RESENAS' && destacado.nombre === 'El vecino');
   check('y manda los NÚMEROS, no la frase ya escrita',
@@ -229,12 +232,12 @@ const correr = async () => {
 
   // Los silencios, que son lo que hace que el bloque se pueda leer cuando sale.
   check('CONTROL — sin competidores cargados, no avisa',
-    comp.destacadoDelMes(propio, []) === null);
+    comp.destacadoDelMes(propio, [], ahoraComp) === null);
   check('sin medición PROPIA no compara',
-    comp.destacadoDelMes({ nombre: 'X', snapshots: [] }, [rivalFuerte]) === null,
+    comp.destacadoDelMes({ nombre: 'X', snapshots: [] }, [rivalFuerte], ahoraComp) === null,
     'leer el mes de otro sin tener el propio le haría creer al dueño que ese número es suyo');
   check(`un empate no es noticia (hacen falta ${comp.VENTAJA_MINIMA_RESENAS} de ventaja)`,
-    comp.destacadoDelMes(propio, [rivalParejo]) === null,
+    comp.destacadoDelMes(propio, [rivalParejo], ahoraComp) === null,
     'decir «te están ganando» por una reseña enseña a ignorar el dato');
 
   // El umbral del rating NO se inventa: sale de progreso.js.

@@ -174,7 +174,8 @@ check('el periodo se le pasa a los dos correos del resumen',
   && /enviarResumenSemanalConsolidado\(usuario, resultados, resumenGlobal \|\| null, periodo\)/.test(worker));
 // La costura para probar sin esperar al día 1. El cron NUNCA la usa.
 check('hay una costura `forzar` para los scripts', /forzar = false/.test(worker));
-check('y el cron NO la usa', /cron\.schedule\('0 8 \* \* \*', \(\) => ejecutarAhora\(\)/.test(worker));
+// Con candado desde el 2026-10-02 (lib/candado.js): `programar(expr, nombre, min, fn)`.
+check('y el cron NO la usa', /(cron\.schedule|programar)\('0 8 \* \* \*',( '[\w-]+', \d+,)? \(\) => ejecutarAhora\(\)/.test(worker));
 
 // ── 6. `notificada` solo si salió correo ──────────────────
 

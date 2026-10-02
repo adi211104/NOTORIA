@@ -19,6 +19,7 @@
 // el producto está roto.
 
 const cron = require('node-cron');
+const { programar } = require('../lib/candado');
 const crypto = require('crypto');
 const prismaReal = require('../lib/prisma');
 const emails = require('../utils/emails');
@@ -82,9 +83,9 @@ const iniciarRecordatoriosVerificacion = () => {
   // 10:30, media hora después del drip: los dos mandan correo y no tiene sentido
   // pegarle a Resend con las dos cosas a la vez. Mismo criterio que el desfase
   // entre las dos colas de SUNAT.
-  cron.schedule('30 10 * * *', () => {
-    procesarRecordatoriosVerificacion().catch((e) => console.error('[Verificación] Ciclo falló:', e.message));
-  }, { timezone: 'America/Lima' });
+  programar('30 10 * * *', 'recordatorio-verificacion', 30, () => (
+    procesarRecordatoriosVerificacion().catch((e) => console.error('[Verificación] Ciclo falló:', e.message))
+  ), { timezone: 'America/Lima' });
   console.log('[Verificación] Programado: todos los días 10:30 (hora Lima)');
 };
 

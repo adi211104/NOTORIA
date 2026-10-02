@@ -48,7 +48,7 @@ if (password.length < 8) {
   // Un año y pico, no 30 días: Meta exige en el formulario del App Review que
   // las credenciales de prueba sigan activas **un año desde la solicitud**, y
   // una revisión puede reabrirse meses después. No hay riesgo de cobro: el cron
-  // de renovación filtra por `suscripcionId: { not: null }` y esta cuenta no
+  // de renovación filtra por `tarjetaCulqiId: { not: null }` y esta cuenta no
   // tiene tarjeta guardada.
   const vence = new Date();
   vence.setDate(vence.getDate() + 400);

@@ -286,6 +286,12 @@ router.get('/perfil', autenticar, async (req, res, next) => {
     const usuario = {
       ...personaPublica,
       ...datosCuenta,
+      // El plan EFECTIVO (lib/suscripcion.js): si el periodo pagado de una
+      // suscripción cancelada ya terminó, el panel tiene que pintar Gratuito en
+      // el mismo instante en que el backend deja de dar el plan — no mañana,
+      // cuando pase el cron de bajada. Mismo valor que mira cada ruta.
+      plan: req.cuenta.plan,
+      estadoSuscripcion: req.cuenta.estadoSuscripcion,
       negocios,
       // Con qué permisos se pinta el panel. El frontend los usa para esconder
       // botones; el backend vuelve a comprobarlos en cada ruta, porque esconder

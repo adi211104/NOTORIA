@@ -379,4 +379,33 @@ const detectarAnomalias = async (negocioId, plataforma, datosNuevos) => {
   return alertas;
 };
 
-module.exports = { analizarResena, detectarAnomalias, compararMediciones, ritmoHabitual, normalizar };
+// ─── ¿Se puede contestar sola? ────────────────────────────
+//
+// Temas en los que una respuesta automática de agradecimiento sería un error,
+// aunque la reseña tenga 5★: salud, plagas, seguridad, discriminación,
+// autoridades y lenguaje legal (auditoría 2026-10-02, P1-04). Reutiliza las
+// palabras críticas del detector y añade las que solo importan acá. Se compara
+// sobre el texto NORMALIZADO (sin tildes), así «intoxicación» e «intoxicacion»
+// cuentan igual. Una reseña ya marcada como sospechosa tampoco se contesta sola.
+// Palabras COMPLETAS (las críticas: «rata» no puede casar dentro de «barata», ni
+// «robo» dentro de «robot») y PREFIJOS (cubren todas las terminaciones:
+// «intox» casa con intoxicado, intoxicación, me intoxiqué).
+const SENSIBLES_PALABRA = PALABRAS_CRITICAS.map(normalizar);
+const SENSIBLES_PREFIJO = [
+  'intox', 'hospital', 'emergencia', 'alergi', 'herid', 'lesion', 'sangr',
+  'amenaz', 'agred', 'golpe', 'pelea', 'acos', 'abus',
+  'discrimin', 'racis', 'homofob', 'machis',
+  'fraude', 'cobro indebido', 'policia', 'comisaria', 'fiscalia', 'abogad',
+  'libro de reclamaciones', 'reclamo', 'queja formal', 'municipalidad', 'digesa',
+].map(normalizar);
+const TEMAS_SENSIBLES = [...SENSIBLES_PALABRA, ...SENSIBLES_PREFIJO];
+
+const requiereRevisionHumana = (resena) => {
+  if (!resena) return true;
+  if (resena.esSospechosa) return true;
+  const t = ` ${normalizar(resena.texto)} `;
+  return SENSIBLES_PALABRA.some((p) => t.includes(` ${p} `))
+    || SENSIBLES_PREFIJO.some((p) => t.includes(` ${p}`));
+};
+
+module.exports = { analizarResena, detectarAnomalias, compararMediciones, ritmoHabitual, normalizar, requiereRevisionHumana, TEMAS_SENSIBLES };

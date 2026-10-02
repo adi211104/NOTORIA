@@ -92,16 +92,39 @@ const crearTarjeta = async ({ customerId, tokenId }) => {
 };
 
 // Cobra usando una tarjeta guardada (source_id = id de la tarjeta creada arriba)
-const crearCargo = async ({ monto, moneda = 'PEN', email, sourceId, descripcion }) => {
+//
+// `metadata` viaja con el cargo y Culqi la devuelve al consultarlo. Notoria pone
+// ahí el id del IntentoCobro (lib/cobros.js): es lo que permite, si la base
+// falló justo después de cobrar, encontrar en Culqi QUÉ cargo corresponde a QUÉ
+// intento sin adivinar por importe y fecha (auditoría 2026-10-02, P0-01).
+const crearCargo = async ({ monto, moneda = 'PEN', email, sourceId, descripcion, metadata }) => {
   const { data } = await cliente().post('/charges', {
     amount: monto, // en céntimos
     currency_code: moneda,
     email,
     source_id: sourceId,
     description: descripcion,
-  });
+    ...(metadata ? { metadata } : {}),
+  }, { timeout: 45000 });
   return data;
 };
+
+// Un cargo por su id (para completar un cobro que la base no llegó a registrar).
+const obtenerCargo = async (cargoId) => {
+  const { data } = await cliente().get(`/charges/${encodeURIComponent(cargoId)}`);
+  return data;
+};
+
+// Los cargos recientes de un correo. Lo usa la reconciliación para buscar el
+// cargo de un intento que quedó DESCONOCIDO (Culqi no contestó a tiempo).
+const listarCargosDe = async (email, limite = 50) => {
+  const { data } = await cliente().get('/charges', { params: { email, limit: limite } });
+  return data?.data || [];
+};
+
+// ¿El cargo se cobró de verdad? `paid` NO lo dice (CLAUDE.md §8.1): una venta
+// aceptada llega con `paid: false` porque se refiere a la liquidación.
+const cargoExitoso = (cargo) => cargo?.outcome?.type === 'venta_exitosa';
 
 // Extrae los datos de tarjeta que guarda Facturación (Pago.tarjetaInicio /
 // Pago.tarjetaMarca) de la respuesta de un cargo.
@@ -185,5 +208,6 @@ const reembolsar = async ({ cargoId, monto, motivo = 'solicitud_comprador' }) =>
 
 module.exports = {
   configurado, crearCliente, obtenerOCrearCliente, buscarClientePorEmail,
-  crearTarjeta, crearCargo, datosTarjeta, huellaTarjeta, reembolsar,
+  crearTarjeta, crearCargo, obtenerCargo, listarCargosDe, cargoExitoso,
+  datosTarjeta, huellaTarjeta, reembolsar,
 };

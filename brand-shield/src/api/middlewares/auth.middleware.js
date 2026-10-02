@@ -25,6 +25,13 @@ const autenticar = async (req, res, next) => {
         nombre: true,
         plan: true,
         suscripcionActiva: true,
+        // Para derivar el plan EFECTIVO en resolverAcceso (lib/suscripcion.js):
+        // sin la fecha no se distingue «canceló y le quedan días» de «ya venció».
+        fechaVencimiento: true,
+        // 🔴 resolverAcceso lo copia a req.cuenta; sin pedirlo acá llegaba
+        // `undefined` y el tope de negocios de quien PAGÓ locales caía al del
+        // plan pelado (bug encontrado en esta misma auditoría).
+        localesExtra: true,
         tokenVersion: true,
         // 🔴 `idioma` va acá y no en cada ruta. Todos los correos que se mandan
         // desde una ruta autenticada lo leen de `req.usuario`, y olvidarlo no

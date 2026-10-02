@@ -8,14 +8,14 @@ datasource db {
 }
 
 model Usuario {
-  id                   String        @id @default(cuid())
-  email                String        @unique
+  id                   String              @id @default(cuid())
+  email                String              @unique
   password             String
   nombre               String
   telefono             String?
-  idioma               String        @default("es") // "es" | "en" — preferencia de idioma (dashboard, PDF, emails)
-  googleId             String?       @unique
-  emailVerificado      Boolean       @default(false)
+  idioma               String              @default("es") // "es" | "en" — preferencia de idioma (dashboard, PDF, emails)
+  googleId             String?             @unique
+  emailVerificado      Boolean             @default(false)
   // La última vez que esta persona ENTRÓ de verdad (login o carga del panel).
   //
   // 🔴 Nació el 2026-09-19 y hasta entonces NO HABÍA FORMA de saber si una cuenta
@@ -35,7 +35,7 @@ model Usuario {
   // ⚠️ Se escribe con throttle (ver `lib/dormancia.js`): sin él, cada carga del
   // panel sería un UPDATE, y el panel pide el perfil en cada navegación.
   ultimoAcceso         DateTime?
-  tokenVerificacion    String?       @unique
+  tokenVerificacion    String?             @unique
   tokenVerificaExpira  DateTime?
   // Recuperación de contraseña ("olvidé mi contraseña"): token de un solo uso con
   // expiración corta. Se guarda el HASH del token, no el token en claro, para que
@@ -56,21 +56,26 @@ model Usuario {
   // ⚠️ Los tokens emitidos ANTES de esta columna no llevan `v`. El middleware los
   // trata como versión 0, que es este default: así el despliegue no echa a nadie,
   // y en cuanto alguien cambia su contraseña sus sesiones viejas mueren.
-  tokenVersion         Int           @default(0)
-  plan                 Plan          @default(GRATIS)
-  suscripcionId        String?
-  suscripcionActiva    Boolean       @default(false)
+  tokenVersion         Int                 @default(0)
+  plan                 Plan                @default(GRATIS)
+  // Id de la TARJETA GUARDADA en Culqi (crd_...), con la que el cron renueva.
+  // 🔴 La columna se llama `suscripcionId` por historia y el nombre mentía: no
+  // apunta a ninguna suscripción de Culqi (el cobro recurrente lo hace nuestro
+  // cron). Desde el 2026-10-02 el CAMPO se llama `tarjetaCulqiId` y `@map` lo
+  // ata a la columna vieja: se renombra sin migrar datos (auditoría P0-12).
+  tarjetaCulqiId       String?             @map("suscripcionId")
+  suscripcionActiva    Boolean             @default(false)
   fechaVencimiento     DateTime?
   periodoFacturacion   String? // "mensual" | "anual" — ciclo activo, lo usa el cron de renovación para saber qué monto y qué plazo cobrar
-  promoBienvenidaUsada Boolean       @default(false) // 50% off los primeros 2 meses en plan mensual — una sola vez por cuenta, se marca en el primer cobro aunque luego cancele
-  mesesPromoRestantes  Int           @default(0) // cuántas renovaciones mensuales aún faltan cobrar con el 50% de la promo de bienvenida
+  promoBienvenidaUsada Boolean             @default(false) // 50% off los primeros 2 meses en plan mensual — una sola vez por cuenta, se marca en el primer cobro aunque luego cancele
+  mesesPromoRestantes  Int                 @default(0) // cuántas renovaciones mensuales aún faltan cobrar con el 50% de la promo de bienvenida
   // Locales ADICIONALES al que incluye el plan, y que el cliente paga aparte
   // (ver lib/precios.js). El tope real de negocios no es el del plan sino
   // `negociosPermitidos(plan, localesExtra)`. Aditiva y con default 0: una fila
   // vieja se comporta exactamente como antes, con el local incluido y nada más.
-  localesExtra         Int           @default(0)
+  localesExtra         Int                 @default(0)
   // Contador semanal de respuestas generadas con IA (se reinicia cada semana)
-  iaUsos               Int           @default(0)
+  iaUsos               Int                 @default(0)
   iaSemana             String?
   // Preferencias de notificación de alertas:
   // { tipos: { PICO_RESENAS_NEGATIVAS, CAIDA_RATING, CUENTAS_NUEVAS, RESENA_MUY_NEGATIVA }: bool,
@@ -79,7 +84,7 @@ model Usuario {
   // Secuencia de emails de onboarding (drip): 0 = ninguno enviado, 1 = día 2,
   // 2 = día 5, 3 = día 7 (fin). El worker solo procesa cuentas creadas hace
   // menos de 30 días, así el default 0 en cuentas viejas no dispara nada.
-  dripEtapa            Int           @default(0)
+  dripEtapa            Int                 @default(0)
   // Datos fiscales del receptor del comprobante. Se piden al suscribirse y se
   // congelan dentro de cada Comprobante al emitirlo (si el usuario luego los
   // corrige, los comprobantes ya emitidos no cambian — eso sería adulterarlos).
@@ -100,8 +105,8 @@ model Usuario {
   membresias           Miembro[]           @relation("MembresiasDelUsuario")
   invitaciones         Invitacion[]        @relation("InvitacionesDeLaCuenta")
   actividad            RegistroActividad[] @relation("ActividadDeLaCuenta")
-  creadoEn             DateTime      @default(now())
-  actualizadoEn        DateTime      @updatedAt
+  creadoEn             DateTime            @default(now())
+  actualizadoEn        DateTime            @updatedAt
 
   @@index([tokenResetHash])
   @@map("usuarios")
@@ -146,6 +151,11 @@ model Pago {
   tarjetaInicio String? // primeros 4 dígitos de la tarjeta
   tarjetaMarca  String? // visa / mastercard / etc. (Culqi: source.iin.card_brand)
   culqiCargoId  String?      @unique
+  // Cuánto de este cargo se devolvió, en céntimos. Un reembolso PARCIAL (días
+  // de una caída, /devoluciones c) deja el Pago EXITOSO con este número; uno
+  // total lo pasa a REEMBOLSADO. Sin la columna, devolver S/5 de S/59 apagaba
+  // la suscripción entera (auditoría 2026-10-02, P0-06).
+  montoReembolsado Int?
   comprobante   Comprobante?
   creadoEn      DateTime     @default(now())
 
@@ -330,8 +340,8 @@ model Negocio {
   // dueño reenvia al grupo de WhatsApp de su personal. Se cachea igual que el
   // insight: se regenera como mucho una vez por semana y por negocio, asi que
   // verlo veinte veces no cuesta veinte llamadas a Groq.
-  parteEquipo       String?   @db.Text
-  parteEquipoFecha  DateTime?
+  parteEquipo      String?   @db.Text
+  parteEquipoFecha DateTime?
 
   // Términos extra a buscar en la escucha de menciones, separados por coma
   // (handle de la marca, hashtags propios, variantes del nombre mal escrito).
@@ -551,6 +561,10 @@ model Competidor {
   snapshots     SnapshotCompetidor[]
   creadoEn      DateTime             @default(now())
 
+  // Un mismo local no puede estar dos veces en la lista del mismo negocio: cada
+  // copia es una consulta a Places pagada por duplicado (auditoría P1-18).
+  // Comprobado el 2026-10-02 que producción no tenía duplicados.
+  @@unique([negocioId, googlePlaceId])
   @@map("competidores")
 }
 
@@ -838,7 +852,7 @@ model RegistroActividad {
   cuentaId String
   cuenta   Usuario @relation("ActividadDeLaCuenta", fields: [cuentaId], references: [id])
 
-  usuarioId String
+  usuarioId   String
   // Nombre congelado al momento de la acción. Si esa persona sale del equipo o
   // borra su cuenta, el registro sigue diciendo quién fue — que es justamente
   // para lo que existe.
@@ -866,30 +880,140 @@ model RegistroActividad {
 // sincronizarla con reembolsos y cancelaciones, y el día que el cron no corra
 // mentiría. Lo único que se guarda es lo que ya se le PAGÓ al promotor.
 model VisitaComercial {
-  id              String   @id @default(cuid())
-  promotor        String   // alias del promotor ("Usuario1"), sale de RUTA_COMERCIAL_ACCESO
-  creadoPorId     String
-  nombre          String
-  distrito        String?
-  contacto        String?
-  notas           String?
+  id               String         @id @default(cuid())
+  promotor         String // alias del promotor ("Usuario1"), sale de RUTA_COMERCIAL_ACCESO
+  creadoPorId      String
+  nombre           String
+  distrito         String?
+  contacto         String?
+  notas            String?
   // "visitado" | "interesado" | "volver" | "cuenta_gratis" | "cliente" | "no_interesado"
-  estado          String   @default("visitado")
+  estado           String         @default("visitado")
   // Correo de la cuenta de Notoria del cliente: con él se cruzan sus pagos.
-  correo          String?
+  correo           String?
   // Local elegido en Google Maps al registrar la visita. Si el correo no casa con
   // ninguna cuenta, se cruza con `Negocio.googlePlaceId`: la venta se vincula sola
   // cuando el cliente agrega ese mismo local en su panel.
-  placeId         String?
-  direccion       String?
+  placeId          String?
+  direccion        String?
   // Comisión ya pagada al promotor por este cliente, en céntimos. Solo el dueño la escribe.
-  comisionPagada  Int      @default(0)
-  fechaVisita     DateTime @default(now())
-  creadoEn        DateTime @default(now())
-  actualizadoEn   DateTime @updatedAt
+  comisionPagada   Int            @default(0)
+  fechaVisita      DateTime       @default(now())
+  // Con qué versión de las reglas de comisión se atribuyó esta visita. El
+  // contrato dice que un cambio futuro de reglas no perjudica lo ya atribuido,
+  // así que el cálculo lee ESTA versión y no «la vigente» (auditoría P1-17).
+  politicaComision Int            @default(1)
+  // Una visita no se BORRA: es la prueba de una atribución comercial. Se anula,
+  // con quién, cuándo y por qué (auditoría P1-14). Una anulada no comisiona.
+  anuladaEn        DateTime?
+  anuladaPor       String?
+  motivoAnulacion  String?
+  cambios          CambioVisita[]
+  creadoEn         DateTime       @default(now())
+  actualizadoEn    DateTime       @updatedAt
 
   @@index([promotor])
   @@index([correo])
   @@index([placeId])
   @@map("visitas_comerciales")
+}
+
+// ─── Auditoría profunda del 2026-10-02 ────────────────────────────────────
+//
+// Las cuatro tablas de abajo nacen de la misma observación: varias reglas que
+// el código cumplía «con cuidado» (un cobro no se repite, un webhook no se
+// pierde, un cron no corre dos veces, una visita no desaparece) no las hacía
+// cumplir nada más que la buena voluntad. Ahora las hace cumplir la base.
+
+// Historial de cambios de los campos de una visita que deciden QUIÉN cobra una
+// comisión (correo, local de Maps, fecha, estado) y de lo pagado al promotor.
+// Solo se inserta; nunca se edita ni se borra (auditoría P1-15).
+model CambioVisita {
+  id       String          @id @default(cuid())
+  visitaId String
+  visita   VisitaComercial @relation(fields: [visitaId], references: [id])
+  autorId  String
+  autor    String // alias de RUTA_COMERCIAL_ACCESO en el momento del cambio
+  campo    String
+  antes    String?
+  despues  String?
+  creadoEn DateTime        @default(now())
+
+  @@index([visitaId])
+  @@map("cambios_visita")
+}
+
+// Un intento de cobro, registrado ANTES de llamar a Culqi (auditoría P0-01/02).
+//
+// 🔴 Culqi y Postgres no comparten transacción. Si Culqi cobra y la base falla
+// después, sin esta fila el cobro quedaba sin rastro en Notoria. Con ella, el
+// cargo siempre se puede reconciliar: el intento existe desde antes del cobro,
+// y `workers/reconciliacion.worker.js` busca los que quedaron a medias.
+//
+// `clave` es la llave de idempotencia: un mismo cobro lógico (la renovación de
+// ESTE vencimiento, el alta de ESTE intento) no puede crear dos filas, así que
+// no puede llegar dos veces a Culqi aunque el cron corra dos veces.
+//
+// Estados: PROCESANDO → EXITOSO | FALLIDO | DESCONOCIDO.
+// DESCONOCIDO = Culqi no contestó y no se sabe si cobró. NO se reintenta a
+// ciegas — se reconcilia contra Culqi; reintentar es como se cobra dos veces.
+model IntentoCobro {
+  id           String    @id @default(cuid())
+  clave        String    @unique
+  usuarioId    String
+  tipo         String // INICIAL | RENOVACION | LOCAL_ADICIONAL
+  plan         Plan
+  periodo      String
+  monto        Int
+  moneda       String    @default("PEN")
+  estado       String    @default("PROCESANDO")
+  culqiCargoId String?   @unique
+  pagoId       String?   @unique
+  ultimoError  String?
+  // Lo que hay que aplicar si el cobro sale bien y la base falló a medias:
+  // permite completar el alta desde la reconciliación sin adivinar nada.
+  detalle      Json?
+  creadoEn     DateTime  @default(now())
+  completadoEn DateTime?
+  revisadoEn   DateTime? // última vez que la reconciliación lo miró
+
+  @@index([estado])
+  @@index([usuarioId])
+  @@map("intentos_cobro")
+}
+
+// Bandeja durable de webhooks (auditoría P0-04/05). Todo evento autenticado se
+// GUARDA antes de procesarse; si procesarlo falla, queda PENDIENTE y un cron lo
+// reintenta. `@@unique([proveedor, idExterno])` hace que un reintento del
+// proveedor no se aplique dos veces.
+model EventoWebhook {
+  id          String    @id @default(cuid())
+  proveedor   String // "culqi"
+  idExterno   String
+  tipo        String?
+  payload     Json
+  estado      String    @default("PENDIENTE") // PENDIENTE | PROCESADO | FALLIDO | IGNORADO
+  intentos    Int       @default(0)
+  ultimoError String?
+  recibidoEn  DateTime  @default(now())
+  procesadoEn DateTime?
+
+  @@unique([proveedor, idExterno])
+  @@index([estado])
+  @@map("eventos_webhook")
+}
+
+// Candado de los trabajos programados (auditoría P1-09/10). Los cron viven en
+// el mismo proceso que la API; con dos instancias, renovaciones y SUNAT
+// correrían dos veces. Quien toma la fila corre; el otro se salta la pasada.
+// Va en una tabla y no con `pg_advisory_lock` porque Prisma reparte las
+// consultas entre conexiones del pool, y un candado de SESIÓN tomado en una
+// conexión se suelta (o no) en otra.
+model CandadoJob {
+  nombre   String   @id
+  hasta    DateTime
+  duenio   String
+  tomadoEn DateTime @default(now())
+
+  @@map("candados_job")
 }

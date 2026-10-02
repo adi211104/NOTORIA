@@ -29,9 +29,30 @@ const { iniciarAvisosPausa } = require('./workers/pausa.worker');
 const { iniciarAvisoAnulaciones } = require('./workers/anulaciones.worker');
 const { iniciarEnvioSunat } = require('./workers/envioSunat.worker');
 const { iniciarResumenSunat } = require('./workers/resumenSunat.worker');
+const { iniciarReintentoWebhooks, iniciarReconciliacionCobros } = require('./workers/reconciliacion.worker');
+
+// Antes de nada: sin DATABASE_URL o JWT_SECRET en producción el proceso NO
+// arranca (el deploy queda fallido y sigue sirviendo la versión anterior), y lo
+// opcional que falte se grita en el log (lib/configProduccion.js, auditoría
+// 2026-10-02, P0-03 / I-15).
+const configProduccion = require('./lib/configProduccion');
+configProduccion.comprobarAlArrancar();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// ─── Identificador de petición (auditoría P2-09) ──────────
+// Cada petición lleva un id que sale en la cabecera `X-Request-Id`, en el log
+// de cualquier error y en el cuerpo de un 500. Con eso, «me salió un error a
+// las 3» se encuentra en los logs de Railway en vez de adivinarse. Se acepta
+// el de un proxy si viene y parece un id; si no, se genera.
+const crypto = require('crypto');
+app.use((req, res, next) => {
+  const entrante = req.get('X-Request-Id');
+  req.id = entrante && /^[\w-]{8,64}$/.test(entrante) ? entrante : crypto.randomUUID();
+  res.setHeader('X-Request-Id', req.id);
+  next();
+});
 
 // ─── Seguridad ────────────────────────────────────────────
 // Railway sirve detrás de un proxy, así que la IP real del cliente llega en
@@ -207,11 +228,24 @@ app.get('/health/monitoreo', async (req, res) => {
 });
 
 // ─── Manejo de errores ────────────────────────────────────
+//
+// 🔴 Un 5xx NO devuelve `err.message` (auditoría 2026-10-02, P1-08). Ese texto
+// puede ser un error de Prisma con nombres de tablas y columnas, o el mensaje
+// crudo de un proveedor: información interna que no le sirve al cliente y sí a
+// quien sondea la API. Al cliente, un mensaje genérico con el id de la
+// petición; al log, el error completo con ese mismo id.
+//
+// Un 4xx sí conserva su mensaje: lo redactó una ruta para el usuario (o es un
+// error de entrada, como un JSON mal formado, que conviene que entienda).
 app.use((err, req, res, next) => {
-  console.error(`[Error] ${err.message}`);
-  res.status(err.status || 500).json({
-    error: err.message || 'Error interno del servidor',
-  });
+  const status = Number.isInteger(err.status) && err.status >= 400 && err.status < 600
+    ? err.status
+    : (Number.isInteger(err.statusCode) ? err.statusCode : 500);
+  console.error(`[Error] ${req.method} ${req.originalUrl} [${req.id}] ${status}: ${err.message}`, status >= 500 && err.stack ? `\n${err.stack}` : '');
+  if (status >= 500) {
+    return res.status(status).json({ error: 'Error interno del servidor', requestId: req.id });
+  }
+  res.status(status).json({ error: err.message || 'Solicitud inválida', requestId: req.id });
 });
 
 app.use((req, res) => {
@@ -246,6 +280,10 @@ app.listen(PORT, () => {
     // Aviso previo a la pausa de las cuentas gratuitas inactivas (lib/dormancia.js).
     iniciarAvisosPausa();
     iniciarAvisoAnulaciones();
+    // Auditoría 2026-10-02: reintento de webhooks pendientes (lib/webhookInbox.js)
+    // y reconciliación de cobros a medias contra Culqi (lib/cobros.js).
+    iniciarReintentoWebhooks();
+    iniciarReconciliacionCobros();
     console.log('🔄 Monitoreo periódico iniciado');
     console.log('📄 Cron de reportes mensuales iniciado');
     console.log('📬 Cron de resúmenes de alertas iniciado');

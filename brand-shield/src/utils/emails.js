@@ -1113,6 +1113,30 @@ const enviarAvisoAnulacionPendiente = async ({ comprobante, pago, diasRestantes,
   return res;
 };
 
+// Aviso interno URGENTE a contabilidad, para lo que la auditoría del 2026-10-02
+// convirtió de «falla en silencio» en «alguien se entera»: un cobro que no se
+// pudo aplicar, un webhook que no se pudo procesar, un reembolso que necesita
+// una decisión humana. Solo a EMAIL_CONTABILIDAD y en español (es interno).
+// Las líneas se ESCAPAN: algunas traen texto de un proveedor o de un error.
+const enviarAvisoInterno = async ({ asunto, lineas = [] }) => {
+  const destino = process.env.EMAIL_CONTABILIDAD;
+  if (!destino) {
+    console.error(`[Aviso interno] EMAIL_CONTABILIDAD sin definir — no se pudo avisar: ${asunto}`);
+    return null;
+  }
+  return getResend().emails.send({
+    from: FROM(), to: destino,
+    subject: asunto,
+    headers: { 'X-Priority': '1', 'X-MSMail-Priority': 'High', Importance: 'high' },
+    html: base(`
+      ${h1(esc(asunto))}
+      ${lineas.map((l) => `<p style="color:#141413;font-size:14px;line-height:1.6;margin:0 0 10px;">${esc(l)}</p>`).join('')}
+      ${hr()}
+      <p style="color:#9C9B96;font-size:12px;margin:0;">Aviso automático de Notoria. Detalle en los logs de Railway.</p>
+    `),
+  });
+};
+
 const enviarAvisoPlazoReclamaciones = async (pendientes) => {
   const destino = process.env.EMAIL_RECLAMACIONES || 'hola@usenotoria.app';
   const fila = (x) => {
@@ -1381,4 +1405,4 @@ const enviarAvisoPausa = async (usuario, diasRestantes) => {
   });
 };
 
-module.exports = { enviarBienvenida, enviarVerificacion, enviarConfirmacionContrasena, enviarRecuperacionContrasena, enviarAlertaCritica, enviarResumenAlertas, enviarResumenSemanal, enviarResumenSemanalConsolidado, enviarComprobante, enviarDrip, enviarCargoReclamacion, enviarAvisoReclamacionInterno, enviarRespuestaReclamacion, enviarAvisoPlazoReclamaciones, enviarAvisoAnulacionPendiente, enviarConfirmacionCambioPassword, enviarCobroFallido, enviarCancelacion, enviarReembolso, enviarInvitacionEquipo, enviarAvisoNuevoMiembro, enviarSalidaEquipo, enviarAvisoPausa, getResend, FROM, base, h1, p, btn, hr };
+module.exports = { enviarBienvenida, enviarVerificacion, enviarConfirmacionContrasena, enviarRecuperacionContrasena, enviarAlertaCritica, enviarResumenAlertas, enviarResumenSemanal, enviarResumenSemanalConsolidado, enviarComprobante, enviarDrip, enviarCargoReclamacion, enviarAvisoReclamacionInterno, enviarRespuestaReclamacion, enviarAvisoPlazoReclamaciones, enviarAvisoAnulacionPendiente, enviarAvisoInterno, enviarConfirmacionCambioPassword, enviarCobroFallido, enviarCancelacion, enviarReembolso, enviarInvitacionEquipo, enviarAvisoNuevoMiembro, enviarSalidaEquipo, enviarAvisoPausa, getResend, FROM, base, h1, p, btn, hr };

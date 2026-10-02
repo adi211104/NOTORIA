@@ -21,6 +21,7 @@
 // siempre.
 
 const cron = require('node-cron');
+const { programar } = require('../lib/candado');
 const prismaReal = require('../lib/prisma');
 const emails = require('../utils/emails');
 const dormancia = require('../lib/dormancia');
@@ -81,9 +82,9 @@ const iniciarAvisosPausa = () => {
   // misma media hora — que es la forma más rápida de que marque spam, y es
   // justamente el riesgo que las decisiones de correo del 09/09 vinieron a
   // reducir.
-  cron.schedule('0 16 * * *', () => {
-    procesarAvisosPausa().catch((e) => console.error('[Pausa] Error en el cron:', e.message));
-  });
+  programar('0 16 * * *', 'avisos-pausa', 30, () => (
+    procesarAvisosPausa().catch((e) => console.error('[Pausa] Error en el cron:', e.message))
+  ));
   console.log('[Pausa] Cron configurado: diario 11:00 (hora Lima), aviso previo de pausa');
 };
 

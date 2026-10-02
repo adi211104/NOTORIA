@@ -75,97 +75,117 @@ const inventario = async (usuarioId) => {
  *
  * ⚠️ El orden es el que exigen las FK. No reordenar sin mirar el schema.
  */
-const borrarCuenta = async (usuarioId) => {
-  // ─── Equipo ───────────────────────────────────────────
-  // Va PRIMERO: `miembros`, `invitaciones` y `registro_actividad` tienen FK
-  // contra `usuarios`, así que sin esto el borrado falla con un error de
-  // restricción que no dice nada útil.
-  //
-  // Se van los dos lados: el equipo que esta persona había invitado a SU cuenta
-  // (nadie debe conservar acceso a una cuenta que ya no existe) y las membresías
-  // que tenía en cuentas ajenas (deja de tener acceso a ellas).
-  await prisma.miembro.deleteMany({ where: { OR: [{ cuentaId: usuarioId }, { usuarioId }] } }).catch(() => {});
-  await prisma.invitacion.deleteMany({ where: { cuentaId: usuarioId } }).catch(() => {});
-  await prisma.registroActividad.deleteMany({ where: { cuentaId: usuarioId } }).catch(() => {});
+const borrarCuenta = async (usuarioId, db = prisma) => {
+  // 🔴 TODO en UNA transacción, y sin `.catch(() => {})` (auditoría 2026-10-02,
+  // P1-13). Antes cada borrado se tragaba su propio error: si uno fallaba, la
+  // cuenta podía quedar borrada a medias, la ruta responder «cuenta eliminada»
+  // y quedar datos personales vivos — en la única operación que existe para
+  // cumplir el derecho de supresión (Ley 29733). Ahora o se borra todo o no se
+  // borra nada, y el error llega a quien lo pidió.
+  const modo = await db.$transaction(async (tx) => {
+    // ─── Equipo ─────────────────────────────────────────
+    // Va PRIMERO: `miembros`, `invitaciones` y `registro_actividad` tienen FK
+    // contra `usuarios`. Se van los dos lados: el equipo que esta persona había
+    // invitado a SU cuenta y las membresías que tenía en cuentas ajenas.
+    await tx.miembro.deleteMany({ where: { OR: [{ cuentaId: usuarioId }, { usuarioId }] } });
+    await tx.invitacion.deleteMany({ where: { cuentaId: usuarioId } });
+    await tx.registroActividad.deleteMany({ where: { cuentaId: usuarioId } });
 
-  // Lo que hizo dentro de cuentas AJENAS no se borra: es el historial de esa otra
-  // empresa y no le pertenece a quien se va. Pero su nombre sí es un dato personal
-  // suyo, así que se disocia — el registro sigue sirviendo para saber que fueron
-  // acciones de una misma persona, sin identificarla.
-  await prisma.registroActividad.updateMany({
-    where: { usuarioId },
-    data: { autorNombre: 'Usuario eliminado' },
-  }).catch(() => {});
+    // Lo que hizo dentro de cuentas AJENAS no se borra (es historial de esa otra
+    // empresa), pero su nombre sí es un dato personal suyo: se disocia.
+    await tx.registroActividad.updateMany({ where: { usuarioId }, data: { autorNombre: 'Usuario eliminado' } });
 
-  // Eliminar en orden por dependencias de FK
-  const negocios = await prisma.negocio.findMany({ where: { usuarioId }, select: { id: true } });
-  const negocioIds = negocios.map((n) => n.id);
-
-  if (negocioIds.length > 0) {
-    await prisma.alerta.deleteMany({ where: { negocioId: { in: negocioIds } } });
-    await prisma.resena.deleteMany({ where: { negocioId: { in: negocioIds } } });
-    await prisma.snapshot.deleteMany({ where: { negocioId: { in: negocioIds } } });
-    await prisma.mencion.deleteMany({ where: { negocioId: { in: negocioIds } } }).catch(() => {});
-    // Obligatorio, no opcional: la FK de comentarios_sociales es ON DELETE
-    // RESTRICT, así que sin este borrado la eliminación de cuenta falla.
-    await prisma.comentarioSocial.deleteMany({ where: { negocioId: { in: negocioIds } } }).catch(() => {});
-    const competidores = await prisma.competidor.findMany({
-      where: { negocioId: { in: negocioIds } }, select: { id: true },
-    }).catch(() => []);
-    if (competidores.length > 0) {
-      await prisma.snapshotCompetidor.deleteMany({
-        where: { competidorId: { in: competidores.map((c) => c.id) } },
-      }).catch(() => {});
-      await prisma.competidor.deleteMany({ where: { negocioId: { in: negocioIds } } }).catch(() => {});
+    // Eliminar en orden por dependencias de FK (varias son ON DELETE RESTRICT).
+    const negocios = await tx.negocio.findMany({ where: { usuarioId }, select: { id: true } });
+    const negocioIds = negocios.map((n) => n.id);
+    if (negocioIds.length > 0) {
+      const enNegocios = { negocioId: { in: negocioIds } };
+      await tx.alerta.deleteMany({ where: enNegocios });
+      await tx.resena.deleteMany({ where: enNegocios });
+      await tx.snapshot.deleteMany({ where: enNegocios });
+      await tx.mencion.deleteMany({ where: enNegocios });
+      await tx.comentarioSocial.deleteMany({ where: enNegocios });
+      const competidores = await tx.competidor.findMany({ where: enNegocios, select: { id: true } });
+      if (competidores.length > 0) {
+        await tx.snapshotCompetidor.deleteMany({ where: { competidorId: { in: competidores.map((c) => c.id) } } });
+        await tx.competidor.deleteMany({ where: enNegocios });
+      }
+      await tx.negocio.deleteMany({ where: { usuarioId } });
     }
-    await prisma.negocio.deleteMany({ where: { usuarioId } });
-  }
 
-  // ¿Queda historial fiscal que la empresa está obligada a conservar?
-  const tieneHistorialFiscal =
-    (await prisma.pago.count({ where: { usuarioId } })) > 0
-    || (await prisma.comprobante.count({ where: { usuarioId } })) > 0;
+    // ¿Queda historial fiscal que la empresa está obligada a conservar?
+    const tieneHistorialFiscal =
+      (await tx.pago.count({ where: { usuarioId } })) > 0
+      || (await tx.comprobante.count({ where: { usuarioId } })) > 0;
 
-  if (!tieneHistorialFiscal) {
-    await prisma.usuario.delete({ where: { id: usuarioId } });
-    return { modo: 'BORRADA' };
-  }
+    if (!tieneHistorialFiscal) {
+      // Sin pagos, los intentos de cobro (fallidos) y las huellas de promo son
+      // solo rastro de la persona: se van con ella.
+      await tx.intentoCobro.deleteMany({ where: { usuarioId } });
+      await tx.promoTarjeta.deleteMany({ where: { usuarioId } });
+      await tx.usuario.delete({ where: { id: usuarioId } });
+      return 'BORRADA';
+    }
 
-  // Anonimización. El correo se reemplaza por uno irrepetible dentro de un
-  // dominio reservado (RFC 2606) para no chocar contra el @unique ni poder
-  // colisionar jamás con un correo real, y la contraseña por una cadena que
-  // bcrypt nunca va a validar — no es un hash, así que ningún `compare` puede
-  // darle verdadero.
-  await prisma.usuario.update({
-    where: { id: usuarioId },
-    data: {
-      email: `eliminado-${usuarioId}@cuenta-eliminada.invalid`,
-      nombre: 'Cuenta eliminada',
-      password: 'CUENTA_ELIMINADA',
-      telefono: null,
-      googleId: null,
-      tokenVerificacion: null,
-      tokenVerificaExpira: null,
-      tokenResetHash: null,
-      tokenResetExpira: null,
-      emailVerificado: false,
-      suscripcionActiva: false,
-      suscripcionId: null,
-      fechaVencimiento: null,
-      plan: 'GRATIS',
-      prefsAlertas: null,
-      // Datos fiscales del receptor: se van de la cuenta, pero siguen congelados
-      // dentro de cada Comprobante ya emitido, que es donde la norma obliga a
-      // conservarlos.
-      docTipo: null,
-      docNumero: null,
-      razonSocial: null,
-      direccionFiscal: null,
-      paisFiscal: null,
-    },
-  });
+    // Anonimización. El correo se reemplaza por uno irrepetible dentro de un
+    // dominio reservado (RFC 2606) para no chocar contra el @unique ni poder
+    // colisionar jamás con un correo real, y la contraseña por una cadena que
+    // bcrypt nunca va a validar — no es un hash, así que ningún `compare` puede
+    // darle verdadero.
+    await tx.usuario.update({
+      where: { id: usuarioId },
+      data: {
+        email: `eliminado-${usuarioId}@cuenta-eliminada.invalid`,
+        nombre: 'Cuenta eliminada',
+        password: 'CUENTA_ELIMINADA',
+        telefono: null,
+        googleId: null,
+        tokenVerificacion: null,
+        tokenVerificaExpira: null,
+        tokenResetHash: null,
+        tokenResetExpira: null,
+        emailVerificado: false,
+        suscripcionActiva: false,
+        tarjetaCulqiId: null,
+        fechaVencimiento: null,
+        plan: 'GRATIS',
+        prefsAlertas: null,
+        // Datos fiscales del receptor: se van de la cuenta, pero siguen congelados
+        // dentro de cada Comprobante ya emitido, que es donde la norma obliga a
+        // conservarlos.
+        docTipo: null,
+        docNumero: null,
+        razonSocial: null,
+        direccionFiscal: null,
+        paisFiscal: null,
+      },
+    });
+    // El nombre del titular en el historial de cobros es un dato personal que
+    // el comprobante ya conserva por obligación: en el Pago se disocia.
+    await tx.pago.updateMany({ where: { usuarioId }, data: { titular: 'Cuenta eliminada' } });
+    return 'ANONIMIZADA';
+  }, { timeout: 120000, maxWait: 15000 });
 
-  return { modo: 'ANONIMIZADA' };
+  // Verificación final, FUERA de la transacción: se le pregunta a la base si de
+  // verdad no queda nada. «Se ejecutó sin error» y «ya no está» son cosas
+  // distintas (lección del borrado del 2026-09-09).
+  const restos = await verificarBorrado(usuarioId, modo, db);
+  if (restos.length) throw new Error(`El borrado de ${usuarioId} dejó datos: ${restos.join(', ')}`);
+  return { modo };
 };
 
-module.exports = { borrarCuenta, inventario };
+/** Lo que sigue en la base después de borrar. Vacío = borrado completo. */
+const verificarBorrado = async (usuarioId, modo, db = prisma) => {
+  const restos = [];
+  if ((await db.negocio.count({ where: { usuarioId } })) > 0) restos.push('negocios');
+  if ((await db.miembro.count({ where: { OR: [{ cuentaId: usuarioId }, { usuarioId }] } })) > 0) restos.push('miembros');
+  if ((await db.invitacion.count({ where: { cuentaId: usuarioId } })) > 0) restos.push('invitaciones');
+  const u = await db.usuario.findUnique({ where: { id: usuarioId }, select: { email: true, nombre: true, docNumero: true, telefono: true } });
+  if (modo === 'BORRADA' && u) restos.push('usuario');
+  if (modo === 'ANONIMIZADA' && u && (!u.email.endsWith('@cuenta-eliminada.invalid') || u.nombre !== 'Cuenta eliminada' || u.docNumero || u.telefono)) {
+    restos.push('datos personales en el usuario');
+  }
+  return restos;
+};
+
+module.exports = { borrarCuenta, inventario, verificarBorrado };

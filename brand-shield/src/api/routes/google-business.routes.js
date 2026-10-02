@@ -3,7 +3,6 @@
 
 const express = require('express');
 const axios = require('axios');
-const jwt = require('jsonwebtoken');
 const prisma = require('../../lib/prisma');
 const { autenticar, permitir } = require('../middlewares/auth.middleware');
 const { dondeNegocio, registrar } = require('../../lib/equipo');
@@ -17,20 +16,21 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3001';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/api/auth/google-business/callback';
 
-// ── GET /api/auth/google-business/iniciar ─────────────────
-// Genera la URL de autorización y redirige a Google
-// Acepta token como query param porque window.location.href no puede enviar headers
-router.get('/iniciar', async (req, res) => {
-  const { negocioId, token } = req.query;
-  if (!negocioId) return res.status(400).json({ error: 'negocioId requerido' });
-  if (!token) return res.status(401).json({ error: 'Token de acceso requerido' });
-
-  let payload;
-  try {
-    payload = jwt.verify(token, process.env.JWT_SECRET);
-  } catch (e) {
-    return res.status(401).json({ error: 'Token inválido o expirado' });
-  }
+// ── POST /api/auth/google-business/url ────────────────────
+// Devuelve la URL de autorización de Google; el panel navega a ella.
+//
+// 🔴 Antes era `GET /iniciar?token=<JWT de sesión>` porque `window.location`
+// no puede mandar cabeceras (auditoría 2026-10-02, P1-06). La sesión entera
+// viajaba en la URL: quedaba en el historial del navegador, en los logs de
+// cualquier proxy y en el Referer, y además se verificaba con `jwt.verify` a
+// secas, SIN mirar `tokenVersion` — o sea que una sesión revocada al cambiar la
+// contraseña todavía servía acá. Ahora es una petición autenticada normal
+// (`autenticar`, con su corte de sesiones) y lo único que viaja en la URL es el
+// `state` firmado, que caduca en 10 minutos y no abre nada más.
+router.post('/url', autenticar, permitir('conexiones'), async (req, res) => {
+  const { negocioId } = req.body || {};
+  if (!negocioId || typeof negocioId !== 'string') return res.status(400).json({ error: 'negocioId requerido' });
+  const payload = { id: req.cuenta.id };
 
   if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
     return res.status(500).json({
@@ -80,7 +80,13 @@ router.get('/iniciar', async (req, res) => {
     state,
   });
 
-  res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
+  res.json({ url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}` });
+});
+
+// La ruta vieja ya no acepta la sesión por la URL. Responde 410 en vez de 404
+// para que un panel desactualizado en caché diga algo entendible.
+router.get('/iniciar', (req, res) => {
+  res.status(410).json({ error: 'Este enlace ya no se usa. Recarga el panel e inténtalo de nuevo.' });
 });
 
 // ── GET /api/auth/google-business/callback ────────────────

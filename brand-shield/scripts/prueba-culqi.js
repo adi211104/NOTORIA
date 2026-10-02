@@ -12,7 +12,7 @@
 //                                   marcar REEMBOLSADO)
 //   - cargo.source.card_number    → Pago.tarjetaInicio (primeros 4 dígitos)
 //   - cargo.source.iin.card_brand → Pago.tarjetaMarca
-//   - tarjeta.id                  → Usuario.suscripcionId, la tarjeta guardada
+//   - tarjeta.id                  → Usuario.tarjetaCulqiId, la tarjeta guardada
 //                                   que el cron de renovación vuelve a cobrar
 // Si Culqi renombra alguno, el cobro igual "funciona" pero el historial de
 // Facturación sale vacío y la renovación mensual se rompe en silencio.
@@ -123,10 +123,10 @@ const motivo = (e) =>
 
     // ── 4. Tarjeta guardada ────────────────────────────────
     // Es la pieza de la que depende la renovación mensual: su id se guarda en
-    // Usuario.suscripcionId y el cron la vuelve a cobrar cada periodo.
+    // Usuario.tarjetaCulqiId y el cron la vuelve a cobrar cada periodo.
     const tarjeta = await culqi.crearTarjeta({ customerId: cliente.id, tokenId: token.id });
     if (!tarjeta.id) return mal('La tarjeta vino sin id:', JSON.stringify(tarjeta));
-    ok('TARJETA GUARDADA:', tarjeta.id, '→ este id es el que va a Usuario.suscripcionId');
+    ok('TARJETA GUARDADA:', tarjeta.id, '→ este id es el que va a Usuario.tarjetaCulqiId');
 
     // ── 5. Cargo ───────────────────────────────────────────
     const monto = PRECIOS.NEGOCIO.mensual;

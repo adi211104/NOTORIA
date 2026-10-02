@@ -13,7 +13,7 @@ const check = (nombre, cond, detalle = '') => {
   if (cond) { ok++; console.log('  ✓', nombre); } else { mal++; console.log('  ✗', nombre, detalle); }
 };
 
-const { accesoDe, tablaAcceso, comisionDeVisita, elegirCuenta, estadoEfectivo } = require('../src/lib/rutaComercial');
+const { accesoDe, tablaAcceso, comisionDeVisita, elegirCuenta, estadoEfectivo, POLITICA_VIGENTE } = require('../src/lib/rutaComercial');
 
 console.log('\n1. Acceso');
 const ACC = 'Didier@Gmail.com:dueno, promotor@usenotoria.app:Usuario1';
@@ -100,13 +100,27 @@ console.log('\n4. La ruta de verdad, con Prisma y la sesión simulados');
     { id: 'v5', promotor: 'Usuario1', nombre: 'Local E', correo: null, placeId: 'ChIJ_E', estado: 'volver', comisionPagada: 0, fechaVisita: d(visita), actualizadoEn: new Date() },
   ];
   let ultimoUpdate = null;
+  let borrados = 0;
+  const cambios = [];
   const prismaFalso = {
+    $transaction: async (fn) => fn(prismaFalso),
+    cambioVisita: {
+      createMany: async ({ data }) => { cambios.push(...data); return { count: data.length }; },
+      create: async ({ data }) => { cambios.push(data); return data; },
+      findMany: async ({ where }) => cambios.filter((c) => c.visitaId === where.visitaId),
+    },
     visitaComercial: {
-      findMany: async ({ where }) => visitas.filter((v) => !where.promotor || v.promotor === where.promotor),
+      findMany: async ({ where }) => visitas.filter((v) => (!where.promotor || v.promotor === where.promotor)
+        && (!('anuladaEn' in where) || !v.anuladaEn)),
       findFirst: async ({ where }) => visitas.find((v) => v.id === where.id && (!where.promotor || v.promotor === where.promotor)) || null,
       create: async ({ data }) => ({ id: 'nuevo', ...data }),
-      update: async ({ data }) => { ultimoUpdate = data; return data; },
-      delete: async () => ({}),
+      update: async ({ where, data }) => {
+        ultimoUpdate = data;
+        const v = visitas.find((x) => x.id === where.id);
+        if (v && data.anuladaEn) Object.assign(v, data);
+        return { ...v, ...data };
+      },
+      delete: async () => { borrados += 1; return {}; },
     },
     usuario: { findMany: async ({ where }) => [{ id: 'c', email: 'CLI@x.com', localesExtra: 0, pagos: doce }]
       .filter((u) => where.OR.some((o) => o.email.equals.toLowerCase() === u.email.toLowerCase())) },
@@ -161,6 +175,28 @@ console.log('\n4. La ruta de verdad, con Prisma y la sesión simulados');
     check('se guarda el local de Maps al crear', r.s === 201 && r.j.placeId === 'ChIJ_Z' && r.j.direccion === 'Av. Larco 123, Miraflores');
     await pedir('PUT', '/visitas/v1', { nombre: 'Local A', comisionPagada: 2500 });
     check('el dueño SÍ registra la comisión pagada', ultimoUpdate.comisionPagada === 2500);
+
+    // ── Auditoría 2026-10-02: anular en vez de borrar, historial y política ──
+    check('el dueño cambia el correo y queda en el historial (antes → después)',
+      cambios.some((c) => c.visitaId === 'v1' && c.campo === 'comisionPagada' && c.despues === '2500'));
+    r = await pedir('PUT', '/visitas/v1', { nombre: 'Local A', correo: 'nuevo@x.com' });
+    check('cambiar el correo de atribución deja rastro con su valor anterior',
+      cambios.some((c) => c.visitaId === 'v1' && c.campo === 'correo' && c.antes === 'cli@x.com' && c.despues === 'nuevo@x.com'),
+      JSON.stringify(cambios));
+    check('CONTROL: cambiar solo el nombre NO genera fila de historial',
+      !cambios.some((c) => c.campo === 'nombre'));
+    r = await pedir('DELETE', '/visitas/v5', {});
+    check('anular sin motivo: 400', r.s === 400 && /por qué/i.test(r.j.error));
+    r = await pedir('POST', '/visitas/v5/anular', { motivo: 'Registrada dos veces' });
+    check('anular con motivo: 200 y NO se borra la fila', r.s === 200 && borrados === 0 && visitas.find((v) => v.id === 'v5').anuladaEn);
+    check('la anulación queda en el historial con su motivo',
+      cambios.some((c) => c.visitaId === 'v5' && c.campo === 'anulada' && c.despues === 'Registrada dos veces'));
+    r = await pedir('GET', '/visitas');
+    check('una visita anulada deja de listarse', !r.j.visitas.some((v) => v.id === 'v5'));
+    r = await pedir('PUT', '/visitas/v5', { nombre: 'X' });
+    check('una visita anulada ya no se edita (409)', r.s === 409);
+    r = await pedir('POST', '/visitas', { nombre: 'Con política' });
+    check('la visita nace con la versión vigente de la política', r.j.politicaComision === POLITICA_VIGENTE);
 
     sesion = { id: 'u3', email: 'cliente@cualquiera.com' };
     r = await pedir('GET', '/visitas');

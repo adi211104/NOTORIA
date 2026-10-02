@@ -17,6 +17,7 @@
 // no cambian de forma: cambian de sujeto.
 
 const prisma = require('./prisma');
+const { planEfectivo, estado: estadoSuscripcion } = require('./suscripcion');
 const { limite: limiteDelPlan, ORDEN } = require('./planes');
 
 // ─── Asientos por plan ────────────────────────────────────
@@ -156,7 +157,12 @@ const resolverAcceso = async (usuario, cuentaPedida) => {
         id: usuario.id,
         nombre: usuario.nombre,
         email: usuario.email,
-        plan: usuario.plan,
+        // El plan EFECTIVO, no la columna: una suscripción cancelada cuyo periodo
+        // pagado ya terminó deja de dar su plan en el mismo instante en que vence,
+        // sin esperar al cron de las 5:30 (lib/suscripcion.js, auditoría P0-07).
+        plan: planEfectivo(usuario),
+        planContratado: usuario.plan,
+        estadoSuscripcion: estadoSuscripcion(usuario),
         suscripcionActiva: usuario.suscripcionActiva,
         // 🔴 Sin esto, un cliente que PAGÓ locales adicionales no podría
         // cargarlos: `negociosPermitidos` recibiría `undefined`, lo leería como
@@ -174,9 +180,17 @@ const resolverAcceso = async (usuario, cuentaPedida) => {
   const miembro = await prisma.miembro.findUnique({
     where: { cuentaId_usuarioId: { cuentaId: cuentaPedida, usuarioId: usuario.id } },
     include: {
-      cuenta: { select: { id: true, nombre: true, email: true, plan: true, suscripcionActiva: true, localesExtra: true } },
+      cuenta: { select: { id: true, nombre: true, email: true, plan: true, suscripcionActiva: true, fechaVencimiento: true, localesExtra: true } },
     },
   });
+  if (miembro) {
+    miembro.cuenta = {
+      ...miembro.cuenta,
+      plan: planEfectivo(miembro.cuenta),
+      planContratado: miembro.cuenta.plan,
+      estadoSuscripcion: estadoSuscripcion(miembro.cuenta),
+    };
+  }
 
   if (!miembro) {
     const e = new Error('No tienes acceso a esa cuenta');
@@ -241,13 +255,14 @@ const cuentasDe = async (usuario) => {
   const membresias = await prisma.miembro.findMany({
     where: { usuarioId: usuario.id },
     orderBy: { creadoEn: 'asc' },
-    include: { cuenta: { select: { id: true, nombre: true, email: true, plan: true } } },
+    include: { cuenta: { select: { id: true, nombre: true, email: true, plan: true, suscripcionActiva: true, fechaVencimiento: true } } },
   });
+  for (const m of membresias) m.cuenta = { ...m.cuenta, plan: planEfectivo(m.cuenta) };
 
   const lista = [{
     id: usuario.id,
     nombre: usuario.nombre,
-    plan: usuario.plan,
+    plan: planEfectivo(usuario),
     rol: 'PROPIETARIO',
     propia: true,
   }];

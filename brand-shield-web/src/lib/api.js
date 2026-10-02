@@ -58,6 +58,25 @@ export const cabecerasAuth = () => {
   };
 };
 
+/**
+ * URL de autorización de Google Business para un negocio.
+ *
+ * 🔴 Antes el panel navegaba a `…/google-business/iniciar?token=<sesión>`: la
+ * sesión entera quedaba en el historial, en logs de proxies y en el Referer
+ * (auditoría 2026-10-02, P1-06). Ahora se pide la URL con una petición
+ * autenticada normal y solo se navega a Google.
+ */
+export const urlConexionGBP = async (negocioId) => {
+  const r = await fetch(`${API_URL}/api/auth/google-business/url`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...cabecerasAuth() },
+    body: JSON.stringify({ negocioId }),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || !d.url) throw new Error(d.error || 'No se pudo iniciar la conexión con Google');
+  return d.url;
+};
+
 const api = async (url, options = {}) => {
   let res;
   try {
@@ -101,6 +120,17 @@ const api = async (url, options = {}) => {
     const err = new Error(data.error || `Error ${res.status}`);
     err.codigo = data.codigo;
     err.status = res.status;
+    err.datos = data;
+    throw err;
+  }
+  // 202 PAGO_PENDIENTE_DE_ACTIVAR: Culqi cobró pero la base no pudo aplicar el
+  // plan (lo completa la reconciliación del backend). Es un 2xx porque el pago
+  // SÍ ocurrió, pero la pantalla no puede celebrarlo como un alta terminada: se
+  // entrega como aviso, con el mensaje que redactó el backend.
+  if (res.status === 202 && data?.codigo) {
+    const err = new Error(data.error);
+    err.codigo = data.codigo;
+    err.status = 202;
     err.datos = data;
     throw err;
   }
@@ -264,7 +294,8 @@ export const rutaApi = {
   listar:     ()         => api('/api/ruta/visitas'),
   crear:      (datos)    => api('/api/ruta/visitas', { method: 'POST', body: JSON.stringify(datos) }),
   actualizar: (id, datos) => api(`/api/ruta/visitas/${id}`, { method: 'PUT', body: JSON.stringify(datos) }),
-  borrar:     (id)       => api(`/api/ruta/visitas/${id}`, { method: 'DELETE' }),
+  // Una visita no se borra: se ANULA con motivo (auditoría 2026-10-02, P1-14).
+  anular:     (id, motivo) => api(`/api/ruta/visitas/${id}/anular`, { method: 'POST', body: JSON.stringify({ motivo }) }),
 };
 
 export default api;
