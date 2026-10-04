@@ -39,10 +39,12 @@ que **no** tiene segunda copia confirmada.
 
 | Secreto | Qué rompe rotarlo |
 |---|---|
-| **`JWT_SECRET`** | Cierra todas las sesiones, invalida los states de OAuth y los tokens de cambio de contraseña, y **deja sin verificar todas las Constancias de Reputación en circulación** — su firma se recalcula con este secreto (§14) |
+| **`JWT_SECRET`** | Cierra todas las sesiones, invalida los states de OAuth y los tokens de cambio de contraseña. Las constancias y expedientes firmados ANTES del 2026-10-02 dependen de él hasta que caduquen; los nuevos ya no (ver `DOCUMENTOS_SECRET`) |
+| **`DOCUMENTOS_SECRET`** (2026-10-02) | Firma constancias y expedientes (`lib/firmaDocumentos.js`). Perderlo o rotarlo deja sin verificar los documentos firmados con él: las constancias duran 90 días, los expedientes **365**. Se verifica también contra `JWT_SECRET`, así que rotar este no toca los documentos viejos |
+| **`TOKENS_CLAVE`** (2026-10-02) | Cifra los tokens OAuth de las redes en la base (`lib/cifradoTokens.js`). Perderlo o cambiarlo = **todas las redes conectadas quedan desconectadas** (el token cifrado no se puede leer; el código lo trata como «sin conexión», no revienta) y cada cliente tiene que reconectar. No se pierde ningún dato. ⚠️ Para rotarlo sin desconectar a nadie: descifrar con la vieja y volver a cifrar con la nueva en una pasada (adaptar `scripts/cifrar-tokens.js`) |
 | **`PROMO_HASH_SECRET`** | **No se puede rotar sin vaciar `promo_tarjetas`**: ninguna huella volvería a coincidir y el control de «una promo por tarjeta» dejaría de funcionar. ✅ Hoy esa tabla está vacía, así que el coste es cero — pero crece con cada cliente |
 
-Los dos son cadenas que generamos nosotros: si se pierden, se pone una nueva y se asume el
+Son cadenas que generamos nosotros: si se pierden, se pone una nueva y se asume el
 daño de arriba. Por eso están en nivel 2 y no en 1.
 
 ---
@@ -109,7 +111,8 @@ quedó de 25 caracteres en vez de 24 y devolvía 401 exactamente igual que si es
 - [~] Copiar `certificado.p12` fuera de *Downloads*, junto con `SUNAT_CERT_PASSWORD` — el archivo
       ya está en `notoria-secrets` (2026-09-16). 🔴 **Falta la contraseña**: guardarla en el gestor
       de contraseñas, que hoy solo vive en Railway
-- [ ] Guardar `JWT_SECRET` y `PROMO_HASH_SECRET` — no por si se pierden, sino para no tener
-      que rotarlos
+- [ ] Guardar `JWT_SECRET`, `PROMO_HASH_SECRET`, `DOCUMENTOS_SECRET` y `TOKENS_CLAVE` — no por si
+      se pierden, sino para no tener que rotarlos. Los dos últimos nacieron el 2026-10-02 y hoy
+      **solo viven en Railway**
 - [ ] Guardar `SUNAT_SOL_CLAVE` con la nota de los permisos
 - [ ] El resto, cuando toque: son un reseteo

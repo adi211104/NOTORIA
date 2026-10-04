@@ -1,0 +1,435 @@
+RESPUESTA A LA AUDITORÍA PROFUNDA DE NOTORIA (2 de octubre de 2026)
+====================================================================
+
+Fecha de la respuesta: 3 de octubre de 2026
+Informe respondido:    auditoria_profunda_notoria_2026-10-02.txt
+Commits:               d24adbd (código), 0d22253 (CI) y el de documentación
+Despliegue:            backend (Railway) y frontend (Vercel) en producción,
+                       base de datos migrada (solo cambios aditivos).
+
+CÓMO LEER ESTE DOCUMENTO
+------------------------
+Cada punto del informe lleva una de estas marcas:
+
+  [CORREGIDO]   Se cambió el código o el texto, se probó y está en producción.
+  [PARCIAL]     Se corrigió lo esencial; queda una parte, explicada.
+  [YA ESTABA]   El sistema ya lo hacía; el informe no lo vio.
+  [NO APLICA]   Comprobado contra el código o la web en producción: no es así.
+  [DIFERIDO]    No se hace ahora, con el motivo y la condición para hacerlo.
+
+Todo lo marcado [CORREGIDO] tiene prueba automática en
+brand-shield/scripts/prueba-auditoria.js (93 comprobaciones) o en la suite
+correspondiente. Antes de dar por buena cada sonda se comprobó que habría dado
+ROJO contra el código anterior: una prueba que no sabe fallar no prueba nada.
+
+Resultado global de pruebas: 39 de 39 suites en verde, también con el entorno
+vacío (como corren en la CI nueva).
+
+
+====================================================================
+0. RESUMEN
+====================================================================
+
+El informe es, en lo esencial, correcto: el riesgo real estaba en el borde
+entre sistemas (Culqi ↔ base, webhooks, crons). Esos puntos (todo el bloque P0
+de cobros y webhooks) están corregidos y en producción.
+
+Cuatro afirmaciones del informe NO se sostienen contra lo que está publicado
+hoy (P0-10, P2-02 en su mayor parte, 9/10.5 teléfono, P1-11), probablemente
+porque se revisó una versión cacheada o anterior de la web.
+
+Y al corregir aparecieron TRES fallos que el informe no señalaba:
+
+  1. El middleware de sesión no pedía `localesExtra`, así que a una cuenta que
+     PAGARA locales adicionales le llegaba `undefined` y el panel le aplicaba el
+     tope del plan sin locales. Mudo (hoy hay 0 cuentas con locales extra).
+  2. La auto-respuesta comprobaba `plan !== 'GRATIS'`, o sea que IMPULSO —que no
+     la incluye— la tenía activa.
+  3. La Política de Privacidad publicada afirmaba «Tokens OAuth (cifrados en base
+     de datos)» y NO lo estaban. Hoy sí lo están.
+
+Además, la ruta de inicio de Google Business validaba la sesión con
+`jwt.verify` sin mirar `tokenVersion`: una sesión revocada al cambiar la
+contraseña seguía sirviendo ahí. Se cerró junto con P1-06.
+
+
+====================================================================
+3. HALLAZGOS P0
+====================================================================
+
+P0-01  Billing no atómico entre Culqi y Postgres ............. [CORREGIDO]
+  Nueva tabla `intentos_cobro`. TODO cobro (alta, local adicional, renovación)
+  pasa por src/lib/cobros.js:
+    1. se registra el intento ANTES de llamar a Culqi;
+    2. el cargo viaja con metadata.intento = <id>;
+    3. el resultado queda EXITOSO / FALLIDO / DESCONOCIDO;
+    4. usuario + Pago + enlace del intento se aplican en UNA transacción.
+  Si la base falla después del cobro, el intento queda EXITOSO sin Pago y la
+  reconciliación (src/workers/reconciliacion.worker.js, cada 30 min) lo completa
+  con la MISMA función, emite el comprobante y avisa a contabilidad.
+  `registrarPago()`, que se tragaba el error, ya no existe. Al cliente ya no se
+  le responde «error» con el dinero cobrado: recibe «recibimos tu pago, lo
+  activamos en minutos, no vuelvas a pagar».
+
+P0-02  Falta idempotencia fuerte ............................. [CORREGIDO]
+  La clave del intento es única en la base:
+    - alta: el token del widget de Culqi (es de un solo uso);
+    - renovación: usuario + vencimiento (un periodo = un cobro, aunque el cron
+      corra dos veces o un día después de un fallo de base);
+    - local adicional: usuario + periodo + cambio de N a M locales.
+  Un intento DESCONOCIDO (Culqi no contestó) NO se reintenta a ciegas: se busca
+  en Culqi por metadata; si en 24 h no aparece, pasa a FALLIDO.
+
+P0-03  Webhook falla abierto sin secreto ..................... [CORREGIDO]
+  En producción, sin CULQI_WEBHOOK_SECRET se rechaza TODO evento (401). La
+  comparación del secreto ahora es en tiempo constante. Además,
+  src/lib/configProduccion.js impide arrancar sin DATABASE_URL o JWT_SECRET y
+  grita en el log por cada secreto opcional ausente con su efecto concreto.
+  Verificado en producción: sin secreto 401, secreto falso 401, real 200.
+
+P0-04  Webhook responde 200 aunque falle ...................... [CORREGIDO]
+P0-05  Falta inbox durable ................................... [CORREGIDO]
+  Nueva tabla `eventos_webhook` con UNIQUE(proveedor, idExterno). El evento se
+  GUARDA antes de procesarse; si ni eso se puede, responde 500 y Culqi
+  reintenta. Si procesar falla, queda PENDIENTE y un worker lo reintenta cada
+  10 min con espera creciente; al octavo intento pasa a FALLIDO y avisa a
+  contabilidad. Un reenvío del mismo evento responde «duplicado» y no se aplica
+  dos veces. Verificado en producción con un evento de prueba (luego borrado).
+  Meta/Instagram: su webhook no recibe eventos (Meta rechazó el permiso
+  pages_manage_metadata), así que no se migró; se hará si ese permiso llega.
+
+P0-06  Reembolso trata todo como cancelación .................. [CORREGIDO]
+  El efecto depende del pago:
+    - cuota (INICIAL/RENOVACION) del periodo vigente, devuelta entera → la
+      suscripción termina HOY (antes conservaba el plan hasta fin de periodo
+      sin haberlo pagado);
+    - cuota de un periodo viejo → solo se registra;
+    - reembolso PARCIAL (nueva columna pagos.montoReembolsado) → el servicio
+      sigue y se avisa a contabilidad de que corresponde nota de crédito;
+    - LOCAL_ADICIONAL → el plan no se toca; contabilidad decide sobre el local.
+  Idempotente: un reembolso ya aplicado no repite correos.
+
+P0-07  suscripcionActiva y plan incompatibles ................ [PARCIAL]
+  Hecho: src/lib/suscripcion.js deriva el estado (ACTIVA, EN_REINTENTO,
+  CANCELADA_FIN_PERIODO, VENCIDA, GRATIS) y el PLAN EFECTIVO, que es el que
+  mira ahora todo el acceso (resolverAcceso, perfil, IA, asientos). Una
+  suscripción cancelada y vencida pierde el plan en el mismo instante, sin
+  esperar al cron de las 5:30.
+  Matiz: «plan=NEGOCIO, suscripcionActiva=false» NO es un estado inválido: es
+  «canceló la renovación y conserva lo pagado», que es lo que promete
+  /devoluciones. Se deriva en vez de guardarse en una tabla Subscription a
+  propósito: un estado derivado no puede desincronizarse.
+  Diferido: la entidad Subscription completa (con items/addons). Se hará cuando
+  exista un segundo producto o un cambio de plan programado; hoy añadiría una
+  migración de datos de cobro sin beneficio medible.
+
+P0-08  Carrera en la promoción ............................... [CORREGIDO]
+  La promo se RESERVA antes de cobrar: se crea la fila de la tarjeta (choca con
+  el UNIQUE si ya existe) y la cuenta pasa a «promo usada» con un UPDATE
+  condicional. De dos pagos simultáneos solo uno gana. Si el cargo es rechazado
+  se libera; si queda en duda, se conserva hasta que la reconciliación decida.
+
+P0-09  Upgrade no coincide con la política .................... [CORREGIDO]
+  Se eligió UNA política y se hizo cumplir en los dos lados:
+    - subir de plan: se cobra el plan nuevo completo y los días que quedaban
+      se SUMAN (no hay «diferencia proporcional», que nunca existió);
+    - bajar de plan y pasar de anual a mensual: el backend lo RECHAZA mientras
+      quede periodo pagado y explica el camino (cancelar y elegir al vencer).
+  /devoluciones y /terminos reescritos con esa política (en producción).
+
+P0-10  Web publica Franquicia a 1 hora ........................ [NO APLICA]
+  Comprobado en la web en producción el 2026-10-02: landing, /precios, FAQ y
+  JSON-LD dicen «cada 2 horas». Se corrigió el 2026-09-19 junto con el cambio
+  de cadencia. El informe revisó una versión anterior o cacheada.
+
+P0-11  Copias independientes del catálogo ..................... [PARCIAL]
+  Ya existía la guarda: scripts/prueba-planes.js (124 comprobaciones) compara
+  el backend con el espejo del frontend, los textos del landing, el JSON-LD y
+  los guiones de campaña, y falla si alguien escribe un plan a mano. Ahora
+  además /terminos toma los precios del catálogo (antes omitía Impulso).
+  Diferido: generar el catálogo del frontend a partir del backend. Son dos
+  repos-paquetes que se despliegan por separado; la prueba cubre el riesgo con
+  menos maquinaria. El contrato y el manual del promotor no están en el
+  repositorio (ver 10.7).
+
+P0-12  suscripcionId ambiguo .................................. [CORREGIDO]
+  El campo se llama `tarjetaCulqiId` y `@map("suscripcionId")` lo ata a la
+  columna existente: renombrado sin migrar datos.
+
+
+====================================================================
+4. HALLAZGOS P1
+====================================================================
+
+P1-01  Carrera en asientos de equipo .......................... [CORREGIDO]
+  Aceptar e invitar cuentan los asientos DENTRO de una transacción con
+  pg_advisory_xact_lock por cuenta.
+
+P1-02  Carrera en contador de IA .............................. [CORREGIDO]
+  Reserva atómica (UPDATE … WHERE iaUsos < límite) antes de llamar a Groq; si
+  la IA falla se devuelve el uso. Probado: con 4/5 usados, tres peticiones
+  simultáneas → pasa una sola.
+
+P1-03  Prompt injection ....................................... [CORREGIDO]
+  El texto de terceros va dentro de <datos_de_terceros>, sin los caracteres que
+  cerrarían la etiqueta, y el prompt de sistema declara que no son
+  instrucciones. La salida se valida en código: sin enlaces ni correos.
+
+P1-04  Auto-respuesta sin filtro .............................. [CORREGIDO]
+  No se contesta sola ninguna reseña que mencione salud, plagas, seguridad,
+  discriminación, autoridades o lenguaje legal, ni una marcada como sospechosa
+  (requiereRevisionHumana en nlp/detector.js). De paso se corrigió que IMPULSO
+  la tuviera activa sin incluirla. Nota: hoy la auto-respuesta no publica nada
+  de todos modos, porque requiere Google Business, bloqueado por Google.
+
+P1-05  Tokens OAuth en claro .................................. [CORREGIDO]
+  AES-256-GCM con clave fuera de la base (TOKENS_CLAVE), aplicado como
+  extensión de Prisma: se cifra al escribir y se descifra al leer en cualquier
+  consulta, sin tocar las ~100 líneas que usan tokens. IV determinista, porque
+  TikTok actualiza tokens BUSCANDO por el refresh token. Verificado en
+  producción: el token de TikTok está cifrado en la base y TikTok sigue
+  respondiendo. Esto vuelve verdadera una frase que la Política de Privacidad
+  ya publicaba.
+
+P1-06  JWT en query string (Google Business) .................. [CORREGIDO]
+  Nueva ruta autenticada POST /api/auth/google-business/url; la sesión ya no
+  viaja en la URL. La ruta vieja responde 410. Cerró además un bypass del corte
+  de sesiones (no miraba tokenVersion).
+
+P1-07  Sesión en localStorage + CSP permisiva ................ [DIFERIDO]
+  Pasar a cookie HttpOnly exige rehacer ~30 llamadas del panel, añadir CSRF y
+  cambiar la app Android, que usa el mismo API con Bearer. Hoy no hay XSS
+  conocida, el texto ajeno se escapa en correos y panel, y las sesiones son
+  revocables (tokenVersion). Se hará como proyecto propio, con la app.
+
+P1-08  Errores 500 con err.message ............................ [CORREGIDO]
+  Un 5xx responde «Error interno del servidor» + requestId; el detalle va solo
+  al log. Los 4xx conservan su mensaje (los redacta la ruta).
+
+P1-09  Cron en el mismo proceso que HTTP ...................... [PARCIAL]
+P1-10  Falta lock distribuido ................................ [CORREGIDO]
+  Los 15 trabajos programados corren con candado (tabla candados_job): con dos
+  instancias, solo una corre cada pasada; un candado caducado se recupera
+  solo. Se usó tabla y no pg_advisory_lock porque Prisma reparte consultas entre
+  conexiones del pool. Verificado en producción: los 15 tomaron y soltaron su
+  candado. Separar el worker en otro servicio se difiere: hay una instancia, y
+  con el candado escalar ya no duplica trabajos.
+
+P1-11  Uptime de GitHub no garantiza 15 min ................... [YA ESTABA]
+  Desde el 2026-08-31 el monitor principal es un Cloudflare Worker cada 5
+  minutos con tres sondas (API, landing y «sigue vigilando») y correo en cada
+  cambio de estado (monitor-uptime/). El workflow de GitHub está documentado
+  como verificación secundaria, que es justo lo que recomienda el informe.
+
+P1-12  Migraciones no formalizadas ............................ [DIFERIDO]
+  No se adoptó `prisma migrate` todavía, a propósito: el .env de desarrollo
+  apunta a producción y `prisma migrate dev` puede proponer RESETEAR la base.
+  El procedimiento vigente está escrito y se siguió hoy: `migrate diff` para ver
+  el SQL exacto → respaldo verificado → `db push` → `migrate diff` debe dar
+  «empty migration». Se migrará a migraciones versionadas el día que exista una
+  base de staging.
+
+P1-13  Borrado de cuenta absorbe errores ...................... [CORREGIDO]
+  Todo en UNA transacción, sin .catch vacíos, y verificación final contra la
+  base (si queda algo, lanza). También se disocia el titular de los pagos y se
+  borran intentos de cobro y huellas de promo cuando no hay historial fiscal.
+
+P1-14  DELETE de visitas comerciales .......................... [CORREGIDO]
+  Ya no hay borrado: se ANULA con motivo obligatorio, quién y cuándo. La
+  anulada no se lista ni comisiona, pero sigue en la base. Pantalla /ruta
+  actualizada («Anular» con motivo).
+
+P1-15  Falta audit log de atribución .......................... [CORREGIDO]
+  Tabla cambios_visita: cada cambio de correo, local de Maps, fecha, estado o
+  comisión pagada queda con su antes y su después. GET …/visitas/:id/historial.
+
+P1-16  Comisiones como ledger ................................. [PARCIAL]
+  Hecho: los pagos al promotor quedan registrados con historial (P1-15), la
+  política versionada (P1-17) y las visitas inanulables (P1-14); un reembolso
+  tardío deja visible un saldo negativo frente a lo ya pagado.
+  Diferido: el libro de movimientos por Pago. Hoy hay 0 visitas y 0 clientes de
+  pago: se construye antes de liquidar la primera comisión.
+
+P1-17  Versionar la política de comisiones ................... [CORREGIDO]
+  Cada visita guarda su `politicaComision` y el cálculo usa ESA versión; una
+  versión desconocida no se calcula con la vigente.
+
+P1-18  Competidores duplicados ................................ [CORREGIDO]
+  UNIQUE(negocioId, googlePlaceId) en la base (comprobado antes que no había
+  duplicados) y 409 antes de gastar la consulta a Google.
+
+P1-19  Caché en memoria del análisis público .................. [DIFERIDO]
+  Correcto el diagnóstico; con una instancia no hay problema. Entra en el plan
+  de escalado junto con P1-09.
+
+P1-20  Catálogo único ......................................... ver P0-11
+
+
+====================================================================
+5. HALLAZGOS P2
+====================================================================
+
+P2-01  Detector de «cuenta nueva» inactivo .................... [YA ESTABA]
+  Documentado en el código y declarado como decisión (CLAUDE.md §15, del
+  2026-09-20): no se hace y no se puede anunciar. El landing no lo promete.
+
+P2-02  Landing con lenguaje absoluto ......................... [PARCIAL / NO APLICA]
+  El landing y el FAQ ya dicen «reseñas sospechosas» y «Notoria señala
+  comportamiento anómalo; quien decide si es falsa es Google». Lo que sí
+  quedaba era /terminos («detección de reseñas falsas»): corregido.
+
+P2-03  rating.js trata el rating publicado como exacto ........ [CORREGIDO]
+  Cada meta del simulador trae el rango que produce el redondeo (±0,05), y el
+  panel dice «entre X y Y» y avisa que son cifras aproximadas.
+
+P2-04  Documentos firmados con JWT_SECRET ..................... [CORREGIDO]
+  Nueva clave DOCUMENTOS_SECRET (src/lib/firmaDocumentos.js). Se verifica
+  también contra JWT_SECRET, así que los documentos ya emitidos siguen valiendo
+  y rotar JWT_SECRET ya no invalida los nuevos. Firma asimétrica: diferida
+  (no hay hoy un tercero que necesite verificar sin pasar por nuestra página).
+
+P2-05  Expediente: integridad, no veracidad ................... [YA ESTABA]
+  El PDF lleva impreso el alcance y prueba-expediente.js tiene 15
+  comprobaciones que fallan si el texto se vuelve más contundente.
+
+P2-06  Cuota de IA después de generar ......................... [CORREGIDO] (P1-02)
+
+P2-07  Sentimiento por subcadenas ............................. [DE ACUERDO]
+  Sin reescritura, como sugiere el informe.
+
+P2-08  Métricas del detector .................................. [DIFERIDO]
+  Requiere un corpus etiquetado de reseñas reales; sin él cualquier precisión
+  sería inventada. Se hará antes de publicar cualquier porcentaje de acierto
+  (hoy no se publica ninguno).
+
+P2-09  Correlation ID ......................................... [PARCIAL]
+  Cada petición lleva X-Request-Id en la respuesta, en el log de errores y en
+  el cuerpo de un 500. Los cobros llevan el id del intento en la metadata de
+  Culqi. Propagarlo a Resend: diferido.
+
+P2-10  Política de retención .................................. [CORREGIDO]
+  docs/retencion-datos.md, con lo que está en el código y lo pendiente de
+  decisión (purgas automáticas: hoy ninguna tabla lo justifica).
+
+P2-11  Integraciones dentro de Negocio ......................... [DE ACUERDO]
+  Diferido, igual que propone el informe.
+
+
+====================================================================
+6. LO QUE ESTÁ BIEN HECHO
+====================================================================
+De acuerdo con todo el apartado. Ninguna de esas piezas se tocó salvo para
+reforzarla (planes.js ahora alimenta también la auto-respuesta; el equipo ahora
+usa el plan efectivo; las sesiones revocables ahora cubren Google Business).
+
+
+====================================================================
+7 y 8. ARQUITECTURA DE BILLING Y WEBHOOKS
+====================================================================
+Implementada en la forma más pequeña que cumple los invariantes:
+  PaymentAttempt  → intentos_cobro (con estado DESCONOCIDO, como pide el informe)
+  ProviderEvent   → eventos_webhook (dedupe, reintentos, dead letter = FALLIDO
+                    + aviso a contabilidad)
+  Subscription    → derivada (lib/suscripcion.js), ver P0-07
+  Refund          → por tipo de pago (P0-06)
+La cola externa (Redis/BullMQ) se sustituyó por tablas + cron con candado: con
+el volumen actual da las mismas garantías con una pieza menos que operar.
+
+
+====================================================================
+9 y 10. RECONCILIACIÓN WEB / LEGAL
+====================================================================
+10.1  Franquicia 1 h vs 2 h ....................... [NO APLICA] (P0-10)
+10.2  Términos con Google Business y Facebook ..... [CORREGIDO]
+      Ahora dicen que esas integraciones solo forman parte del servicio cuando
+      la plataforma las habilita y el panel las ofrece.
+10.3  «Detección de reseñas falsas» ............... [CORREGIDO] (P2-02)
+10.4  Impulso ausente en los Términos ............. [CORREGIDO]
+      Precios de los tres planes y de los locales tomados del catálogo.
+10.5  Teléfono 955 599 041 en /precios ............ [NO APLICA]
+      Comprobado en producción: /precios, /contacto, /devoluciones y
+      /libro-reclamaciones muestran solo +51 916 383 038, que sale de una única
+      fuente (brand-shield-web/src/lib/contacto.js) desde el 2026-09-16.
+10.6  Política de upgrade ......................... [CORREGIDO] (P0-09)
+10.7  Contrato y manual del promotor .............. [FUERA DEL REPOSITORIO]
+      No están en el repositorio, así que no se pudieron editar. Para que digan
+      lo mismo que el sistema:
+        - el estado de una venta se actualiza SOLO desde el 2026-09-26 (si la
+          cuenta pagó, «cliente»; si existe sin pagar, «cuenta gratis»);
+        - las visitas no se borran: se ANULAN con motivo (desde hoy);
+        - la comisión se calcula con la versión de reglas con la que se registró
+          la visita (versión 1: 50 % de alta, 10 % residual, 60 días, 12 meses,
+          2.º pago en mensual, 15 días en anual).
+      Completar los campos pendientes del contrato antes de firmarlo.
+
+
+====================================================================
+11, 12, 13, 14. VEREDICTOS POR ÁREA
+====================================================================
+Ruta comercial: lo pendiente del informe está hecho salvo el ledger (P1-16).
+IA:             contador atómico, aislamiento y validación hechos. Guardar
+                modelo/versión de prompt por texto generado: diferido (el texto
+                lo aprueba y publica el dueño a mano; no hay publicación
+                automática con IA).
+Seguridad:      7 de los 8 puntos de la lista hechos; queda la cookie HttpOnly.
+Escalabilidad:  cron duplicado resuelto con candados; caché y worker separado
+                diferidos (una instancia).
+
+
+====================================================================
+15. TESTING Y CI
+====================================================================
+[CORREGIDO] .github/workflows/ci.yml corre en cada push y PR las 39 suites que
+no tocan red ni base, más el build del frontend. Las suites siguen siendo
+scripts propios y no Jest/Vitest: cubren lo mismo (dobles de Prisma y Culqi,
+rutas levantadas por HTTP) y cambiarlas de framework no añade cobertura.
+Al montar la CI apareció una suite que fallaba SOLA los días 1-3 de cada mes
+(prueba-cableado, fixture con la fecha de hoy): corregida.
+
+
+====================================================================
+16. INVARIANTES
+====================================================================
+I-01  Un intento lógico nunca cobra dos veces .......... SÍ (clave única)
+I-02  Un webhook aceptado nunca se pierde .............. SÍ (se guarda antes de 2xx)
+I-03  Un evento no se aplica dos veces ................. SÍ (UNIQUE + idempotencia)
+I-04  Todo pago exitoso es reconciliable ............... SÍ (intento + metadata)
+I-05  Un comprobante no se emite dos veces por pago .... SÍ (ya estaba: pagoId único)
+I-06  Reembolso de addon no cancela la suscripción ..... SÍ
+I-07  La promo no se reserva dos veces ................. SÍ
+I-08  Un asiento no se supera por concurrencia ......... SÍ
+I-09  La IA no supera su límite por concurrencia ....... SÍ
+I-10  La comisión conserva su política ................. SÍ
+I-11  Una visita no desaparece sin traza ............... SÍ
+I-12  La web no promete lo que el backend no da ........ SÍ (+ pruebas de fuente)
+I-13  El contrato no describe otra política ............ PENDIENTE (fuera del repo, 10.7)
+I-14  Documentos fiscales en almacenamiento durable .... SÍ (ya estaba: en la base)
+I-15  Secreto obligatorio no queda opcional en prod .... SÍ
+
+
+====================================================================
+17 y 18. BACKLOG Y FASES
+====================================================================
+Bloque A (antes de cobrar en volumen): A1-A11 hechos; A6 en su forma derivada.
+Bloque B (contrato y producto):        B2, B3, B4, B5, B6, B7 hechos o no
+                                       aplicaban; B1 parcial; B8 y B9 en manos
+                                       del dueño (documentos fuera del repo).
+Bloque C (seguridad):                  C1, C3, C4, C5, C6 hechos; C2 diferido.
+Bloque D (operación):                  D2, D3, D5, D6 hechos; D1 parcial;
+                                       D4 diferido (ver P1-12).
+Bloque E (QA):                         E5 hecho; E1-E4, E6 y E7 cubiertos con las
+                                       suites propias (concurrencia incluida).
+Bloque F:                              F1 derivado; F2-F7 diferidos como dice el
+                                       informe.
+
+
+====================================================================
+LO QUE QUEDA EN MANOS DEL DUEÑO
+====================================================================
+1. Guardar fuera de Railway las dos claves nuevas, TOKENS_CLAVE y
+   DOCUMENTOS_SECRET (docs/secretos.md). Hoy solo viven allí.
+2. Actualizar contrato y manual del promotor según 10.7.
+3. Decidir si se aborda la sesión en cookie HttpOnly (P1-07) junto con la
+   próxima versión de la app Android.
+
+FIN
