@@ -24,6 +24,12 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    # Prisma exige DATABASE_URL incluso para `validate` y para cargar el cliente,
+    # aunque no se conecte. Es una URL FICTICIA: ninguna suite toca una base de
+    # verdad (todas usan dobles). Sin ella, la primera corrida falló en
+    # `prisma validate` con P1012 (2026-10-04).
+    env:
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci_sin_base
     defaults:
       run:
         working-directory: brand-shield
