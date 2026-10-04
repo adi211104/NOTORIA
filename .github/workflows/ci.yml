@@ -1,0 +1,69 @@
+# Integración continua (auditoría 2026-10-02, punto E5).
+#
+# Hasta este día las ~40 suites `scripts/prueba-*.js` existían pero dependían de
+# que alguien se ACORDARA de correrlas. Este workflow las corre en cada push y en
+# cada PR, más el build del frontend.
+#
+# ⚠️ Solo las suites que NO tocan red ni base: todas usan dobles. Se excluyen a
+# propósito las que llaman a servicios reales —prueba-publico (gasta consultas
+# a Places), prueba-culqi (API de Culqi), y las tres *-beta (SUNAT beta)—, que
+# siguen siendo manuales. Comprobado el 2026-10-03 que las 39 restantes pasan
+# con el entorno VACÍO y sin `.env`, que es como corren acá.
+#
+# ⚠️ Una suite que falla por FECHA (fixture con `new Date()`) es un bug de la
+# suite, no del producto: pasó con prueba-cableado los días 1-3 de cada mes.
+# Arreglarla fijando la fecha, nunca saltándola.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: brand-shield
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: brand-shield/package-lock.json
+      - run: npm ci
+      - run: npx prisma validate
+      # El certificado de PRUEBA que necesitan las suites de firma (no el real).
+      - run: node scripts/generar-cert-prueba.js
+      - name: Suites sin red ni base
+        run: |
+          fallos=0
+          for f in scripts/prueba-*.js; do
+            n=$(basename "$f" .js)
+            case "$n" in prueba-publico|prueba-culqi|prueba-sunat-beta|prueba-resumen-beta|prueba-baja-beta) continue;; esac
+            if timeout 180 node "$f" > "/tmp/$n.log" 2>&1; then
+              echo "✓ $n — $(tail -1 /tmp/$n.log)"
+            else
+              echo "::error::$n falló"; tail -30 "/tmp/$n.log"; fallos=$((fallos+1))
+            fi
+          done
+          echo "Suites fallidas: $fallos"
+          test "$fallos" -eq 0
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: brand-shield-web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: brand-shield-web/package-lock.json
+      - run: npm ci
+      - run: npm run build
