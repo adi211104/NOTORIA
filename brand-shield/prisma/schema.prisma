@@ -751,6 +751,11 @@ model PromoTarjeta {
   usuarioId String
   usadaEn   DateTime @default(now())
 
+  // Clave del IntentoCobro que la usa (lib/promo.js). Sin ella la reserva no
+  // se podía devolver si el cobro no llegaba a existir. null = fila anterior al
+  // 2026-10-07: no se toca.
+  intentoClave String?
+
   @@index([usuarioId])
   @@map("promo_tarjetas")
 }

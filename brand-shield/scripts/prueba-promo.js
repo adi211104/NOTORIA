@@ -49,7 +49,8 @@ const prismaFalso = {
       estado.tarjetaTomada = true;
       estado.tarjetaRegistrada = data; return data;
     },
-    deleteMany: async () => { estado.tarjetaLiberada = true; return { count: 1 }; },
+    deleteMany: async ({ where }) => { estado.tarjetaLiberada = where; return { count: 1 }; },
+    count: async () => 0,
   },
   intentoCobro: {
     create: async ({ data }) => {
@@ -121,6 +122,8 @@ if (!capa) {
   process.exit(1);
 }
 const handler = capa.route.stack[capa.route.stack.length - 1].handle;
+// Cargado junto con la ruta: usa el mismo prisma falso.
+const promo = require(path.join(__dirname, '..', 'src', 'lib', 'promo.js'));
 
 const ejecutar = async (body) => {
   let resultado = {};
@@ -145,6 +148,7 @@ const casos = [
     comprobar: (r, e) => {
       if (e.montoCobrado !== PRECIO_MENSUAL / 2) return mal(`cobró ${e.montoCobrado}, esperado ${PRECIO_MENSUAL / 2}`);
       if (!e.tarjetaRegistrada) return mal('no registró la tarjeta: la promo se podría repetir con ella');
+      if (e.tarjetaRegistrada.intentoClave !== 'alta:u1:tkn') return mal(`la reserva no está atada al intento (intentoClave=${e.tarjetaRegistrada.intentoClave})`);
       if (!e.usuarioActualizado.promoBienvenidaUsada) return mal('no marcó promoBienvenidaUsada en la cuenta');
       ok('cobra S/29.50, marca la cuenta y registra la tarjeta');
     },
@@ -212,6 +216,7 @@ const casos = [
     comprobar: (r, e) => {
       if (r.status !== 400) return mal(`status ${r.status}, esperado 400`);
       if (!e.tarjetaLiberada || e.usuarioActualizado?.promoBienvenidaUsada !== false) return mal('la promo quedó gastada por un cargo que no se hizo');
+      if (e.tarjetaLiberada.intentoClave !== 'alta:u1:tkn') return mal('liberó filas sin mirar de qué intento eran');
       ok('rechazo del banco: la tarjeta y la cuenta conservan su promo');
     },
   },
@@ -228,6 +233,70 @@ const casos = [
   },
 ];
 
+// ── Reservas huérfanas (respuesta del auditor, 2026-10-07) ────────────────
+// La reserva se hace antes de abrir el intento de cobro. Si el proceso muere en
+// medio, o la liberación falla, la promo quedaba gastada para siempre sin cobro.
+// `promo.liberarHuerfanas()` (desde la reconciliación) las devuelve.
+const pruebaHuerfanas = async () => {
+  const AHORA = Date.parse('2026-10-07T15:00:00Z');
+  const vieja = new Date(AHORA - 2 * 3600000);
+  const reciente = new Date(AHORA - 5 * 60000);
+  let filas; let intentos; let cuentas; let fallarTx;
+  const db = {
+    $transaction: async (fn) => {
+      const copia = { filas: filas.map((f) => ({ ...f })), cuentas: { ...cuentas } };
+      try { const r = await fn(db); if (fallarTx) throw new Error('base caída'); return r; } catch (e) { filas = copia.filas; cuentas = copia.cuentas; throw e; }
+    },
+    promoTarjeta: {
+      findMany: async ({ where }) => filas.filter((f) => f.intentoClave !== null && f.usadaEn < where.usadaEn.lt),
+      deleteMany: async ({ where }) => { const antes = filas.length; filas = filas.filter((f) => !(f.usuarioId === where.usuarioId && f.intentoClave === where.intentoClave)); return { count: antes - filas.length }; },
+      count: async ({ where }) => filas.filter((f) => f.usuarioId === where.usuarioId).length,
+    },
+    intentoCobro: { findUnique: async ({ where }) => intentos[where.clave] || null },
+    usuario: { update: async ({ where, data }) => { cuentas[where.id] = data.promoBienvenidaUsada; } },
+  };
+  const preparar = () => {
+    filas = [
+      { huella: 'h1', usuarioId: 'u1', intentoClave: 'alta:u1:sin-intento', usadaEn: vieja },   // murió antes del intento
+      { huella: 'h2', usuarioId: 'u2', intentoClave: 'alta:u2:fallido', usadaEn: vieja },       // falló y no se liberó
+      { huella: 'h3', usuarioId: 'u3', intentoClave: 'alta:u3:cobrado', usadaEn: vieja },       // cobró: se queda
+      { huella: 'h4', usuarioId: 'u4', intentoClave: 'alta:u4:en-duda', usadaEn: vieja },       // DESCONOCIDO: se queda
+      { huella: 'h5', usuarioId: 'u5', intentoClave: 'alta:u5:en-curso', usadaEn: reciente },   // aún dentro del margen
+      { huella: 'h6', usuarioId: 'u6', intentoClave: null, usadaEn: vieja },                    // fila vieja sin clave
+      { huella: 'h7', usuarioId: 'u7', intentoClave: 'alta:u7:fallido', usadaEn: vieja },       // falló, pero la cuenta
+      { huella: 'h8', usuarioId: 'u7', intentoClave: 'alta:u7:cobrado', usadaEn: vieja },       // ya gastó la promo con otra tarjeta
+    ];
+    intentos = {
+      'alta:u2:fallido': { estado: 'FALLIDO' }, 'alta:u3:cobrado': { estado: 'EXITOSO' },
+      'alta:u4:en-duda': { estado: 'DESCONOCIDO' }, 'alta:u7:fallido': { estado: 'FALLIDO' }, 'alta:u7:cobrado': { estado: 'EXITOSO' },
+    };
+    cuentas = { u1: true, u2: true, u3: true, u4: true, u5: true, u6: true, u7: true };
+    fallarTx = false;
+  };
+  const tiene = (h) => filas.some((f) => f.huella === h);
+
+  preparar();
+  const n = await promo.liberarHuerfanas(AHORA, db);
+  if (tiene('h1') || cuentas.u1 !== false) mal('reserva sin intento (proceso muerto) NO se devolvió'); else ok('reserva sin intento detrás → se devuelve a la tarjeta y a la cuenta');
+  if (tiene('h2') || cuentas.u2 !== false) mal('reserva de un intento FALLIDO NO se devolvió'); else ok('intento FALLIDO cuya liberación no llegó → se devuelve');
+  if (!tiene('h3') || cuentas.u3 !== true) mal('¡devolvió la promo de un alta que SÍ se cobró!'); else ok('CONTROL: intento cobrado → la reserva se queda');
+  if (!tiene('h4') || cuentas.u4 !== true) mal('¡devolvió la promo de un cobro en duda!'); else ok('CONTROL: intento DESCONOCIDO → se queda (puede que sí se cobrara al 50%)');
+  if (!tiene('h5')) mal('liberó una reserva dentro del margen: su cobro puede estar en marcha'); else ok('CONTROL: reserva reciente → se respeta el margen');
+  if (!tiene('h6')) mal('tocó una fila anterior a intentoClave'); else ok('CONTROL: filas sin clave (anteriores al cambio) no se tocan');
+  if (tiene('h7') || !tiene('h8') || cuentas.u7 !== true) mal('la cuenta recuperó la promo aunque ya la había usado con otra tarjeta'); else ok('se libera la tarjeta, pero la cuenta que ya cobró con promo sigue marcada');
+  if (n !== 3) mal(`liberadas=${n}, esperado 3`);
+
+  // Liberar es todo o nada: si la base cae a mitad, no queda la fila borrada y
+  // la cuenta marcada (eso sería una promo perdida que nadie volvería a ver).
+  preparar();
+  fallarTx = true;
+  await promo.liberar({ usuarioId: 'u1', clave: 'alta:u1:sin-intento' }, db).catch(() => {});
+  if (!tiene('h1') || cuentas.u1 !== true) mal('liberación a medias: la fila desapareció pero la cuenta sigue marcada'); else ok('liberar es una transacción: si falla, la reserva sigue ahí para el próximo barrido');
+  fallarTx = false;
+  await promo.liberarHuerfanas(AHORA, db);
+  if (tiene('h1') || cuentas.u1 !== false) mal('el barrido siguiente no la recuperó'); else ok('…y el barrido siguiente la devuelve');
+};
+
 (async () => {
   console.log('Promo de bienvenida — Culqi y base simulados, no se cobra ni se guarda nada\n');
   for (const caso of casos) {
@@ -236,6 +305,8 @@ const casos = [
     if (r.error) { mal(caso.nombre, '— lanzó:', r.error.message); continue; }
     caso.comprobar(r, estado, r2);
   }
+  console.log('\nReservas huérfanas (lib/promo.js)');
+  await pruebaHuerfanas();
   console.log(fallos ? `\n${fallos} fallo(s)` : '\nTodo OK — la promo no se puede repetir ni por cuenta ni por tarjeta');
   process.exit(fallos ? 1 : 0);
 })();

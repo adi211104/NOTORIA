@@ -411,7 +411,11 @@ cron de `monitoreo.worker.js` sin `timezone` corren en **UTC** (el de las «5:00
 **Promo de bienvenida:** 50% los 2 primeros meses, solo mensual, una vez por cuenta Y por tarjeta
 (`promo_tarjetas`, HMAC de `BIN|últimos4` con `PROMO_HASH_SECRET`). 🔴 **Se RESERVA antes de cobrar**
 (crear la fila de la tarjeta — UNIQUE — y `UPDATE … WHERE promoBienvenidaUsada=false`); si el cargo es
-rechazado se libera, si queda en duda se conserva. Cuenta con derecho pero tarjeta gastada → **409
+rechazado se libera, si queda en duda se conserva. Desde el 2026-10-07 la reserva va **atada a la clave
+del intento** (`promo_tarjetas.intentoClave`, `lib/promo.js`): liberar es una transacción (fila +
+cuenta) y la reconciliación (`liberarHuerfanas`, margen 30 min) devuelve las reservas cuyo intento no
+existe o FALLÓ; las de un intento EXITOSO/DESCONOCIDO/PROCESANDO y las filas sin clave no se tocan.
+Cuenta con derecho pero tarjeta gastada → **409
 `PROMO_NO_APLICA` sin cobrar**; el frontend reintenta con **`sinPromo: true`** (no romper ese
 escape). `BannerPromo` deriva sus importes del catálogo.
 **No existe periodo de prueba** («7 días gratis» sería publicidad engañosa, Ley 29571); sí el
@@ -927,7 +931,7 @@ usan las libs desde dentro) y modelar `$transaction`, `intentoCobro`, `eventoWeb
 |---|---|
 | `prueba-auditoria.js` (96) | Todo lo del 2026-10-02: cifrado, candados, estado de suscripción, cobros idempotentes, bandeja de webhooks, reconciliación, secretos obligatorios, auto-respuesta, IA atómica, política de comisión, firma de documentos, rango del simulador, borrado, GBP sin JWT. Cada bloque con control y comprobado en rojo contra el código anterior |
 | `prueba-culqi-webhook.js` (16) | Tipos, `data` como cadena, secreto, reembolso por tipo, duplicados, pendiente ante fallo, 500 sin base, cierre en producción |
-| `prueba-promo.js` (8) | Tabla de la promo, carrera con la misma tarjeta, liberación tras rechazo, doble clic |
+| `prueba-promo.js` (18) | Tabla de la promo, carrera con la misma tarjeta, liberación tras rechazo, doble clic, reserva atada al intento y reservas huérfanas |
 | `prueba-locales.js` (111) | Prorrateo y la ruta levantada por HTTP (vencimiento intacto, importe exacto) |
 | `prueba-planes.js` (124) | Tabla de capacidades, listas a mano en `src/` y `scripts/`, landing, guiones |
 | `prueba-ruta-comercial.js` (59) | Acceso, comisión, Maps, anular, historial, política |
@@ -979,6 +983,10 @@ competidores). Secretos nuevos `TOKENS_CLAVE` y `DOCUMENTOS_SECRET`.
 - Fallos encontrados que el informe no veía: `localesExtra` no llegaba a `req.cuenta`; IMPULSO tenía
   auto-respuesta; Privacidad decía «tokens cifrados» sin serlo; GBP ignoraba `tokenVersion`;
   `prueba-cableado` fallaba sola los días 1-3 del mes.
+- **2026-10-07 (réplica del auditor):** P0-09 y P0-10 ya estaban bien en producción (el auditor leyó
+  una versión vieja; comprobado con `curl`, evidencia en el anexo de la respuesta). Lo que sí era real:
+  la reserva de la promo no estaba ligada al intento y podía quedar gastada sin cobro → `lib/promo.js`
+  + columna `promo_tarjetas.intentoClave` (aditiva, respaldo verificado antes del push).
 - **2026-10-05 (cierre):** manual v1.2 y contrato del promotor actualizados (`docs/promotor/`);
   auto-respuesta oculta hasta GBP (panel + landing, desplegado y comprobado en producción); residual
   de la Ruta neto de reembolsos parciales (desplegado); `prueba-gbp-visible` ya no acusa a los

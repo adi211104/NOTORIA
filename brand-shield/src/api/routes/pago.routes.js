@@ -20,6 +20,7 @@ const { etiquetaDe, puede: planPuede, PLANES_DE_PAGO } = require('../../lib/plan
 const locales = require('../../lib/localesExtra');
 
 const cobros = require('../../lib/cobros');
+const promo = require('../../lib/promo');
 const webhookInbox = require('../../lib/webhookInbox');
 const { ORDEN } = require('../../lib/planes');
 const { planEfectivo } = require('../../lib/suscripcion');
@@ -503,31 +504,25 @@ router.post('/culqi', async (req, res) => {
     // «promo usada» con un UPDATE condicional. Solo una de dos peticiones gana.
     // Si el cobro FALLA se libera; si queda en duda (Culqi no contestó) se
     // conserva, porque puede que sí se haya cobrado al 50%.
+    //
+    // La reserva va ATADA a la clave del intento de cobro (lib/promo.js): si
+    // la liberación falla o el proceso muere antes de abrir el intento, la
+    // reconciliación encuentra la reserva sin cobro detrás y la devuelve.
+    // El token del widget es de UN solo uso: la misma clave = el mismo pago.
+    // Un doble clic o un reintento del navegador no pueden cobrar dos veces.
+    const clave = `alta:${usuario.id}:${token}`;
     let aplicaPromo = false;
     const liberarPromo = async () => {
       if (!aplicaPromo) return;
-      await prisma.promoTarjeta.deleteMany({ where: { huella, usuarioId: usuario.id } }).catch(() => {});
-      await prisma.usuario.update({ where: { id: usuario.id }, data: { promoBienvenidaUsada: false } }).catch(() => {});
+      await promo.liberar({ usuarioId: usuario.id, clave })
+        .catch((e) => console.error(`[Promo] No se pudo liberar la reserva de ${clave} (la reconciliación la devolverá):`, e.message));
     };
     if (cuentaPuedePromo) {
       // Sin huella (Culqi no devolvió los datos, o falta PROMO_HASH_SECRET) no
       // se puede verificar la tarjeta: se trata como ya usada para no dejar el
       // descuento sin control.
       if (!huella) return promoNoAplica();
-      try {
-        await prisma.promoTarjeta.create({ data: { huella, usuarioId: usuario.id } });
-      } catch (e) {
-        if (e.code === 'P2002') return promoNoAplica();
-        throw e;
-      }
-      const cuenta = await prisma.usuario.updateMany({
-        where: { id: usuario.id, promoBienvenidaUsada: false },
-        data: { promoBienvenidaUsada: true },
-      });
-      if (cuenta.count !== 1) {
-        await prisma.promoTarjeta.deleteMany({ where: { huella, usuarioId: usuario.id } }).catch(() => {});
-        return promoNoAplica();
-      }
+      if (!(await promo.reservar({ huella, usuarioId: usuario.id, clave }))) return promoNoAplica();
       aplicaPromo = true;
     }
 
@@ -555,9 +550,7 @@ router.post('/culqi', async (req, res) => {
     let cobro;
     try {
       cobro = await cobros.cobrar({
-        // El token del widget es de UN solo uso: la misma clave = el mismo pago.
-        // Un doble clic o un reintento del navegador no pueden cobrar dos veces.
-        clave: `alta:${usuario.id}:${token}`,
+        clave,
         usuarioId: usuario.id,
         tipo: 'INICIAL',
         plan,

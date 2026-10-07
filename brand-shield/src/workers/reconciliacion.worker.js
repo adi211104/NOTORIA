@@ -24,6 +24,7 @@
 const prisma = require('../lib/prisma');
 const culqi = require('../lib/culqi');
 const cobros = require('../lib/cobros');
+const promo = require('../lib/promo');
 const webhookInbox = require('../lib/webhookInbox');
 const { programar } = require('../lib/candado');
 
@@ -60,14 +61,10 @@ const completar = async (intento, cargo) => {
 
 // Si un alta con promo quedó en duda y al final NO se cobró, la promo reservada
 // se devuelve (si no, el cliente perdería el 50% por un cargo que no existió).
+// Se busca por la clave del intento, no por cercanía en el tiempo (lib/promo.js).
 const liberarPromoSiHace = async (intento) => {
   if (intento.tipo !== 'INICIAL' || !intento.detalle?.promo) return;
-  const exitosos = await prisma.pago.count({ where: { usuarioId: intento.usuarioId, estado: 'EXITOSO' } });
-  if (exitosos > 0) return;
-  const desde = new Date(new Date(intento.creadoEn).getTime() - 10 * MIN);
-  const hasta = new Date(new Date(intento.creadoEn).getTime() + 10 * MIN);
-  await prisma.promoTarjeta.deleteMany({ where: { usuarioId: intento.usuarioId, usadaEn: { gte: desde, lte: hasta } } });
-  await prisma.usuario.update({ where: { id: intento.usuarioId }, data: { promoBienvenidaUsada: false } });
+  await promo.liberar({ usuarioId: intento.usuarioId, clave: intento.clave });
 };
 
 const reconciliarCobros = async (ahora = Date.now()) => {
@@ -140,6 +137,10 @@ const reconciliarCobros = async (ahora = Date.now()) => {
       console.error(`[Reconciliación] No se pudo consultar Culqi para ${intento.id}: ${e.message}`);
     }
   }
+
+  // C) Reservas de promo sin cobro detrás (el intento no existe o falló).
+  await promo.liberarHuerfanas(ahora)
+    .catch((e) => console.error('[Reconciliación] No se pudieron revisar las reservas de promo:', e.message));
 
   if (completados || fallidos || pendientes) {
     console.log(`[Reconciliación] completados ${completados} · fallidos ${fallidos} · pendientes ${pendientes}`);

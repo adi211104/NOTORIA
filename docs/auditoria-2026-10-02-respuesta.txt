@@ -468,4 +468,69 @@ Lo hecho después de la primera respuesta, desplegado y comprobado:
 La app Android no se tocó: queda para cuando se retome (esconder ahí también
 la auto-respuesta sin Google Business).
 
+====================================================================
+ANEXO — RÉPLICA DEL 7 DE OCTUBRE DE 2026
+====================================================================
+Nota: el texto de la réplica nos llegó cortado (P0-02 está incompleto y
+P0-10 termina a mitad de frase). Respondemos a lo que se puede leer; si
+hay más observaciones, conviene reenviarlas completas.
+
+P0-01 — De acuerdo, cerrado.
+
+P0-02 / P0-08 — Reserva de la promo que puede negar una promoción legítima.
+  Tienen razón y está corregido. La reserva (fila en promo_tarjetas +
+  promoBienvenidaUsada) se hacía ANTES de crear el IntentoCobro y no sabía
+  de qué cobro era. Si el proceso moría entre la reserva y el intento, o si
+  la liberación fallaba (se tragaba el error), la tarjeta y la cuenta
+  quedaban marcadas para siempre sin cobro. Además, la reconciliación
+  buscaba la reserva por una ventana de ±10 min, no por el intento.
+  Cambio (lib/promo.js), que es la primera de las dos soluciones que
+  proponen:
+  - promo_tarjetas.intentoClave guarda la MISMA clave única con la que se
+    abre el intento (alta:<usuario>:<token>), que se conoce antes de
+    reservar.
+  - Liberar es una transacción (fila + cuenta): o se devuelve entera o no.
+    La cuenta solo recupera el derecho si no le queda otra tarjeta con la
+    promo (un alta que sí se cobró con promo la deja marcada).
+  - La reconciliación (cada 30 min) devuelve las reservas de más de 30 min
+    cuyo intento no existe o terminó FALLIDO. Las de un intento EXITOSO,
+    DESCONOCIDO o PROCESANDO se conservan: puede que sí se haya cobrado al
+    50%, y eso lo resuelve la reconciliación del propio intento.
+  Pruebas: prueba-promo.js pasa de 8 a 18 comprobaciones (reserva atada a
+  la clave; reserva sin intento, intento fallido, intento cobrado, en duda,
+  dentro del margen, fila antigua sin clave, cuenta que ya usó la promo con
+  otra tarjeta; liberación a medias que se revierte y se recupera en la
+  pasada siguiente). Las nuevas dan ROJO contra el código anterior. Las 39
+  suites de CI pasan.
+  Base: una columna nueva y nula (ALTER TABLE "promo_tarjetas" ADD COLUMN
+  "intentoClave" TEXT), con respaldo verificado antes (0 filas perdidas) y
+  diff posterior vacío. Desplegado el 7/10.
+
+P0-09 — /devoluciones en producción. Ya estaba corregido en producción
+  desde el 2 de octubre; la versión que leyeron es anterior. Comprobado el
+  7/10 con una petición sin caché a https://usenotoria.app/devoluciones:
+  la sección «5. Cambios de plan» dice textualmente:
+    «Subir de plan (upgrade): el cambio es inmediato. Se cobra el periodo
+    completo del nuevo plan y los días que te quedaban del periodo anterior
+    no se pierden: se suman al final del nuevo periodo, ya con el plan
+    nuevo.»
+  y la frase «se cobra la diferencia proporcional por los días que resten»
+  no aparece en la página. La palabra «proporcional» solo figura en las
+  devoluciones por indisponibilidad (>72 h), en el plan anual cancelado
+  pasados los 7 días y en los locales adicionales, que sí se prorratean
+  (lib/localesExtra.js). Las tres cosas son ciertas.
+
+P0-10 — Franquicia 1 h vs 2 h. También estaba bien en producción. El 7/10
+  https://usenotoria.app/precios dice «cada 2 horas» para Franquicia, y ni
+  /precios, ni la portada, ni /devoluciones, ni /terminos contienen «cada
+  hora», «1 h» ni «every hour». El FAQ (también en el JSON-LD) dice «cada
+  72, 24, 12, 4 o 2 horas según tu plan».
+  Sugerencia para la próxima ronda: anotar la fecha y hora de la lectura,
+  o la cabecera Age/X-Vercel-Cache, para poder distinguir una página
+  desactualizada de una caché vieja del lado de quien lee.
+
+Coincidimos con la conclusión: el riesgo que queda está en que el código,
+los procesos concurrentes y lo que ve el cliente digan lo mismo. Por eso
+las comprobaciones de este anexo son contra producción y no contra git.
+
 FIN

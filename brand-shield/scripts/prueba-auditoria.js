@@ -228,7 +228,7 @@ Module.prototype.require = function (id) {
     },
     usuario: { findUnique: async () => ({ id: 'u1', email: 'ana@x.pe', nombre: 'Ana' }), update: async (a) => { estadoR.cuentaLiberada = a.data.promoBienvenidaUsada === false; } },
     pago: { create: async ({ data }) => { const p = { id: `pg${estadoR.pagos.length + 1}`, ...data }; estadoR.pagos.push(p); return p; }, count: async () => 0 },
-    promoTarjeta: { deleteMany: async () => { estadoR.promoBorrada = true; } },
+    promoTarjeta: { deleteMany: async ({ where }) => { estadoR.promoBorrada = where.intentoClave === 'k3'; return { count: 1 }; }, count: async () => 0, findMany: async () => [] },
   };
   const culqiR = {
     configurado: () => true,
@@ -247,6 +247,7 @@ Module.prototype.require = function (id) {
   };
   delete require.cache[require.resolve('../src/lib/cobros')];
   delete require.cache[require.resolve('../src/lib/webhookInbox')];
+  delete require.cache[require.resolve('../src/lib/promo')];
   const recon = require('../src/workers/reconciliacion.worker');
   const viejo = new Date(Date.now() - 2 * 3600000);
   estadoR.intentos.push({ id: 'a1', clave: 'k1', estado: 'EXITOSO', pagoId: null, culqiCargoId: 'chr_a1', creadoEn: viejo, usuarioId: 'u1', tipo: 'RENOVACION', plan: 'NEGOCIO', periodo: 'mensual', monto: 5900, moneda: 'PEN', detalle: { fechaVencimiento: '2026-11-01T00:00:00Z' } });
