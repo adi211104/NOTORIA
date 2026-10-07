@@ -104,7 +104,10 @@ function comisionDeVisita({ fechaVisita, pagos = [], localesExtra = 0, ahora = n
   const cobrados = validos.filter((p) => p.estado === 'EXITOSO' && new Date(p.creadoEn).getTime() < fin);
   const anual = primero.periodo === 'anual';
   const conResidual = anual ? cobrados : cobrados.filter((p) => p !== primero);
-  const residual = conResidual.reduce((s, p) => s + TASA_RESIDUAL * sinIgv(p.monto), 0);
+  // Sobre lo EFECTIVAMENTE cobrado (contrato 6.3 y 7.4): un reembolso parcial de
+  // un pago posterior reduce su residual en la misma proporción (2026-10-05).
+  const cobrado = (p) => Math.max(0, p.monto - (p.montoReembolsado || 0));
+  const residual = conResidual.reduce((s, p) => s + TASA_RESIDUAL * sinIgv(cobrado(p)), 0);
 
   const ganado = anual
     ? new Date(ahora).getTime() - tPrimero >= DIAS_ESPERA_ANUAL * DIA

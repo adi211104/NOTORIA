@@ -341,6 +341,9 @@ Module.prototype.require = function (id) {
   const pago = (dias, monto = 5900) => ({ plan: 'NEGOCIO', periodo: 'mensual', tipo: 'INICIAL', estado: 'EXITOSO', monto, creadoEn: new Date(Date.UTC(2026, 0, 10 + dias)) });
   const v1 = rc.comisionDeVisita({ fechaVisita: new Date(Date.UTC(2026, 0, 5)), pagos: [pago(0), pago(31)], politica: 1, ahora: new Date(Date.UTC(2026, 3, 1)) });
   check('la política 1 calcula como siempre', v1.estado === 'GANADA' && v1.ganada > 0);
+  const parcial = rc.comisionDeVisita({ fechaVisita: new Date(Date.UTC(2026, 0, 5)), pagos: [pago(0), { ...pago(31), montoReembolsado: 2950 }], politica: 1, ahora: new Date(Date.UTC(2026, 3, 1)) });
+  check('reembolso PARCIAL de un pago posterior: su residual baja en la misma proporción (contrato 7.4)',
+    v1.residual === 500 && parcial.residual === 250 && parcial.alta === v1.alta, `entero ${v1.residual}, parcial ${parcial.residual}`);
   const vx = rc.comisionDeVisita({ fechaVisita: new Date(Date.UTC(2026, 0, 5)), pagos: [pago(0), pago(31)], politica: 99 });
   check('una versión desconocida NO se calcula con la vigente (eso es aplicarle reglas nuevas a lo viejo)', vx.estado === 'POLITICA_DESCONOCIDA' && vx.ganada === 0);
   const rutaJs = sinComentarios(leer('src/api/routes/ruta.routes.js'));
@@ -388,6 +391,15 @@ Module.prototype.require = function (id) {
   const schema = leer('prisma/schema.prisma');
   check('…y la base lo impide con @@unique([negocioId, googlePlaceId])', /@@unique\(\[negocioId, googlePlaceId\]\)/.test(schema));
   check('el campo de la tarjeta se llama por lo que es (P0-12)', /tarjetaCulqiId\s+String\?\s+@map\("suscripcionId"\)/.test(schema));
+  // Auto-respuesta oculta hasta Google Business (decisión del dueño, 2026-10-05):
+  // publica en Google, y sin GBP el worker la salta siempre. Prometerla es lo que
+  // CLAUDE.md §15 prohíbe.
+  const landing = sinComentarios(fs.readFileSync(path.join(__dirname, '..', '..', 'brand-shield-web', 'src', 'app', 'page.js'), 'utf8'));
+  check('la comparativa del landing ya no ofrece la auto-respuesta (es y en)',
+    !/Auto-respuesta a reseñas positivas/.test(landing) && !/Auto-reply to positive reviews/i.test(landing));
+  const configWeb = fs.readFileSync(path.join(__dirname, '..', '..', 'brand-shield-web', 'src', 'app', 'dashboard', 'configuracion', 'page.js'), 'utf8');
+  check('el panel solo muestra la auto-respuesta con Google Business conectado',
+    /!negocioSel\?\.gbpConectado \? null :/.test(configWeb));
   const webhook = pagoRoutes;
   check('🔴 sin secreto en producción el webhook de Culqi rechaza (P0-03)', /NODE_ENV === 'production'[\s\S]{0,200}return false/.test(webhook));
   check('el reembolso decide según el TIPO de pago (P0-06)', /efectoDeReembolso/.test(webhook) && /REVISAR_LOCAL/.test(webhook));

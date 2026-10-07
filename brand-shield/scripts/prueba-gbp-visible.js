@@ -213,8 +213,16 @@ const layoutPanel = fs.readFileSync(path.join(WEB, 'src/app/dashboard/layout.js'
 const config = fs.readFileSync(path.join(WEB, 'src/app/dashboard/configuracion/page.js'), 'utf8');
 check('el aviso de cuenta sin verificar ya no promete Google Business',
   !/conectar Google Business/.test(layoutPanel) && !/connect Google Business/i.test(layoutPanel));
+// Sin comentarios (JS y JSX): la sonda mira lo que VE el usuario, no la nota que
+// explica por qué algo está oculto (falso rojo del 2026-10-05).
+const sinComentariosJs = (t) => t
+  .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/^\s*\/\/.*$/gm, '');
 check('ni el de Configuración',
-  !/Google Business/.test(config));
+  !/Google Business/.test(sinComentariosJs(config)));
+check('   …y esa sonda sigue cazando el texto visible (control)',
+  /Google Business/.test(sinComentariosJs(`${config}\nconst x = 'Conecta Google Business';`)));
 
 // ── Los DOS sitios que este archivo no miraba ─────────────
 //

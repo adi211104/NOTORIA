@@ -60,7 +60,7 @@ router.get('/visitas', async (req, res, next) => {
       where: { ...alcance(req), ...(verAnuladas ? {} : { anuladaEn: null }) },
       orderBy: { actualizadoEn: 'desc' },
     });
-    const PAGOS = { select: { plan: true, periodo: true, tipo: true, estado: true, monto: true, creadoEn: true } };
+    const PAGOS = { select: { plan: true, periodo: true, tipo: true, estado: true, monto: true, montoReembolsado: true, creadoEn: true } };
     const correos = [...new Set(visitas.map((v) => v.correo).filter(Boolean))];
     // Búsqueda insensible a mayúsculas: hay cuentas anteriores a la
     // normalización de correos (CLAUDE.md §14).

@@ -1,9 +1,10 @@
 RESPUESTA A LA AUDITORÍA PROFUNDA DE NOTORIA (2 de octubre de 2026)
 ====================================================================
 
-Fecha de la respuesta: 3 de octubre de 2026
+Fecha de la respuesta: 3 de octubre de 2026 (actualizada el 5 de octubre)
 Informe respondido:    auditoria_profunda_notoria_2026-10-02.txt
-Commits:               d24adbd (código), 0d22253 (CI) y el de documentación
+Commits:               d24adbd (código), 0d22253 (CI), 2b41a64 (documentación)
+                       y el del cierre del 5 de octubre (ver el anexo final)
 Despliegue:            backend (Railway) y frontend (Vercel) en producción,
                        base de datos migrada (solo cambios aditivos).
 
@@ -149,8 +150,8 @@ P0-11  Copias independientes del catálogo ..................... [PARCIAL]
   además /terminos toma los precios del catálogo (antes omitía Impulso).
   Diferido: generar el catálogo del frontend a partir del backend. Son dos
   repos-paquetes que se despliegan por separado; la prueba cubre el riesgo con
-  menos maquinaria. El contrato y el manual del promotor no están en el
-  repositorio (ver 10.7).
+  menos maquinaria. El contrato y el manual del promotor ya están en el
+  repositorio y actualizados (ver 10.7).
 
 P0-12  suscripcionId ambiguo .................................. [CORREGIDO]
   El campo se llama `tarjetaCulqiId` y `@map("suscripcionId")` lo ata a la
@@ -180,7 +181,11 @@ P1-04  Auto-respuesta sin filtro .............................. [CORREGIDO]
   discriminación, autoridades o lenguaje legal, ni una marcada como sospechosa
   (requiereRevisionHumana en nlp/detector.js). De paso se corrigió que IMPULSO
   la tuviera activa sin incluirla. Nota: hoy la auto-respuesta no publica nada
-  de todos modos, porque requiere Google Business, bloqueado por Google.
+  de todos modos, porque requiere Google Business, bloqueado por Google. Por
+  eso, desde el 5 de octubre, la opción está OCULTA en el panel mientras el
+  negocio no tenga Google Business conectado, y salió de la comparativa del
+  landing (en los dos idiomas) y del manual del promotor: no se ofrece lo que
+  hoy no se puede entregar. Vuelve sola cuando Google apruebe el acceso.
 
 P1-05  Tokens OAuth en claro .................................. [CORREGIDO]
   AES-256-GCM con clave fuera de la base (TOKENS_CLAVE), aplicado como
@@ -351,16 +356,29 @@ el volumen actual da las mismas garantías con una pieza menos que operar.
       /libro-reclamaciones muestran solo +51 916 383 038, que sale de una única
       fuente (brand-shield-web/src/lib/contacto.js) desde el 2026-09-16.
 10.6  Política de upgrade ......................... [CORREGIDO] (P0-09)
-10.7  Contrato y manual del promotor .............. [FUERA DEL REPOSITORIO]
-      No están en el repositorio, así que no se pudieron editar. Para que digan
-      lo mismo que el sistema:
+10.7  Contrato y manual del promotor .......................... [CORREGIDO]
+      (Actualizado el 5 de octubre.) El dueño añadió los dos PDF y se editaron;
+      quedan en docs/promotor/ (Word editable + PDF), con las versiones de
+      setiembre en docs/promotor/anteriores/. Ahora dicen lo mismo que el
+      sistema:
         - el estado de una venta se actualiza SOLO desde el 2026-09-26 (si la
           cuenta pagó, «cliente»; si existe sin pagar, «cuenta gratis»);
         - las visitas no se borran: se ANULAN con motivo (desde hoy);
         - la comisión se calcula con la versión de reglas con la que se registró
           la visita (versión 1: 50 % de alta, 10 % residual, 60 días, 12 meses,
-          2.º pago en mensual, 15 días en anual).
-      Completar los campos pendientes del contrato antes de firmarlo.
+          2.º pago en mensual, 15 días en anual);
+        - un reembolso parcial reduce la residual en la misma proporción (y el
+          código ahora lo calcula así: antes la residual ignoraba el monto
+          reembolsado de un pago parcialmente devuelto);
+        - queda un historial de los cambios de correo, local, fecha, estado y
+          comisión pagada.
+      El manual (versión 1.2) además recoge la política de cambio de plan, que
+      el retracto deja la cuenta en Gratuito al devolverse el pago, que quitar
+      locales no genera devolución, que las autorizaciones se guardan cifradas,
+      y saca la auto-respuesta de lo disponible (ver P1-04).
+      Quedan en blanco a propósito, para llenarlos al firmar: jurisdicción
+      (16.1), carteles QR por mes (5.b), monto mínimo de liquidación (8.4) y los
+      datos de las partes.
 
 
 ====================================================================
@@ -402,7 +420,7 @@ I-09  La IA no supera su límite por concurrencia ....... SÍ
 I-10  La comisión conserva su política ................. SÍ
 I-11  Una visita no desaparece sin traza ............... SÍ
 I-12  La web no promete lo que el backend no da ........ SÍ (+ pruebas de fuente)
-I-13  El contrato no describe otra política ............ PENDIENTE (fuera del repo, 10.7)
+I-13  El contrato no describe otra política ............ SÍ (actualizado el 5/10, 10.7)
 I-14  Documentos fiscales en almacenamiento durable .... SÍ (ya estaba: en la base)
 I-15  Secreto obligatorio no queda opcional en prod .... SÍ
 
@@ -412,8 +430,8 @@ I-15  Secreto obligatorio no queda opcional en prod .... SÍ
 ====================================================================
 Bloque A (antes de cobrar en volumen): A1-A11 hechos; A6 en su forma derivada.
 Bloque B (contrato y producto):        B2, B3, B4, B5, B6, B7 hechos o no
-                                       aplicaban; B1 parcial; B8 y B9 en manos
-                                       del dueño (documentos fuera del repo).
+                                       aplicaban; B1 parcial; B8 y B9 hechos el 5/10
+                                       (contrato y manual, ver 10.7).
 Bloque C (seguridad):                  C1, C3, C4, C5, C6 hechos; C2 diferido.
 Bloque D (operación):                  D2, D3, D5, D6 hechos; D1 parcial;
                                        D4 diferido (ver P1-12).
@@ -428,8 +446,26 @@ LO QUE QUEDA EN MANOS DEL DUEÑO
 ====================================================================
 1. Guardar fuera de Railway las dos claves nuevas, TOKENS_CLAVE y
    DOCUMENTOS_SECRET (docs/secretos.md). Hoy solo viven allí.
-2. Actualizar contrato y manual del promotor según 10.7.
+2. Completar los blancos del contrato del promotor al firmarlo (10.7).
 3. Decidir si se aborda la sesión en cookie HttpOnly (P1-07) junto con la
    próxima versión de la app Android.
+
+
+====================================================================
+ANEXO — CIERRE DEL 5 DE OCTUBRE DE 2026
+====================================================================
+Lo hecho después de la primera respuesta, desplegado y comprobado:
+1. Contrato y manual del promotor actualizados (10.7, I-13, B8, B9).
+2. Auto-respuesta oculta mientras no haya Google Business conectado: panel
+   (Configuración) y comparativa del landing. Comprobado en producción: el
+   landing ya no contiene «Auto-respuesta a reseñas positivas» y sí el texto
+   de control.
+3. Comisión residual de la Ruta comercial neta de reembolsos parciales
+   (lib/rutaComercial.js). La prueba nueva da rojo contra el código anterior.
+4. prueba-gbp-visible ya no confunde un comentario del código con texto
+   visible (con su control). prueba-auditoria pasa de 93 a 96 comprobaciones.
+5. Herramienta interna graphify reparada (no afecta al producto).
+La app Android no se tocó: queda para cuando se retome (esconder ahí también
+la auto-respuesta sin Google Business).
 
 FIN

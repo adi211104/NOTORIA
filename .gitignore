@@ -23,3 +23,7 @@ brand-shield/respaldos/
 
 # Worktrees de Claude Code: son copias de trabajo temporales del propio repo.
 .claude/worktrees/
+
+# graphify (herramienta local de esta PC): grafo generado y sus hooks
+graphify-out/
+.claude/settings.local.json

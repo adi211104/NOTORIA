@@ -1,7 +1,7 @@
 # Notoria — Guía de contexto para Claude Code
 
 > Documento de **estado y reglas**, no diario. Se conserva lo que sigue siendo cierto y la lección
-> que evita repetir cada error. **Compactado el 2026-10-03** (de 442 000 a ~130 000 caracteres):
+> que evita repetir cada error. **Compactado el 2026-10-03** (de 442 000 a ~80 000 caracteres):
 > la versión íntegra, con toda la narrativa, está en **`docs/historial/CLAUDE-hasta-2026-10-02.md`**
 > — buscar ahí antes de concluir que algo «nunca se documentó». Al añadir algo nuevo: el **estado**
 > va en su sección; la **historia**, si hace falta, en una línea con su fecha.
@@ -39,9 +39,20 @@ de rating y de cambios en la ficha.
 sesión empieza leyendo este archivo: **lo decidido se escribe acá, no en la conversación.**
 Herramientas de la máquina: JDK 17 y Android SDK en `C:\Users\Taller\dev-tools\`
 (`JAVA_HOME="/c/Users/Taller/dev-tools/jdk-17.0.20.1+1" ./gradlew.bat assembleDebug`), `gh` en
-**`/c/Users/Taller/gh/bin/gh`** (no en `Program Files`), CLIs de Railway y Vercel autenticados. No hay
-Python. La extensión de Chrome exige arrancar la sesión con `--chrome`. Procedimiento de mudanza:
-`docs/mudanza-de-pc.md`.
+**`/c/Users/Taller/gh/bin/gh`** (no en `Program Files`), CLIs de Railway y Vercel autenticados. La extensión
+de Chrome exige arrancar la sesión con `--chrome`. Procedimiento de mudanza: `docs/mudanza-de-pc.md`.
+- **Python 3.14** (`C:\Users\Taller\AppData\Local\Python\pythoncore-3.14-64\`), con **PyMuPDF**
+  (renderizar páginas de un PDF a PNG para mirarlas) y **graphify** (`graphifyy`). Su carpeta
+  `Scripts` está en el PATH de usuario (REG_EXPAND_SZ) — sin ella los hooks daban «graphify: command
+  not found». Los hooks de graphify viven en **`.claude/settings.local.json`** (fuera de git, con la
+  ruta absoluta al `.exe`); `graphify-out/` también está en `.gitignore` (se regenera con
+  `python -m graphify update .`).
+- **Word 16** por COM desde PowerShell: abre un PDF (lo convierte a .docx), edita con
+  `Find.Execute`/párrafos y exporta con `ExportAsFixedFormat(ruta, 17)`. Así se editaron el manual y el
+  contrato del promotor (§13). Lecciones: insertar un párrafo «como un Enter» al final del anterior
+  (si no, cae dentro de la tabla siguiente y pierde la viñeta); la conversión pierde los saltos de
+  página (`PageBreakBefore` en cada Heading 1/anexo); actualizar el índice; y **mirar las páginas
+  renderizadas** antes de darlo por bueno.
 
 ```
 Vigilio/
@@ -779,7 +790,15 @@ su rama; `moderacionRemota` por fuente; `guardarComentarioSocial()` compartido p
   Desde 2026-10-02: **las visitas no se borran, se ANULAN con motivo**; `cambios_visita` guarda antes
   y después de correo, local, fecha, estado y comisión pagada; cada visita guarda
   **`politicaComision`** y el cálculo usa ESA versión (`POLITICAS`; al cambiar reglas se añade
-  versión, no se editan las constantes). `prueba-ruta-comercial.js` — 59.
+  versión, no se editan las constantes). Desde 2026-10-05 el residual se calcula sobre lo
+  **efectivamente cobrado** (`monto − montoReembolsado`): un reembolso parcial lo reduce en proporción
+  (contrato 7.4). `prueba-ruta-comercial.js` — 59.
+- **Documentos del promotor** en `docs/promotor/`: `Manual-Notoria` v1.2 y `Contrato-Promotor-Notoria`
+  (.docx editable + .pdf), actualizados el 2026-10-05 con el estado automático, las visitas que se
+  anulan, el historial, la política de comisión fijada por visita, el reembolso parcial, la política
+  de cambio de plan y la auto-respuesta fuera de lo disponible. Versiones de setiembre en
+  `docs/promotor/anteriores/`. **Quedan en blanco a propósito** (se llenan al firmar): jurisdicción
+  (16.1), carteles QR por mes (5.b), monto mínimo de liquidación (8.4) y los datos de las partes.
 
 ---
 
@@ -800,7 +819,7 @@ su rama; `moderacionRemota` por fuente; `guardarComentarioSocial()` compartido p
 | **Errores** | Un **5xx devuelve «Error interno del servidor» + `requestId`**, nunca `err.message`; 4xx conserva su mensaje. Toda respuesta lleva **`X-Request-Id`**, también en el log del error |
 | **Secretos obligatorios** | `configProduccion.js` al arrancar; el webhook de Culqi **falla cerrado** sin secreto |
 | **IA** | Texto de terceros dentro de `<datos_de_terceros>` (sin `< >`) y el sistema dice que no son instrucciones; salida validada (sin enlaces ni correos); cuota con **reserva atómica** (`UPDATE … WHERE iaUsos < límite`) antes de Groq, devuelta si falla |
-| **Auto-respuesta** | Solo con `capacidades(plan).autoRespuesta` y si `requiereRevisionHumana()` es falso (salud, plagas, seguridad, discriminación, autoridades, lenguaje legal o reseña sospechosa → la decide una persona; palabras completas para las críticas, prefijos para el resto) |
+| **Auto-respuesta** | 🔴 **Oculta hasta que GBP funcione** (decisión 2026-10-05): sin `gbpConectado` no se puede publicar ninguna respuesta, así que el bloque de Configuración no se pinta y la fila salió de la comparativa del landing (los dos idiomas). Vuelve sola cuando haya negocios con GBP conectado. Solo con `capacidades(plan).autoRespuesta` y si `requiereRevisionHumana()` es falso (salud, plagas, seguridad, discriminación, autoridades, lenguaje legal o reseña sospechosa → la decide una persona; palabras completas para las críticas, prefijos para el resto) |
 | **Borrado de cuenta** | `lib/borrarCuenta.js` en **una transacción**, sin `.catch` vacíos, con `verificarBorrado` después. Con historial fiscal **anonimiza** (Ley 29733 cede ante la obligación de conservar) y disocia el titular de los pagos |
 | Sesiones | `tokenVersion` en el JWT (`v`); todo `jwt.sign` pasa por `firmarSesion` |
 | Cambio de contraseña | Confirmación por correo (token con el hash nuevo firmado, 30 min, botón, reintento = OK) |
@@ -906,13 +925,13 @@ usan las libs desde dentro) y modelar `$transaction`, `intentoCobro`, `eventoWeb
 
 | Suite | Qué vigila |
 |---|---|
-| `prueba-auditoria.js` (93) | Todo lo del 2026-10-02: cifrado, candados, estado de suscripción, cobros idempotentes, bandeja de webhooks, reconciliación, secretos obligatorios, auto-respuesta, IA atómica, política de comisión, firma de documentos, rango del simulador, borrado, GBP sin JWT. Cada bloque con control y comprobado en rojo contra el código anterior |
+| `prueba-auditoria.js` (96) | Todo lo del 2026-10-02: cifrado, candados, estado de suscripción, cobros idempotentes, bandeja de webhooks, reconciliación, secretos obligatorios, auto-respuesta, IA atómica, política de comisión, firma de documentos, rango del simulador, borrado, GBP sin JWT. Cada bloque con control y comprobado en rojo contra el código anterior |
 | `prueba-culqi-webhook.js` (16) | Tipos, `data` como cadena, secreto, reembolso por tipo, duplicados, pendiente ante fallo, 500 sin base, cierre en producción |
 | `prueba-promo.js` (8) | Tabla de la promo, carrera con la misma tarjeta, liberación tras rechazo, doble clic |
 | `prueba-locales.js` (111) | Prorrateo y la ruta levantada por HTTP (vencimiento intacto, importe exacto) |
 | `prueba-planes.js` (124) | Tabla de capacidades, listas a mano en `src/` y `scripts/`, landing, guiones |
 | `prueba-ruta-comercial.js` (59) | Acceso, comisión, Maps, anular, historial, política |
-| `prueba-prefs-correo.js` (96) · `prueba-dormancia.js` (90) · `prueba-temas.js` (96) · `prueba-cartel.js` (100) · `prueba-panel.js` (83) · `prueba-parte-equipo.js` (66) · `prueba-expediente.js` (66) · `prueba-correos-idioma.js` (54) · `prueba-cableado.js` (52) · `prueba-gbp-visible.js` (51) · `prueba-equipo.js` (48) · `prueba-salud-places.js` (42) · `prueba-facebook.js` (40) · `prueba-alertas-resena.js` (35) · `prueba-costo-places.js` (31) · `prueba-verificacion.js` (31) · `prueba-anulacion-pendiente.js` (31) · `prueba-progreso.js` (28) · `prueba-escape-emails.js` · `prueba-negocio-publico.js` · `prueba-comprobantes.js` · `prueba-emisor.js` · SUNAT (`prueba-xml-firma`, `prueba-cola-envio`, `prueba-resumen-cola`) · Instagram, TikTok, drip, publico | Ver la cabecera de cada archivo |
+| `prueba-prefs-correo.js` (96) · `prueba-dormancia.js` (90) · `prueba-temas.js` (96) · `prueba-cartel.js` (100) · `prueba-panel.js` (83) · `prueba-parte-equipo.js` (66) · `prueba-expediente.js` (66) · `prueba-correos-idioma.js` (54) · `prueba-cableado.js` (52) · `prueba-gbp-visible.js` (53) · `prueba-equipo.js` (48) · `prueba-salud-places.js` (42) · `prueba-facebook.js` (40) · `prueba-alertas-resena.js` (35) · `prueba-costo-places.js` (31) · `prueba-verificacion.js` (31) · `prueba-anulacion-pendiente.js` (31) · `prueba-progreso.js` (28) · `prueba-escape-emails.js` · `prueba-negocio-publico.js` · `prueba-comprobantes.js` · `prueba-emisor.js` · SUNAT (`prueba-xml-firma`, `prueba-cola-envio`, `prueba-resumen-cola`) · Instagram, TikTok, drip, publico | Ver la cabecera de cada archivo |
 | `monitor-uptime/prueba-monitor.mjs` (27) | Máquina de estados del monitor |
 
 **Scripts de operación** (todos con simulacro por defecto y `--aplicar`):
@@ -960,13 +979,17 @@ competidores). Secretos nuevos `TOKENS_CLAVE` y `DOCUMENTOS_SECRET`.
 - Fallos encontrados que el informe no veía: `localesExtra` no llegaba a `req.cuenta`; IMPULSO tenía
   auto-respuesta; Privacidad decía «tokens cifrados» sin serlo; GBP ignoraba `tokenVersion`;
   `prueba-cableado` fallaba sola los días 1-3 del mes.
+- **2026-10-05 (cierre):** manual v1.2 y contrato del promotor actualizados (`docs/promotor/`);
+  auto-respuesta oculta hasta GBP (panel + landing, desplegado y comprobado en producción); residual
+  de la Ruta neto de reembolsos parciales (desplegado); `prueba-gbp-visible` ya no acusa a los
+  comentarios; graphify reparado (PATH + hooks locales). La app Android no se tocó (decisión del dueño).
 
 ### Con fecha
 | Cuándo | Qué | Quién |
 |---|---|---|
 | ya | **Guardar fuera de Railway** `TOKENS_CLAVE`, `DOCUMENTOS_SECRET`, `SUNAT_CERT_PASSWORD`, `JWT_SECRET`, `PROMO_HASH_SECRET`, `SUNAT_SOL_CLAVE` (con sus permisos) | Dueño |
 | ya | **Tarjeta de Google**: Cloud, Google AI Plus y YouTube Premium cuelgan de la misma Visa débito ••••2224, marcada tras un rechazo. Cambiar el medio de pago (cancelar YouTube no arregla nada). Cloud cobra el día 1 o al llegar a PEN 200. Si suspenden, ahora sí llega «Notoria dejó de vigilar» | Dueño |
-| ya | Actualizar **contrato y manual del promotor** (fuera del repo): estado automático desde 26/09, visitas que se anulan y no se borran, política de comisión v1; completar campos del contrato | Dueño |
+| al firmar | Completar los blancos del contrato del promotor (`docs/promotor/`, §13): jurisdicción, carteles/mes, monto mínimo, datos de las partes | Dueño |
 | 05/10 | `malena@usenotoria.app` (NEGOCIO, renovación apagada) vence: el cron la bajará a GRATIS | Mirar |
 | vie 16/10 | **Reenviar la solicitud de GBP** (§6) | Dueño |
 | jue 22/10 | Declaración de setiembre (RVIE → RCE → 621) | Dueño |
@@ -991,7 +1014,9 @@ de un cobro real a medias (probada con dobles).
 ### App Android (al final, por decisión del dueño)
 Instalar el APK con los arreglos de Alertas (lote resuelto, el campo solo viaja si se tocó) y del
 cartel; el parte semanal en la app; notificación con una alerta real, PDF del comprobante, cancelar y
-locales desde la app.
+locales desde la app. Y, al retomarla: **esconder la auto-respuesta sin GBP** en `DetalleNegocio.kt`
+(como el panel web, §14) y corregir el texto «Cifras de rating y reseñas cada domingo» (el resumen es
+mensual por defecto, §12).
 
 ### Decisiones de negocio abiertas
 Proveedor de menciones de TikTok (~US$100/mes) · TripAdvisor · de `propuesta.md` (fuera del repo)
@@ -1016,3 +1041,13 @@ de agosto).
 ### Bugs abiertos
 **Ninguno conocido** en backend ni web. App: la versión instalada sigue mandando `umbralNegativas`
 siempre (lo arregla instalar la nueva).
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- For codebase questions, first run `python -m graphify query "<question>"` when graphify-out/graph.json exists. Use `python -m graphify path "<A>" "<B>"` for relationships and `python -m graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `python -m graphify update .` to keep the graph current (AST-only, no API cost).

@@ -1,5 +1,5 @@
 'use client';
-import { nombrePlan } from '../../../lib/planes';
+import { nombrePlan, puede as planPuede } from '../../../lib/planes';
 import { precioMensualDe } from '../../../lib/catalogo';
 
 // "Impulso — S/29/mes". El precio sale del catálogo, no escrito a mano: antes
@@ -737,7 +737,12 @@ export default function ConfiguracionPage() {
             </Campo>
             <p className="text-xs -mt-2 mb-1" style={{ color: 'var(--text-3)' }}>{t.automatizaciones.resumenSemanalDesc}</p>
 
-            {usuario?.plan === 'GRATIS' ? (
+            {/* 🔴 La auto-respuesta PUBLICA en Google, y eso solo es posible con
+                Google Business conectado — que Google todavía no habilita. Sin
+                esa conexión el worker la salta siempre, así que ofrecerla aquí
+                era prometer algo que no ocurre (decisión del dueño, 2026-10-05:
+                oculta hasta GBP). Vuelve sola en cuanto el negocio conecte GBP. */}
+            {!negocioSel?.gbpConectado ? null : !planPuede(usuario?.plan, 'autoRespuesta') ? (
               <BloqueoPlan mensaje={t.automatizaciones.autoRespuestaBloqueo}>
                 <Campo label={t.automatizaciones.autoRespuesta}>
                   <Toggle activo={false} onChange={() => {}} />
