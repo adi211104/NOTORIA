@@ -1012,6 +1012,11 @@ competidores). Secretos nuevos `TOKENS_CLAVE` y `DOCUMENTOS_SECRET`.
 - Fallos encontrados que el informe no veía: `localesExtra` no llegaba a `req.cuenta`; IMPULSO tenía
   auto-respuesta; Privacidad decía «tokens cifrados» sin serlo; GBP ignoraba `tokenVersion`;
   `prueba-cableado` fallaba sola los días 1-3 del mes.
+- **2026-10-07 (segunda revisión, commit f52dd05):** los siete P1-N eran ciertos y están corregidos y
+  desplegados: reclamo atómico del webhook, reembolso con FOR UPDATE, reclamo por cuenta en todo cobro
+  (§8.1), reintentos desde IntentoCobro, tres secretos más críticos sin respaldo a JWT. Pruebas contra
+  Postgres real en CI (`integracion-postgres`) y smoke de producción. Respuesta en el ANEXO 2 de
+  `docs/auditoria-2026-10-02-respuesta.txt`. Base: `eventos_webhook.bloqueadoEn` + índice (aditivo).
 - **2026-10-07 (réplica del auditor):** P0-09 y P0-10 ya estaban bien en producción (el auditor leyó
   una versión vieja; comprobado con `curl`, evidencia en el anexo de la respuesta). Lo que sí era real:
   la reserva de la promo no estaba ligada al intento y podía quedar gastada sin cobro → `lib/promo.js`

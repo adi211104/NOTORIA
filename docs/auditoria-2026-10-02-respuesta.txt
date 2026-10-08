@@ -533,4 +533,118 @@ Coincidimos con la conclusión: el riesgo que queda está en que el código,
 los procesos concurrentes y lo que ve el cliente digan lo mismo. Por eso
 las comprobaciones de este anexo son contra producción y no contra git.
 
+====================================================================
+ANEXO 2 — RESPUESTA A LA REVISIÓN DEL 7/10 SOBRE a262fb7
+====================================================================
+Commit f52dd05. Base migrada (solo aditivo: eventos_webhook.bloqueadoEn
+e índice en promo_tarjetas.intentoClave), con respaldo verificado antes (0
+filas perdidas) y diff posterior vacío. Desplegado el 7/10.
+
+Verificamos cada hallazgo nuevo contra el código antes de tocarlo: todos los
+P1-N eran ciertos. Lo que se hizo, en el orden de su sección 66:
+
+1. P1-N01 / N07 / N08 — Claim del webhook. CORREGIDO.
+   procesar() primero RECLAMA el evento: UPDATE condicional PENDIENTE ->
+   PROCESANDO que compara también `intentos` (quien llega con una foto vieja
+   no gana). Solo quien obtiene count = 1 ejecuta el procesador; el otro
+   recibe 'OCUPADO'. `bloqueadoEn` es el arriendo (15 min): un PROCESANDO
+   vencido es de un proceso que murió y el worker lo recupera. Además el
+   worker ya no toma un evento con 0 intentos hasta que pasa 1 min (es de la
+   ruta). Como pedían, se arregló la exclusión del handler y no cada correo
+   por separado: los correos y avisos duplicados desaparecen de raíz.
+
+2. P1-N02 — Reembolso parcial. CORREGIDO.
+   El acumulado se calcula DENTRO de la transacción, con SELECT … FOR UPDATE
+   sobre la fila del pago; la comprobación de "ya reembolsado" también va
+   dentro. Los correos salen solo si esa transacción aplicó algo.
+
+3. P1-N03 — Locales concurrentes. CORREGIDO, y generalizado (P2-N11).
+   Todo cobro pasa ahora por un RECLAMO POR CUENTA antes de tocar Culqi
+   (lib/cobros.js): pg_advisory_xact_lock('cobro:'+usuario) y, con el
+   candado tomado: (a) misma clave -> COBRO_DUPLICADO; (b) otro intento de la
+   cuenta en vuelo (PROCESANDO, DESCONOCIDO o EXITOSO sin aplicar) ->
+   409 OTRO_COBRO_EN_CURSO; (c) se relee la cuenta y se compara con la foto
+   que se usó para calcular el importe (plan, suscripción, vencimiento,
+   periodo, locales, meses de promo, tarjeta) -> si cambió, 409
+   ESTADO_CAMBIADO, sin cobrar; (d) se crea el intento. Culqi se llama
+   después, fuera de la transacción. Es su opción "lock por cuenta durante la
+   preparación" más "rechazo si el estado cambió". Cubre también un caso que
+   el informe no listaba: dos altas en dos pestañas (dos tokens = dos claves)
+   cobraban dos veces. Lo que cambia la cuenta sin cobrar (bajar locales,
+   cancelar) toma el MISMO candado.
+   Detalle de implementación que vale la pena dejar escrito: la existencia
+   de la clave se pregunta antes de crear, porque en Postgres un P2002 dentro
+   de una transacción la aborta entera.
+
+4. P1-N04 — Renovación vs cancelación. CORREGIDO con el mismo mecanismo.
+   La renovación relee la cuenta con el candado (suscripcionActiva incluida)
+   antes de cobrar; cancelar toma el mismo candado. Una cancelación anterior
+   al reclamo gana siempre (ESTADO_CAMBIADO, no se cobra y no cuenta como
+   intento fallido); una posterior encuentra la renovación ya reclamada, que
+   es la "prueba explícita de que la renovación seguía autorizada".
+
+5. P1-N05 (reintentos) — CORREGIDO.
+   intentosFallidosDelCiclo() cuenta IntentoCobro de renovación FALLIDOS
+   posteriores al último pago exitoso. El Pago FALLIDO se sigue creando
+   (el cliente lo ve en su Facturación) pero ya no decide nada.
+
+6-8. P1-N05 / N06 / P2-N02 — Secretos. CORREGIDO; I-15 pasa a SÍ.
+   TOKENS_CLAVE, PROMO_HASH_SECRET y DOCUMENTOS_SECRET son CRÍTICOS en
+   configProduccion.js: sin cualquiera de ellos el proceso no arranca y el
+   deploy queda fallido. Se quitó el respaldo a JWT_SECRET de la huella de la
+   promo y de la firma de documentos nuevos. El verificador acepta JWT_SECRET
+   solo hasta FIN_FIRMAS_JWT = 2027-10-05 (cuando caduca el último
+   expediente firmado con él) y después lo descarta solo. Antes de desplegar
+   se comprobó que las tres están en Railway.
+
+9. Integration tests contra PostgreSQL real. HECHO.
+   scripts/integracion-postgres.js y un job nuevo de CI con Postgres 16 en
+   contenedor. Carreras (15 rondas cada una): misma clave x5, locales 0->1 /
+   0->2, renovación + cancelación, promo con la misma tarjeta y con la misma
+   cuenta, webhook ruta + worker, dos reembolsos parciales. Cada una lleva su
+   CONTROL hecho "a la antigua" en la misma base: sin el reclamo las dos
+   claves entran, y leer fuera del candado pierde importe — o sea, la sonda
+   distingue. Resultado en CI del commit f52dd05: todo en verde (en la
+   carrera renovación/cancelación salieron los dos órdenes: 13 reclamadas
+   antes, 2 canceladas antes, ninguna a medias). Se niega a correr contra
+   una base que no sea local y "test" (hace db push --force-reset).
+   No cubre todavía las invitaciones y aceptaciones del equipo (usan el
+   mismo primitivo, pg_advisory_xact_lock, pero su lógica vive en la ruta).
+
+10. Smoke test externo. HECHO.
+   scripts/smoke-produccion.js, también como job de uptime.yml: lee
+   /precios, /devoluciones, la portada y /terminos SIN caché y compara las
+   cadencias con lib/planes.js (no con un texto escrito a mano). Prohíbe
+   "diferencia proporcional", "cada hora", "7 días gratis" y "esta reseña
+   es falsa"; cada página exige contenido real y una frase de control
+   ausente. Control negativo: los textos viejos disparan la alarma y otro
+   sitio falla en las cuatro páginas.
+
+P2 corregidos de paso:
+- P2-N10: aplicar() rechaza un intento que no esté EXITOSO y no aplica uno
+  que la base tenga como FALLIDO.
+- P2-N09: índice en promo_tarjetas.intentoClave.
+- P0-07: requiereSuscripcion() eliminada (no la usaba ninguna ruta); lo que
+  depende del plan usa planEfectivo().
+- P2-N01: no se reordenó (reservar antes de abrir el intento). Con la
+  reserva atada a la clave y la reconciliación, la ventana está cubierta;
+  invertir el orden obligaría a abrir el intento antes de conocer el
+  importe (depende de si la promo aplica).
+
+Sin cambios, con motivo (coincidimos con su sección 65):
+- CommissionLedger: antes de la primera liquidación real (hoy 0 visitas).
+- Staging + prisma migrate deploy: cuando exista la base de staging.
+- Separar worker/API, caché compartida: con la segunda instancia.
+- Sesión web en cookie HttpOnly: junto con la próxima versión de Android.
+- Purgas automáticas de retención: cuando el volumen lo justifique.
+- Catálogo generado entre repos y comentarios más cortos: anotado.
+
+Invariantes, re-evaluados por nosotros:
+I-03 Un evento no se aplica dos veces: SÍ (reclamo atómico + arriendo;
+     probado contra Postgres real).
+I-15 Secreto obligatorio no queda opcional en prod: SÍ.
+"No existen carreras en producción" sigue sin poder DEMOSTRARSE; lo que hay
+ahora es que las siete carreras que listaron se prueban en cada push contra
+un Postgres real, con controles que demuestran que la prueba las detectaría.
+
 FIN
