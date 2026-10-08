@@ -908,6 +908,12 @@ Sesión en `localStorage` con CSP que conserva `unsafe-*`: migrar a cookie HttpO
 
 **Entorno**
 - PATH de usuario de Windows es `REG_EXPAND_SZ`: escribirlo en el registro conservando el tipo.
+- 🔴 **El cliente de Prisma carga el `.env` solo y RELLENA las variables no definidas**: un
+  `delete process.env.RESEND_API_KEY` no evita el envío (el 2026-10-07 la primera corrida local de
+  `integracion-postgres.js` mandó 30 correos reales a `@test.local`, todos rebotados). Para aislar un
+  proceso, definir VACÍA cada variable del `.env` antes de cargar Prisma (dotenv no pisa lo definido).
+  Postgres local: `dev-tools/pg16/pgsql/bin` (initdb + `pg_ctl -o "-p 55432"`, datos en
+  `dev-tools/pgdata-test`).
 - `railway run` inyecta la `DATABASE_URL` **interna**: los scripts que necesitan secretos de
   producción Y la base llaman primero a `scripts/lib-env-produccion.js` (la sustituye por la del
   `.env`). Scripts que crean el cliente con `dotenv.config()` a secas (p. ej. `dar-plan.js`) van en

@@ -34,14 +34,25 @@ if (!local || !/test/i.test(u.pathname)) {
   process.exit(2);
 }
 
+// 🔴 Ninguna credencial real puede llegar a este proceso. El cliente de Prisma
+// carga el .env por su cuenta al crearse y RELLENA lo que no esté definido:
+// un `delete process.env.RESEND_API_KEY` no basta (así salieron 30 correos
+// reales, rebotados, a direcciones @test.local el 2026-10-07). Se define VACÍA
+// cada variable del .env antes de cargar nada; dotenv no pisa lo ya definido.
+const fs = require('fs');
+const rutaEnv = path.join(__dirname, '..', '.env');
+if (fs.existsSync(rutaEnv)) {
+  for (const linea of fs.readFileSync(rutaEnv, 'utf8').split(/\r?\n/)) {
+    const m = linea.match(/^\s*([A-Z0-9_]+)\s*=/);
+    if (m) process.env[m[1]] = '';
+  }
+}
 // Antes de cargar NADA que cree un cliente de Prisma.
 process.env.DATABASE_URL = URL_TEST;
-process.env.TOKENS_CLAVE = process.env.TOKENS_CLAVE || 'a'.repeat(64);
+process.env.TOKENS_CLAVE = 'a'.repeat(64);
 process.env.PROMO_HASH_SECRET = 'promo-test';
 process.env.DOCUMENTOS_SECRET = 'docs-test';
 process.env.JWT_SECRET = 'jwt-test';
-delete process.env.RESEND_API_KEY; // ningún correo sale de acá
-delete process.env.CULQI_SECRET_KEY;
 
 console.log(`Base de prueba: ${u.hostname}${u.pathname}\nPreparando esquema (db push --force-reset)…`);
 execSync('npx prisma db push --skip-generate --force-reset --accept-data-loss', {
@@ -75,6 +86,8 @@ const BASE = { tipo: 'LOCAL_ADICIONAL', plan: 'NEGOCIO', periodo: 'mensual', mon
 const CAMPOS = ['plan', 'suscripcionActiva', 'fechaVencimiento', 'localesExtra'];
 
 (async () => {
+  const filtradas = ['RESEND_API_KEY', 'CULQI_SECRET_KEY', 'GROQ_API_KEY', 'GOOGLE_PLACES_API_KEY', 'SUNAT_SOL_CLAVE'].filter((k) => process.env[k]);
+  if (filtradas.length) { console.error(`🔴 Credenciales reales en el proceso (${filtradas.join(', ')}): me detengo`); process.exit(2); }
   const db = await prisma.$queryRaw`SELECT current_database() AS db`;
   if (!/test/i.test(db[0].db)) { console.error(`🔴 Conectado a ${db[0].db}, no a la base de prueba`); process.exit(2); }
 
