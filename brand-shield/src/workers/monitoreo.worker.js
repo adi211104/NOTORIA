@@ -1492,10 +1492,13 @@ const iniciarResumenesAlertas = () => {
 //      conservaba su plan completo para siempre. Ahora, agotados los intentos,
 //      el plan baja de verdad.
 //
-// Los intentos se cuentan con las filas de `Pago` en estado FALLIDO posteriores
-// al último cobro exitoso — no hizo falta ninguna columna nueva. Y tiene un
-// efecto secundario bueno: los intentos fallidos aparecen en la pantalla de
-// Facturación del cliente, que es justo donde tiene que verlos.
+// Los intentos se cuentan con los IntentoCobro de renovación FALLIDOS posteriores
+// al último cobro exitoso (réplica del auditor, 2026-10-07, P1-N05). Antes se
+// contaban filas de `Pago` FALLIDO, que se escriben con un `.catch`: si esa
+// escritura fallaba, el rechazo no contaba y la cuenta recibía más reintentos
+// de los tres prometidos. El intento lo escribe lib/cobros.js ANTES de llamar a
+// Culqi y lo marca FALLIDO con la respuesta, así que es la fuente fiable. El
+// `Pago` FALLIDO se sigue creando: es lo que el cliente ve en su Facturación.
 const MAX_INTENTOS_COBRO = 3;
 const DIAS_ENTRE_INTENTOS = 3;
 
@@ -1508,9 +1511,10 @@ const intentosFallidosDelCiclo = async (usuarioId) => {
     orderBy: { creadoEn: 'desc' },
     select: { creadoEn: true },
   });
-  return prisma.pago.count({
+  return prisma.intentoCobro.count({
     where: {
       usuarioId,
+      tipo: 'RENOVACION',
       estado: 'FALLIDO',
       ...(ultimoExitoso ? { creadoEn: { gt: ultimoExitoso.creadoEn } } : {}),
     },
@@ -1586,6 +1590,11 @@ const iniciarRenovacionesCulqi = () => {
         // corre el vencimiento 3 días (abajo), así que el reintento es otra clave.
         const { cargo, intento } = await cobros.cobrar({
           clave: `renovacion:${usuario.id}:${new Date(usuario.fechaVencimiento).toISOString()}`,
+          // 🔴 Se relee la cuenta con su candado antes de cobrar (réplica del
+          // auditor, P1-N04): esta lista se armó al empezar la pasada, y si el
+          // cliente canceló después (o cambió de plan, o sumó locales) se cobraba
+          // igual. Ahora una cancelación anterior al reclamo gana siempre.
+          vigente: cobros.fotoVigente(usuario, ['plan', 'suscripcionActiva', 'fechaVencimiento', 'periodoFacturacion', 'localesExtra', 'mesesPromoRestantes', 'tarjetaCulqiId']),
           usuarioId: usuario.id,
           tipo: 'RENOVACION',
           plan: usuario.plan,
@@ -1626,6 +1635,13 @@ const iniciarRenovacionesCulqi = () => {
         //    (exitoso a medias o en curso). Cobrar otra vez es el error caro.
         //  · DESCONOCIDO: Culqi no contestó; puede que SÍ haya cobrado.
         // Los dos los resuelve la reconciliación.
+        //  · ESTADO_CAMBIADO / OTRO_COBRO_EN_CURSO: no se llegó a cobrar (la
+        //    cuenta canceló o cambió, u otro cobro suyo está en vuelo). No es un
+        //    rechazo de la tarjeta.
+        if (error.codigo === 'ESTADO_CAMBIADO' || error.codigo === 'OTRO_COBRO_EN_CURSO') {
+          console.log(`[Culqi] Renovación de ${usuario.email} no cobrada: ${error.motivo || error.codigo}`);
+          continue;
+        }
         if (error.codigo === 'COBRO_DUPLICADO' || error.estadoIntento === 'DESCONOCIDO') {
           console.error(`[Culqi] Renovación de ${usuario.email} en duda (${error.codigo || error.estadoIntento}) — la resuelve la reconciliación, no se reintenta`);
           await new Promise(r => setTimeout(r, 1000));

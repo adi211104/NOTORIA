@@ -129,17 +129,28 @@ Module.prototype.require = function (id) {
   bloque('4. Cobros idempotentes (lib/cobros.js)');
   const cobros = require('../src/lib/cobros');
   const intentos = [];
+  // Transacción serializada = el candado de la cuenta (pg_advisory_xact_lock).
+  let colaCobros = Promise.resolve();
+  let usuarioU1 = { id: 'u1', plan: 'NEGOCIO', suscripcionActiva: true, localesExtra: 0, fechaVencimiento: new Date('2026-10-01T00:00:00Z') };
+  const enVueloC = (i) => i.estado === 'PROCESANDO' || i.estado === 'DESCONOCIDO' || (i.estado === 'EXITOSO' && !i.pagoId);
   const dbCobros = {
+    $transaction: (fn) => { const r = colaCobros.then(() => fn(dbCobros)); colaCobros = r.catch(() => {}); return r; },
+    $executeRaw: async () => 0,
     intentoCobro: {
       create: async ({ data }) => {
+        // En Postgres, un P2002 dentro de la transacción la aborta: el código
+        // nuevo no debe llegar nunca acá con una clave repetida.
         if (intentos.some((i) => i.clave === data.clave)) { const e = new Error('dup'); e.code = 'P2002'; throw e; }
+        await new Promise((r) => setTimeout(r, 2));
         const i = { id: `ic${intentos.length + 1}`, pagoId: null, ...data }; intentos.push(i); return i;
       },
-      updateMany: async ({ where, data }) => {
-        const i = intentos.find((x) => x.clave === where.clave && x.estado === where.estado);
-        if (!i) return { count: 0 }; Object.assign(i, data); return { count: 1 };
-      },
+      update: async ({ where, data }) => Object.assign(intentos.find((x) => x.id === where.id), data),
       findUnique: async ({ where }) => intentos.find((x) => x.clave === where.clave) || null,
+      findFirst: async ({ where }) => intentos.find((x) => x.usuarioId === where.usuarioId && x.clave !== where.clave?.not && enVueloC(x)) || null,
+    },
+    usuario: {
+      findUnique: async () => ({ ...usuarioU1 }),
+      update: async ({ data }) => { usuarioU1 = { ...usuarioU1, ...data }; return usuarioU1; },
     },
   };
   const base = { usuarioId: 'u1', tipo: 'RENOVACION', plan: 'NEGOCIO', periodo: 'mensual', monto: 5900 };
@@ -162,9 +173,63 @@ Module.prototype.require = function (id) {
   const ini = cobros.datosUsuario('INICIAL', { plan: 'NEGOCIO', periodoFacturacion: 'mensual', fechaVencimiento: '2026-11-02T00:00:00Z', localesExtra: 1, tarjetaCulqiId: 'crd', promo: true });
   check('INICIAL aplica plan, tarjeta, vencimiento, locales y promo', ini.plan === 'NEGOCIO' && ini.tarjetaCulqiId === 'crd' && ini.fechaVencimiento instanceof Date && ini.localesExtra === 1 && ini.mesesPromoRestantes === 1);
 
+  // ── Réplica del auditor (2026-10-07): reclamo por cuenta ──────────────────
+  // P1-N03: dos cambios DISTINTOS de locales sobre la misma foto (0→1 y 0→2).
+  intentos.length = 0;
+  const fotoU1 = { id: 'u1', plan: 'NEGOCIO', suscripcionActiva: true, localesExtra: 0, fechaVencimiento: new Date('2026-10-01T00:00:00Z') };
+  usuarioU1 = { ...fotoU1 };
+  const CAMPOS = ['plan', 'suscripcionActiva', 'fechaVencimiento', 'localesExtra'];
+  const abrirLocal = (n) => cobros.abrirIntento({ clave: `locales:u1:2026-10-01:0->${n}`, ...base, tipo: 'LOCAL_ADICIONAL', vigente: cobros.fotoVigente(fotoU1, CAMPOS) }, dbCobros)
+    .then(() => 'ABIERTO', (e) => e.codigo || e.message);
+  const [l1, l2] = await Promise.all([abrirLocal(1), abrirLocal(2)]);
+  check('🔴 0→1 y 0→2 a la vez → solo UNO llega a Culqi; el otro, OTRO_COBRO_EN_CURSO', [l1, l2].sort().join() === 'ABIERTO,OTRO_COBRO_EN_CURSO' && intentos.length === 1);
+  intentos[0].estado = 'EXITOSO'; intentos[0].pagoId = 'pgL'; usuarioU1.localesExtra = 1;
+  check('cuando el primero termina, el segundo con la foto VIEJA (localesExtra 0) no cobra: ESTADO_CAMBIADO', await abrirLocal(2) === 'ESTADO_CAMBIADO');
+  check('CONTROL: con la foto actual sí se puede', await cobros.abrirIntento({ clave: 'locales:u1:2026-10-01:1->2', ...base, vigente: cobros.fotoVigente({ ...fotoU1, localesExtra: 1 }, CAMPOS) }, dbCobros).then(() => true, () => false));
+  // Un cobro cobrado y todavía sin aplicar también bloquea: el estado no terminó de cambiar.
+  intentos.length = 0;
+  usuarioU1 = { ...fotoU1 };
+  intentos.push({ id: 'ixA', clave: 'alta:u1:tkA', usuarioId: 'u1', estado: 'EXITOSO', pagoId: null });
+  check('cobro EXITOSO sin aplicar en la cuenta → otro cobro espera (OTRO_COBRO_EN_CURSO)', await abrirLocal(1) === 'OTRO_COBRO_EN_CURSO');
+  intentos[0].estado = 'DESCONOCIDO';
+  check('cobro DESCONOCIDO en la cuenta → tampoco se cobra otro encima', await abrirLocal(1) === 'OTRO_COBRO_EN_CURSO');
+  intentos[0].estado = 'FALLIDO';
+  check('CONTROL: un cobro FALLIDO no bloquea', await abrirLocal(1) === 'ABIERTO');
+
+  // P1-N04: renovación vs cancelación.
+  intentos.length = 0;
+  usuarioU1 = { ...fotoU1 };
+  const RENOV = { clave: 'renovacion:u1:2026-10-01T00:00:00.000Z', ...base, vigente: cobros.fotoVigente(fotoU1, CAMPOS) };
+  const cancelar = () => cobros.conCuenta('u1', (tx) => tx.usuario.update({ where: { id: 'u1' }, data: { suscripcionActiva: false } }), dbCobros);
+  await cancelar();
+  const rCancelada = await cobros.abrirIntento(RENOV, dbCobros).then(() => 'ABIERTO', (e) => e.codigo);
+  check('🔴 el cliente cancela después de que el cron lo eligió → la renovación NO se reclama (ESTADO_CAMBIADO)', rCancelada === 'ESTADO_CAMBIADO' && intentos.length === 0);
+  usuarioU1 = { ...fotoU1 };
+  await cobros.abrirIntento(RENOV, dbCobros);
+  await cancelar();
+  check('CONTROL: cancelar DESPUÉS del reclamo no deshace un cobro ya autorizado (queda el intento)', intentos.length === 1 && intentos[0].estado === 'PROCESANDO');
+  // Carrera de verdad: reclamo y cancelación a la vez — uno de los dos órdenes, nunca un cobro sin rastro.
+  intentos.length = 0; usuarioU1 = { ...fotoU1 };
+  const [rr] = await Promise.all([cobros.abrirIntento(RENOV, dbCobros).then(() => 'ABIERTO', (e) => e.codigo), cancelar()]);
+  check('reclamo + cancelación simultáneos → o se reclamó antes (hay intento) o se canceló antes (no hay)', (rr === 'ABIERTO') === (intentos.length === 1));
+
+  // P2-N10: aplicar() solo aplica lo cobrado.
+  let rechazo = null;
+  try { await cobros.aplicar({ intento: { id: 'iy', estado: 'PROCESANDO', pagoId: null }, cargo: null }, dbCobros); } catch (e) { rechazo = e; }
+  check('aplicar() rechaza un intento que no está EXITOSO (no confía en quien llama)', /EXITOSO/.test(rechazo?.message || ''));
+
+  // P1-N05: los reintentos de renovación se cuentan con IntentoCobro.
+  const wRenov = sinComentarios(leer('src/workers/monitoreo.worker.js'));
+  const fnIntentos = wRenov.slice(wRenov.indexOf('const intentosFallidosDelCiclo'), wRenov.indexOf('const iniciarRenovacionesCulqi'));
+  check('los reintentos de renovación se cuentan en IntentoCobro, no en Pago FALLIDO (que se escribe con .catch)', /intentoCobro\.count\(/.test(fnIntentos) && !/pago\.count\(/.test(fnIntentos));
+  check('la renovación relee la cuenta con su candado antes de cobrar (vigente)', /vigente: cobros\.fotoVigente\(usuario/.test(wRenov));
+  const rutaPagos = sinComentarios(leer('src/api/routes/pago.routes.js'));
+  const fnCancelar = rutaPagos.slice(rutaPagos.indexOf("router.post('/cancelar'"), rutaPagos.indexOf("router.get('/historial'"));
+  check('cancelar toma el MISMO candado de cobros de la cuenta', /cobros\.conCuenta\(/.test(fnCancelar));
+
   // aplicar(): una transacción, idempotente.
   const pagos = []; const usuariosAct = [];
-  const intentoX = { id: 'ix', pagoId: null, usuarioId: 'u1', tipo: 'RENOVACION', plan: 'NEGOCIO', periodo: 'mensual', monto: 5900, moneda: 'PEN', detalle: { fechaVencimiento: '2026-11-01T00:00:00Z' } };
+  const intentoX = { id: 'ix', estado: 'EXITOSO', pagoId: null, usuarioId: 'u1', tipo: 'RENOVACION', plan: 'NEGOCIO', periodo: 'mensual', monto: 5900, moneda: 'PEN', detalle: { fechaVencimiento: '2026-11-01T00:00:00Z' } };
   const dbAplicar = {
     $transaction: async (fn) => fn(dbAplicar),
     intentoCobro: {
@@ -193,10 +258,19 @@ Module.prototype.require = function (id) {
   check('si no viene, un hash ESTABLE del cuerpo', inbox.idExternoDe({ a: 1 }) === inbox.idExternoDe({ a: 1 }) && inbox.idExternoDe({ a: 1 }) !== inbox.idExternoDe({ a: 2 }));
   check('la espera entre reintentos crece', inbox.esperaMin(1) < inbox.esperaMin(3) && inbox.esperaMin(3) < inbox.esperaMin(6));
   const evs = [{ id: 'e1', proveedor: 'culqi', tipo: 't', intentos: inbox.MAX_INTENTOS - 1, recibidoEn: new Date(0), estado: 'PENDIENTE' }];
+  // El doble evalúa el WHERE de verdad (estado, intentos, arriendo): el claim
+  // atómico es justamente lo que se prueba.
+  const casaEstado = (e, o) => e.estado === o.estado && (!o.bloqueadoEn || (e.bloqueadoEn && e.bloqueadoEn < o.bloqueadoEn.lt));
   const dbInbox = {
     eventoWebhook: {
-      findMany: async () => evs.filter((e) => e.estado === 'PENDIENTE'),
+      findMany: async ({ where }) => evs.filter((e) => where.OR.some((o) => casaEstado(e, o))),
       update: async ({ where, data }) => Object.assign(evs.find((e) => e.id === where.id), data),
+      updateMany: async ({ where, data }) => {
+        const e = evs.find((x) => x.id === where.id && x.intentos === where.intentos && where.OR.some((o) => casaEstado(x, o)));
+        if (!e) return { count: 0 };
+        Object.assign(e, { ...data, intentos: e.intentos + (data.intentos?.increment || 0) });
+        return { count: 1 };
+      },
     },
   };
   let avisos = 0;
@@ -208,10 +282,30 @@ Module.prototype.require = function (id) {
   inbox.registrarProcesador('culqi', async () => { throw new Error('sigue fallando'); });
   await inbox.reprocesarPendientes(dbInbox);
   check('al agotar los intentos pasa a FALLIDO y avisa a contabilidad (no se reintenta para siempre)', evs[0].estado === 'FALLIDO' && avisos === 1);
-  evs.push({ id: 'e2', proveedor: 'culqi', tipo: 't', intentos: 0, recibidoEn: new Date(), estado: 'PENDIENTE' });
+  evs.push({ id: 'e2', proveedor: 'culqi', tipo: 't', intentos: 0, recibidoEn: new Date(Date.now() - 2 * 60000), estado: 'PENDIENTE' });
   inbox.registrarProcesador('culqi', async () => 'PROCESADO');
   await inbox.reprocesarPendientes(dbInbox);
   check('un pendiente que ahora sí sale queda PROCESADO', evs[1].estado === 'PROCESADO');
+
+  // Réplica del auditor (2026-10-07, P1-N01): UNIQUE de recepción ≠ un solo
+  // procesamiento. La ruta y el worker no pueden ejecutar el mismo evento.
+  let ejecuciones = 0;
+  const lento = async () => { ejecuciones += 1; await new Promise((r) => setTimeout(r, 20)); return 'PROCESADO'; };
+  evs.push({ id: 'e3', proveedor: 'culqi', tipo: 't', intentos: 0, recibidoEn: new Date(Date.now() - 2 * 60000), estado: 'PENDIENTE' });
+  const fotoRuta = { ...evs[2] }; const fotoWorker = { ...evs[2] };
+  const [rRuta, rWorker] = await Promise.all([inbox.procesar(fotoRuta, lento, dbInbox), inbox.procesar(fotoWorker, lento, dbInbox)]);
+  check('🔴 ruta + worker sobre el MISMO evento → el procesador corre UNA vez', ejecuciones === 1 && [rRuta, rWorker].includes('OCUPADO') && evs[2].estado === 'PROCESADO');
+  check('…y el intento se cuenta una sola vez', evs[2].intentos === 1);
+  evs.push({ id: 'e4', proveedor: 'culqi', tipo: 't', intentos: 0, recibidoEn: new Date(), estado: 'PENDIENTE' });
+  ejecuciones = 0;
+  inbox.registrarProcesador('culqi', lento);
+  await inbox.reprocesarPendientes(dbInbox);
+  check('CONTROL: un evento recién llegado lo procesa la ruta; el worker no se le adelanta', ejecuciones === 0 && evs[3].estado === 'PENDIENTE');
+  evs.push({ id: 'e5', proveedor: 'culqi', tipo: 't', intentos: 1, recibidoEn: new Date(Date.now() - 3600000), estado: 'PROCESANDO', bloqueadoEn: new Date(Date.now() - (inbox.ARRIENDO_MIN + 1) * 60000) });
+  evs.push({ id: 'e6', proveedor: 'culqi', tipo: 't', intentos: 1, recibidoEn: new Date(Date.now() - 3600000), estado: 'PROCESANDO', bloqueadoEn: new Date() });
+  await inbox.reprocesarPendientes(dbInbox);
+  check('PROCESANDO con arriendo VENCIDO (el proceso murió) → se recupera y se procesa', evs[4].estado === 'PROCESADO' && evs[4].intentos === 2);
+  check('CONTROL: PROCESANDO con arriendo vigente → no se toca (lo tiene otro)', evs[5].estado === 'PROCESANDO' && evs[5].intentos === 1);
 
   // ── 6. Reconciliación de cobros (A11) ────────────────────────────────────
   bloque('6. Reconciliación de cobros (workers/reconciliacion.worker.js)');
@@ -282,6 +376,15 @@ Module.prototype.require = function (id) {
   let lanzoDev = false;
   try { conf.comprobarAlArrancar({ NODE_ENV: 'development' }, silencio); } catch { lanzoDev = true; }
   check('CONTROL: en desarrollo solo avisa', !lanzoDev);
+  const completo = { NODE_ENV: 'production', DATABASE_URL: 'x', JWT_SECRET: 'y', TOKENS_CLAVE: 't', PROMO_HASH_SECRET: 'p', DOCUMENTOS_SECRET: 'd' };
+  for (const k of ['TOKENS_CLAVE', 'PROMO_HASH_SECRET', 'DOCUMENTOS_SECRET']) {
+    let murio = false;
+    try { conf.comprobarAlArrancar({ ...completo, [k]: '' }, silencio); } catch { murio = true; }
+    check(`🔴 en producción sin ${k} el proceso NO arranca (antes solo avisaba — réplica 2026-10-07)`, murio);
+  }
+  let arranca = true;
+  try { conf.comprobarAlArrancar(completo, silencio); } catch { arranca = false; }
+  check('CONTROL: con los cinco críticos puestos, arranca', arranca);
   check('un secreto opcional ausente se reporta con su efecto', conf.revisar({ DATABASE_URL: 'x', JWT_SECRET: 'y' }).avisos.some((a) => a.variable === 'CULQI_WEBHOOK_SECRET' && /rechaza/.test(a.efecto)));
   const indexJs = sinComentarios(leer('src/index.js'));
   check('index.js comprueba la configuración al arrancar', /configProduccion\.comprobarAlArrancar\(\)/.test(indexJs));
@@ -354,15 +457,29 @@ Module.prototype.require = function (id) {
   bloque('11. Firma de documentos (lib/firmaDocumentos.js)');
   const fd = require('../src/lib/firmaDocumentos');
   process.env.JWT_SECRET = 'secreto-sesiones';
+  // Un documento de antes del 2026-10-02: firmado con el secreto de sesiones.
+  const firmaVieja = require('crypto').createHmac('sha256', 'secreto-sesiones').update('cuerpo').digest('base64url');
   delete process.env.DOCUMENTOS_SECRET;
-  const firmaVieja = fd.firmar('cuerpo');
+  let firmoSinSecreto = true;
+  try { fd.firmar('cuerpo'); } catch { firmoSinSecreto = false; }
+  check('🔴 sin DOCUMENTOS_SECRET NO se firma con JWT_SECRET (réplica 2026-10-07)', !firmoSinSecreto);
   process.env.DOCUMENTOS_SECRET = 'secreto-documentos';
   const firmaNueva = fd.firmar('cuerpo');
   check('con DOCUMENTOS_SECRET puesto, se firma con él', firmaNueva !== firmaVieja && fd.firmaValida('cuerpo', firmaNueva));
-  check('los documentos firmados ANTES (con JWT_SECRET) siguen siendo válidos', fd.firmaValida('cuerpo', firmaVieja));
+  const HOY = Date.parse('2026-10-07T12:00:00Z');
+  check('los documentos firmados ANTES (con JWT_SECRET) siguen siendo válidos mientras no caduquen', fd.firmaValida('cuerpo', firmaVieja, HOY));
+  check('…y pasada FIN_FIRMAS_JWT el secreto de sesiones sale solo del verificador', !fd.firmaValida('cuerpo', firmaVieja, fd.FIN_FIRMAS_JWT.getTime() + 1));
   process.env.JWT_SECRET = 'secreto-sesiones-ROTADO';
   check('🔴 rotar JWT_SECRET ya NO invalida los documentos nuevos', fd.firmaValida('cuerpo', firmaNueva));
   check('CONTROL: una firma inventada no pasa', !fd.firmaValida('cuerpo', 'AAAA') && !fd.firmaValida('otro', firmaNueva));
+  const culqiLib = require('../src/lib/culqi');
+  const conTarjeta = { source: { iin: { bin: '411111' }, last_four: '1111' } };
+  const promoPrevio = process.env.PROMO_HASH_SECRET;
+  delete process.env.PROMO_HASH_SECRET;
+  check('🔴 sin PROMO_HASH_SECRET no hay huella (no cae a JWT_SECRET: rotarlo reabría la promo)', culqiLib.huellaTarjeta(conTarjeta) === null);
+  process.env.PROMO_HASH_SECRET = 'promo-x';
+  check('CONTROL: con PROMO_HASH_SECRET sí hay huella', typeof culqiLib.huellaTarjeta(conTarjeta) === 'string');
+  if (promoPrevio === undefined) delete process.env.PROMO_HASH_SECRET; else process.env.PROMO_HASH_SECRET = promoPrevio;
 
   // ── 12. Rating publicado = estimación (P2-03) ────────────────────────────
   bloque('12. Simulador de rating con rango');

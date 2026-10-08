@@ -113,3 +113,24 @@ jobs:
           else
             echo "| Veredicto | ✅ Dentro de lo razonable |" >> "$GITHUB_STEP_SUMMARY"
           fi
+
+  # Lo que ve el cliente contra lo que hace el código (réplica del auditor,
+  # 2026-10-07: P0-09, P0-10, I-12). Lee /precios, /devoluciones, la portada y
+  # /terminos SIN caché y compara las cadencias con lib/planes.js. Falla si la
+  # web promete algo que el backend no da (o deja de decir lo que sí da).
+  # Solo necesita lib/planes.js y lib/precios.js: no instala dependencias.
+  contenido:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            brand-shield/src/lib
+            brand-shield/scripts/smoke-produccion.js
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Smoke de producción
+        run: node brand-shield/scripts/smoke-produccion.js

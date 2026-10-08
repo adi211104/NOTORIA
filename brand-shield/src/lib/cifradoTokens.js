@@ -32,8 +32,9 @@
 //   desconecta a nadie entre que sube el código y que corre
 //   `scripts/cifrar-tokens.js`, que cifra las filas existentes.
 //
-// ⚠️ Sin `TOKENS_CLAVE` no se cifra nada (todo pasa en claro, como antes) y
-// `lib/configProduccion.js` lo grita al arrancar. Perder la clave = todas las
+// ⚠️ Sin `TOKENS_CLAVE` no se cifra nada (todo pasa en claro). Solo puede pasar
+// fuera de producción: allí es crítica desde el 2026-10-07 y sin ella la API no
+// arranca (lib/configProduccion.js). Perder la clave = todas las
 // redes conectadas hay que reconectarlas (no se pierde nada más): está en
 // docs/secretos.md con ese nivel.
 

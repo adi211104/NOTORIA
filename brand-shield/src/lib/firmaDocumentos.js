@@ -10,21 +10,24 @@
 // vale 365 días y puede estar dentro de una denuncia penal.
 //
 // Ahora:
-//   · se FIRMA con `DOCUMENTOS_SECRET` si existe (si no, con JWT_SECRET, como
-//     antes, para no romper nada mientras la variable no esté puesta);
-//   · se VERIFICA contra los dos: los documentos emitidos antes del cambio
-//     siguen siendo válidos hasta que caduquen solos.
-//
-// Así, desde que DOCUMENTOS_SECRET está puesto, rotar JWT_SECRET ya no tumba
-// ningún documento nuevo. ⚠️ El día que se quiera retirar JWT_SECRET de la
-// verificación, esperar a que caduque el último documento firmado con él
-// (365 días después del despliegue de DOCUMENTOS_SECRET).
+//   · se FIRMA solo con `DOCUMENTOS_SECRET`. Desde el 2026-10-07 sin respaldo a
+//     JWT_SECRET (réplica del auditor, P2-N02): firmar un documento nuevo con el
+//     secreto de sesiones volvía a atar los dos dominios. En producción es
+//     crítico (lib/configProduccion.js): sin él la API no arranca;
+//   · se VERIFICA también contra JWT_SECRET, pero solo hasta FIN_FIRMAS_JWT: los
+//     documentos emitidos antes del 2026-10-02 siguen valiendo hasta que caducan
+//     solos (el expediente dura 365 días), y después ese secreto sale solo del
+//     verificador, sin que nadie tenga que acordarse.
 
 const crypto = require('crypto');
 
+// DOCUMENTOS_SECRET entró en producción el 2026-10-02/03; el último documento
+// firmado con JWT_SECRET (un expediente, 365 días) caduca antes de esta fecha.
+const FIN_FIRMAS_JWT = new Date('2027-10-05T00:00:00Z');
+
 const secretoFirma = () => {
-  const s = process.env.DOCUMENTOS_SECRET || process.env.JWT_SECRET;
-  if (!s) throw new Error('Ni DOCUMENTOS_SECRET ni JWT_SECRET están configurados — no se puede firmar el documento');
+  const s = process.env.DOCUMENTOS_SECRET;
+  if (!s) throw new Error('DOCUMENTOS_SECRET no está configurado — no se puede firmar el documento');
   return s;
 };
 
@@ -34,13 +37,14 @@ const hmac = (secreto, body) => crypto.createHmac('sha256', secreto).update(body
 const firmar = (body) => hmac(secretoFirma(), body);
 
 /** ¿La firma es de alguno de los secretos vigentes? Comparación en tiempo constante. */
-const firmaValida = (body, firma) => {
+const firmaValida = (body, firma, ahora = Date.now()) => {
   const a = Buffer.from(String(firma || ''));
-  const candidatos = [...new Set([process.env.DOCUMENTOS_SECRET, process.env.JWT_SECRET].filter(Boolean))];
+  const historico = ahora < FIN_FIRMAS_JWT.getTime() ? process.env.JWT_SECRET : null;
+  const candidatos = [...new Set([process.env.DOCUMENTOS_SECRET, historico].filter(Boolean))];
   return candidatos.some((s) => {
     const b = Buffer.from(hmac(s, body));
     return a.length === b.length && crypto.timingSafeEqual(a, b);
   });
 };
 
-module.exports = { firmar, firmaValida };
+module.exports = { firmar, firmaValida, FIN_FIRMAS_JWT };

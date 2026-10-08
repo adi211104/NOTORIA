@@ -130,8 +130,11 @@ pull` baja development (vacío), así que en local Google Sign-In y Culqi no fun
 test a mano. `NEXT_PUBLIC_WHATSAPP_VENTAS` se retiró (2026-09-16).
 
 **Comprobación de configuración (2026-10-02):** `src/lib/configProduccion.js` corre al arrancar. En
-producción, sin `DATABASE_URL`/`JWT_SECRET` el proceso muere (el deploy queda fallido y sigue
-sirviendo el anterior); cada variable opcional ausente se escribe en el log con 🔴 y su efecto.
+producción, sin `DATABASE_URL`, `JWT_SECRET`, `TOKENS_CLAVE`, `PROMO_HASH_SECRET` o `DOCUMENTOS_SECRET`
+el proceso muere (el deploy queda fallido y sigue sirviendo el anterior; los tres últimos son
+críticos desde el 2026-10-07 y ya **no hay respaldo a `JWT_SECRET`** ni para la huella de la promo
+ni para firmar documentos — el verificador acepta `JWT_SECRET` solo hasta `FIN_FIRMAS_JWT`
+2027-10-05); cada variable opcional ausente se escribe en el log con 🔴 y su efecto.
 Cruce completo de variables código ↔ Railway:
 ```bash
 grep -rhoE "process\.env\.[A-Z0-9_]+" src/ | sed 's/process\.env\.//' | sort -u > /tmp/code.txt
@@ -354,6 +357,16 @@ comparten transacción, y antes un fallo de base tras cobrar dejaba al cliente c
   trata como aviso, no como éxito) y `enviarAvisoInterno` avisa a contabilidad. DESCONOCIDO → 502
   `COBRO_EN_VERIFICACION` («no vuelvas a pagar»).
 - Ni rutas ni workers llaman a `culqi.crearCargo` directo (lo vigila `prueba-auditoria.js`).
+- 🔴 **Reclamo por cuenta (2026-10-07)**: la clave hace idempotente el MISMO cobro, no impide dos
+  cobros DISTINTOS sobre la misma foto (0→1 y 0→2 locales, dos altas en dos pestañas, renovar a quien
+  acaba de cancelar). `abrirIntento` corre dentro de `cobros.conCuenta` (`pg_advisory_xact_lock
+  ('cobro:'+usuario)`): misma clave → `COBRO_DUPLICADO`; otro intento de la cuenta en vuelo
+  (PROCESANDO, DESCONOCIDO o EXITOSO sin Pago) → **409 `OTRO_COBRO_EN_CURSO`**; `vigente` =
+  `fotoVigente(usuario, FOTO_COBRO)` relee la cuenta y si cambió → **409 `ESTADO_CAMBIADO`**, sin
+  cobrar. Culqi se llama DESPUÉS, fuera de la transacción. Lo que cambia la cuenta sin cobrar
+  (cancelar, bajar locales: `cambiarSinCobro`) toma el mismo candado. La existencia de la clave se
+  pregunta ANTES de crear: en Postgres un P2002 dentro de la transacción la aborta. `aplicar()` exige
+  un intento EXITOSO. **Toda operación de pago nueva sigue esta regla.**
 - El campo de la tarjeta guardada es **`Usuario.tarjetaCulqiId`** (`@map("suscripcionId")`: la
   columna conserva el nombre viejo, que mentía).
 
@@ -382,8 +395,10 @@ elegir al vencer. Mensual → anual se permite (botón «Cambiar a anual»; `esA
 periodo, por eso el perfil devuelve `periodoFacturacion`).
 
 **Ciclo de vida:** cargo rechazado en renovación → **3 intentos cada 3 días** con correo
-(`enviarCobroFallido`), contados como `Pago FALLIDO` posteriores al último EXITOSO; al agotarlos baja
-a GRATIS. `COBRO_DUPLICADO`/`DESCONOCIDO` en la renovación NO cuentan como intento. El cron cobra
+(`enviarCobroFallido`), contados como **`IntentoCobro` de renovación FALLIDOS** posteriores al último
+Pago EXITOSO (desde 2026-10-07; el `Pago FALLIDO` se sigue creando para la Facturación del cliente, pero
+se escribe con `.catch` y no cuenta); al agotarlos baja a GRATIS. `COBRO_DUPLICADO`/`DESCONOCIDO`/
+`ESTADO_CAMBIADO`/`OTRO_COBRO_EN_CURSO` en la renovación NO cuentan como intento. El cron cobra
 **todo lo vencido**. `iniciarBajadaDePlanes` (5:30) baja a quien canceló y terminó su periodo. ⚠️ Los
 cron de `monitoreo.worker.js` sin `timezone` corren en **UTC** (el de las «5:00» = 00:00 de Lima).
 
@@ -400,6 +415,13 @@ cron de `monitoreo.worker.js` sin `timezone` corren en **UTC** (el de las «5:00
   no se puede guardar → 500 (Culqi reintenta); si procesar falla → `PENDIENTE` y lo reintenta
   `reintento-webhooks` cada 10 min con espera creciente; al 8.º intento `FALLIDO` + aviso a
   contabilidad. `UNIQUE(proveedor, idExterno)`: un reenvío responde `duplicado` sin reaplicar.
+- 🔴 **UNIQUE de recepción ≠ un solo procesamiento** (2026-10-07): `procesar()` primero **reclama**
+  (`PENDIENTE → PROCESANDO` con UPDATE condicional que compara `intentos`; solo quien obtiene
+  count = 1 corre el procesador). `bloqueadoEn` es el arriendo (15 min): un PROCESANDO vencido es de
+  un proceso muerto y el worker lo recupera. El worker no toma un evento con 0 intentos hasta que pasa
+  1 min (es de la ruta).
+- **Reembolso parcial**: el acumulado se calcula DENTRO de la transacción con `SELECT … FOR UPDATE`
+  sobre el pago (2026-10-07; antes dos parciales simultáneos se pisaban).
 - **Reembolso según el tipo** (`efectoDeReembolso`): cuota vigente devuelta entera → suscripción
   termina HOY (`suscripcionActiva=false`, `fechaVencimiento=ahora`); cuota vieja → solo registro;
   **parcial** → `Pago` sigue EXITOSO con `montoReembolsado`, aviso de nota de crédito;
@@ -919,7 +941,14 @@ comentario va DENTRO del `<svg>` o sharp no reconoce el formato). Tarjetas de ca
 ## 18. Pruebas y scripts (`brand-shield/scripts/`)
 
 **CI:** `.github/workflows/ci.yml` corre en cada push/PR las suites que no tocan red ni base (39) y el
-build del frontend, con `DATABASE_URL` ficticia (Prisma la exige aunque no se conecte). Excluidas
+build del frontend, con `DATABASE_URL` ficticia (Prisma la exige aunque no se conecte), y el job
+**`integracion-postgres`**: `scripts/integracion-postgres.js` contra un Postgres 16 de verdad
+(contenedor del job) — carreras de cobros, locales, renovación/cancelación, promo, webhook y
+reembolsos, cada una con su control «a la antigua» que tiene que perder algo. Se niega a correr
+contra una base que no sea local y `*test*` (hace `db push --force-reset`). En esta PC: binarios
+portables en `C:\Users\Taller\dev-tools\pg16\`. **`scripts/smoke-produccion.js`** (también en
+`uptime.yml`, job `contenido`) lee /precios, /devoluciones, la portada y /terminos sin caché y
+compara las cadencias con `lib/planes.js`. Excluidas
 (manuales): `prueba-publico` (gasta Places), `prueba-culqi`, `prueba-sunat-beta`,
 `prueba-resumen-beta`, `prueba-baja-beta`. Pasan también en local con entorno vacío. Las de firma
 necesitan `node scripts/generar-cert-prueba.js` (el `.p12` de prueba está en `.gitignore`).

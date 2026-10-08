@@ -101,17 +101,11 @@ const autenticar = async (req, res, next) => {
   }
 };
 
-// Verifica que el usuario tenga suscripción activa
-// Ojo: mira la CUENTA, no la persona — mismo criterio que verificarPlan.
-const requiereSuscripcion = (req, res, next) => {
-  if (!req.cuenta.suscripcionActiva && req.cuenta.plan !== 'GRATIS') {
-    return res.status(403).json({
-      error: 'Se requiere suscripción activa',
-      accion: 'SUSCRIBIRSE',
-    });
-  }
-  next();
-};
+// (2026-10-07) Aquí vivía `requiereSuscripcion`, que miraba `suscripcionActiva`
+// y `plan` crudos en vez del plan efectivo (lib/suscripcion.js). No la usaba
+// ninguna ruta; se quitó para que nadie la reutilice y reintroduzca el fallo
+// (réplica del auditor, P0-07). Lo que dependa del plan pregunta a
+// `planEfectivo()` o a `req.cuenta.plan`, que ya llega efectivo.
 
 // Nota (2026-08-05): NO hay rol de administrador a propósito. El Libro de
 // Reclamaciones se gestiona desde la terminal con `scripts/reclamaciones.js`
@@ -140,4 +134,4 @@ const permitir = (permiso) => (req, res, next) => {
   next();
 };
 
-module.exports = { autenticar, requiereSuscripcion, permitir };
+module.exports = { autenticar, permitir };

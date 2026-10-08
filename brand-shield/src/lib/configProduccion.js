@@ -22,16 +22,22 @@
 //
 // ⚠️ La lista de críticas es corta a propósito. Meter acá algo opcional haría
 // que un despliegue fallara por una integración que ni está encendida.
+//
+// 🔴 Desde el 2026-10-07 (réplica del auditor, P1-N05/N06 e I-15) también son
+// críticos los tres secretos de seguridad que antes solo avisaban: sin ellos la
+// API arrancaba degradada EN SILENCIO —tokens OAuth en claro, huella de la promo
+// atada al secreto de sesiones (rotarlo reabría la promo a tarjetas que ya la
+// usaron), documentos firmados con el secreto de sesiones—. Un control de
+// seguridad tiene que vivir en el código, no solo en el inventario de Railway.
+// Los tres están cargados en Railway desde el 2026-10-02 (docs/secretos.md).
 
-const CRITICAS = ['DATABASE_URL', 'JWT_SECRET'];
+const CRITICAS = ['DATABASE_URL', 'JWT_SECRET', 'TOKENS_CLAVE', 'PROMO_HASH_SECRET', 'DOCUMENTOS_SECRET'];
 
 const AVISOS = [
   ['CULQI_WEBHOOK_SECRET', 'el webhook de Culqi rechaza TODOS los eventos (reembolsos sin registrar)'],
   ['CULQI_SECRET_KEY', 'no se puede cobrar'],
   ['EMAIL_CONTABILIDAD', 'se apagan los avisos de SUNAT, anulaciones, cobros sin aplicar y webhooks fallidos'],
   ['RESEND_API_KEY', 'no sale ningún correo'],
-  ['PROMO_HASH_SECRET', 'la huella de la promo cae a JWT_SECRET'],
-  ['TOKENS_CLAVE', 'los tokens OAuth de las redes se guardan en claro'],
   ['GOOGLE_PLACES_API_KEY', 'el monitoreo no puede leer Google'],
 ];
 

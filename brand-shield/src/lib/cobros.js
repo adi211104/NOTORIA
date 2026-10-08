@@ -41,28 +41,127 @@ class CobroEnCurso extends Error {
   }
 }
 
+// Otro cobro DISTINTO de la misma cuenta está en vuelo (o en duda).
+class OtroCobroEnCurso extends Error {
+  constructor(intento) {
+    super('La cuenta tiene otro cobro en curso o en verificación.');
+    this.codigo = 'OTRO_COBRO_EN_CURSO';
+    this.intento = intento;
+  }
+}
+
+// Lo que se usó para calcular el importe ya no es lo que hay en la base.
+class EstadoCambiado extends Error {
+  constructor(motivo) {
+    super(`El estado de la cuenta cambió antes de cobrar (${motivo}).`);
+    this.codigo = 'ESTADO_CAMBIADO';
+    this.motivo = motivo;
+  }
+}
+
+// ─── Reclamo por cuenta (réplica del auditor, 2026-10-07) ─────────────────
+//
+// 🔴 La clave única hace idempotente el MISMO cobro, no impide dos cobros
+// DISTINTOS calculados sobre la misma foto vieja de la cuenta (P1-N03, N04,
+// N11): «0→1 local» y «0→2 locales» son claves distintas y llegaban las dos a
+// Culqi; el cron elegía una cuenta para renovar, el cliente cancelaba, y el cron
+// cobraba igual; dos altas en dos pestañas (dos tokens) cobraban dos veces.
+//
+// Regla para todo cobro: se RECLAMA antes de tocar Culqi, dentro de un candado
+// de la cuenta (`pg_advisory_xact_lock`, el mismo patrón que los asientos del
+// equipo, lib/equipo.js). Con el candado tomado:
+//   1. la misma clave ya registrada → CobroEnCurso (o se reabre si FALLÓ);
+//   2. otro intento de la cuenta en vuelo (PROCESANDO, DESCONOCIDO o cobrado y
+//      sin aplicar) → OtroCobroEnCurso: no se cobra sobre un estado que todavía
+//      no terminó de cambiar;
+//   3. `vigente(tx)` relee la cuenta y compara con la foto que se usó para
+//      calcular el importe; si algo cambió → EstadoCambiado, sin cobrar;
+//   4. se crea el intento. Al soltar el candado, el reclamo es visible.
+// Culqi se llama DESPUÉS, fuera de la transacción (no se sostiene una
+// transacción abierta durante una llamada externa). Todo lo que cambia la
+// cuenta sin cobrar (cancelar, bajar locales) toma el MISMO candado: una
+// cancelación anterior al reclamo gana siempre; una posterior encuentra la
+// renovación ya reclamada, que es la prueba de que seguía autorizada.
+const EN_VUELO = [
+  { estado: ESTADO.PROCESANDO },
+  { estado: ESTADO.DESCONOCIDO },
+  { estado: ESTADO.EXITOSO, pagoId: null },
+];
+
+/** Corre `fn(tx)` con el candado de cobros de la cuenta tomado. */
+const conCuenta = (usuarioId, fn, db = prisma) => db.$transaction(async (tx) => {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`cobro:${usuarioId}`}))`;
+  return fn(tx);
+});
+
+/** ¿Hay otro cobro de la cuenta sin terminar? Devuelve el intento o null. */
+const otroEnVuelo = (tx, usuarioId, clave) => tx.intentoCobro.findFirst({
+  where: { usuarioId, ...(clave ? { clave: { not: clave } } : {}), OR: EN_VUELO },
+  select: { id: true, clave: true, estado: true },
+});
+
+const igual = (a, b) => (a instanceof Date || b instanceof Date
+  ? new Date(a ?? 0).getTime() === new Date(b ?? 0).getTime() && (a == null) === (b == null)
+  : (a ?? null) === (b ?? null));
+
 /**
- * Registra el intento. Si la clave ya existe:
+ * `vigente` que compara la foto con la que se calculó el importe contra la base.
+ * Devuelve el primer campo que cambió (como motivo) o null.
+ */
+const fotoVigente = (foto, campos) => async (tx) => {
+  const ahora = await tx.usuario.findUnique({
+    where: { id: foto.id },
+    select: Object.fromEntries(campos.map((c) => [c, true])),
+  });
+  if (!ahora) return 'cuenta inexistente';
+  const campo = campos.find((c) => !igual(ahora[c], foto[c]));
+  return campo ? `cambió ${campo}` : null;
+};
+
+/**
+ * Registra (reclama) el intento con el candado de la cuenta. Si la clave ya existe:
  *  - FALLIDO → se reabre (un rechazo del banco se puede reintentar con la misma clave);
  *  - cualquier otro estado → CobroEnCurso: o ya se cobró, o se está cobrando, o
  *    no se sabe — y en los tres casos cobrar otra vez es el error caro.
+ * ⚠️ La existencia se pregunta ANTES de crear (no create → catch P2002): dentro
+ * de una transacción de Postgres un error aborta la transacción entera.
  */
-const abrirIntento = async ({ clave, usuarioId, tipo, plan, periodo, monto, moneda = MONEDA, detalle }, db = prisma) => {
-  try {
-    return await db.intentoCobro.create({
+const abrirIntento = async ({ clave, usuarioId, tipo, plan, periodo, monto, moneda = MONEDA, detalle, vigente }, db = prisma) => (
+  conCuenta(usuarioId, async (tx) => {
+    const previo = await tx.intentoCobro.findUnique({ where: { clave } });
+    if (previo && previo.estado !== ESTADO.FALLIDO) throw new CobroEnCurso(previo);
+    const otro = await otroEnVuelo(tx, usuarioId, clave);
+    if (otro) throw new OtroCobroEnCurso(otro);
+    if (vigente) {
+      const motivo = await vigente(tx);
+      if (motivo) throw new EstadoCambiado(motivo);
+    }
+    if (previo) {
+      return tx.intentoCobro.update({
+        where: { id: previo.id },
+        data: { estado: ESTADO.PROCESANDO, monto, detalle, ultimoError: null, creadoEn: new Date(), completadoEn: null },
+      });
+    }
+    return tx.intentoCobro.create({
       data: { clave, usuarioId, tipo, plan, periodo, monto, moneda, detalle, estado: ESTADO.PROCESANDO },
     });
-  } catch (e) {
-    if (e.code !== 'P2002') throw e;
-    const r = await db.intentoCobro.updateMany({
-      where: { clave, estado: ESTADO.FALLIDO },
-      data: { estado: ESTADO.PROCESANDO, monto, detalle, ultimoError: null, creadoEn: new Date() },
-    });
-    const previo = await db.intentoCobro.findUnique({ where: { clave } });
-    if (r.count === 1) return previo;
-    throw new CobroEnCurso(previo);
+  }, db)
+);
+
+/**
+ * Cambia la cuenta SIN cobrar (bajar locales, subir sin importe), con el mismo
+ * candado y las mismas comprobaciones que un cobro: no pisa un cobro en vuelo ni
+ * escribe sobre una foto vieja. Devuelve el resultado de `cambio(tx)`.
+ */
+const cambiarSinCobro = async ({ usuarioId, vigente, cambio }, db = prisma) => conCuenta(usuarioId, async (tx) => {
+  const otro = await otroEnVuelo(tx, usuarioId, null);
+  if (otro) throw new OtroCobroEnCurso(otro);
+  if (vigente) {
+    const motivo = await vigente(tx);
+    if (motivo) throw new EstadoCambiado(motivo);
   }
-};
+  return cambio(tx);
+}, db);
 
 /**
  * ¿Culqi dijo que NO, o no dijo nada? Con una respuesta 4xx Culqi rechazó el
@@ -77,8 +176,8 @@ const clasificarError = (error) => {
  * Cobra. Devuelve `{ intento, cargo }`. Si Culqi rechaza o no contesta, lanza el
  * error original con `error.estadoIntento` y `error.intento` puestos.
  */
-const cobrar = async ({ clave, usuarioId, tipo, plan, periodo, monto, moneda = MONEDA, email, sourceId, descripcion, detalle }, db = prisma) => {
-  const intento = await abrirIntento({ clave, usuarioId, tipo, plan, periodo, monto, moneda, detalle }, db);
+const cobrar = async ({ clave, usuarioId, tipo, plan, periodo, monto, moneda = MONEDA, email, sourceId, descripcion, detalle, vigente }, db = prisma) => {
+  const intento = await abrirIntento({ clave, usuarioId, tipo, plan, periodo, monto, moneda, detalle, vigente }, db);
   let cargo;
   try {
     cargo = await culqi.crearCargo({
@@ -151,12 +250,18 @@ const datosUsuario = (tipo, d = {}) => {
  */
 const aplicar = async ({ intento, cargo, titular }, db = prisma) => {
   if (intento.pagoId) return db.pago.findUnique({ where: { id: intento.pagoId } });
+  // Solo se aplica lo que se cobró (réplica del auditor, P2-N10): antes la
+  // precondición quedaba en manos de quien llamaba.
+  if (intento.estado !== ESTADO.EXITOSO || !(cargo?.id || intento.culqiCargoId)) {
+    throw new Error(`aplicar() exige un intento EXITOSO con su cargo (intento ${intento.id}: ${intento.estado})`);
+  }
   const tarjeta = culqi.datosTarjeta(cargo);
   return db.$transaction(async (tx) => {
     // Candado optimista: si otro proceso ya lo aplicó, este UPDATE no encuentra
-    // la fila con pagoId null y la transacción entera se deshace.
+    // la fila con pagoId null y la transacción entera se deshace. Tampoco aplica
+    // un intento que la base tenga como FALLIDO (Culqi dijo que no cobró).
     const libre = await tx.intentoCobro.updateMany({
-      where: { id: intento.id, pagoId: null },
+      where: { id: intento.id, pagoId: null, estado: { not: ESTADO.FALLIDO } },
       data: { revisadoEn: new Date() },
     });
     if (libre.count !== 1) {
@@ -187,4 +292,7 @@ const aplicar = async ({ intento, cargo, titular }, db = prisma) => {
   });
 };
 
-module.exports = { ESTADO, CobroEnCurso, abrirIntento, clasificarError, cobrar, aplicar, datosUsuario };
+module.exports = {
+  ESTADO, CobroEnCurso, OtroCobroEnCurso, EstadoCambiado,
+  conCuenta, fotoVigente, abrirIntento, cambiarSinCobro, clasificarError, cobrar, aplicar, datosUsuario,
+};

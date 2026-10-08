@@ -757,6 +757,7 @@ model PromoTarjeta {
   intentoClave String?
 
   @@index([usuarioId])
+  @@index([intentoClave])
   @@map("promo_tarjetas")
 }
 
@@ -997,11 +998,14 @@ model EventoWebhook {
   idExterno   String
   tipo        String?
   payload     Json
-  estado      String    @default("PENDIENTE") // PENDIENTE | PROCESADO | FALLIDO | IGNORADO
+  estado      String    @default("PENDIENTE") // PENDIENTE | PROCESANDO | PROCESADO | FALLIDO | IGNORADO
   intentos    Int       @default(0)
   ultimoError String?
   recibidoEn  DateTime  @default(now())
   procesadoEn DateTime?
+  // Arriendo del procesamiento (lib/webhookInbox.js): cuándo se reclamó. Un
+  // PROCESANDO con arriendo vencido es de un proceso que murió y se recupera.
+  bloqueadoEn DateTime?
 
   @@unique([proveedor, idExterno])
   @@index([estado])

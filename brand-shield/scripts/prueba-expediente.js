@@ -209,6 +209,7 @@ const correr = async () => {
   // archivo que cualquiera edita: se le cambia el texto de la reseña o la fecha
   // y no hay forma de notarlo.
   process.env.JWT_SECRET = process.env.JWT_SECRET || 'secreto-de-prueba-expediente';
+  process.env.DOCUMENTOS_SECRET = process.env.DOCUMENTOS_SECRET || 'secreto-de-prueba-documentos';
   const ec = require('../src/lib/expedienteCodigo');
   const constancia = require('../src/lib/constancia');
 

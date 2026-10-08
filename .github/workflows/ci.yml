@@ -59,6 +59,38 @@ jobs:
           echo "Suites fallidas: $fallos"
           test "$fallos" -eq 0
 
+  # Carreras contra un PostgreSQL DE VERDAD (réplica del auditor, 2026-10-07,
+  # §59): los candados, el aislamiento y los abortos de transacción no se pueden
+  # probar con dobles. La base es un contenedor desechable de este job; el script
+  # se niega a correr contra cualquier base que no sea local y «test».
+  integracion-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: notoria_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      INTEGRACION_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/notoria_test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/notoria_test
+    defaults:
+      run:
+        working-directory: brand-shield
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: brand-shield/package-lock.json
+      - run: npm ci
+      - run: node scripts/integracion-postgres.js
+
   frontend:
     runs-on: ubuntu-latest
     defaults:

@@ -17,6 +17,7 @@
 // Si alguna de esas pruebas se pone en rojo, eso es lo que se rompió.
 
 process.env.JWT_SECRET = 'secreto-de-prueba';
+process.env.DOCUMENTOS_SECRET = 'secreto-de-prueba-documentos';
 
 const Module = require('module');
 

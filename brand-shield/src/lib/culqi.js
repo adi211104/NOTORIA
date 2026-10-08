@@ -173,7 +173,11 @@ const huellaTarjeta = (objeto) => {
 
   // Sin secreto no se puede garantizar la protección del hash. Se prefiere
   // fallar y no aplicar la promo antes que guardar una huella débil.
-  const secreto = process.env.PROMO_HASH_SECRET || process.env.JWT_SECRET;
+  // 🔴 Sin respaldo a JWT_SECRET (réplica del auditor, 2026-10-07): el
+  // antifraude dependía del secreto de sesiones, y rotarlo cambiaba todas las
+  // huellas — una tarjeta que ya usó la promo dejaba de coincidir con su fila.
+  // En producción PROMO_HASH_SECRET es crítico (lib/configProduccion.js).
+  const secreto = process.env.PROMO_HASH_SECRET;
   if (!secreto) return null;
 
   return crypto.createHmac('sha256', secreto).update(`${bin}|${last4}`).digest('hex');

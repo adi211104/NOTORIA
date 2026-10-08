@@ -27,8 +27,13 @@ let estado;
 // (crear la fila de la tarjeta + UPDATE condicional de la cuenta) y el cobro
 // pasa por lib/cobros.js (intento de cobro + transacción). El doble modela las
 // dos cosas, incluido el @unique de la tarjeta, que es lo que decide la carrera.
+// La transacción se serializa (una a la vez), como el candado de la cuenta
+// (`pg_advisory_xact_lock` en lib/cobros.js): es lo que decide las carreras.
+let colaTx = Promise.resolve();
+const enVuelo = (i) => i.estado === 'PROCESANDO' || i.estado === 'DESCONOCIDO' || (i.estado === 'EXITOSO' && !i.pagoId);
 const prismaFalso = {
-  $transaction: async (fn) => fn(prismaFalso),
+  $transaction: (fn) => { const r = colaTx.then(() => fn(prismaFalso)); colaTx = r.catch(() => {}); return r; },
+  $executeRaw: async () => 0,
   usuario: {
     findUnique: async () => ({
       id: 'u1', email: 'cliente@notoria.test', nombre: 'Cliente Prueba',
@@ -61,7 +66,8 @@ const prismaFalso = {
     },
     update: async ({ where, data }) => Object.assign(estado.intentos.find((i) => i.id === where.id), data),
     updateMany: async ({ where }) => ({ count: estado.intentos.some((i) => i.id === where.id && !i.pagoId) ? 1 : 0 }),
-    findUnique: async ({ where }) => estado.intentos.find((i) => i.clave === where.clave || i.id === where.id) || null,
+    findUnique: async ({ where }) => (estado.intentos || []).find((i) => i.clave === where.clave || i.id === where.id) || null,
+    findFirst: async ({ where }) => (estado.intentos || []).find((i) => i.usuarioId === where.usuarioId && i.clave !== where.clave?.not && enVuelo(i)) || null,
   },
   pago: { create: async (args) => ({ id: 'p1', ...args.data }) },
 };

@@ -24,8 +24,17 @@ let estado;
 // Desde la auditoría del 2026-10-02 el webhook GUARDA el evento antes de
 // procesarlo (lib/webhookInbox.js) y el reembolso depende del TIPO de pago, así
 // que el doble lleva la bandeja, la transacción y los datos del pago.
+// La transacción se SERIALIZA (una a la vez), como lo haría el `SELECT … FOR
+// UPDATE` sobre la fila del pago: así la prueba de dos reembolsos simultáneos
+// distingue leer el acumulado dentro del candado de leerlo fuera.
+let colaTx = Promise.resolve();
 const prismaFalso = {
-  $transaction: async (fn) => fn(prismaFalso),
+  $transaction: (fn) => {
+    const r = colaTx.then(() => fn(prismaFalso));
+    colaTx = r.catch(() => {});
+    return r;
+  },
+  $queryRaw: async () => [],
   eventoWebhook: {
     create: async ({ data }) => {
       if (estado.baseCaida) throw new Error('base caída');
@@ -33,23 +42,33 @@ const prismaFalso = {
       const ev = { id: `ev${estado.eventos.length + 1}`, intentos: 0, ...data };
       estado.eventos.push(ev); return ev;
     },
-    update: async ({ where, data }) => {
-      const ev = estado.eventos.find((e) => e.id === where.id);
-      Object.assign(ev, data, { intentos: typeof data.intentos === 'number' ? data.intentos : (ev.intentos || 0) + 1 });
-      return ev;
+    update: async ({ where, data }) => Object.assign(estado.eventos.find((e) => e.id === where.id), data),
+    // El reclamo PENDIENTE → PROCESANDO (lib/webhookInbox.js).
+    updateMany: async ({ where, data }) => {
+      const ev = estado.eventos.find((e) => e.id === where.id && (e.intentos || 0) === where.intentos && (e.estado || 'PENDIENTE') === 'PENDIENTE');
+      if (!ev) return { count: 0 };
+      Object.assign(ev, data, { intentos: (ev.intentos || 0) + 1 });
+      return { count: 1 };
     },
   },
   pago: {
-    findUnique: async ({ where }) => (
-      where.culqiCargoId === estado.cargoEnLaBase
-        ? { id: 'p1', usuarioId: 'u1', tipo: estado.tipo || 'INICIAL', monto: 5900, moneda: 'PEN', estado: estado.estadoPago || 'EXITOSO', comprobante: null, usuario: {} }
-        : null
-    ),
+    findUnique: async ({ where }) => {
+      // Relectura dentro de la transacción: el estado VIVO de la fila.
+      if (where.id === 'p1') return { estado: estado.estadoPago || 'EXITOSO', montoReembolsado: estado.montoReembolsado || 0 };
+      return where.culqiCargoId === estado.cargoEnLaBase
+        ? { id: 'p1', usuarioId: 'u1', tipo: estado.tipo || 'INICIAL', monto: 5900, moneda: 'PEN', estado: estado.estadoPago || 'EXITOSO', montoReembolsado: estado.montoReembolsado || 0, comprobante: null, usuario: {} }
+        : null;
+    },
     // ¿Es la última cuota? Por defecto sí; `estado.hayCuotaPosterior` lo niega.
     findFirst: async () => ({ id: estado.hayCuotaPosterior ? 'p2' : 'p1' }),
     update: async ({ data }) => {
       if (estado.fallaAlProcesar) throw new Error('fallo interno');
-      estado.pagoActualizado = data; return data;
+      // Un respiro entre leer y escribir: es donde se colaba el otro reembolso.
+      await new Promise((r) => setTimeout(r, 5));
+      estado.pagoActualizado = data;
+      estado.montoReembolsado = data.montoReembolsado;
+      estado.estadoPago = data.estado;
+      return data;
     },
   },
   usuario: {
@@ -250,6 +269,18 @@ const casos = [
     },
   },
   {
+    nombre: 'DOS reembolsos parciales SIMULTÁNEOS (eventos distintos) → el acumulado suma los dos',
+    estado: { cargoEnLaBase: 'chr_c1' },
+    peticion: { body: { id: 'evt_c1', ...evento('refund.creation.succeeded', { chargeId: 'chr_c1', amount: 1000 }) }, query: { secret: 'secreto-de-prueba' } },
+    concurrente: { body: { id: 'evt_c2', ...evento('refund.creation.succeeded', { chargeId: 'chr_c1', amount: 2000 }) }, query: { secret: 'secreto-de-prueba' } },
+    comprobar: (r, e) => {
+      // Réplica del auditor (2026-10-07, P1-N02): leer fuera y escribir la suma
+      // dejaba 2000 (o 1000) en vez de 3000.
+      if (e.montoReembolsado !== 3000) return mal(`montoReembolsado=${e.montoReembolsado}, esperado 3000: un reembolso pisó al otro`);
+      ok('1000 + 2000 = 3000, ninguno se pierde');
+    },
+  },
+  {
     nombre: 'Reembolso de una cuota VIEJA (hay una posterior) → no corta el periodo actual',
     estado: { cargoEnLaBase: 'chr_v1', hayCuotaPosterior: true, tipo: 'RENOVACION' },
     peticion: { body: evento('refund.creation.succeeded', { chargeId: 'chr_v1', amount: 5900 }), query: { secret: 'secreto-de-prueba' } },
@@ -307,7 +338,7 @@ const casos = [
     estado = { eventos: [], ...caso.estado };
     if (caso.antes) caso.antes();
     console.log(`\n— ${caso.nombre}`);
-    const r = await ejecutar(caso.peticion);
+    const [r] = await Promise.all([ejecutar(caso.peticion), caso.concurrente ? ejecutar(caso.concurrente) : null]);
     await caso.comprobar(r, estado);
     if (caso.despues) caso.despues();
   }

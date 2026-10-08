@@ -21,6 +21,11 @@ const locales = require('../../lib/localesExtra');
 
 const cobros = require('../../lib/cobros');
 const promo = require('../../lib/promo');
+
+// Lo que decide el importe y el resultado de un cobro. Se relee con el candado
+// de la cuenta antes de cobrar (lib/cobros.js, fotoVigente): si algo cambió
+// desde que se calculó, no se cobra sobre una foto vieja.
+const FOTO_COBRO = ['plan', 'suscripcionActiva', 'fechaVencimiento', 'periodoFacturacion', 'localesExtra', 'mesesPromoRestantes', 'tarjetaCulqiId'];
 const webhookInbox = require('../../lib/webhookInbox');
 const { ORDEN } = require('../../lib/planes');
 const { planEfectivo } = require('../../lib/suscripcion');
@@ -55,6 +60,26 @@ const respuestaDeCobroFallido = (error) => {
       cuerpo: {
         error: 'Este pago ya se está procesando o ya se hizo. No lo repitas: revisa tu Facturación en unos minutos.',
         codigo: 'COBRO_DUPLICADO',
+      },
+    };
+  }
+  if (error?.codigo === 'OTRO_COBRO_EN_CURSO') {
+    return {
+      status: 409,
+      cuerpo: {
+        error: 'Tienes otro pago en proceso o en verificación. Espera unos minutos y revisa tu Facturación antes de intentarlo de nuevo.',
+        codigo: 'OTRO_COBRO_EN_CURSO',
+      },
+    };
+  }
+  if (error?.codigo === 'ESTADO_CAMBIADO') {
+    // No se cobró: el importe se había calculado con datos que ya cambiaron.
+    console.warn(`[Cobro] No se cobró: ${error.motivo}`);
+    return {
+      status: 409,
+      cuerpo: {
+        error: 'Tu cuenta cambió mientras procesábamos el pago y no te cobramos nada. Recarga la página y vuelve a intentarlo.',
+        codigo: 'ESTADO_CAMBIADO',
       },
     };
   }
@@ -218,20 +243,24 @@ const procesarReembolso = async (datos) => {
   // es lo que se hacía siempre (y lo que hace scripts/reembolsar-cargo.js).
   const montoEvento = Number(datos?.amount);
   const devuelto = Number.isFinite(montoEvento) && montoEvento > 0 ? montoEvento : pago.monto;
-  const acumulado = Math.min(pago.monto, (pago.montoReembolsado || 0) + devuelto);
-  const total = acumulado >= pago.monto;
+  const ultimoCuota = await esUltimaCuota(pago);
 
-  if (pago.estado === 'REEMBOLSADO') {
-    console.log(`[Culqi webhook] El cargo ${cargoId} ya figuraba como reembolsado — sin efectos nuevos`);
-    return;
-  }
-
-  const efecto = efectoDeReembolso({ pago, total, ultimoCuota: await esUltimaCuota(pago) });
-
-  await prisma.$transaction(async (tx) => {
+  // 🔴 El acumulado se calcula DENTRO de la transacción, con la fila del pago
+  // bloqueada (réplica del auditor, 2026-10-07, P1-N02). Antes se leía
+  // `montoReembolsado` fuera y se escribía la suma: dos reembolsos parciales
+  // simultáneos (dos eventos distintos, así que la bandeja no los frena) leían
+  // el mismo valor y el segundo pisaba al primero — se perdía importe, y con él
+  // la nota de crédito, la comisión neta y saber si el pago quedó devuelto entero.
+  const r = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM pagos WHERE id = ${pago.id} FOR UPDATE`;
+    const actual = await tx.pago.findUnique({ where: { id: pago.id }, select: { estado: true, montoReembolsado: true } });
+    if (actual.estado === 'REEMBOLSADO') return null;
+    const acumulado = Math.min(pago.monto, (actual.montoReembolsado || 0) + devuelto);
+    const total = acumulado >= pago.monto;
+    const efecto = efectoDeReembolso({ pago, total, ultimoCuota });
     await tx.pago.update({
       where: { id: pago.id },
-      data: { estado: total ? 'REEMBOLSADO' : pago.estado, montoReembolsado: acumulado },
+      data: { estado: total ? 'REEMBOLSADO' : actual.estado, montoReembolsado: acumulado },
     });
     if (efecto === 'TERMINA_SUSCRIPCION') {
       await tx.usuario.update({
@@ -239,7 +268,13 @@ const procesarReembolso = async (datos) => {
         data: { suscripcionActiva: false, fechaVencimiento: new Date() },
       });
     }
+    return { total, efecto };
   });
+  if (!r) {
+    console.log(`[Culqi webhook] El cargo ${cargoId} ya figuraba como reembolsado — sin efectos nuevos`);
+    return;
+  }
+  const { total, efecto } = r;
   console.log(`[Culqi webhook] Reembolso ${total ? 'total' : 'parcial'} del cargo ${cargoId} (${pago.tipo}) → ${efecto}`);
 
   if (efecto === 'REVISAR_LOCAL' || !total) {
@@ -551,6 +586,7 @@ router.post('/culqi', async (req, res) => {
     try {
       cobro = await cobros.cobrar({
         clave,
+        vigente: cobros.fotoVigente(usuario, FOTO_COBRO),
         usuarioId: usuario.id,
         tipo: 'INICIAL',
         plan,
@@ -807,7 +843,13 @@ router.post('/locales', async (req, res) => {
     // Bajar, o subir por un importe que no llega al piso: no hay cargo. Se
     // actualiza la fila y ya — la renovación cobrará el total nuevo.
     if (cuenta.centimos <= 0) {
-      await prisma.usuario.update({ where: { id: usuario.id }, data: { localesExtra: nuevo } });
+      // Con el mismo candado que un cobro: no pisa un cobro en vuelo ni escribe
+      // sobre una foto vieja (réplica del auditor, P1-N03).
+      await cobros.cambiarSinCobro({
+        usuarioId: usuario.id,
+        vigente: cobros.fotoVigente(usuario, FOTO_COBRO),
+        cambio: (tx) => tx.usuario.update({ where: { id: usuario.id }, data: { localesExtra: nuevo } }),
+      });
       return res.json({
         mensaje: cuenta.delta > 0
           ? 'Local(es) agregado(s). No te cobramos nada por lo que queda del periodo.'
@@ -829,6 +871,10 @@ router.post('/locales', async (req, res) => {
       // El mismo cambio, en el mismo periodo, no se cobra dos veces (doble clic,
       // reintento del navegador). Otro cambio distinto es otra clave.
       clave: `locales:${usuario.id}:${new Date(usuario.fechaVencimiento).toISOString()}:${usuario.localesExtra}->${nuevo}`,
+      // 🔴 «0→1» y «0→2» son claves distintas: sin esto, dos cambios
+      // simultáneos llegaban los dos a Culqi calculados sobre localesExtra = 0
+      // (réplica del auditor, P1-N03). El reclamo de la cuenta deja pasar uno.
+      vigente: cobros.fotoVigente(usuario, FOTO_COBRO),
       usuarioId: usuario.id,
       tipo: 'LOCAL_ADICIONAL',
       plan: usuario.plan,
@@ -916,11 +962,14 @@ router.post('/cancelar', async (req, res, next) => {
     // en curso en vez de cortar hoy: ante la duda, a favor del cliente.
     const activoHasta = usuario.fechaVencimiento || new Date(Date.now() + 30 * 86400000);
 
-    await prisma.usuario.update({
+    // Con el candado de cobros de la cuenta (lib/cobros.js): una renovación que
+    // todavía no se reclamó ya no puede cobrar (relee suscripcionActiva con el
+    // mismo candado); una ya reclamada sigue, porque se autorizó antes.
+    await cobros.conCuenta(usuario.id, (tx) => tx.usuario.update({
       where: { id: usuario.id },
       // `plan` NO se toca: el cliente pagó hasta `activoHasta` y hasta ahí lo usa.
       data: { suscripcionActiva: false, fechaVencimiento: activoHasta },
-    });
+    }));
 
     setImmediate(() => {
       enviarCancelacion(usuario, activoHasta)

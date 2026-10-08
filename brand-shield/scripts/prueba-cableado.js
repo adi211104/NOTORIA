@@ -58,6 +58,7 @@ Module.prototype.require = function (id) {
 process.env.RESEND_API_KEY = 're_prueba';
 process.env.FRONTEND_URL = 'https://usenotoria.app';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'secreto-de-prueba';
+process.env.DOCUMENTOS_SECRET = process.env.DOCUMENTOS_SECRET || 'secreto-de-prueba-documentos';
 const emails = require('../src/utils/emails');
 Module.prototype.require = original;
 

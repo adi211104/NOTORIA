@@ -401,8 +401,12 @@ let db = estadoRuta();
 // Desde la auditoría del 2026-10-02 el cobro pasa por lib/cobros.js: intento
 // registrado antes de Culqi y todo lo de la base en UNA transacción. El doble
 // modela las dos cosas, incluida la clave única del intento.
+// Serializada como el candado de la cuenta (lib/cobros.js).
+let colaTx = Promise.resolve();
+const casaEstado = (i, e) => !e || (typeof e === 'string' ? i.estado === e : i.estado !== e.not);
 const prismaFalso = {
-  $transaction: async (fn) => fn(prismaFalso),
+  $transaction: (fn) => { const r = colaTx.then(() => fn(prismaFalso)); colaTx = r.catch(() => {}); return r; },
+  $executeRaw: async () => 0,
   intentoCobro: {
     create: async ({ data }) => {
       db.intentos = db.intentos || [];
@@ -411,8 +415,10 @@ const prismaFalso = {
       db.intentos.push(i); return i;
     },
     update: async ({ where, data }) => Object.assign(db.intentos.find((i) => i.id === where.id), data),
-    updateMany: async ({ where }) => ({ count: db.intentos.some((i) => i.id === where.id && !i.pagoId && (!where.estado || i.estado === where.estado)) ? 1 : 0 }),
-    findUnique: async ({ where }) => db.intentos.find((i) => i.clave === where.clave || i.id === where.id) || null,
+    updateMany: async ({ where }) => ({ count: db.intentos.some((i) => i.id === where.id && !i.pagoId && casaEstado(i, where.estado)) ? 1 : 0 }),
+    findUnique: async ({ where }) => (db.intentos || []).find((i) => i.clave === where.clave || i.id === where.id) || null,
+    findFirst: async ({ where }) => (db.intentos || []).find((i) => i.usuarioId === where.usuarioId && i.clave !== where.clave?.not
+      && (i.estado === 'PROCESANDO' || i.estado === 'DESCONOCIDO' || (i.estado === 'EXITOSO' && !i.pagoId))) || null,
   },
   usuario: {
     findUnique: async () => ({ ...db.usuario }),
