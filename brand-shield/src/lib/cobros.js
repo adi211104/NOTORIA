@@ -30,6 +30,7 @@
 const prisma = require('./prisma');
 const culqi = require('./culqi');
 const { MONEDA } = require('./precios');
+const bitacora = require('./bitacora');
 
 const ESTADO = { PROCESANDO: 'PROCESANDO', EXITOSO: 'EXITOSO', FALLIDO: 'FALLIDO', DESCONOCIDO: 'DESCONOCIDO' };
 
@@ -153,14 +154,16 @@ const abrirIntento = async ({ clave, usuarioId, tipo, plan, periodo, monto, mone
  * candado y las mismas comprobaciones que un cobro: no pisa un cobro en vuelo ni
  * escribe sobre una foto vieja. Devuelve el resultado de `cambio(tx)`.
  */
-const cambiarSinCobro = async ({ usuarioId, vigente, cambio }, db = prisma) => conCuenta(usuarioId, async (tx) => {
+const cambiarSinCobro = async ({ usuarioId, vigente, cambio, evento }, db = prisma) => conCuenta(usuarioId, async (tx) => {
   const otro = await otroEnVuelo(tx, usuarioId, null);
   if (otro) throw new OtroCobroEnCurso(otro);
   if (vigente) {
     const motivo = await vigente(tx);
     if (motivo) throw new EstadoCambiado(motivo);
   }
-  return cambio(tx);
+  const r = await cambio(tx);
+  if (evento) await bitacora.registrar(tx, usuarioId, evento.tipo, evento.detalle);
+  return r;
 }, db);
 
 /**
@@ -197,6 +200,20 @@ const cobrar = async ({ clave, usuarioId, tipo, plan, periodo, monto, moneda = M
     }).catch((e) => console.error(`[Cobro] No se pudo marcar el intento ${intento.id} como ${estado}:`, e.message));
     error.estadoIntento = estado;
     error.intento = intento;
+    // 🔴 Un cobro en duda es URGENTE (réplica del auditor, §9): puede que el
+    // cliente ya pagó y no tenga su plan. La reconciliación lo resuelve sola,
+    // pero una persona se entera AHORA, antes de que escriba el cliente.
+    if (estado === ESTADO.DESCONOCIDO) {
+      require('../utils/emails').enviarAvisoInterno({
+        asunto: `🟠 Cobro en duda (Culqi no contestó) — ${email || usuarioId}`,
+        lineas: [
+          `Intento ${intento.id} · ${tipo} · ${(monto / 100).toFixed(2)} ${moneda} · clave ${clave}`,
+          `Error: ${String(error.message).slice(0, 300)}`,
+          'No se sabe si Culqi cobró. NO cobrar a mano ni pedir que pague de nuevo: la reconciliación (:15 y :45) busca el cargo por metadata.intento.',
+          `Diagnóstico: node scripts/caso-cliente.js ${email || '<correo>'} (docs/runbook-cobros.md §1).`,
+        ],
+      }).catch((e) => console.error('[Cobro] No se pudo avisar del cobro en duda:', e.message));
+    }
     throw error;
   }
 
@@ -287,6 +304,14 @@ const aplicar = async ({ intento, cargo, titular }, db = prisma) => {
     await tx.intentoCobro.update({
       where: { id: intento.id },
       data: { pagoId: pago.id, estado: ESTADO.EXITOSO, culqiCargoId: pago.culqiCargoId },
+    });
+    // En la misma transacción que el cambio: si esto falla, no hay plan ni Pago.
+    // `reclamadoEn` es la hora en que se tomó la decisión de cobrar (con el
+    // candado de la cuenta), la que se compara con una cancelación.
+    const { tarjetaCulqiId, ...cambio } = intento.detalle || {};
+    await bitacora.registrar(tx, intento.usuarioId, bitacora.DE_COBRO[intento.tipo], {
+      intento: intento.id, clave: intento.clave, reclamadoEn: intento.creadoEn, pago: pago.id, cargo: pago.culqiCargoId,
+      plan: intento.plan, periodo: intento.periodo, monto: intento.monto, ...cambio,
     });
     return pago;
   });

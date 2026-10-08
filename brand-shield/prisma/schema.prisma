@@ -128,36 +128,36 @@ enum Plan {
 // primeros 4 dígitos de la tarjeta (identifican el banco emisor, no la
 // tarjeta en sí) — nunca el número completo ni el CVV.
 model Pago {
-  id            String       @id @default(cuid())
-  usuarioId     String
-  usuario       Usuario      @relation(fields: [usuarioId], references: [id])
-  plan          Plan
-  periodo       String // "mensual" | "anual"
+  id               String       @id @default(cuid())
+  usuarioId        String
+  usuario          Usuario      @relation(fields: [usuarioId], references: [id])
+  plan             Plan
+  periodo          String // "mensual" | "anual"
   // "INICIAL" | "RENOVACION" | "LOCAL_ADICIONAL" (este último es el cobro
   // prorrateado de un local que se suma a mitad de periodo, ver
   // lib/localesExtra.js). Es String y no enum a propósito: agregar un valor no
   // obliga a migrar. ⚠️ Quien lo lee para PINTARLO tiene que tener respaldo —
   // dashboard/facturacion lo mapea a una etiqueta con `|| p.tipo`.
-  tipo          String
-  estado        String // "EXITOSO" | "FALLIDO" | "REEMBOLSADO"
-  monto         Int // en céntimos, misma unidad que Culqi
+  tipo             String
+  estado           String // "EXITOSO" | "FALLIDO" | "REEMBOLSADO"
+  monto            Int // en céntimos, misma unidad que Culqi
   // Los precios de los planes están en soles (7500 = S/75.00) y los cargos se
   // hacen en PEN. Ambos call-sites (pago.routes.js y el cron de renovación)
   // pasan la moneda explícita desde lib/precios.js; este default es solo la red
   // de seguridad. Ojo al cambiarlo: si el default y lib/precios.js discrepan, un
   // plan de S/75 se cobraría como US$75.
-  moneda        String       @default("PEN")
-  titular       String // nombre del titular al momento del cobro
-  tarjetaInicio String? // primeros 4 dígitos de la tarjeta
-  tarjetaMarca  String? // visa / mastercard / etc. (Culqi: source.iin.card_brand)
-  culqiCargoId  String?      @unique
+  moneda           String       @default("PEN")
+  titular          String // nombre del titular al momento del cobro
+  tarjetaInicio    String? // primeros 4 dígitos de la tarjeta
+  tarjetaMarca     String? // visa / mastercard / etc. (Culqi: source.iin.card_brand)
+  culqiCargoId     String?      @unique
   // Cuánto de este cargo se devolvió, en céntimos. Un reembolso PARCIAL (días
   // de una caída, /devoluciones c) deja el Pago EXITOSO con este número; uno
   // total lo pasa a REEMBOLSADO. Sin la columna, devolver S/5 de S/59 apagaba
   // la suscripción entera (auditoría 2026-10-02, P0-06).
   montoReembolsado Int?
-  comprobante   Comprobante?
-  creadoEn      DateTime     @default(now())
+  comprobante      Comprobante?
+  creadoEn         DateTime     @default(now())
 
   @@index([usuarioId])
   @@map("pagos")
@@ -881,12 +881,12 @@ model RegistroActividad {
 // (lib/rutaComercial.js): guarda datos de contacto de terceros, igual que el
 // Libro de Reclamaciones, así que no se expone a ninguna otra cuenta.
 //
-// ⚠️ La comisión NO se guarda: se DERIVA en cada lectura de los `Pago` reales
-// de la cuenta cuyo correo anotó el promotor. Guardarla obligaría a
-// sincronizarla con reembolsos y cancelaciones, y el día que el cron no corra
-// mentiría. Lo único que se guarda es lo que ya se le PAGÓ al promotor.
+// La comisión se DERIVA de los `Pago` reales de la cuenta vinculada
+// (lib/rutaComercial.js) y, desde el 2026-10-07, lo devengado se ASIENTA en el
+// libro `movimientos_comision` (lib/libroComisiones.js): el cálculo dice cuánto
+// corresponde hoy; el libro, qué se reconoció, qué se revirtió y qué se pagó.
 model VisitaComercial {
-  id               String         @id @default(cuid())
+  id               String               @id @default(cuid())
   promotor         String // alias del promotor ("Usuario1"), sale de RUTA_COMERCIAL_ACCESO
   creadoPorId      String
   nombre           String
@@ -894,7 +894,7 @@ model VisitaComercial {
   contacto         String?
   notas            String?
   // "visitado" | "interesado" | "volver" | "cuenta_gratis" | "cliente" | "no_interesado"
-  estado           String         @default("visitado")
+  estado           String               @default("visitado")
   // Correo de la cuenta de Notoria del cliente: con él se cruzan sus pagos.
   correo           String?
   // Local elegido en Google Maps al registrar la visita. Si el correo no casa con
@@ -902,21 +902,24 @@ model VisitaComercial {
   // cuando el cliente agrega ese mismo local en su panel.
   placeId          String?
   direccion        String?
-  // Comisión ya pagada al promotor por este cliente, en céntimos. Solo el dueño la escribe.
-  comisionPagada   Int            @default(0)
-  fechaVisita      DateTime       @default(now())
+  // ⚠️ OBSOLETA desde el 2026-10-07: lo pagado al promotor es un asiento PAGO del
+  // libro de comisiones, por promotor y no por visita. Nadie la escribe ya; se
+  // conserva para no borrar una columna (todas valen 0: nunca hubo visitas).
+  comisionPagada   Int                  @default(0)
+  fechaVisita      DateTime             @default(now())
   // Con qué versión de las reglas de comisión se atribuyó esta visita. El
   // contrato dice que un cambio futuro de reglas no perjudica lo ya atribuido,
   // así que el cálculo lee ESTA versión y no «la vigente» (auditoría P1-17).
-  politicaComision Int            @default(1)
+  politicaComision Int                  @default(1)
   // Una visita no se BORRA: es la prueba de una atribución comercial. Se anula,
   // con quién, cuándo y por qué (auditoría P1-14). Una anulada no comisiona.
   anuladaEn        DateTime?
   anuladaPor       String?
   motivoAnulacion  String?
   cambios          CambioVisita[]
-  creadoEn         DateTime       @default(now())
-  actualizadoEn    DateTime       @updatedAt
+  movimientos      MovimientoComision[]
+  creadoEn         DateTime             @default(now())
+  actualizadoEn    DateTime             @updatedAt
 
   @@index([promotor])
   @@index([correo])
@@ -1025,4 +1028,59 @@ model CandadoJob {
   tomadoEn DateTime @default(now())
 
   @@map("candados_job")
+}
+
+// ─── Commercial readiness (réplica del auditor, 2026-10-07) ────────────────
+//
+// Libro de comisiones del promotor. 🔴 Es un libro de ASIENTOS: no se edita
+// ni se borra ninguna fila (ningún código hace update/delete sobre esta tabla;
+// `prueba-libro-comisiones.js` lo vigila). Lo que cambia se corrige con un
+// asiento nuevo: si el cliente pidió la devolución del primer pago después de
+// que el bono ya se devengó (o se pagó), se asienta su REVERSIÓN con signo
+// contrario y el saldo baja; el asiento original sigue ahí (contrato 7.4).
+//
+// Saldo del promotor = Σ monto. Signo: + Notoria le debe más; − le debe menos.
+//   concepto ALTA / RESIDUAL → los asienta SOLO la sincronización
+//     (lib/libroComisiones.js) a partir de los Pagos reales: GENERADA (+),
+//     AJUSTADA (±, p. ej. reembolso parcial) o REVERSADA (−, hasta dejar el
+//     concepto en 0). Clave lógica: (promotor, visitaId, concepto, pagoId).
+//   concepto PAGO   → lo que se le transfirió (PAGADA, −), con la referencia.
+//   concepto AJUSTE → corrección manual del dueño con motivo (contracargo,
+//     atribución desconocida por 7.1.e…).
+model MovimientoComision {
+  id           String           @id @default(cuid())
+  promotor     String // alias de RUTA_COMERCIAL_ACCESO
+  visitaId     String?
+  visita       VisitaComercial? @relation(fields: [visitaId], references: [id])
+  concepto     String // ALTA | RESIDUAL | PAGO | AJUSTE
+  pagoId       String? // Pago del cliente que origina el asiento (ALTA: el primero)
+  tipo         String // GENERADA | AJUSTADA | REVERSADA | PAGADA
+  monto        Int // céntimos, con signo
+  politica     Int? // versión de las reglas con que se calculó (VisitaComercial.politicaComision)
+  fechaDevengo DateTime? // cuándo nació el derecho (contrato 7.3); el asiento es de `creadoEn`
+  motivo       String?
+  referencia   String? // n.º de operación / recibo por honorarios (PAGO)
+  autor        String // "sistema" o el alias de quien lo asentó
+  autorId      String?
+  creadoEn     DateTime         @default(now())
+
+  @@index([promotor, creadoEn])
+  @@index([visitaId])
+  @@map("movimientos_comision")
+}
+
+// Bitácora de la suscripción de cada cuenta: QUÉ cambió y CUÁNDO, escrita en la
+// misma transacción que el cambio. Responde «cancelé y me volvieron a cobrar»
+// con dos horas exactas (la de la cancelación y la del reclamo del cobro), sin
+// reconstruir nada a partir de los logs. Solo se inserta.
+//   tipo: ALTA | RENOVACION | LOCALES | CANCELACION | BAJADA_A_GRATIS | REEMBOLSO
+model EventoSuscripcion {
+  id        String   @id @default(cuid())
+  usuarioId String
+  tipo      String
+  detalle   Json?
+  creadoEn  DateTime @default(now())
+
+  @@index([usuarioId, creadoEn])
+  @@map("eventos_suscripcion")
 }

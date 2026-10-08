@@ -29,6 +29,13 @@ const webhookInbox = require('../lib/webhookInbox');
 const { programar } = require('../lib/candado');
 
 const MIN = 60 * 1000;
+
+// 🔴 Rotación (2026-10-07, encontrado por integracion-postgres.js §8): cada
+// pasada mira 20 intentos. Sin orden, Postgres devolvía SIEMPRE los mismos 20,
+// y con más de 20 atascados el resto no se revisaba nunca — un cobro real podía
+// quedar sin aplicar para siempre detrás de otros. Primero los que nunca se
+// miraron, después los que se miraron hace más tiempo.
+const ROTACION = [{ revisadoEn: { sort: 'asc', nulls: 'first' } }, { creadoEn: 'asc' }];
 const aviso = (asunto, lineas) => require('../utils/emails').enviarAvisoInterno({ asunto, lineas })
   .catch((e) => console.error('[Reconciliación] No se pudo avisar:', e.message));
 
@@ -74,6 +81,7 @@ const reconciliarCobros = async (ahora = Date.now()) => {
   // A) Cobrados y sin aplicar.
   const sinAplicar = await prisma.intentoCobro.findMany({
     where: { estado: 'EXITOSO', pagoId: null, culqiCargoId: { not: null }, creadoEn: { lt: new Date(ahora - 5 * MIN) } },
+    orderBy: ROTACION,
     take: 20,
   });
   for (const intento of sinAplicar) {
@@ -84,8 +92,10 @@ const reconciliarCobros = async (ahora = Date.now()) => {
     } catch (e) {
       pendientes += 1;
       console.error(`[Reconciliación] 🔴 No se pudo completar ${intento.id}: ${e.message}`);
+      // Se marca SIEMPRE (es lo que hace rotar la cola, ver ROTACION); el aviso
+      // sale solo la primera vez, cuando todavía no tenía marca.
+      await prisma.intentoCobro.update({ where: { id: intento.id }, data: { revisadoEn: new Date(), ultimoError: String(e.message).slice(0, 500) } }).catch(() => {});
       if (!intento.revisadoEn) {
-        await prisma.intentoCobro.update({ where: { id: intento.id }, data: { revisadoEn: new Date(), ultimoError: String(e.message).slice(0, 500) } }).catch(() => {});
         await aviso(`🔴 Cobro sin aplicar que la reconciliación no pudo completar`, [
           `Intento ${intento.id} · cargo ${intento.culqiCargoId} · ${intento.tipo} · ${(intento.monto / 100).toFixed(2)} ${intento.moneda}`,
           `Error: ${e.message}`, 'Se seguirá reintentando cada 30 min; si persiste, revisar a mano.',
@@ -102,6 +112,7 @@ const reconciliarCobros = async (ahora = Date.now()) => {
         { estado: 'PROCESANDO', creadoEn: { lt: new Date(ahora - 15 * MIN) } },
       ],
     },
+    orderBy: ROTACION,
     take: 20,
   });
   for (const intento of enDuda) {
@@ -135,6 +146,7 @@ const reconciliarCobros = async (ahora = Date.now()) => {
     } catch (e) {
       pendientes += 1;
       console.error(`[Reconciliación] No se pudo consultar Culqi para ${intento.id}: ${e.message}`);
+      await prisma.intentoCobro.update({ where: { id: intento.id }, data: { revisadoEn: new Date() } }).catch(() => {});
     }
   }
 

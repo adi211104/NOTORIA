@@ -5,6 +5,7 @@
 const cron = require('node-cron');
 const { programar } = require('../lib/candado');
 const cobros = require('../lib/cobros');
+const bitacora = require('../lib/bitacora');
 const prisma = require('../lib/prisma');
 const { obtenerResenasGoogle, buscarNegocioEnGoogle } = require('../scrapers/google.scraper');
 const { obtenerRatingFacebook, obtenerResenasFacebook } = require('../scrapers/facebook.scraper');
@@ -1671,9 +1672,12 @@ const iniciarRenovacionesCulqi = () => {
         if (seRinde) {
           // Recién acá se pierde el plan — y se baja `plan` de verdad, no solo
           // `suscripcionActiva`, que no bloqueaba nada por sí solo.
-          await prisma.usuario.update({
-            where: { id: usuario.id },
-            data: { plan: 'GRATIS', suscripcionActiva: false, tarjetaCulqiId: null, periodoFacturacion: null },
+          await prisma.$transaction(async (tx) => {
+            await tx.usuario.update({
+              where: { id: usuario.id },
+              data: { plan: 'GRATIS', suscripcionActiva: false, tarjetaCulqiId: null, periodoFacturacion: null },
+            });
+            await bitacora.registrar(tx, usuario.id, 'BAJADA_A_GRATIS', { plan: usuario.plan, motivo: `renovación rechazada ${intento} veces`, ultimoError: String(motivo).slice(0, 200) });
           });
           console.log(`[Culqi] ${usuario.email} agotó los ${MAX_INTENTOS_COBRO} intentos — pasa a GRATIS`);
         } else {
@@ -1682,7 +1686,10 @@ const iniciarRenovacionesCulqi = () => {
           // ciclo del cron lo vuelve a tomar por la misma consulta.
           const proximo = new Date();
           proximo.setDate(proximo.getDate() + DIAS_ENTRE_INTENTOS);
-          await prisma.usuario.update({ where: { id: usuario.id }, data: { fechaVencimiento: proximo } });
+          await prisma.$transaction(async (tx) => {
+            await tx.usuario.update({ where: { id: usuario.id }, data: { fechaVencimiento: proximo } });
+            await bitacora.registrar(tx, usuario.id, 'COBRO_RECHAZADO', { plan: usuario.plan, intento, de: MAX_INTENTOS_COBRO, proximo, ultimoError: String(motivo).slice(0, 200) });
+          });
           console.log(`[Culqi] Reintento ${intento}/${MAX_INTENTOS_COBRO} para ${usuario.email} el ${proximo.toISOString().slice(0, 10)}`);
         }
 
@@ -1725,9 +1732,12 @@ const iniciarBajadaDePlanes = () => {
         select: { id: true, email: true, plan: true },
       });
       for (const u of vencidos) {
-        await prisma.usuario.update({
-          where: { id: u.id },
-          data: { plan: 'GRATIS', tarjetaCulqiId: null, periodoFacturacion: null, fechaVencimiento: null },
+        await prisma.$transaction(async (tx) => {
+          await tx.usuario.update({
+            where: { id: u.id },
+            data: { plan: 'GRATIS', tarjetaCulqiId: null, periodoFacturacion: null, fechaVencimiento: null },
+          });
+          await bitacora.registrar(tx, u.id, 'BAJADA_A_GRATIS', { plan: u.plan, motivo: 'terminó el periodo pagado con la renovación apagada (cancelada o cuota devuelta)' });
         });
         console.log(`[Planes] ${u.email} terminó su periodo ${u.plan} — pasa a GRATIS`);
       }

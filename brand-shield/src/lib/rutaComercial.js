@@ -20,7 +20,8 @@
 // · Se gana: mensual, con el 2.º pago cobrado; anual, 15 días después del pago.
 // · Si el PRIMER pago se reembolsó, no hay comisión.
 // · Atribución: visita registrada antes del primer pago y primer pago dentro de
-//   los 60 días siguientes.
+//   los 60 días siguientes; no era cliente de pago en los 6 meses anteriores; si
+//   dos registros apuntan al mismo cliente, prevalece el más antiguo (7.1.d).
 
 const { PRECIOS } = require('./precios');
 
@@ -30,6 +31,7 @@ const DIAS_ESPERA_ANUAL = 15;
 const MESES_RESIDUAL = 12;
 const TASA_ALTA = 0.5;
 const TASA_RESIDUAL = 0.1;
+const MESES_CLIENTE_PREVIO = 6;
 const ESTADOS = ['visitado', 'interesado', 'volver', 'cuenta_gratis', 'cliente', 'no_interesado'];
 
 // ── Versión de las reglas (auditoría 2026-10-02, P1-17) ─────────────────────
@@ -40,7 +42,7 @@ const ESTADOS = ['visitado', 'interesado', 'volver', 'cuenta_gratis', 'cliente',
 // añade una versión nueva a POLITICAS y se sube POLITICA_VIGENTE. Las visitas
 // viejas siguen cobrando con la suya.
 const POLITICAS = {
-  1: { DIAS_ATRIBUCION, DIAS_ESPERA_ANUAL, MESES_RESIDUAL, TASA_ALTA, TASA_RESIDUAL },
+  1: { DIAS_ATRIBUCION, DIAS_ESPERA_ANUAL, MESES_RESIDUAL, TASA_ALTA, TASA_RESIDUAL, MESES_CLIENTE_PREVIO },
 };
 const POLITICA_VIGENTE = 1;
 const DIA = 864e5;
@@ -71,26 +73,43 @@ const sinIgv = (centimos) => centimos / IGV;
  * Comisión de UNA visita a partir de los pagos reales de la cuenta del cliente.
  * Todo en céntimos. `pagos` son las filas de `Pago` de esa cuenta (cualquier
  * orden); `localesExtra` es el de la cuenta hoy.
+ *
+ * Además de los totales devuelve `detalle`: lo DEVENGADO concepto por concepto
+ * (el bono de alta y el residual de cada pago, con la fecha en que se devengó).
+ * Es lo que el libro de comisiones (lib/libroComisiones.js) asienta.
  */
 function comisionDeVisita({ fechaVisita, pagos = [], localesExtra = 0, ahora = new Date(), politica = POLITICA_VIGENTE }) {
-  const vacio = { alta: 0, residual: 0, ganada: 0, porGanar: 0, plan: null, periodo: null, pagosCobrados: 0, politica };
+  const vacio = { alta: 0, residual: 0, ganada: 0, porGanar: 0, plan: null, periodo: null, pagosCobrados: 0, politica, detalle: [] };
   // Una versión que este código no conoce NO se calcula con la vigente: eso es
   // exactamente aplicarle reglas nuevas a una atribución vieja.
   const reglas = POLITICAS[politica];
   if (!reglas) return { ...vacio, estado: 'POLITICA_DESCONOCIDA' };
-  const { DIAS_ATRIBUCION, DIAS_ESPERA_ANUAL, MESES_RESIDUAL, TASA_ALTA, TASA_RESIDUAL } = reglas;
+  const { DIAS_ATRIBUCION, DIAS_ESPERA_ANUAL, MESES_RESIDUAL, TASA_ALTA, TASA_RESIDUAL, MESES_CLIENTE_PREVIO } = reglas;
   const validos = pagos
     .filter((p) => (p.estado === 'EXITOSO' || p.estado === 'REEMBOLSADO') && p.tipo !== 'PRUEBA')
     .sort((a, b) => new Date(a.creadoEn) - new Date(b.creadoEn));
   if (!validos.length) return { ...vacio, estado: 'SIN_PAGOS' };
 
-  const primero = validos[0];
-  const tPrimero = new Date(primero.creadoEn).getTime();
   const tVisita = new Date(fechaVisita).getTime();
+  // Contrato 7.1.d: no se atribuye a quien «era cliente de pago de Notoria en
+  // los seis meses anteriores». Un pago anterior a la visita lo hace cliente
+  // mientras dura lo que pagó (1 o 12 meses) y seis meses más. Un pago
+  // reembolsado entero no lo hacía cliente. (2026-10-07: antes CUALQUIER pago
+  // anterior, aunque fuera de hace años, bloqueaba la atribución para siempre,
+  // y el contrato dice otra cosa.)
+  const anteriores = validos.filter((p) => new Date(p.creadoEn).getTime() < tVisita);
+  const eraCliente = anteriores.some((p) => p.estado === 'EXITOSO'
+    && sumarMeses(sumarMeses(p.creadoEn, p.periodo === 'anual' ? 12 : 1), MESES_CLIENTE_PREVIO).getTime() > tVisita);
+  if (eraCliente) {
+    const ultimo = anteriores[anteriores.length - 1];
+    return { ...vacio, plan: ultimo.plan, periodo: ultimo.periodo, estado: 'YA_ERA_CLIENTE' };
+  }
+  const posteriores = validos.filter((p) => new Date(p.creadoEn).getTime() >= tVisita);
+  if (!posteriores.length) return { ...vacio, estado: 'SIN_PAGOS' };
+
+  const primero = posteriores[0];
+  const tPrimero = new Date(primero.creadoEn).getTime();
   const base = { ...vacio, plan: primero.plan, periodo: primero.periodo };
-  // El registro tiene que ser ANTERIOR al primer pago: si ya pagaba antes de la
-  // visita, era cliente de Notoria y no hay venta que atribuir.
-  if (tVisita > tPrimero) return { ...base, estado: 'YA_ERA_CLIENTE' };
   if (tPrimero - tVisita > DIAS_ATRIBUCION * DIA) return { ...base, estado: 'FUERA_DE_PLAZO' };
   if (primero.estado === 'REEMBOLSADO') return { ...base, estado: 'ANULADA' };
 
@@ -98,30 +117,85 @@ function comisionDeVisita({ fechaVisita, pagos = [], localesExtra = 0, ahora = n
   if (!precio) return { ...base, estado: 'PLAN_DESCONOCIDO' };
   const extras = precio.local ? Math.max(0, Math.floor(+localesExtra || 0)) : 0;
   const listaMensual = precio.mensual + extras * (precio.local ? precio.local.mensual : 0);
-  const alta = TASA_ALTA * sinIgv(listaMensual);
+  const r = (x) => Math.round(x);
+  const alta = r(TASA_ALTA * sinIgv(listaMensual));
 
   const fin = sumarMeses(primero.creadoEn, MESES_RESIDUAL).getTime();
-  const cobrados = validos.filter((p) => p.estado === 'EXITOSO' && new Date(p.creadoEn).getTime() < fin);
+  const enPlazo = posteriores.filter((p) => new Date(p.creadoEn).getTime() < fin);
+  const cobrados = enPlazo.filter((p) => p.estado === 'EXITOSO');
   const anual = primero.periodo === 'anual';
   const conResidual = anual ? cobrados : cobrados.filter((p) => p !== primero);
   // Sobre lo EFECTIVAMENTE cobrado (contrato 6.3 y 7.4): un reembolso parcial de
   // un pago posterior reduce su residual en la misma proporción (2026-10-05).
+  // Cada pago se redondea por separado: es un asiento propio en el libro, y el
+  // total tiene que ser la suma exacta de los asientos.
   const cobrado = (p) => Math.max(0, p.monto - (p.montoReembolsado || 0));
-  const residual = conResidual.reduce((s, p) => s + TASA_RESIDUAL * sinIgv(cobrado(p)), 0);
+  const residuales = conResidual.map((p) => ({ pago: p, monto: r(TASA_RESIDUAL * sinIgv(cobrado(p))) }));
+  const residual = residuales.reduce((s, x) => s + x.monto, 0);
 
-  const ganado = anual
-    ? new Date(ahora).getTime() - tPrimero >= DIAS_ESPERA_ANUAL * DIA
-    : cobrados.length >= 2;
-  const r = (x) => Math.round(x);
+  // Devengo (contrato 7.3). Mensual: el bono nace con el 2.º pago REALIZADO —
+  // si después se reembolsa ese 2.º pago se anula SU residual, no el bono
+  // (7.4) —, y cada residual nace cuando se cobra su pago. Anual: todo a los
+  // 15 días del pago anual, si no se reembolsó.
+  const tEspera = tPrimero + DIAS_ESPERA_ANUAL * DIA;
+  const segundo = enPlazo[1];
+  const ganado = anual ? new Date(ahora).getTime() >= tEspera : !!segundo;
+  const fechaDevengo = (p) => new Date(anual ? Math.max(tEspera, new Date(p.creadoEn).getTime()) : new Date(p.creadoEn).getTime());
+  const detalle = !ganado ? [] : [
+    { concepto: 'ALTA', pagoId: primero.id || null, monto: alta, fechaDevengo: anual ? new Date(tEspera) : new Date(segundo.creadoEn) },
+    ...residuales.map(({ pago: p, monto }) => ({ concepto: 'RESIDUAL', pagoId: p.id || null, monto, fechaDevengo: fechaDevengo(p) })),
+  ];
   return {
     ...base,
     pagosCobrados: cobrados.length,
-    alta: r(alta),
-    residual: r(residual),
-    ganada: ganado ? r(alta + residual) : 0,
-    porGanar: ganado ? 0 : r(alta + residual),
+    alta,
+    residual,
+    ganada: ganado ? alta + residual : 0,
+    porGanar: ganado ? 0 : alta + residual,
     estado: ganado ? 'GANADA' : (anual ? 'ESPERA_15_DIAS' : 'ESPERA_2DO_PAGO'),
+    detalle,
   };
+}
+
+/**
+ * Contrato 7.1.d: un cliente se atribuye UNA vez. Si dos registros (del mismo
+ * promotor o de dos distintos) apuntan a la misma cuenta, «prevalece el
+ * registro más antiguo»: no se atribuye una visita si otra visita NO anulada a
+ * esa misma cuenta es anterior y está dentro de los 60 días previos. Y aunque
+ * dos visitas lejanas salieran las dos atribuibles, solo cuenta la más antigua.
+ *
+ * `entradas`: [{ id, fechaVisita, anuladaEn, cuentaId, comision }]. Devuelve
+ * { [visitaId]: idDeLaVisitaQuePrevalece } solo para las visitas que PIERDEN.
+ */
+function resolverAtribucion(entradas = []) {
+  const perdedoras = {};
+  const porCuenta = {};
+  for (const e of entradas) if (e.cuentaId && !e.anuladaEn) (porCuenta[e.cuentaId] ||= []).push(e);
+  const atribuible = (e) => e.comision && ['GANADA', 'ESPERA_2DO_PAGO', 'ESPERA_15_DIAS'].includes(e.comision.estado);
+  for (const lista of Object.values(porCuenta)) {
+    lista.sort((a, b) => (new Date(a.fechaVisita) - new Date(b.fechaVisita)) || String(a.id).localeCompare(String(b.id)));
+    let ganadora = null;
+    lista.forEach((e, i) => {
+      const dias = (POLITICAS[e.comision?.politica] || POLITICAS[POLITICA_VIGENTE]).DIAS_ATRIBUCION;
+      const previa = lista.slice(0, i).find((o) => new Date(e.fechaVisita) - new Date(o.fechaVisita) <= dias * DIA);
+      if (previa) { perdedoras[e.id] = previa.id; return; }
+      if (!atribuible(e)) return;
+      if (ganadora) { perdedoras[e.id] = ganadora.id; return; }
+      ganadora = e;
+    });
+  }
+  return perdedoras;
+}
+
+/**
+ * Lo que el libro tiene que tener devengado para una visita, asiento por
+ * asiento (promotor + concepto + pago). Una visita anulada o que perdió la
+ * atribución no tiene nada devengado: si el libro ya tenía algo, la
+ * sincronización asienta la reversión (nunca borra lo asentado).
+ */
+function objetivosDeVisita(visita, comision, { perdedora = false } = {}) {
+  if (visita.anuladaEn || perdedora || !comision?.detalle?.length) return [];
+  return comision.detalle.map((d) => ({ ...d, promotor: visita.promotor, visitaId: visita.id, politica: comision.politica }));
 }
 
 const primerPago = (cuenta) => {
@@ -155,5 +229,5 @@ function estadoEfectivo(estado, { cuentaEncontrada, comision }) {
 }
 
 module.exports = {
-  ESTADOS, DIAS_ATRIBUCION, POLITICAS, POLITICA_VIGENTE, tablaAcceso, accesoDe, comisionDeVisita, elegirCuenta, estadoEfectivo,
+  ESTADOS, DIAS_ATRIBUCION, POLITICAS, POLITICA_VIGENTE, tablaAcceso, accesoDe, comisionDeVisita, elegirCuenta, estadoEfectivo, resolverAtribucion, objetivosDeVisita, DIA,
 };

@@ -296,6 +296,11 @@ export const rutaApi = {
   actualizar: (id, datos) => api(`/api/ruta/visitas/${id}`, { method: 'PUT', body: JSON.stringify(datos) }),
   // Una visita no se borra: se ANULA con motivo (auditoría 2026-10-02, P1-14).
   anular:     (id, motivo) => api(`/api/ruta/visitas/${id}/anular`, { method: 'POST', body: JSON.stringify({ motivo }) }),
+  // Libro de comisiones (2026-10-07): asientos, liquidación del mes, pagos y ajustes del dueño.
+  libro:       (promotor) => api(`/api/ruta/libro${promotor ? `?promotor=${encodeURIComponent(promotor)}` : ''}`),
+  liquidacion: (mes, promotor) => api(`/api/ruta/liquidacion?mes=${mes}${promotor ? `&promotor=${encodeURIComponent(promotor)}` : ''}`),
+  pagar:       (datos) => api('/api/ruta/pagos-promotor', { method: 'POST', body: JSON.stringify(datos) }),
+  ajustar:     (datos) => api('/api/ruta/ajustes', { method: 'POST', body: JSON.stringify(datos) }),
 };
 
 export default api;

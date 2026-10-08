@@ -30,6 +30,7 @@ const webhookInbox = require('../../lib/webhookInbox');
 const { ORDEN } = require('../../lib/planes');
 const { planEfectivo } = require('../../lib/suscripcion');
 const { enviarAvisoInterno } = require('../../utils/emails');
+const bitacora = require('../../lib/bitacora');
 
 // 🔴 Ya no existe `registrarPago()`, que se tragaba su propio error y devolvía
 // null: si la base fallaba después de cobrar, el cliente quedaba cobrado y sin
@@ -268,6 +269,7 @@ const procesarReembolso = async (datos) => {
         data: { suscripcionActiva: false, fechaVencimiento: new Date() },
       });
     }
+    await bitacora.registrar(tx, pago.usuarioId, 'REEMBOLSO', { pago: pago.id, cargo: cargoId, tipoPago: pago.tipo, devuelto, acumulado, total, efecto });
     return { total, efecto };
   });
   if (!r) {
@@ -849,6 +851,7 @@ router.post('/locales', async (req, res) => {
         usuarioId: usuario.id,
         vigente: cobros.fotoVigente(usuario, FOTO_COBRO),
         cambio: (tx) => tx.usuario.update({ where: { id: usuario.id }, data: { localesExtra: nuevo } }),
+        evento: { tipo: 'LOCALES', detalle: { de: usuario.localesExtra || 0, a: nuevo, cobrado: 0 } },
       });
       return res.json({
         mensaje: cuenta.delta > 0
@@ -965,11 +968,16 @@ router.post('/cancelar', async (req, res, next) => {
     // Con el candado de cobros de la cuenta (lib/cobros.js): una renovación que
     // todavía no se reclamó ya no puede cobrar (relee suscripcionActiva con el
     // mismo candado); una ya reclamada sigue, porque se autorizó antes.
-    await cobros.conCuenta(usuario.id, (tx) => tx.usuario.update({
-      where: { id: usuario.id },
-      // `plan` NO se toca: el cliente pagó hasta `activoHasta` y hasta ahí lo usa.
-      data: { suscripcionActiva: false, fechaVencimiento: activoHasta },
-    }));
+    await cobros.conCuenta(usuario.id, async (tx) => {
+      await tx.usuario.update({
+        where: { id: usuario.id },
+        // `plan` NO se toca: el cliente pagó hasta `activoHasta` y hasta ahí lo usa.
+        data: { suscripcionActiva: false, fechaVencimiento: activoHasta },
+      });
+      // La hora exacta de la cancelación, con el mismo candado que los cobros
+      // (lib/bitacora.js): es la prueba ante «cancelé y me volvieron a cobrar».
+      await bitacora.registrar(tx, usuario.id, 'CANCELACION', { plan: usuario.plan, activoHasta });
+    });
 
     setImmediate(() => {
       enviarCancelacion(usuario, activoHasta)

@@ -122,6 +122,7 @@ const borrarCuenta = async (usuarioId, db = prisma) => {
       // Sin pagos, los intentos de cobro (fallidos) y las huellas de promo son
       // solo rastro de la persona: se van con ella.
       await tx.intentoCobro.deleteMany({ where: { usuarioId } });
+      await tx.eventoSuscripcion.deleteMany({ where: { usuarioId } });
       await tx.promoTarjeta.deleteMany({ where: { usuarioId } });
       await tx.usuario.delete({ where: { id: usuarioId } });
       return 'BORRADA';

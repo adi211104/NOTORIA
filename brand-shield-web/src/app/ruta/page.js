@@ -6,8 +6,9 @@
 // único obligatorio es el nombre, «cómo terminó» es un toque, y el correo del
 // cliente solo aparece cuando hace falta. La comisión NO se escribe acá: la
 // calcula el backend con los pagos reales de la cuenta cuyo correo se anotó
-// (lib/rutaComercial.js), así no hay nada que el dueño tenga que llevar a mano
-// salvo lo que ya le pagó al promotor.
+// (lib/rutaComercial.js) y lo devengado se asienta en el libro de comisiones
+// (lib/libroComisiones.js): el dueño solo asienta lo que le transfiere al
+// promotor, desde la pestaña Comisiones.
 //
 // Solo en español a propósito: es una herramienta interna de una persona.
 
@@ -15,6 +16,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { rutaApi, utils } from '../../lib/api';
+import LibroComisiones from './LibroComisiones';
 
 const ESTADOS = [
   ['visitado', 'Solo visité'], ['interesado', 'Interesado'], ['volver', 'Volver otro día'],
@@ -25,9 +27,9 @@ const PLAN = { IMPULSO: 'Impulso', NEGOCIO: 'Negocio', FRANQUICIA: 'Franquicia' 
 const COMISION = {
   GANADA: 'Ganada', ESPERA_2DO_PAGO: 'Espera el 2.º pago', ESPERA_15_DIAS: 'Espera 15 días',
   ANULADA: 'Anulada (reembolso)', YA_ERA_CLIENTE: 'Ya era cliente', FUERA_DE_PLAZO: 'Pagó después de 60 días',
-  SIN_PAGOS: 'Aún no paga', PLAN_DESCONOCIDO: 'Plan sin tarifa',
+  SIN_PAGOS: 'Aún no paga', PLAN_DESCONOCIDO: 'Plan sin tarifa', REGISTRO_PREVIO: 'Otro registro anterior prevalece',
 };
-const soles = (c) => 'S/' + ((c || 0) / 100).toFixed(2);
+const soles = (c) => (c < 0 ? '−' : '') + 'S/' + (Math.abs(c || 0) / 100).toFixed(2);
 const fecha = (f) => (f ? new Date(f).toLocaleDateString('es-PE', { day: 'numeric', month: 'short' }) : '—');
 const colorEstado = (e) => ({
   cliente: ['var(--accent-t)', 'var(--accent)'], no_interesado: ['rgba(220,60,50,.12)', '#C0392B'],
@@ -35,7 +37,7 @@ const colorEstado = (e) => ({
   volver: ['rgba(200,140,20,.14)', '#B7791F'],
 }[e] || ['var(--surface2)', 'var(--text-2)']);
 
-const VACIO = { nombre: '', distrito: '', contacto: '', notas: '', estado: 'visitado', correo: '', placeId: '', direccion: '', comisionPagada: '' };
+const VACIO = { nombre: '', distrito: '', contacto: '', notas: '', estado: 'visitado', correo: '', placeId: '', direccion: '', promotor: '' };
 // Lo que se muestra: el backend lo corrige con los pagos reales (si pagó, «Pagó»),
 // así el promotor no tiene que volver a cambiar el estado a mano.
 const estadoDe = (v) => v.estadoAuto || v.estado;
@@ -97,18 +99,22 @@ export default function RutaComercial() {
   const visitas = datos?.visitas || [];
   const dueno = !!datos?.yo?.dueno;
   const tot = visitas.reduce((t, v) => {
-    t.ganada += v.comision.ganada; t.porGanar += v.comision.porGanar; t.pagada += v.comisionPagada || 0;
-    if (v.comision.pagosCobrados > 0 && !['YA_ERA_CLIENTE', 'FUERA_DE_PLAZO', 'ANULADA'].includes(v.comision.estado)) t.clientes += 1;
+    t.porGanar += v.comision.porGanar;
+    if (v.comision.pagosCobrados > 0 && !['YA_ERA_CLIENTE', 'FUERA_DE_PLAZO', 'ANULADA', 'REGISTRO_PREVIO'].includes(v.comision.estado)) t.clientes += 1;
     return t;
-  }, { ganada: 0, porGanar: 0, pagada: 0, clientes: 0 });
+  }, { porGanar: 0, clientes: 0 });
+  // Devengado, pagado y saldo salen del LIBRO, no de sumar en el navegador.
+  const libroTot = Object.values(datos?.saldos || {}).reduce((t, x) => ({
+    devengado: t.devengado + x.devengado, pagado: t.pagado + x.pagado, saldo: t.saldo + x.saldo,
+  }), { devengado: 0, pagado: 0, saldo: 0 });
   const conCuenta = (e) => visitas.filter((v) => estadoDe(v) === e).length;
   const visibles = visitas.filter((v) => filtro === 'todos' || estadoDe(v) === filtro);
-  const conComision = visitas.filter((v) => v.comision.pagosCobrados > 0 || v.comisionPagada > 0);
+  const conComision = visitas.filter((v) => v.comision.pagosCobrados > 0 || v.devengadoLibro);
 
   const abrir = (v) => {
     setConfirmarBorrar(false); setError(''); setBusqueda({ q: '', resultados: null, cargando: false, error: '' });
     setForm(v ? { id: v.id, nombre: v.nombre, distrito: v.distrito || '', contacto: v.contacto || '', notas: v.notas || '',
-      estado: estadoDe(v), correo: v.correo || '', placeId: v.placeId || '', direccion: v.direccion || '', comisionPagada: v.comisionPagada ? (v.comisionPagada / 100).toFixed(2) : '' } : { ...VACIO });
+      estado: estadoDe(v), correo: v.correo || '', placeId: v.placeId || '', direccion: v.direccion || '', promotor: v.promotor } : { ...VACIO });
   };
   const cambiar = (campo) => (e) => setForm((f) => ({ ...f, [campo]: e.target.value }));
   const buscarEnMaps = async (e) => {
@@ -131,7 +137,7 @@ export default function RutaComercial() {
     if (form.estado === 'cliente' && !form.correo.trim() && !form.placeId) { setError('Busca el local en Google Maps o anota el correo de su cuenta en Notoria: así se comprueba que la venta es tuya.'); return; }
     const cuerpo = { nombre: form.nombre, distrito: form.distrito, contacto: form.contacto, notas: form.notas, estado: form.estado, correo: form.correo,
       placeId: form.placeId, direccion: form.direccion };
-    if (dueno && form.id && form.comisionPagada !== '') cuerpo.comisionPagada = Math.round(parseFloat(String(form.comisionPagada).replace(',', '.')) * 100) || 0;
+    if (dueno && form.id && form.promotor) cuerpo.promotor = form.promotor;
     setGuardando(true); setError('');
     try {
       if (form.id) await rutaApi.actualizar(form.id, cuerpo); else await rutaApi.crear(cuerpo);
@@ -148,8 +154,8 @@ export default function RutaComercial() {
   };
 
   const copiarResumen = async () => {
-    const lineas = conComision.map((v) => `• ${v.nombre}${v.comision.plan ? ` (${PLAN[v.comision.plan] || v.comision.plan} ${v.comision.periodo})` : ''}: ganada ${soles(v.comision.ganada)}, pagada ${soles(v.comisionPagada)} — ${COMISION[v.comision.estado] || v.comision.estado}`);
-    const texto = `Comisiones Notoria — ${datos.yo.alias} al ${new Date().toLocaleDateString('es-PE')}\n${lineas.join('\n') || 'Sin clientes aún.'}\n\nGanada: ${soles(tot.ganada)}\nPagada: ${soles(tot.pagada)}\nSaldo por pagar: ${soles(tot.ganada - tot.pagada)}`;
+    const lineas = conComision.map((v) => `• ${v.nombre}${v.comision.plan ? ` (${PLAN[v.comision.plan] || v.comision.plan} ${v.comision.periodo})` : ''}: devengada ${soles(v.devengadoLibro)}${v.comision.porGanar ? `, por ganar ${soles(v.comision.porGanar)}` : ''} — ${COMISION[v.comision.estado] || v.comision.estado}`);
+    const texto = `Comisiones Notoria — ${datos.yo.alias} al ${new Date().toLocaleDateString('es-PE')}\n${lineas.join('\n') || 'Sin clientes aún.'}\n\nDevengada: ${soles(libroTot.devengado)}\nPagada: ${soles(libroTot.pagado)}\nSaldo por pagar: ${soles(libroTot.saldo)}`;
     try { await navigator.clipboard.writeText(texto); setCopiado('Copiado. Pégalo en WhatsApp.'); }
     catch { setCopiado(texto); }
   };
@@ -168,7 +174,7 @@ export default function RutaComercial() {
         {error && !form && <div style={{ ...s.tarjeta, color: '#C0392B', marginBottom: 12 }}>{error} <button style={s.boton} onClick={cargar}>Reintentar</button></div>}
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))', gap: 10, marginBottom: 16 }}>
-          {[['Visitados', visitas.length], ['Pagaron', tot.clientes], ['Comisión ganada', soles(tot.ganada), true], ['Por ganar', soles(tot.porGanar)], ['Saldo por pagar', soles(tot.ganada - tot.pagada), true]].map(([t, v, verde]) => (
+          {[['Visitados', visitas.length], ['Pagaron', tot.clientes], ['Comisión devengada', soles(libroTot.devengado), true], ['Por ganar', soles(tot.porGanar)], ['Pagado', soles(libroTot.pagado)], ['Saldo por pagar', soles(libroTot.saldo), true]].map(([t, v, verde]) => (
             <div key={t} style={s.tarjeta}>
               <div style={{ fontSize: 11.5, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: 0.6 }}>{t}</div>
               <div style={{ fontFamily: 'Georgia, serif', fontSize: 23, fontWeight: 700, color: verde ? 'var(--accent)' : 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{v}</div>
@@ -195,7 +201,7 @@ export default function RutaComercial() {
               const [fondo, tinta] = colorEstado(estadoDe(v));
               const c = v.comision;
               const venta = c.pagosCobrados > 0
-                ? `${PLAN[c.plan] || c.plan} ${c.periodo} · ${COMISION[c.estado] || c.estado} · ${soles(c.ganada || c.porGanar)}`
+                ? `${PLAN[c.plan] || c.plan} ${c.periodo} · ${COMISION[c.estado] || c.estado} · ${soles(v.devengadoLibro || c.porGanar)}`
                 : v.cuentaEncontrada ? `Cuenta creada · aún no paga${v.vinculo === 'maps' ? ' · vinculada por Maps' : ''}`
                   : v.correo ? 'Aún no hay cuenta con ese correo' : v.placeId ? 'Aún no hay cuenta con este local' : '';
               return (
@@ -226,7 +232,7 @@ export default function RutaComercial() {
           {copiado && !copiado.startsWith('Copiado') && <textarea readOnly value={copiado} style={{ ...s.input, minHeight: 140, marginBottom: 10 }} onFocus={(e) => e.target.select()} />}
           <div style={{ overflowX: 'auto', ...s.tarjeta, padding: 0 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 560 }}>
-              <thead><tr>{['Cliente', 'Plan', 'Pagos', 'Estado', 'Ganada', 'Pagada', 'Saldo'].map((h, i) => (
+              <thead><tr>{['Cliente', 'Plan', 'Pagos', 'Estado', 'Devengada', 'Por ganar'].map((h, i) => (
                 <th key={h} style={{ textAlign: i > 3 ? 'right' : 'left', padding: '9px 10px', fontSize: 11.5, color: 'var(--text-3)', textTransform: 'uppercase', borderBottom: '1px solid var(--border-c)' }}>{h}</th>))}</tr></thead>
               <tbody>
                 {conComision.length ? conComision.map((v) => (
@@ -235,19 +241,21 @@ export default function RutaComercial() {
                     <td style={{ padding: '9px 10px', borderBottom: '1px solid var(--border-c)' }}>{PLAN[v.comision.plan] || '—'} {v.comision.periodo || ''}</td>
                     <td style={{ padding: '9px 10px', borderBottom: '1px solid var(--border-c)' }}>{v.comision.pagosCobrados}</td>
                     <td style={{ padding: '9px 10px', borderBottom: '1px solid var(--border-c)' }}>{COMISION[v.comision.estado] || v.comision.estado}</td>
-                    {[v.comision.ganada, v.comisionPagada, v.comision.ganada - v.comisionPagada].map((n, i) => (
-                      <td key={i} style={{ padding: '9px 10px', borderBottom: '1px solid var(--border-c)', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: i === 2 ? 700 : 400 }}>{soles(n)}</td>))}
+                    {[v.devengadoLibro, v.comision.porGanar].map((n, i) => (
+                      <td key={i} style={{ padding: '9px 10px', borderBottom: '1px solid var(--border-c)', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: i === 0 ? 700 : 400 }}>{soles(n)}</td>))}
                   </tr>
-                )) : <tr><td colSpan={7} style={{ padding: 12, color: 'var(--text-2)' }}>Todavía no hay clientes que hayan pagado.</td></tr>}
+                )) : <tr><td colSpan={6} style={{ padding: 12, color: 'var(--text-2)' }}>Todavía no hay clientes que hayan pagado.</td></tr>}
               </tbody>
             </table>
           </div>
           <ul style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.6, paddingLeft: 18 }}>
             <li><b>Bono de alta:</b> 50% del primer mes a precio de lista sin IGV (Impulso S/12.29 · Negocio S/25.00 · Franquicia S/75.85, más si suma locales).</li>
             <li><b>Residual:</b> 10% sin IGV de cada pago durante 12 meses (en mensual desde el 2.º pago; en anual, el pago anual).</li>
-            <li><b>Se gana:</b> mensual, con el 2.º pago; anual, 15 días después. Si el primer pago se reembolsa, no hay comisión.</li>
-            <li>Se calcula sola con los pagos reales del cliente. Manda el contrato firmado.</li>
+            <li><b>Se gana:</b> mensual, con el 2.º pago; anual, 15 días después. Si el primer pago se reembolsa, no hay comisión (y si ya se había pagado, se descuenta de la siguiente liquidación).</li>
+            <li><b>Mismo cliente registrado dos veces</b> (por ti o por otro promotor): cuenta el registro más antiguo.</li>
+            <li>Se calcula sola con los pagos reales del cliente y queda asentada en el libro de abajo, que no se edita ni se borra. Manda el contrato firmado.</li>
           </ul>
+          <LibroComisiones dueno={dueno} alias={datos.yo.alias} promotores={datos.promotores || []} s={s} alCambiar={cargar} />
         </>}
 
         {tab === 'ayuda' && <div style={{ ...s.tarjeta, fontSize: 14, lineHeight: 1.6 }}>
@@ -307,8 +315,11 @@ export default function RutaComercial() {
               )}
               <label style={s.etiqueta}>Nota (opcional)<textarea style={{ ...s.input, minHeight: 64 }} value={form.notas} onChange={cambiar('notas')} placeholder="Qué le interesó, cuándo volver…" /></label>
               {dueno && form.id && (
-                <label style={s.etiqueta}>Comisión ya pagada al promotor por este cliente (S/)
-                  <input style={s.input} inputMode="decimal" value={form.comisionPagada} onChange={cambiar('comisionPagada')} placeholder="0.00" />
+                <label style={s.etiqueta}>Promotor de esta visita
+                  <select style={s.input} value={form.promotor} onChange={cambiar('promotor')}>
+                    {(datos.promotores || []).map((p) => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                  <span style={{ fontWeight: 400, color: 'var(--text-3)' }}>Reasignarla queda en el historial y mueve su comisión en el libro (se revierte al anterior).</span>
                 </label>
               )}
             </div>

@@ -136,6 +136,7 @@ Module.prototype.require = function (id) {
   const dbCobros = {
     $transaction: (fn) => { const r = colaCobros.then(() => fn(dbCobros)); colaCobros = r.catch(() => {}); return r; },
     $executeRaw: async () => 0,
+    eventoSuscripcion: { create: async ({ data }) => { (globalThis.eventosSuscripcion ||= []).push(data); return data; } }, // lib/bitacora.js
     intentoCobro: {
       create: async ({ data }) => {
         // En Postgres, un P2002 dentro de la transacción la aborta: el código
@@ -232,6 +233,7 @@ Module.prototype.require = function (id) {
   const intentoX = { id: 'ix', estado: 'EXITOSO', pagoId: null, usuarioId: 'u1', tipo: 'RENOVACION', plan: 'NEGOCIO', periodo: 'mensual', monto: 5900, moneda: 'PEN', detalle: { fechaVencimiento: '2026-11-01T00:00:00Z' } };
   const dbAplicar = {
     $transaction: async (fn) => fn(dbAplicar),
+    eventoSuscripcion: { create: async ({ data }) => { (globalThis.eventosSuscripcion ||= []).push(data); return data; } }, // lib/bitacora.js
     intentoCobro: {
       updateMany: async ({ where }) => ({ count: where.pagoId === null && !intentoX.pagoId ? 1 : 0 }),
       update: async ({ data }) => Object.assign(intentoX, data),
@@ -312,6 +314,7 @@ Module.prototype.require = function (id) {
   const estadoR = { intentos: [], pagos: [], promoBorrada: false, cuentaLiberada: false, comprobantes: 0 };
   const prismaR = {
     $transaction: async (fn) => fn(prismaR),
+    eventoSuscripcion: { create: async ({ data }) => { (globalThis.eventosSuscripcion ||= []).push(data); return data; } }, // lib/bitacora.js
     intentoCobro: {
       findMany: async ({ where }) => estadoR.intentos.filter((i) => (where.OR
         ? where.OR.some((o) => i.estado === o.estado && i.creadoEn < o.creadoEn.lt)
@@ -388,7 +391,7 @@ Module.prototype.require = function (id) {
   check('un secreto opcional ausente se reporta con su efecto', conf.revisar({ DATABASE_URL: 'x', JWT_SECRET: 'y' }).avisos.some((a) => a.variable === 'CULQI_WEBHOOK_SECRET' && /rechaza/.test(a.efecto)));
   const indexJs = sinComentarios(leer('src/index.js'));
   check('index.js comprueba la configuración al arrancar', /configProduccion\.comprobarAlArrancar\(\)/.test(indexJs));
-  check('🔴 un 5xx NO devuelve err.message al cliente (P1-08)', /if \(status >= 500\) \{\s*return res\.status\(status\)\.json\(\{ error: 'Error interno del servidor', requestId: req\.id \}\)/.test(indexJs));
+  check('🔴 un 5xx NO devuelve err.message al cliente (P1-08)', /if \(status >= 500\) \{[^}]*?return res\.status\(status\)\.json\(\{ error: 'Error interno del servidor', requestId: req\.id \}\)/.test(indexJs));
   check('cada petición lleva X-Request-Id (P2-09)', /res\.setHeader\('X-Request-Id', req\.id\)/.test(indexJs));
 
   // ── 8. Auto-respuesta: nunca a temas sensibles (P1-04) ───────────────────

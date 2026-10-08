@@ -163,6 +163,8 @@ Railway no es un respaldo.
 ```bash
 cd brand-shield     && railway up --service api --detach   # → https://api.usenotoria.app
 cd brand-shield-web && vercel --prod --yes                 # → https://usenotoria.app
+bash brand-shield/scripts/desplegar-web.sh                 # ← PREFERIDO desde 2026-10-08: build sin dominio →
+                                                           #   smoke contra ESE build → recién entonces promote
 ```
 Git: `main`, remoto `https://github.com/adi211104/NOTORIA`. **Commitear y pushear al cerrar cada
 bloque**; `git push` NO despliega (Railway no está conectado al repo). El agente despliega sin
@@ -269,8 +271,10 @@ Cloudflare («DNS only»), dominio verificado en Resend (`sa-east-1`), Search Co
 (`public/googlebab20eafdad21f30.html` — **no borrarlo**). Web Analytics y Speed Insights encendidos.
 
 **Monitor de uptime:** `monitor-uptime/` — Cloudflare Worker cada 5 min en
-`https://notoria-monitor.usenotoria.workers.dev`, tres sondas (`/health`, landing con contenido,
-`/health/monitoreo`), estado en KV `f3322663a76044289ca708e150c7fe8e` como **conjunto de sondas
+`https://notoria-monitor.usenotoria.workers.dev`, cuatro sondas (`/health`, landing con contenido,
+`/health/monitoreo` y, desde 2026-10-08, **`/health/operacion`** = «Cobros»: cobros en duda o sin aplicar,
+webhooks atascados/fallidos, cron críticos detenidos por `candados_job.tomadoEn`, ≥10 errores 5xx en 15 min —
+`lib/saludOperacion.js`, solo conteos), estado en KV `f3322663a76044289ca708e150c7fe8e` como **conjunto de sondas
 caídas** (avisa lo NUEVO y la recuperación, una vez). Correo a `didier@`. Reintenta antes de declarar
 caída. KV es eventualmente consistente: creer al comportamiento, no a una lectura externa inmediata.
 `.github/workflows/uptime.yml` es secundario (GitHub entrega su cron con horas de hueco): solo falla
@@ -282,7 +286,10 @@ bloquea `npm.ps1`).
 remitente ve `delivered`). Reglas, todas → `didierprincipe@gmail.com` (alias de la misma cuenta que
 `usenotoria@gmail.com`): `hola@`, `revisormeta@`, `didier@`, `agencia@`, `promotor@`. **Al crear
 cualquier dirección nueva del dominio, crear su regla en el mismo momento y probarla con marca
-única.** (`didier@` y `agencia@` estuvieron días perdiendo correo sin que nadie lo notara.)
+única.** (`didier@` y `agencia@` estuvieron días perdiendo correo sin que nadie lo notara; y
+**`privacidad@`**, publicada en /privacidad y /eliminar-datos para los derechos ARCO, nunca tuvo regla —
+desde 2026-10-08 esas páginas dicen `hola@` con asunto «Privacidad», y `smoke-produccion.js` prohíbe
+`privacidad@` en lo público.)
 ⚠️ Gmail **limita** lo que Cloudflare le reenvía (`421 4.7.28`): un correo a estas direcciones puede
 llegar tarde.
 
@@ -367,6 +374,15 @@ comparten transacción, y antes un fallo de base tras cobrar dejaba al cliente c
   (cancelar, bajar locales: `cambiarSinCobro`) toma el mismo candado. La existencia de la clave se
   pregunta ANTES de crear: en Postgres un P2002 dentro de la transacción la aborta. `aplicar()` exige
   un intento EXITOSO. **Toda operación de pago nueva sigue esta regla.**
+- **Bitácora de la suscripción** (`eventos_suscripcion`, `lib/bitacora.js`, 2026-10-08): ALTA / RENOVACION /
+  LOCALES / CANCELACION / COBRO_RECHAZADO / BAJADA_A_GRATIS / REEMBOLSO, escritos en la MISMA transacción que
+  el cambio (`cobros.aplicar`, `cambiarSinCobro({ evento })`, cancelar, webhook, cron). Sin datos personales.
+  La hora del reclamo de un cobro es `intentos_cobro.creadoEn`. Diagnóstico de un caso:
+  **`node scripts/caso-cliente.js <correo> [--culqi]`** + **`docs/runbook-cobros.md`**.
+- Un intento que queda **DESCONOCIDO avisa a contabilidad en el acto** (`cobros.cobrar`).
+- 🔴 La reconciliación toma 20 por pasada **rotando** (`orderBy revisadoEn asc nulls first`, y marca
+  `revisadoEn` siempre): antes devolvía siempre los mismos 20 y con más atascados el resto no se revisaba
+  nunca (lo encontró `integracion-postgres.js` §8, rojo contra el código viejo).
 - El campo de la tarjeta guardada es **`Usuario.tarjetaCulqiId`** (`@map("suscripcionId")`: la
   columna conserva el nombre viejo, que mentía).
 
@@ -818,7 +834,20 @@ su rama; `moderacionRemota` por fuente; `guardarComentarioSocial()` compartido p
   **`politicaComision`** y el cálculo usa ESA versión (`POLITICAS`; al cambiar reglas se añade
   versión, no se editan las constantes). Desde 2026-10-05 el residual se calcula sobre lo
   **efectivamente cobrado** (`monto − montoReembolsado`): un reembolso parcial lo reduce en proporción
-  (contrato 7.4). `prueba-ruta-comercial.js` — 59.
+  (contrato 7.4). `prueba-ruta-comercial.js` — 97.
+  - 🔴 **Libro de comisiones** (2026-10-08, `movimientos_comision`, `lib/libroComisiones.js`): lo devengado se
+    ASIENTA y nunca se edita ni se borra (la suite barre `src/` y `scripts/` buscando update/delete).
+    `sincronizar()` (cron :20 + antes de cada lectura de /ruta, con `pg_advisory_xact_lock`) asienta la
+    DIFERENCIA por (promotor, visita, concepto, pago): GENERADA / AJUSTADA / REVERSADA con motivo. Pagos al
+    promotor = asiento PAGO (−) con referencia (`POST /api/ruta/pagos-promotor`, rechaza más que el saldo);
+    ajustes del dueño con motivo (`POST /api/ruta/ajustes`); liquidación del mes de Lima por `creadoEn`
+    (`GET /api/ruta/liquidacion?mes=`). Saldo = Σ monto (puede quedar negativo: se descuenta, 7.4).
+    `VisitaComercial.comisionPagada` quedó OBSOLETA (nadie la escribe).
+  - Reglas del contrato que el cálculo no cumplía y ahora sí: **7.1.d** prevalece el registro más antiguo del
+    mismo cliente (`resolverAtribucion`; re-registrar dentro de 60 días no renueva el plazo) y un cliente que
+    dejó de pagar hace >6 meses SÍ se atribuye; **7.3/7.4** el bono se devenga con el 2.º pago REALIZADO y no
+    se pierde si ese 2.º pago se devuelve (solo su residual). El dueño puede **reasignar** el promotor de una
+    visita (queda en `cambios_visita`; el libro revierte al anterior).
 - **Documentos del promotor** en `docs/promotor/`: `Manual-Notoria` v1.2 y `Contrato-Promotor-Notoria`
   (.docx editable + .pdf), actualizados el 2026-10-05 con el estado automático, las visitas que se
   anulan, el historial, la política de comisión fijada por visita, el reembolso parcial, la política
@@ -971,12 +1000,18 @@ usan las libs desde dentro) y modelar `$transaction`, `intentoCobro`, `eventoWeb
 | `prueba-planes.js` (124) | Tabla de capacidades, listas a mano en `src/` y `scripts/`, landing, guiones |
 | `prueba-ruta-comercial.js` (59) | Acceso, comisión, Maps, anular, historial, política |
 | `prueba-prefs-correo.js` (96) · `prueba-dormancia.js` (90) · `prueba-temas.js` (96) · `prueba-cartel.js` (100) · `prueba-panel.js` (83) · `prueba-parte-equipo.js` (66) · `prueba-expediente.js` (66) · `prueba-correos-idioma.js` (54) · `prueba-cableado.js` (52) · `prueba-gbp-visible.js` (53) · `prueba-equipo.js` (48) · `prueba-salud-places.js` (42) · `prueba-facebook.js` (40) · `prueba-alertas-resena.js` (35) · `prueba-costo-places.js` (31) · `prueba-verificacion.js` (31) · `prueba-anulacion-pendiente.js` (31) · `prueba-progreso.js` (28) · `prueba-escape-emails.js` · `prueba-negocio-publico.js` · `prueba-comprobantes.js` · `prueba-emisor.js` · SUNAT (`prueba-xml-firma`, `prueba-cola-envio`, `prueba-resumen-cola`) · Instagram, TikTok, drip, publico | Ver la cabecera de cada archivo |
-| `monitor-uptime/prueba-monitor.mjs` (27) | Máquina de estados del monitor |
+| `monitor-uptime/prueba-monitor.mjs` (31) | Máquina de estados del monitor (4 sondas) |
+| `prueba-salud-operacion.js` (17) · `prueba-respaldo.js` (7) | /health/operacion; respaldo completo y en orden de FK contra el schema |
+| **`integracion-postgres.js`** (bloques 7-9, 2026-10-08) | + doble compra de plan por HTTP (GRATIS→Negocio/Franquicia y dos upgrades a la vez), muerte del proceso (promo huérfana, PROCESANDO cobrado/no cobrado, cobrado sin aplicar con dos reconciliaciones, Culqi cobra y no contesta), rotación de la reconciliación, libro de comisiones con carreras y reversión |
+| **`e2e-venta.js`** (32) | Venta de punta a punta con la API levantada, Postgres local y el **sandbox real de Culqi**: visita → registro → pago con promo → renovación por el cron → bono devengado → upgrade → pago al promotor → reembolso real + webhook → reversión → bajada → misma tarjeta sin promo → cancelar y que la renovación no cobre. `E2E_DATABASE_URL=… node scripts/e2e-venta.js`. En CI corre solo si existen los secretos `CULQI_PUBLIC_KEY_TEST`/`CULQI_SECRET_KEY_TEST`. **Obligatorio antes de desplegar cambios de pagos** |
 
 **Scripts de operación** (todos con simulacro por defecto y `--aplicar`):
 | Script | Para qué |
 |---|---|
-| `respaldo.js [--verificar <ruta>]` | Copia JSON de la base (lo irrecuperable son los snapshots). Lleva datos de terceros: `respaldos/` en `.gitignore`. Último: 2026-10-02, 0 filas perdidas |
+| `respaldo.js [--verificar <ruta>]` | Copia JSON de la base (lo irrecuperable son los snapshots). Lleva datos de terceros: `respaldos/` en `.gitignore`. Tablas y orden en `lib-respaldo-tablas.js` (el orden viejo ponía `comprobante` antes que `resumenSunat`: **la restauración se caía**; faltaban 6 tablas). Último: 2026-10-08 |
+| **`restaurar.js <respaldo>`** | Simulacro: base local `*test*` vacía → reinsertar → conteos y filas idénticas → levanta la API sobre la copia. 2026-10-08: 22 tablas, 3059 filas, **7 s** |
+| `caso-cliente.js <correo> [--culqi]` | Línea de tiempo de cobros/pagos/bitácora/webhooks/comprobantes + diagnóstico (runbook) |
+| `desplegar-web.sh` | Despliegue del frontend con compuerta de smoke (ver §4) |
 | `cifrar-tokens.js` (`railway run`) | Cifra tokens en claro y verifica que se descifran. Idempotente |
 | `dar-plan.js <email> <PLAN>` (local) | Plan a mano (lista de `ORDEN`); no crea Pago ni comprobante |
 | `borrar-usuario.js <email>` (local) | Llama a `lib/borrarCuenta.js`; avisa de snapshots; re-pregunta a la base |
@@ -993,7 +1028,21 @@ balanceador = no existe; error JSON = existe).
 
 ---
 
-## 19. Estado actual y pendientes (2026-10-03)
+## 19. Estado actual y pendientes (2026-10-08)
+
+### 📌 2026-10-08 — «Commercial readiness pass» (tercera réplica del auditor)
+Pedido: `Downloads/respuesta.txt`; respuesta en `Downloads/respuesta-al-auditor-2026-10-08.txt`. Hecho y en
+producción: libro de comisiones (§13), bitácora de suscripción + `caso-cliente.js` + `docs/runbook-cobros.md`
+(§8.1), `/health/operacion` + sonda «Cobros» del monitor + aviso inmediato de DESCONOCIDO (§6), rotación de la
+reconciliación, pruebas de doble compra / muerte del proceso / libro contra Postgres, E2E con el sandbox de
+Culqi, simulacro de restauración (y el orden de FK del respaldo corregido), /privacidad al reglamento D.S.
+016-2024-JUS con todos los encargados (Groq, Meta, TikTok, Cloudflare) y un correo ARCO que llega, smoke que
+cubre /libro-reclamaciones, /privacidad y /health/operacion, despliegue web con compuerta. Base: tablas
+`movimientos_comision` y `eventos_suscripcion` (aditivo, respaldo restaurado antes del push).
+Pendiente del dueño: inscribir los bancos de datos en el RNPDP (ANPD, gratuito), revisión legal de
+privacidad/términos/contrato, **una venta real chica en producción y su reembolso** (lo único que el E2E no
+cubre: Culqi LIVE, el webhook llamado por Culqi, correo real, SUNAT), secretos de Culqi de integración en
+GitHub para el job `e2e-venta`, y activar/confirmar los backups nativos de Railway.
 
 ### 📌 2026-10-02/03 — Auditoría profunda externa, corregida y en producción
 Informe en `Downloads/auditoria_profunda_notoria_2026-10-02.txt`; **respuesta punto por punto en
@@ -1012,8 +1061,8 @@ competidores). Secretos nuevos `TOKENS_CLAVE` y `DOCUMENTOS_SECRET`.
   `ok`, textos legales servidos y chunk de `/ruta`.
 - No aplicaba (comprobado): Franquicia a 1 h y el teléfono 955 en la web — el informe vio una
   versión vieja; el monitor externo ya existía.
-- Diferido con motivo: cookie HttpOnly, worker separado, entidad Subscription completa, ledger de
-  comisiones (antes de la primera liquidación), migraciones versionadas (cuando haya staging),
+- Diferido con motivo: cookie HttpOnly, worker separado, entidad Subscription completa, ~~ledger de
+  comisiones~~ (hecho el 2026-10-08), migraciones versionadas (cuando haya staging),
   métricas del detector (sin corpus etiquetado), catálogo generado entre repos.
 - Fallos encontrados que el informe no veía: `localesExtra` no llegaba a `req.cuenta`; IMPULSO tenía
   auto-respuesta; Privacidad decía «tokens cifrados» sin serlo; GBP ignoraba `tokenVersion`;

@@ -407,6 +407,7 @@ const casaEstado = (i, e) => !e || (typeof e === 'string' ? i.estado === e : i.e
 const prismaFalso = {
   $transaction: (fn) => { const r = colaTx.then(() => fn(prismaFalso)); colaTx = r.catch(() => {}); return r; },
   $executeRaw: async () => 0,
+  eventoSuscripcion: { create: async ({ data }) => { (globalThis.eventosSuscripcion ||= []).push(data); return data; } }, // lib/bitacora.js
   intentoCobro: {
     create: async ({ data }) => {
       db.intentos = db.intentos || [];

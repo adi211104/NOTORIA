@@ -60,6 +60,24 @@ const SONDAS = [
       }
     },
   },
+  // 2026-10-07 (réplica del auditor, §9): ¿fluye el DINERO? Cobros en duda o
+  // sin aplicar, webhooks atascados, trabajos programados detenidos y ráfagas
+  // de 5xx (brand-shield/src/lib/saludOperacion.js). Que un cliente diga «me
+  // cobraron y sigo en Gratis» antes de que nos enteremos es lo que esto evita.
+  {
+    nombre: 'Cobros',
+    url: 'https://api.usenotoria.app/health/operacion',
+    espera: (texto) => texto.includes('"operacion":"ok"'),
+    queEspera: '{"operacion":"ok"}',
+    detalleDe: (texto) => {
+      try {
+        const j = JSON.parse(texto);
+        return `${j.operacion}: ${(j.motivos || []).join(' · ') || 'sin motivo'} — ver docs/runbook-cobros.md`;
+      } catch {
+        return null;
+      }
+    },
+  },
 ];
 
 const TIMEOUT_MS = 15000;
@@ -221,17 +239,22 @@ async function ciclo(env, { forzarCorreo = false } = {}) {
 
   // El asunto tiene que decir qué mirar. «Vigilancia no responde» sería falso: responde,
   // y lo que dice es que Google nos rechaza o que el escaneo se paró.
-  const asuntoDe = (nombre) =>
-    nombre === 'Vigilancia' ? 'Notoria dejó de vigilar' : `${nombre} no responde`;
+  // Lo mismo con «Cobros»: responde, y lo que dice es que hay dinero atascado.
+  const asuntoDe = (nombre) => ({
+    Vigilancia: 'Notoria dejó de vigilar',
+    Cobros: 'cobros o webhooks atascados',
+  }[nombre] || `${nombre} no responde`);
 
   if (empiezaCaida) {
     const siguenCaidas = nombresCaidos.filter((n) => !nuevas.includes(n));
     correo = await enviarCorreo(env, {
       urgente: true,
       asunto: `🔴 CAÍDO — ${nuevas.map(asuntoDe).join(' y ')}`,
-      titulo: nuevas.includes('Vigilancia') && nuevas.length === 1
+      titulo: nuevas.length === 1 && nuevas[0] === 'Vigilancia'
         ? 'La web responde, pero Notoria dejó de vigilar'
-        : 'Notoria no está respondiendo',
+        : nuevas.length === 1 && nuevas[0] === 'Cobros'
+          ? 'La web responde, pero hay cobros o webhooks que necesitan atención'
+          : 'Notoria no está respondiendo',
       cuerpoHtml: `<p style="margin:0 0 4px;color:#3d3c37">Esto es lo que se acaba de medir desde la red de Cloudflare, con un reintento de por medio:</p>
 ${filas(resultados)}
 ${siguenCaidas.length ? `<p style="margin:0 0 10px;color:#3d3c37">${esc(siguenCaidas.join(' y '))} ya estaba caído de antes: esto es un fallo <strong>nuevo</strong>, no el mismo.</p>` : ''}

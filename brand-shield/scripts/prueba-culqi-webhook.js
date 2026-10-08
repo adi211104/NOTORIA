@@ -35,6 +35,7 @@ const prismaFalso = {
     return r;
   },
   $queryRaw: async () => [],
+  eventoSuscripcion: { create: async ({ data }) => { (estado.bitacora ||= []).push(data); return data; } }, // lib/bitacora.js
   eventoWebhook: {
     create: async ({ data }) => {
       if (estado.baseCaida) throw new Error('base caída');

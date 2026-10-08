@@ -39,7 +39,7 @@ const check = (nombre, cond, detalle = '') => {
 };
 
 // ── El mundo falso ─────────────────────────────────────────────────────────
-const estado = { api: 'ok', landing: 'ok', vigilancia: 'ok' };
+const estado = { api: 'ok', landing: 'ok', vigilancia: 'ok', cobros: 'ok' };
 const correos = [];
 
 globalThis.fetch = async (url, opts = {}) => {
@@ -64,6 +64,11 @@ globalThis.fetch = async (url, opts = {}) => {
       detalle: 'Places devuelve REQUEST_DENIED (3 seguidos). Casi siempre es la facturación del proyecto de Google Cloud o la llave.',
     }), { status: 503 });
   }
+  if (u === 'https://api.usenotoria.app/health/operacion') {
+    if (estado.api === 'caida') throw new Error('connect ECONNREFUSED');
+    if (estado.cobros === 'ok') return new Response('{"operacion":"ok","motivos":[]}', { status: 200 });
+    return new Response(JSON.stringify({ operacion: 'atencion', motivos: ['cobros_sin_aplicar:1'] }), { status: 503 });
+  }
   throw new Error(`URL no prevista en la prueba: ${u}`);
 };
 
@@ -87,7 +92,7 @@ const ciclo = async () => {
 console.log('\n1. Todo bien');
 let r = await ciclo();
 check('todo en verde: sin cambio y sin correo', r.cambio === 'sin-cambio' && r.correosNuevos.length === 0);
-check('las TRES sondas se miden', r.resultados.length === 3 && r.resultados.some((x) => x.nombre === 'Vigilancia'));
+check('las CUATRO sondas se miden', r.resultados.length === 4 && r.resultados.some((x) => x.nombre === 'Vigilancia') && r.resultados.some((x) => x.nombre === 'Cobros'));
 
 console.log('\n2. Google empieza a rechazar');
 estado.vigilancia = 'rechaza';
@@ -177,6 +182,19 @@ await ciclo();
 r = await ciclo();
 check('control: el mismo par caído dos veces seguidas no repite el aviso', r.correosNuevos.length === 0);
 estado.vigilancia = 'ok'; estado.api = 'ok';
+
+console.log('\n9. Cobros atascados (sonda nueva, 2026-10-07)');
+for (const k of Object.keys(estado)) estado[k] = 'ok';
+await ciclo();
+estado.cobros = 'atasco';
+r = await ciclo();
+check('cobros atascados → UN correo con asunto propio', r.correosNuevos.length === 1 && /cobros o webhooks atascados/.test(r.correosNuevos[0]?.subject || ''), r.correosNuevos[0]?.subject);
+check('el correo trae el motivo del cuerpo y el runbook', /cobros_sin_aplicar:1/.test(r.correosNuevos[0]?.html || '') && /runbook-cobros/.test(r.correosNuevos[0]?.html || ''));
+r = await ciclo();
+check('sigue atascado: no repite el correo', r.correosNuevos.length === 0);
+estado.cobros = 'ok';
+r = await ciclo();
+check('se resuelve: un correo de restablecido', r.correosNuevos.length === 1 && /Restablecido/.test(r.correosNuevos[0]?.subject || ''));
 
 fs.unlinkSync(tmp);
 console.log('\n──────────────────────────────────────────────────');

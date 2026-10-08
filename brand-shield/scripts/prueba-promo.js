@@ -57,6 +57,7 @@ const prismaFalso = {
     deleteMany: async ({ where }) => { estado.tarjetaLiberada = where; return { count: 1 }; },
     count: async () => 0,
   },
+  eventoSuscripcion: { create: async ({ data }) => { (globalThis.eventosSuscripcion ||= []).push(data); return data; } }, // lib/bitacora.js
   intentoCobro: {
     create: async ({ data }) => {
       estado.intentos = estado.intentos || [];

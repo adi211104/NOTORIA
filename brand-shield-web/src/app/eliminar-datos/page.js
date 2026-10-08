@@ -51,7 +51,7 @@ export default function EliminarDatosPage() {
         <P>También puedes retirar el acceso desde la propia plataforma: en Facebook/Instagram ve a <strong>Configuración → Apps y sitios web</strong> y elimina Notoria; los tokens que tengamos quedan inservibles en ese momento.</P>
 
         <H2>3. Solicitar la eliminación por email</H2>
-        <P>Si no puedes acceder a tu cuenta, o quieres ejercer cualquiera de tus derechos ARCO (acceso, rectificación, cancelación u oposición), escribe a <a href="mailto:privacidad@usenotoria.app" style={{ color:G }}>privacidad@usenotoria.app</a> desde el email con el que te registraste, indicando "Eliminación de datos" en el asunto.</P>
+        <P>Si no puedes acceder a tu cuenta, o quieres ejercer cualquiera de tus derechos ARCO (acceso, rectificación, cancelación u oposición), escribe a <a href="mailto:hola@usenotoria.app" style={{ color:G }}>hola@usenotoria.app</a> desde el email con el que te registraste, indicando "Eliminación de datos" en el asunto.</P>
         <P>Confirmaremos la solicitud y completaremos la eliminación en un plazo máximo de 20 días hábiles.</P>
 
         <H2>4. Qué datos tratamos</H2>
@@ -59,7 +59,7 @@ export default function EliminarDatosPage() {
 
         <div style={{ borderTop:'1px solid #E8E6DC', marginTop:40, paddingTop:20 }}>
           <p style={{ fontSize:12, color:'#9C9B96', lineHeight:1.7, margin:0 }}>
-            <strong>English:</strong> To delete your data, log in and go to <em>Settings → Danger zone → Delete account</em>, or disconnect an individual social account under <em>Dashboard → Connections</em>. If you cannot access your account, email <a href="mailto:privacidad@usenotoria.app" style={{ color:G }}>privacidad@usenotoria.app</a> with the subject "Data deletion" and we will complete the request within 20 business days. Personal data is permanently erased within 30 days of account deletion.
+            <strong>English:</strong> To delete your data, log in and go to <em>Settings → Danger zone → Delete account</em>, or disconnect an individual social account under <em>Dashboard → Connections</em>. If you cannot access your account, email <a href="mailto:hola@usenotoria.app" style={{ color:G }}>hola@usenotoria.app</a> with the subject "Data deletion" and we will complete the request within 20 business days. Personal data is permanently erased within 30 days of account deletion.
           </p>
         </div>
       </div>

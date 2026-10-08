@@ -27,7 +27,8 @@ check('pares mal formados se ignoran', Object.keys(tablaAcceso('basura,:x,a@b.c:
 
 console.log('\n2. Comisión — ejemplos del Anexo 1 del contrato');
 const d = (s) => new Date(s + 'T15:00:00Z');
-const pago = (fecha, monto, extra = {}) => ({ creadoEn: d(fecha), monto, estado: 'EXITOSO', tipo: 'RENOVACION', plan: 'NEGOCIO', periodo: 'mensual', ...extra });
+let nPago = 0; // cada Pago real tiene id: el libro asienta un residual POR pago
+const pago = (fecha, monto, extra = {}) => ({ id: `pg${(nPago += 1)}`, creadoEn: d(fecha), monto, estado: 'EXITOSO', tipo: 'RENOVACION', plan: 'NEGOCIO', periodo: 'mensual', ...extra });
 const visita = '2026-01-05';
 const ahora = d('2027-06-01');
 
@@ -86,6 +87,67 @@ check('cuenta sin pagos → «cuenta_gratis»', estadoEfectivo('volver', { cuent
 check('sin cuenta, se respeta lo que marcó el promotor', estadoEfectivo('no_interesado', { cuentaEncontrada: false, comision: sin }) === 'no_interesado');
 check('marcó «pagó» y aún no se encuentra el pago: no se degrada', estadoEfectivo('cliente', { cuentaEncontrada: true, comision: sin }) === 'cliente');
 
+console.log('\n3c. Contrato 7.1.d, 7.3 y 7.4 (réplica del auditor, 2026-10-07)');
+{
+  const { resolverAtribucion, objetivosDeVisita } = require('../src/lib/rutaComercial');
+  const { diferencias } = require('../src/lib/libroComisiones');
+  // Cliente que VUELVE: pagó en 2025, dejó de pagar, y más de 6 meses después
+  // de que se le acabó lo pagado lo visita el promotor.
+  const viejo = [pago('2025-01-10', 5900, { tipo: 'INICIAL' })];
+  const vuelve = [...viejo, pago('2026-01-10', 5900, { tipo: 'INICIAL' }), pago('2026-02-10', 5900)];
+  const cv = comisionDeVisita({ fechaVisita: d('2026-01-05'), pagos: vuelve, ahora });
+  check('cliente que dejó de pagar hace más de 6 meses SÍ se atribuye (7.1.d)', cv.estado === 'GANADA' && cv.alta === 2500, JSON.stringify(cv));
+  const reciente = [pago('2025-10-10', 5900, { tipo: 'INICIAL' }), pago('2026-01-10', 5900), pago('2026-02-10', 5900)];
+  check('CONTROL: si pagaba hace menos de 6 meses, no', comisionDeVisita({ fechaVisita: d('2026-01-05'), pagos: reciente, ahora }).estado === 'YA_ERA_CLIENTE');
+  const anualViejo = [pago('2025-03-01', 56400, { tipo: 'INICIAL', periodo: 'anual' }), pago('2026-01-10', 5900, { tipo: 'INICIAL' })];
+  check('un anual cubre 12 meses: pagado en marzo 2025 sigue siendo cliente en enero 2026', comisionDeVisita({ fechaVisita: d('2026-01-05'), pagos: anualViejo, ahora }).estado === 'YA_ERA_CLIENTE');
+  const devuelto = [pago('2025-12-01', 5900, { tipo: 'INICIAL', estado: 'REEMBOLSADO' }), pago('2026-01-10', 5900, { tipo: 'INICIAL' }), pago('2026-02-10', 5900)];
+  check('un pago anterior reembolsado entero no lo hacía cliente', comisionDeVisita({ fechaVisita: d('2026-01-05'), pagos: devuelto, ahora }).estado === 'GANADA');
+
+  // 7.3 + 7.4: el bono se devenga con el 2.º pago y no se pierde si después
+  // se reembolsa ese 2.º pago; solo cae su residual.
+  const segundoDevuelto = [pago('2026-01-10', 5900, { tipo: 'INICIAL' }), pago('2026-02-10', 5900, { estado: 'REEMBOLSADO' })];
+  const cs = comisionDeVisita({ fechaVisita: d(visita), pagos: segundoDevuelto, ahora });
+  check('2.º pago reembolsado: el bono SIGUE devengado, su residual no', cs.estado === 'GANADA' && cs.ganada === 2500 && cs.residual === 0, JSON.stringify(cs));
+  check('el detalle suma exactamente lo ganado (lo que asienta el libro)', [c1, c2, c5, c6, c8].every((c) => c.detalle.reduce((t, x) => t + x.monto, 0) === c.ganada));
+  check('mensual: el bono se devenga en la fecha del 2.º pago', +c1.detalle[0].fechaDevengo === +d('2026-02-10'));
+  check('anual: bono y residual se devengan a los 15 días', c5.detalle.every((x) => +x.fechaDevengo === +d('2026-01-10') + 15 * 864e5));
+  check('lo que aún no se devenga no entra al detalle', c3.detalle.length === 0 && c7.detalle.length === 0);
+
+  // 7.1.d: dos registros del mismo cliente → prevalece el más antiguo.
+  const E = (id, fecha, extra = {}) => ({ id, fechaVisita: d(fecha), anuladaEn: null, cuentaId: 'C', comision: { estado: 'GANADA', politica: 1 }, ...extra });
+  let p = resolverAtribucion([E('b', '2026-01-20'), E('a', '2026-01-05')]);
+  check('dos promotores, mismo cliente: gana el registro más antiguo', p.b === 'a' && !p.a, JSON.stringify(p));
+  p = resolverAtribucion([E('a', '2026-01-05', { comision: { estado: 'FUERA_DE_PLAZO', politica: 1 } }), E('b', '2026-02-20')]);
+  check('re-registrar dentro de los 60 días NO renueva el plazo del primero', p.b === 'a', JSON.stringify(p));
+  p = resolverAtribucion([E('a', '2026-01-05', { anuladaEn: d('2026-01-06') }), E('b', '2026-01-20')]);
+  check('un registro ANULADO no le quita la atribución a otro', !p.b);
+  p = resolverAtribucion([E('a', '2026-01-05', { comision: { estado: 'FUERA_DE_PLAZO', politica: 1 } }), E('b', '2026-04-20')]);
+  check('un registro posterior a los 60 días sí puede atribuirse', !p.b);
+  p = resolverAtribucion([E('a', '2026-01-05', { cuentaId: 'X' }), E('b', '2026-01-06', { cuentaId: 'Y' })]);
+  check('CONTROL: clientes distintos no compiten', Object.keys(p).length === 0);
+
+  // El libro: asienta diferencias, nunca reescribe.
+  const v = { id: 'v', promotor: 'P1', anuladaEn: null };
+  const objetivos = objetivosDeVisita(v, c2);
+  const asentar = (asentado, objs, extra = {}) => diferencias({ objetivos: objs, asentado, visitasPorId: { v }, evals: { v: { cuenta: { id: 'c' }, comision: extra.comision || c2 } } });
+  const primera = asentar([], objetivos);
+  check('primera sincronización: un asiento GENERADA por concepto', primera.length === 3 && primera.every((a) => a.tipo === 'GENERADA') && primera.reduce((t, a) => t + a.monto, 0) === 3250);
+  const total = (lista) => lista.map((a) => ({ promotor: a.promotor, visitaId: a.visitaId, concepto: a.concepto, pagoId: a.pagoId, total: a.monto }));
+  check('segunda sincronización sin cambios: NADA (idempotente)', asentar(total(primera), objetivos).length === 0);
+  const cAnulada = comisionDeVisita({ fechaVisita: d(visita), pagos: [{ ...doce[0], estado: 'REEMBOLSADO' }, doce[1], doce[2]], ahora });
+  const reversion = asentar(total(primera), objetivosDeVisita(v, cAnulada), { comision: cAnulada });
+  check('🔴 reembolso del primer pago DESPUÉS de devengar: se asienta la REVERSIÓN, con motivo 7.4',
+    reversion.length === 3 && reversion.every((a) => a.tipo === 'REVERSADA' && a.monto < 0 && /7\.4/.test(a.motivo)) && reversion.reduce((t, a) => t + a.monto, 0) === -3250, JSON.stringify(reversion));
+  const parcialObj = objetivosDeVisita(v, comisionDeVisita({ fechaVisita: d(visita), pagos: [doce[0], doce[1], { ...doce[2], montoReembolsado: 2950 }], ahora }));
+  const ajuste = asentar(total(primera), parcialObj);
+  check('reembolso parcial del 3.er pago: un AJUSTADA negativo de la mitad de su residual', ajuste.length === 1 && ajuste[0].tipo === 'AJUSTADA' && ajuste[0].monto === -250, JSON.stringify(ajuste));
+  const anuladaObj = objetivosDeVisita({ ...v, anuladaEn: new Date() }, c2);
+  check('visita anulada después de devengar: todo se revierte', asentar(total(primera), anuladaObj).reduce((t, a) => t + a.monto, 0) === -3250);
+  // Lo de arriba cargó el Prisma real; la sección 4 pone el doble antes de cargar la ruta.
+  for (const m of ['../src/lib/libroComisiones', '../src/lib/prisma']) delete require.cache[require.resolve(m)];
+}
+
 console.log('\n4. La ruta de verdad, con Prisma y la sesión simulados');
 (async () => {
   let sesion = { id: 'u1', email: 'promotor@usenotoria.app' };
@@ -102,22 +164,45 @@ console.log('\n4. La ruta de verdad, con Prisma y la sesión simulados');
   let ultimoUpdate = null;
   let borrados = 0;
   const cambios = [];
+  const asientos = [];
+  const coincide = (a, where = {}) => Object.entries(where).every(([k, v]) => {
+    if (v && typeof v === 'object' && !(v instanceof Date)) {
+      if ('in' in v) return v.in.includes(a[k]);
+      if ('lt' in v || 'gte' in v) return (!('lt' in v) || a[k] < v.lt) && (!('gte' in v) || a[k] >= v.gte);
+    }
+    return a[k] === v;
+  });
   const prismaFalso = {
     $transaction: async (fn) => fn(prismaFalso),
+    $executeRaw: async () => 0,
+    movimientoComision: {
+      create: async ({ data }) => { const a = { id: `m${asientos.length + 1}`, creadoEn: new Date(), ...data }; asientos.push(a); return a; },
+      createMany: async ({ data }) => { data.forEach((x) => asientos.push({ id: `m${asientos.length + 1}`, creadoEn: new Date(), ...x })); return { count: data.length }; },
+      findMany: async ({ where }) => asientos.filter((a) => coincide(a, where)),
+      aggregate: async ({ where }) => ({ _sum: { monto: asientos.filter((a) => coincide(a, where)).reduce((t, a) => t + a.monto, 0) } }),
+      groupBy: async ({ by, where }) => {
+        const g = {};
+        for (const a of asientos.filter((x) => coincide(x, where))) {
+          const k = by.map((b) => a[b] ?? '').join('|');
+          (g[k] ||= { ...Object.fromEntries(by.map((b) => [b, a[b] ?? null])), _sum: { monto: 0 } })._sum.monto += a.monto;
+        }
+        return Object.values(g);
+      },
+    },
     cambioVisita: {
       createMany: async ({ data }) => { cambios.push(...data); return { count: data.length }; },
       create: async ({ data }) => { cambios.push(data); return data; },
       findMany: async ({ where }) => cambios.filter((c) => c.visitaId === where.visitaId),
     },
     visitaComercial: {
-      findMany: async ({ where }) => visitas.filter((v) => (!where.promotor || v.promotor === where.promotor)
+      findMany: async ({ where = {} } = {}) => visitas.filter((v) => (!where.promotor || v.promotor === where.promotor)
         && (!('anuladaEn' in where) || !v.anuladaEn)),
-      findFirst: async ({ where }) => visitas.find((v) => v.id === where.id && (!where.promotor || v.promotor === where.promotor)) || null,
+      findFirst: async ({ where }) => { const v = visitas.find((x) => x.id === where.id && (!where.promotor || x.promotor === where.promotor)); return v ? { ...v } : null; },
       create: async ({ data }) => ({ id: 'nuevo', ...data }),
       update: async ({ where, data }) => {
         ultimoUpdate = data;
         const v = visitas.find((x) => x.id === where.id);
-        if (v && data.anuladaEn) Object.assign(v, data);
+        if (v && (data.anuladaEn || data.promotor)) Object.assign(v, data);
         return { ...v, ...data };
       },
       delete: async () => { borrados += 1; return {}; },
@@ -156,16 +241,30 @@ console.log('\n4. La ruta de verdad, con Prisma y la sesión simulados');
     check('…y la comisión sale de los pagos reales (S/77.50)', por.v1.comision.ganada === 7750, JSON.stringify(por.v1.comision));
     check('el correo del cliente se cruza sin mayúsculas', por.v1.cuentaEncontrada === true);
 
-    await pedir('PUT', '/visitas/v1', { nombre: 'Local A', comisionPagada: 999999 });
-    check('el promotor NO puede escribir la comisión pagada', ultimoUpdate && ultimoUpdate.comisionPagada === undefined);
+    check('el libro asienta lo devengado: bono + residuales de v1 y v3', por.v1.devengadoLibro === 7750 && por.v3.devengadoLibro === 3250, `${por.v1.devengadoLibro} / ${por.v3.devengadoLibro}`);
+    check('saldo del promotor = lo devengado (aún no se le pagó nada)', r.j.saldos.Usuario1.saldo === 11000 && r.j.saldos.Usuario1.pagado === 0, JSON.stringify(r.j.saldos));
+    check('el promotor solo recibe SU saldo', Object.keys(r.j.saldos).join() === 'Usuario1');
+    const antes = asientos.length;
+    await pedir('GET', '/visitas');
+    check('leer otra vez NO asienta nada (la sincronización es idempotente)', asientos.length === antes, `${antes} → ${asientos.length}`);
+    check('cada residual es un asiento propio, con el pago que lo origina', asientos.filter((a) => a.visitaId === 'v1' && a.concepto === 'RESIDUAL').every((a) => a.pagoId) && asientos.filter((a) => a.visitaId === 'v1' && a.concepto === 'RESIDUAL').length === 11);
+    await pedir('PUT', '/visitas/v1', { nombre: 'Local A', promotor: 'dueno' });
+    check('el promotor NO puede reasignar una visita a otro promotor', ultimoUpdate && ultimoUpdate.promotor === undefined);
+    r = await pedir('POST', '/pagos-promotor', { promotor: 'Usuario1', monto: 100, referencia: 'op 123' });
+    check('el promotor NO puede asentarse pagos (mismo 404 que una ruta inexistente)', r.s === 404);
+    r = await pedir('GET', '/liquidacion?mes=2026-13');
+    check('liquidación con mes inválido: 400', r.s === 400);
+    const mes = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' }).slice(0, 7);
+    r = await pedir('GET', `/liquidacion?mes=${mes}`);
+    check('el promotor ve su liquidación del mes, con texto para enviar', r.s === 200 && r.j.saldoFinal === 11000 && /Saldo por pagar al cierre: S\/110\.00/.test(r.j.texto), r.j.texto);
     r = await pedir('PUT', '/visitas/v2', { nombre: 'X' });
     check('el promotor no puede editar la visita de otro (404)', r.s === 404);
     r = await pedir('POST', '/visitas', { nombre: '' });
     check('sin nombre del local: 400 con el motivo', r.s === 400 && /nombre/i.test(r.j.error));
     r = await pedir('POST', '/visitas', { nombre: 'Nuevo', correo: 'MAL' });
     check('correo mal escrito: 400', r.s === 400);
-    r = await pedir('POST', '/visitas', { nombre: 'Nuevo', correo: 'Cli@X.com', comisionPagada: 5000 });
-    check('al crear, el alias sale del acceso y la comisión pagada no se acepta', r.s === 201 && r.j.promotor === 'Usuario1' && r.j.comisionPagada === undefined && r.j.correo === 'cli@x.com');
+    r = await pedir('POST', '/visitas', { nombre: 'Nuevo', correo: 'Cli@X.com', promotor: 'Otro' });
+    check('al crear, el alias sale del acceso (no del cuerpo)', r.s === 201 && r.j.promotor === 'Usuario1' && r.j.correo === 'cli@x.com');
 
     sesion = { id: 'u2', email: 'dueno@x.com' };
     r = await pedir('GET', '/visitas');
@@ -173,12 +272,33 @@ console.log('\n4. La ruta de verdad, con Prisma y la sesión simulados');
     check('el dueño SÍ ve la cuenta vinculada, para revisar la liquidación', r.j.visitas.find((v) => v.id === 'v3').correoVinculado === 'localc@x.com');
     r = await pedir('POST', '/visitas', { nombre: 'Con Maps', placeId: 'ChIJ_Z', direccion: 'Av. Larco 123, Miraflores' });
     check('se guarda el local de Maps al crear', r.s === 201 && r.j.placeId === 'ChIJ_Z' && r.j.direccion === 'Av. Larco 123, Miraflores');
-    await pedir('PUT', '/visitas/v1', { nombre: 'Local A', comisionPagada: 2500 });
-    check('el dueño SÍ registra la comisión pagada', ultimoUpdate.comisionPagada === 2500);
+    // ── Libro de comisiones (2026-10-07) ──
+    r = await pedir('POST', '/pagos-promotor', { promotor: 'Usuario1', monto: 20000, referencia: 'op 999' });
+    check('🔴 un pago MAYOR que el saldo se rechaza (409)', r.s === 409 && r.j.codigo === 'PAGO_MAYOR_QUE_SALDO');
+    r = await pedir('POST', '/pagos-promotor', { promotor: 'Usuario1', monto: 5000, referencia: 'x' });
+    check('un pago sin referencia (operación o recibo) se rechaza', r.s === 400);
+    r = await pedir('POST', '/pagos-promotor', { promotor: 'Fantasma', monto: 100, referencia: 'op 1' });
+    check('un pago a un alias sin acceso se rechaza', r.s === 400);
+    r = await pedir('POST', '/pagos-promotor', { promotor: 'Usuario1', monto: 5000, referencia: 'op 4567 · RH E001-12' });
+    check('el dueño asienta un pago: asiento PAGADA negativo con su referencia', r.s === 201 && r.j.monto === -5000 && r.j.tipo === 'PAGADA' && r.j.autor === 'dueno');
+    r = await pedir('POST', '/ajustes', { promotor: 'Usuario1', monto: -300, motivo: 'corto' });
+    check('un ajuste sin motivo suficiente se rechaza', r.s === 400);
+    r = await pedir('POST', '/ajustes', { promotor: 'Usuario1', visitaId: 'v2', monto: -300, motivo: 'Contracargo del cliente reportado por Culqi' });
+    check('un ajuste sobre la visita de OTRO promotor se rechaza', r.s === 400);
+    r = await pedir('POST', '/ajustes', { promotor: 'Usuario1', visitaId: 'v1', monto: -300, motivo: 'Contracargo del cliente reportado por Culqi' });
+    check('el dueño asienta un ajuste con motivo', r.s === 201 && r.j.concepto === 'AJUSTE');
+    r = await pedir('PUT', '/visitas/v3', { nombre: 'Local C', promotor: 'Fantasma' });
+    check('reasignar a un alias desconocido: 400', r.s === 400);
+    r = await pedir('PUT', '/visitas/v3', { nombre: 'Local C', placeId: 'ChIJ_C', estado: 'interesado', promotor: 'dueno' });
+    check('el dueño reasigna la visita y queda en el historial', r.s === 200 && cambios.some((c) => c.visitaId === 'v3' && c.campo === 'promotor' && c.antes === 'Usuario1' && c.despues === 'dueno'));
+    r = await pedir('GET', '/visitas');
+    const rev = asientos.filter((a) => a.visitaId === 'v3' && a.promotor === 'Usuario1' && a.tipo === 'REVERSADA');
+    check('🔴 al reasignar, el libro REVIERTE al anterior (sin borrar nada) y genera al nuevo',
+      rev.length > 0 && rev.every((a) => /reasignada/i.test(a.motivo)) && asientos.filter((a) => a.visitaId === 'v3' && a.promotor === 'dueno').reduce((t, a) => t + a.monto, 0) === 3250
+      && asientos.filter((a) => a.visitaId === 'v3' && a.promotor === 'Usuario1').reduce((t, a) => t + a.monto, 0) === 0);
+    check('saldo de Usuario1 = 7750 devengado − 5000 pagado − 300 ajuste', r.j.saldos.Usuario1.saldo === 2450 && r.j.saldos.Usuario1.pagado === 5000, JSON.stringify(r.j.saldos.Usuario1));
 
     // ── Auditoría 2026-10-02: anular en vez de borrar, historial y política ──
-    check('el dueño cambia el correo y queda en el historial (antes → después)',
-      cambios.some((c) => c.visitaId === 'v1' && c.campo === 'comisionPagada' && c.despues === '2500'));
     r = await pedir('PUT', '/visitas/v1', { nombre: 'Local A', correo: 'nuevo@x.com' });
     check('cambiar el correo de atribución deja rastro con su valor anterior',
       cambios.some((c) => c.visitaId === 'v1' && c.campo === 'correo' && c.antes === 'cli@x.com' && c.despues === 'nuevo@x.com'),
@@ -207,6 +327,17 @@ console.log('\n4. La ruta de verdad, con Prisma y la sesión simulados');
     check('CONTROL: sin la variable ni el dueño entra', r.s === 404);
   } finally { srv.close(); }
 
+  console.log('\n5. El libro solo crece');
+  {
+    const fs = require('fs');
+    const archivos = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? archivos(path.join(dir, e.name)) : e.name.endsWith('.js') ? [path.join(dir, e.name)] : []));
+    const sinCom = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+    const lista = [...archivos(path.join(__dirname, '..', 'src')), ...archivos(__dirname)];
+    const culpables = lista.filter((a) => /movimientoComision\s*\.\s*(update|updateMany|upsert|delete|deleteMany)\b/.test(sinCom(fs.readFileSync(a, 'utf8'))));
+    check('🔴 ningún código edita ni borra asientos del libro (src/ y scripts/)', lista.length > 50 && culpables.length === 0, culpables.join(', '));
+    const ruta = sinCom(fs.readFileSync(path.join(__dirname, '..', 'src/api/routes/ruta.routes.js'), 'utf8'));
+    check('la ruta ya no escribe comisionPagada', !/comisionPagada/.test(ruta));
+  }
   console.log(`\n${ok} pasaron, ${mal} fallaron`);
   process.exit(mal ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

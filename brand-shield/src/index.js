@@ -30,6 +30,7 @@ const { iniciarAvisoAnulaciones } = require('./workers/anulaciones.worker');
 const { iniciarEnvioSunat } = require('./workers/envioSunat.worker');
 const { iniciarResumenSunat } = require('./workers/resumenSunat.worker');
 const { iniciarReintentoWebhooks, iniciarReconciliacionCobros } = require('./workers/reconciliacion.worker');
+const { iniciarLibroComisiones } = require('./lib/libroComisiones');
 
 // Antes de nada: sin DATABASE_URL o JWT_SECRET en producción el proceso NO
 // arranca (el deploy queda fallido y sigue sirviendo la versión anterior), y lo
@@ -179,6 +180,25 @@ app.use('/api/equipo',      equipoRoutes);
 app.use('/api/auth/google-business', gbpRoutes);
 app.use('/api/negocios-gbp', gbpRoutes);
 
+// ─── ¿Fluye el dinero? — 2026-10-07 (réplica del auditor, §9) ──────────
+// Cobros en duda o sin aplicar, webhooks atascados, trabajos detenidos y
+// ráfagas de 5xx (lib/saludOperacion.js). Pública como /health/monitoreo:
+// solo conteos. La sondea el monitor de Cloudflare.
+const saludOperacion = require('./lib/saludOperacion');
+const ARRANCADO_EN = Date.now();
+let cacheOperacion = { hasta: 0, cuerpo: null };
+app.get('/health/operacion', async (req, res) => {
+  try {
+    if (Date.now() > cacheOperacion.hasta) {
+      cacheOperacion = { hasta: Date.now() + 60 * 1000, cuerpo: await saludOperacion.veredicto(require('./lib/prisma'), { arrancadoEn: ARRANCADO_EN }) };
+    }
+    const v = cacheOperacion.cuerpo;
+    res.status(v.operacion === 'ok' ? 200 : 503).json({ ...v, timestamp: new Date().toISOString() });
+  } catch (e) {
+    res.status(503).json({ operacion: 'sin_comprobar', motivos: ['base_no_responde'] });
+  }
+});
+
 // Health check para Railway
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -243,6 +263,7 @@ app.use((err, req, res, next) => {
     : (Number.isInteger(err.statusCode) ? err.statusCode : 500);
   console.error(`[Error] ${req.method} ${req.originalUrl} [${req.id}] ${status}: ${err.message}`, status >= 500 && err.stack ? `\n${err.stack}` : '');
   if (status >= 500) {
+    saludOperacion.registrar5xx();
     return res.status(status).json({ error: 'Error interno del servidor', requestId: req.id });
   }
   res.status(status).json({ error: err.message || 'Solicitud inválida', requestId: req.id });
@@ -284,6 +305,8 @@ app.listen(PORT, () => {
     // y reconciliación de cobros a medias contra Culqi (lib/cobros.js).
     iniciarReintentoWebhooks();
     iniciarReconciliacionCobros();
+    // 2026-10-07: asienta en el libro lo que se devengó o se revirtió (lib/libroComisiones.js).
+    iniciarLibroComisiones();
     console.log('🔄 Monitoreo periódico iniciado');
     console.log('📄 Cron de reportes mensuales iniciado');
     console.log('📬 Cron de resúmenes de alertas iniciado');

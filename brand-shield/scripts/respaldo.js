@@ -40,29 +40,9 @@ const fs = require('fs');
 const path = require('path');
 const prisma = require('../src/lib/prisma');
 
-// El orden es de PADRES a HIJOS, y es la parte que hay que respetar al
-// restaurar: insertar una reseña antes que su negocio viola la clave foránea.
-// Se declara acá y no se deduce para que restaurar no dependa de adivinar.
-const TABLAS = [
-  'usuario',
-  'negocio',
-  'snapshot',
-  'resena',
-  'alerta',
-  'competidor',
-  'snapshotCompetidor',
-  'comentarioSocial',
-  'mencion',
-  'pago',
-  'serieComprobante',
-  'comprobante',
-  'resumenSunat',
-  'reclamacion',
-  'promoTarjeta',
-  'miembro',
-  'invitacion',
-  'registroActividad',
-];
+// El orden de padres a hijos (y qué tablas entran) vive en lib-respaldo-tablas.js,
+// compartido con restaurar.js y vigilado por prueba-respaldo.js.
+const { TABLAS } = require('./lib-respaldo-tablas');
 
 const DESTINO = path.join(__dirname, '..', 'respaldos');
 
@@ -76,7 +56,16 @@ const leerTodo = async () => {
       console.warn(`  [!] ${tabla}: no existe en el cliente de Prisma, se omite`);
       continue;
     }
-    const filas = await prisma[tabla].findMany();
+    let filas;
+    try {
+      filas = await prisma[tabla].findMany();
+    } catch (e) {
+      // P2021: el cliente generado ya conoce una tabla que la base todavía no
+      // tiene (código por delante del `db push`). Se omite y se avisa.
+      if (e.code !== 'P2021') throw e;
+      console.warn(`  [!] ${tabla}: la tabla aún no existe en esta base, se omite`);
+      continue;
+    }
     datos[tabla] = filas;
     conteos[tabla] = filas.length;
     console.log(`  ${tabla.padEnd(20)} ${String(filas.length).padStart(6)} filas`);
