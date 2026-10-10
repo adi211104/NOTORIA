@@ -42,6 +42,11 @@ export default function RegistroPage() {
   const [passFocus, setPassFocus] = useState(false);
   const googleBtnRef = useRef(null);
   const googleInitialized = useRef(false);
+  // Google conserva el callback que recibió al inicializarse. La ref evita que
+  // ese callback se quede con el valor inicial (`false`) del checkbox.
+  const aceptaTerminosRef = useRef(false);
+
+  useEffect(() => { aceptaTerminosRef.current = aceptaTerminos; }, [aceptaTerminos]);
 
   const { criterios, nivel } = evaluarPassword(form.password);
 
@@ -56,10 +61,14 @@ export default function RegistroPage() {
 
   const handleGoogleResponse = useCallback(async (response) => {
     setError('');
+    if (!aceptaTerminosRef.current) {
+      setError('Debes aceptar los Términos y la Política de Privacidad para continuar.');
+      return;
+    }
     try {
       const res = await fetch(`${API_URL}/api/auth/google`, {
         method:'POST', headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify({ credential: response.credential }),
+        body: JSON.stringify({ credential: response.credential, aceptaTerminosYPrivacidad: true }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error con Google');

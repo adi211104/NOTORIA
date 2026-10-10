@@ -15,7 +15,7 @@
 // Cada página lleva su control: la frase inventada tiene que NO estar, y la
 // página tiene que tener contenido real (un 200 con un cascarón vacío no pasa).
 
-const { PLANES_DE_PAGO, capacidades } = require('../src/lib/planes');
+const { ORDEN, PLANES_DE_PAGO, capacidades } = require('../src/lib/planes');
 
 const WEB = (process.env.WEB || 'https://usenotoria.app').replace(/\/$/, '');
 const API = (process.env.API || 'https://api.usenotoria.app').replace(/\/$/, '');
@@ -60,7 +60,7 @@ const traer = async (url, opciones = {}) => {
   return { status: r.status, texto: await r.text(), cache: r.headers.get('x-vercel-cache'), edad: r.headers.get('age') };
 };
 
-const pagina = async (ruta, { debe = [], prohibidas = PROHIBIDAS } = {}) => {
+const pagina = async (ruta, { debe = [], prohibidas = PROHIBIDAS, validar = () => [] } = {}) => {
   let p;
   try { p = await traer(`${WEB}${ruta}`); } catch (e) { return mal(`${ruta}: no respondió (${e.message})`); }
   const donde = `${ruta} (cache ${p.cache || '-'}, age ${p.edad || '-'})`;
@@ -75,7 +75,20 @@ const pagina = async (ruta, { debe = [], prohibidas = PROHIBIDAS } = {}) => {
     const m = p.texto.match(f);
     if (m) mal(`${donde}: dice «${m[0]}», que el producto no cumple`);
   }
+  for (const mensaje of validar(p.texto)) mal(`${donde}: ${mensaje}`);
   if (fallos === antes) ok(`${donde}: ${debe.length} frase(s) esperadas, ninguna prohibida`);
+};
+
+// La portada puede redactar la lista como «2, 4, 12, 24 o 72» o con otro
+// separador. Lo que es contractual es el CONJUNTO de cadencias que publica,
+// no una oración escrita con un orden concreto.
+const validarCadenciasPortada = (esperadas) => (texto) => {
+  const esperado = [...esperadas].map(String).sort((a, b) => Number(a) - Number(b));
+  const candidatos = [...texto.matchAll(/cada\s+([^<.]{0,100}?)\s+horas/gi)]
+    .map((m) => [...new Set(m[1].match(/\d+/g) || [])].sort((a, b) => Number(a) - Number(b)));
+  return candidatos.some((c) => c.length === esperado.length && c.every((n, i) => n === esperado[i]))
+    ? []
+    : [`no publica exactamente las cadencias ${esperado.join(', ')}; encontradas: ${candidatos.map((c) => c.join(', ') || 'ninguna').join(' | ') || 'ninguna'}`];
 };
 
 (async () => {
@@ -83,9 +96,13 @@ const pagina = async (ruta, { debe = [], prohibidas = PROHIBIDAS } = {}) => {
 
   // Cadencias: de lib/planes.js, no escritas a mano.
   const cadencias = PLANES_DE_PAGO.map((p) => `cada ${capacidades(p).horasEscaneo} horas`);
+  const horasEscaneo = [...new Set(ORDEN.flatMap((p) => {
+    const plan = capacidades(p);
+    return [plan.horasEscaneo, plan.horasEscaneoTrasPrueba].filter(Boolean);
+  }))];
   await pagina('/precios', { debe: cadencias });
   await pagina('/devoluciones', { debe: ['se suman al final del nuevo periodo', 'Bajar de plan'] });
-  await pagina('/', { debe: [`cada 72, 24, ${PLANES_DE_PAGO.map((p) => capacidades(p).horasEscaneo).join(', ').replace(/, (\d+)$/, ' o $1')} horas`] });
+  await pagina('/', { validar: validarCadenciasPortada(horasEscaneo) });
   await pagina('/terminos');
   // 2026-10-07 (réplica del auditor, §3 y §4): Libro de Reclamaciones propio
   // (no un formulario externo) y privacidad con el reglamento vigente y un

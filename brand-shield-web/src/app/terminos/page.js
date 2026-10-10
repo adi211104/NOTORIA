@@ -17,7 +17,8 @@ const H2 = ({ children }) => <h2 style={{ fontSize:17, fontWeight:700, color:'#1
 const P = ({ children }) => <p style={{ fontSize:14, color:'#5C5B57', lineHeight:1.8, margin:'0 0 12px' }}>{children}</p>;
 
 export default function TerminosPage() {
-  const fecha = '1 de junio de 2026';
+  const fecha = '8 de octubre de 2026';
+  const version = '1.1';
   return (
     <div style={{ minHeight:'100vh', background:'#FAF9F5', fontFamily:GEO }}>
       <nav style={{ borderBottom:'1px solid #E8E6DC', padding:'0 28px', height:56, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
@@ -31,7 +32,7 @@ export default function TerminosPage() {
       <div style={{ maxWidth:720, margin:'0 auto', padding:'48px 24px 80px' }}>
         <p style={{ fontSize:11, color:G, fontWeight:600, textTransform:'uppercase', letterSpacing:2, margin:'0 0 12px' }}>Documento legal</p>
         <h1 style={{ fontSize:34, fontWeight:900, color:'#141413', margin:'0 0 8px', letterSpacing:'-1.5px' }}>Términos de Servicio</h1>
-        <p style={{ fontSize:13, color:'#9C9B96', margin:'0 0 40px', borderBottom:'1px solid #E8E6DC', paddingBottom:24 }}>Notoria · Última actualización: {fecha}</p>
+        <p style={{ fontSize:13, color:'#9C9B96', margin:'0 0 40px', borderBottom:'1px solid #E8E6DC', paddingBottom:24 }}>Notoria · Versión {version} · Última actualización: {fecha}</p>
 
         <H2>1. Aceptación de los términos</H2>
         <P>Al registrarte y utilizar Notoria (usenotoria.app), aceptas estos Términos de Servicio en su totalidad. Si no estás de acuerdo con alguna parte de estos términos, no puedes utilizar el servicio. Notoria es operado por {CONTACTO.razonSocial}, RUC {CONTACTO.ruc}, con domicilio fiscal en {CONTACTO.direccion}.</P>
@@ -80,7 +81,7 @@ export default function TerminosPage() {
 
         <div style={{ marginTop:40, padding:'20px 24px', background:'#FFFFFF', border:'1px solid #E8E6DC', borderRadius:6 }}>
           <p style={{ fontSize:12, color:'#9C9B96', margin:0, lineHeight:1.7 }}>
-            Estos Términos fueron actualizados el {fecha}. Al continuar usando Notoria después de cualquier modificación, aceptas los nuevos términos.
+            Términos versión {version}, actualizados el {fecha}. Al continuar usando Notoria después de cualquier modificación, aceptas los nuevos términos.
           </p>
         </div>
       </div>

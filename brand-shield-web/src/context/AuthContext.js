@@ -115,7 +115,7 @@ export const AuthProvider = ({ children }) => {
     // El idioma viaja en el alta. Sin esto toda cuenta nacía con el default
     // 'es', y quien navegaba en inglés recibía todos los correos en español sin
     // enterarse de que había un selector en Configuración.
-    const data = await auth.registro({ nombre, email, password, idioma: idiomaPreferido() });
+    const data = await auth.registro({ nombre, email, password, idioma: idiomaPreferido(), aceptaTerminosYPrivacidad: true });
     localStorage.setItem('bs_token', data.token);
     setCuentaActiva('');
     localStorage.removeItem('bs_onboarding');

@@ -13,7 +13,8 @@ const H2 = ({ children }) => <h2 style={{ fontSize:17, fontWeight:700, color:'#1
 const P = ({ children }) => <p style={{ fontSize:14, color:'#5C5B57', lineHeight:1.8, margin:'0 0 12px' }}>{children}</p>;
 
 export default function DevolucionesPage() {
-  const fecha = '5 de agosto de 2026';
+  const fecha = '8 de octubre de 2026';
+  const version = '1.1';
   return (
     <div style={{ minHeight:'100vh', background:'#FAF9F5', fontFamily:GEO }}>
       <nav style={{ borderBottom:'1px solid #E8E6DC', padding:'0 28px', height:56, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
@@ -27,7 +28,7 @@ export default function DevolucionesPage() {
       <div style={{ maxWidth:720, margin:'0 auto', padding:'48px 24px 72px' }}>
         <p style={{ fontSize:11, color:G, fontWeight:600, textTransform:'uppercase', letterSpacing:2, margin:'0 0 12px' }}>Documento legal</p>
         <h1 style={{ fontSize:34, fontWeight:900, color:'#141413', margin:'0 0 8px', letterSpacing:'-1.5px' }}>Política de cambios y devoluciones</h1>
-        <p style={{ fontSize:13, color:'#9C9B96', margin:'0 0 40px', borderBottom:'1px solid #E8E6DC', paddingBottom:24 }}>Notoria · Última actualización: {fecha}</p>
+        <p style={{ fontSize:13, color:'#9C9B96', margin:'0 0 40px', borderBottom:'1px solid #E8E6DC', paddingBottom:24 }}>Notoria · Versión {version} · Última actualización: {fecha}</p>
 
         <H2>1. Naturaleza del servicio</H2>
         <P>Notoria comercializa un servicio digital de monitoreo de reputación online por suscripción. No se entregan bienes físicos, por lo que no existen envíos, cambios de talla, color ni devoluciones de mercadería. Lo que se contrata es el acceso a la plataforma durante un periodo determinado (mensual o anual).</P>

@@ -32,6 +32,17 @@ const { dondeNegocio, permisosDe, cuentasDe } = require('../../lib/equipo');
 // desde un call-site nuevo.
 const emailNormalizado = z.string().trim().toLowerCase().pipe(z.string().email('Email inválido'));
 
+// Las versiones se deciden en el servidor: aceptar una versión mandada por el
+// navegador permitiría inventar una versión vieja o inexistente como evidencia.
+const VERSION_TERMINOS = '1.1';
+const VERSION_PRIVACIDAD = '1.1';
+const documentosAceptados = (origen) => ({
+  create: [
+    { documento: 'TERMINOS', version: VERSION_TERMINOS, origen },
+    { documento: 'PRIVACIDAD', version: VERSION_PRIVACIDAD, origen },
+  ],
+});
+
 const schemaRegistro = z.object({
   nombre: z.string().min(2, 'El nombre debe tener al menos 2 caracteres'),
   email: emailNormalizado,
@@ -49,6 +60,11 @@ const schemaRegistro = z.object({
   // Opcional a propósito: un cliente viejo del API o una petición sin este campo
   // siguen funcionando y caen al default, que es el comportamiento de antes.
   idioma: z.enum(['es', 'en']).optional(),
+  // El servidor, no solo el checkbox, exige esta aceptación. Así una petición
+  // directa no puede crear una cuenta sin evidencia de Términos y Privacidad.
+  aceptaTerminosYPrivacidad: z.literal(true, {
+    errorMap: () => ({ message: 'Debes aceptar los Términos y la Política de Privacidad para continuar' }),
+  }),
 });
 
 const schemaLogin = z.object({
@@ -107,6 +123,7 @@ router.post('/registro', async (req, res, next) => {
         password: passwordHash,
         telefono: datos.telefono,
         ...(datos.idioma ? { idioma: datos.idioma } : {}),
+        aceptacionesLegales: documentosAceptados('REGISTRO_EMAIL'),
       },
       select: {
         id: true,
@@ -646,7 +663,7 @@ router.delete('/cuenta', autenticar, async (req, res, next) => {
 // Requiere: npm install google-auth-library
 router.post('/google', async (req, res, next) => {
   try {
-    const { credential } = req.body;
+    const { credential, aceptaTerminosYPrivacidad } = req.body;
     if (!credential) return res.status(400).json({ error: 'credential requerido' });
 
     const { OAuth2Client } = require('google-auth-library');
@@ -685,6 +702,9 @@ router.post('/google', async (req, res, next) => {
     const esNuevo = !usuario;
 
     if (!usuario) {
+      if (aceptaTerminosYPrivacidad !== true) {
+        return res.status(400).json({ error: 'Debes aceptar los Términos y la Política de Privacidad para crear una cuenta con Google.' });
+      }
       // Crear nuevo usuario. Llega con el correo ya verificado por Google, así
       // que no tiene sentido pedirle que verifique otra vez: sin esto, el panel
       // le mostraba la franja amarilla de "verifica tu correo" a alguien que
@@ -696,6 +716,7 @@ router.post('/google', async (req, res, next) => {
           password: '', // Sin contraseña para usuarios de Google
           googleId,
           emailVerificado: true,
+          aceptacionesLegales: documentosAceptados('REGISTRO_GOOGLE'),
         },
       });
     } else if (!usuario.googleId) {

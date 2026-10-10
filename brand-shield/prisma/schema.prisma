@@ -105,11 +105,39 @@ model Usuario {
   membresias           Miembro[]           @relation("MembresiasDelUsuario")
   invitaciones         Invitacion[]        @relation("InvitacionesDeLaCuenta")
   actividad            RegistroActividad[] @relation("ActividadDeLaCuenta")
+  aceptacionesLegales  AceptacionLegal[]
   creadoEn             DateTime            @default(now())
   actualizadoEn        DateTime            @updatedAt
 
   @@index([tokenResetHash])
   @@map("usuarios")
+}
+
+// Evidencia inmutable de los documentos que una persona aceptó al crear su
+// cuenta. Es una tabla, no dos columnas en Usuario: al publicar una versión
+// futura se conserva qué versión aceptó antes y cuándo ocurrió cada aceptación.
+model AceptacionLegal {
+  id         String                @id @default(cuid())
+  usuarioId  String
+  documento  DocumentoLegal
+  version    String
+  origen     OrigenAceptacionLegal
+  aceptadoEn DateTime              @default(now())
+  usuario    Usuario               @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, documento, version])
+  @@index([usuarioId, aceptadoEn])
+  @@map("aceptaciones_legales")
+}
+
+enum DocumentoLegal {
+  TERMINOS
+  PRIVACIDAD
+}
+
+enum OrigenAceptacionLegal {
+  REGISTRO_EMAIL
+  REGISTRO_GOOGLE
 }
 
 enum Plan {

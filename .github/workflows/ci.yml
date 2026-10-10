@@ -94,8 +94,10 @@ jobs:
   # Venta de punta a punta contra el sandbox REAL de Culqi (réplica del auditor,
   # 2026-10-07, §6): registro → pago → renovación → comisión → reembolso +
   # webhook → reversión → bajada. Necesita las llaves de INTEGRACIÓN de Culqi
-  # como secretos del repo (CULQI_PUBLIC_KEY_TEST / CULQI_SECRET_KEY_TEST); sin
-  # ellos el job se salta con un aviso. El script se niega a correr con llaves live.
+  # como secretos del repo (CULQI_PUBLIC_KEY_TEST / CULQI_SECRET_KEY_TEST). En
+  # main son obligatorios: un verde sin esta prueba no es evidencia de que los
+  # cobros sigan funcionando. En PRs se permite omitirlos porque GitHub no
+  # expone secretos a forks.
   e2e-venta:
     runs-on: ubuntu-latest
     services:
@@ -124,11 +126,16 @@ jobs:
           cache: npm
           cache-dependency-path: brand-shield/package-lock.json
       - run: npm ci
-      - name: Sin llaves de integración de Culqi
-        if: env.CULQI_SECRET_KEY_TEST == ''
-        run: echo "::warning::e2e-venta saltado — faltan los secretos CULQI_PUBLIC_KEY_TEST / CULQI_SECRET_KEY_TEST"
+      - name: Llaves de integración requeridas en main
+        if: github.ref == 'refs/heads/main' && (env.CULQI_PUBLIC_KEY_TEST == '' || env.CULQI_SECRET_KEY_TEST == '')
+        run: |
+          echo "::error::Faltan CULQI_PUBLIC_KEY_TEST y/o CULQI_SECRET_KEY_TEST; e2e-venta es obligatorio en main"
+          exit 1
+      - name: Sin llaves de integración en PR
+        if: github.ref != 'refs/heads/main' && (env.CULQI_PUBLIC_KEY_TEST == '' || env.CULQI_SECRET_KEY_TEST == '')
+        run: echo "::warning::e2e-venta omitido en este PR porque GitHub no expone secretos a forks"
       - name: Venta de punta a punta (Culqi integración)
-        if: env.CULQI_SECRET_KEY_TEST != ''
+        if: env.CULQI_PUBLIC_KEY_TEST != '' && env.CULQI_SECRET_KEY_TEST != ''
         run: node scripts/e2e-venta.js
 
   frontend:
